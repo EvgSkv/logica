@@ -1,0 +1,8 @@
+===========  Row: 0  ===========
+state: OR
+population: 500000
+internet_users: 400000
+===========  Row: 1  ===========
+state: WA
+population: 1002000
+internet_users: 900200

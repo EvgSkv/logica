@@ -1,0 +1,57 @@
+CREATE OR REPLACE TABLE logica_test.A AS SELECT
+  r"a" AS col0; -- at [1:1]
+Replaced active-grp.logica_test.A
+
+CREATE OR REPLACE TABLE logica_test.B AS SELECT
+  r"b" AS col0; -- at [6:1]
+Replaced active-grp.logica_test.B
+
+CREATE OR REPLACE TABLE logica_test.AB AS SELECT * FROM (
+  (
+    SELECT
+      A.col0 AS col0
+    FROM
+      logica_test.A AS A
+  ) UNION ALL
+  (
+    SELECT
+      B.col0 AS col0
+    FROM
+      logica_test.B AS B
+  )
+); -- at [11:1]
+Replaced active-grp.logica_test.AB
+
+CREATE OR REPLACE TABLE logica_test.C AS SELECT
+  r"c" AS col0; -- at [28:1]
+Replaced active-grp.logica_test.C
+
+CREATE OR REPLACE TABLE logica_test.ABC AS SELECT * FROM (
+  (
+    SELECT
+      AB.col0 AS col0
+    FROM
+      logica_test.AB AS AB
+  ) UNION ALL
+  (
+    SELECT
+      C.col0 AS col0
+    FROM
+      logica_test.C AS C
+  )
+); -- at [33:1]
+Replaced active-grp.logica_test.ABC
+
+WITH t_0_Save AS (SELECT
+  SUM(1) AS yotaql_value
+FROM
+  logica_test.ABC AS ABC)
+(SELECT
+  Save.yotaql_value AS yotaql_value
+FROM
+  t_0_Save AS Save); -- at [50:1]
++--------------+
+| yotaql_value |
++--------------+
+|            3 |
++--------------+

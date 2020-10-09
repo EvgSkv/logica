@@ -1,0 +1,10 @@
+   col0   
+----------
+ doctors
+ grain
+ milk
+ movies
+ oil
+ software
+(6 rows)
+

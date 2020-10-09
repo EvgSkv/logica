@@ -1,0 +1,20 @@
+col0             
+-----------------
+white cat runs.  
+white cat jumps. 
+white cat sleeps.
+black cat runs.  
+black cat jumps. 
+black cat sleeps.
+brown cat runs.  
+brown cat jumps. 
+brown cat sleeps.
+white dog runs.  
+white dog jumps. 
+white dog sleeps.
+black dog runs.  
+black dog jumps. 
+black dog sleeps.
+brown dog runs.  
+brown dog jumps. 
+brown dog sleeps.
