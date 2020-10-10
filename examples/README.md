@@ -14,4 +14,9 @@ See the License for the specific language governing permissions and
 limitations under the License.
 -->
 
-_Stay tuned. Examples will be checked-in shortly._
+# Logica programs examples in CoLab
+
+1. [Hello world](https://colab.research.google.com/github/EvgSkv/logica/blob/main/examples/Logica_example_Hello_World.ipynb)
+1. [Large countries with top life expectancy.](https://colab.research.google.com/github/EvgSkv/logica/blob/main/examples/Logica_example_Life_expectency.ipynb)
+1. [Covid analysis.](https://colab.research.google.com/github/EvgSkv/logica/blob/main/examples/Logica_example_Covid_Analysis.ipynb)
+1. [News analysis.](https://colab.research.google.com/github/EvgSkv/logica/blob/main/examples/Logica_example_News_Clusters.ipynb)
