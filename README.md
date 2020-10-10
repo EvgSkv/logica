@@ -73,23 +73,46 @@ negation. In Logica we tried to make choices that make understanding of the
 resulting SQL structure as easy as possible, thus empowering user to write
 programs that are executed efficiently.
 
-### How to learn?
-
-Learn basics of Logica by reading through tutorial located at `tutorial` folder.
-See examples of using Logica in `examples` folder. Tutrial and examples show how
-to access Logica from CoLab.
-
 ### Why is it called _Logica_?
 
 _Logica_ stands for _**Logic** with **a**ggregation_.
 
+### How to learn?
+
+Learn basics of Logica with the [CoLab tutorial](https://colab.research.google.com/github/EvgSkv/logica/blob/main/tutorial/Logica_tutorial.ipynb) located at [`tutorial`](https://github.com/EvgSkv/logica/tree/main/tutorial) folder.
+See examples of using Logica in [`examples`](https://github.com/EvgSkv/logica/tree/main/examples) folder.
+
+Tutorial and examples show how to access Logica from CoLab. You can also install Logica command line tool.
+
+### Prerequisites
+
+To run Logica programs on BigQuery you will need a 
+[Google Cloud Project](https://console.cloud.google.com/projectcreate).
+Once you have a project you can run Logica programs in CoLab providing your project id.
+
+To initiate Logica predicates execution from the command line 
+you will need `bq`, a
+BigQuery [command line tool](https://cloud.google.com/bigquery/docs/bq-command-line-tool). For that you need to install 
+[Google Cloud SDK](https://cloud.google.com/sdk/docs/install).
+
 ### Installation
 
-_To be written._
+Google Cloud Project is the only thing you need to run Logica in Colab, see
+[Hello World example](https://colab.research.google.com/github/EvgSkv/logica/blob/main/examples/Logica_example_Hello_World.ipynb).
 
-### Contact
+To use Logica command line tool clone the repository from GitHub and
+add the folder to `PATH`.
 
-_To be written._
+```sh
+git clone https://github.com/evgskv/logica
+PATH=${PATH}:$(pwd)/logica
+logica - print Greet <<<'Greet(greeting: "Hello world!")'
+```
+
+### Feedback
+
+Feel free to create [github issues](https://github.com/EvgSkv/logica/issues)
+for bugs and feature requests.
 
 ---
 
