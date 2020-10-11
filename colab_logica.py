@@ -26,6 +26,8 @@ import IPython
 from IPython.core.magic import register_cell_magic
 from IPython.display import display
 
+import pandas
+
 from parser_py import parse
 
 from google.cloud import bigquery
@@ -34,10 +36,15 @@ from google.colab import widgets
 
 PROJECT = None
 
+DB_CONNECTION = None
 
 def SetProject(project):
   global PROJECT
   PROJECT = project
+
+def SetDbConnection(connection):
+  global DB_CONNECTION
+  DB_CONNECTION = connection
 
 
 @register_cell_magic
@@ -55,10 +62,14 @@ def ParseList(line):
 
 
 def RunSQL(sql, engine):
-  if engine != 'bigquery':
-    raise Exception('Logica colab only supports BigQuery for now.')
-  client = bigquery.Client(project=PROJECT)
-  return client.query(sql).to_dataframe()
+  if engine == 'bigquery':
+    client = bigquery.Client(project=PROJECT)
+    return client.query(sql).to_dataframe()
+  elif engine == 'psql':
+    return pandas.read_sql(sql, DB_CONNECTION)
+  else:
+    raise Exception('Logica colab only supports BigQuery and PostgreSQL '
+                    'for now.')
 
 
 def Logica(line, cell, run_query):
