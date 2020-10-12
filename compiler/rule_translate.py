@@ -21,8 +21,12 @@ import copy
 import string
 import sys
 
-from common import color
-from compiler import expr_translate
+if '.' not in __package__:
+  from common import color
+  from compiler import expr_translate
+else:
+  from ..common import color
+  from ..compiler import expr_translate
 
 xrange = range
 

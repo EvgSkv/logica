@@ -16,10 +16,10 @@
 
 """Library for using Logica in CoLab."""
 
-from common import color
+from .common import color
 
-from compiler import rule_translate
-from compiler import universe
+from .compiler import rule_translate
+from .compiler import universe
 
 import IPython
 
@@ -28,7 +28,7 @@ from IPython.display import display
 
 import pandas
 
-from parser_py import parse
+from .parser_py import parse
 
 from google.cloud import bigquery
 from google.colab import widgets

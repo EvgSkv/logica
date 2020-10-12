@@ -20,10 +20,16 @@
 import subprocess
 import sys
 
-from compiler import functors
-from compiler import rule_translate
-from compiler import universe
-from parser_py import parse
+if '.' not in __package__:
+  from compiler import functors
+  from compiler import rule_translate
+  from compiler import universe
+  from parser_py import parse
+else:
+  from ..compiler import functors
+  from ..compiler import rule_translate
+  from ..compiler import universe
+  from ..parser_py import parse
 
 
 def ParseOrExit(filename):

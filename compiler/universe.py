@@ -27,12 +27,20 @@ import traceback
 
 import json
 
-from common import color
-from compiler import dialects
-from compiler import expr_translate
-from compiler import functors
-from compiler import rule_translate
-from parser_py import parse
+if '.' not in __package__:
+  from common import color
+  from compiler import dialects
+  from compiler import expr_translate
+  from compiler import functors
+  from compiler import rule_translate
+  from parser_py import parse
+else:
+  from ..common import color
+  from ..compiler import dialects
+  from ..compiler import expr_translate
+  from ..compiler import functors
+  from ..compiler import rule_translate
+  from ..parser_py import parse
 
 PredicateInfo = collections.namedtuple('PredicateInfo',
                                        ['embeddable'])

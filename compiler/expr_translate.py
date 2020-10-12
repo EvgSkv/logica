@@ -20,10 +20,14 @@ import copy
 
 import json
 
-from common import color
-from common.data import processed_functions
-
-from compiler import dialects
+if '.' not in __package__:
+  from common import color
+  from common.data import processed_functions
+  from compiler import dialects
+else:
+  from ..common import color
+  from ..common.data import processed_functions
+  from ..compiler import dialects
 
 
 class QL(object):

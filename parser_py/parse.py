@@ -28,7 +28,10 @@ import sys
 from typing import Dict, Iterator, List, Optional, Tuple
 import six
 
-from common import color
+if '.' not in __package__:
+  from common import color
+else:
+  from ..common import color
 
 CLOSE_TO_OPEN = {
     ')': '(',

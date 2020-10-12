@@ -33,8 +33,12 @@ import collections
 import copy
 import sys
 
-from common import color
-from parser_py import parse
+if '.' not in __package__:
+  from common import color
+  from parser_py import parse
+else:
+  from ..common import color
+  from ..parser_py import parse
 
 
 class FunctorError(Exception):

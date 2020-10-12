@@ -38,12 +38,20 @@ import os
 import subprocess
 import sys
 
-
-from common import color
-from compiler import functors
-from compiler import rule_translate
-from compiler import universe
-from parser_py import parse
+# We are doing this 'if' to allow usage of the code as package and as a
+# script.
+if __name__ == '__main__' and not __package__:
+  from common import color
+  from compiler import functors
+  from compiler import rule_translate
+  from compiler import universe
+  from parser_py import parse
+else:
+  from .common import color
+  from .compiler import functors
+  from .compiler import rule_translate
+  from .compiler import universe
+  from .parser_py import parse
 
 
 def ReadUserFlags(rules, argv):
@@ -169,6 +177,12 @@ def main(argv):
       else:
         assert False, 'Unknown engine: %s' % engine
       print(o.decode())
+
+
+def run_main():
+  """Run main function with system arguments."""
+  main(sys.argv)
+
 
 if __name__ == '__main__':
   main(sys.argv)
