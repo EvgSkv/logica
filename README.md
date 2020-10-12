@@ -16,7 +16,7 @@ limitations under the License.
 
 # Logica: language of Big Data
 
-Logica is an open source logic programming
+Logica is an open source declarative logic programming
 language for data manipulation. Logica is a successor to
 [Yedalog](https://research.google/pubs/pub43462/),
 a language created at Google earlier.
@@ -90,6 +90,8 @@ To run Logica programs on BigQuery you will need a
 [Google Cloud Project](https://console.cloud.google.com/projectcreate).
 Once you have a project you can run Logica programs in CoLab providing your project id.
 
+To run Logica locally you need [Python3](https://www.python.org/downloads/).
+
 To initiate Logica predicates execution from the command line 
 you will need `bq`, a
 BigQuery [command line tool](https://cloud.google.com/bigquery/docs/bq-command-line-tool). For that you need to install 
@@ -100,13 +102,156 @@ BigQuery [command line tool](https://cloud.google.com/bigquery/docs/bq-command-l
 Google Cloud Project is the only thing you need to run Logica in Colab, see
 [Hello World example](https://colab.research.google.com/github/EvgSkv/logica/blob/main/examples/Logica_example_Hello_World.ipynb).
 
-To use Logica command line tool clone the repository from GitHub and
-add the folder to `PATH`.
+You can install Logica command with `pip` as follows.
+
+```sh
+# Install.
+python3 -m pip install logica
+# Run:
+# To see usage message.
+python3 -m logica
+# To print SQL for HelloWorld program.
+python3 -m logica - print Greet <<<'Greet(greeting: "Hello world!")'
+```
+
+If your `PATH` includes Python's `bin` folder then you will also be able to
+run it simply as
+
+```sh
+logica - print Greet <<<'Greet(greeting: "Hello world!")'
+```
+
+Alaternatively, you can clone GitHub repository:
 
 ```sh
 git clone https://github.com/evgskv/logica
-PATH=${PATH}:$(pwd)/logica
-logica - print Greet <<<'Greet(greeting: "Hello world!")'
+cd logica
+./logica - print Greet <<<'Greet(greeting: "Hello world!")'
+```
+
+
+### Code samples
+
+Here a couple examples of how Logica code looks like.
+
+#### Prime numbers
+
+Find prime numbers less than 30.
+
+Program `primes.l`:
+```sh
+# Define integers as numbers from 1 to 29.
+Z(x) :- x in Range(30);
+# Define primes.
+Prime(prime: x) :-
+  Z(x),
+  x > 1,
+  ~(
+    Z(y),
+    y > 1,
+    y != x,
+    Mod(x, y) == 0
+  );
+```
+
+Running `primes.l`
+```sh
+$ logica primes.l run Prime
++-------+
+| prime |
++-------+
+|     2 |
+|     3 |
+|     5 |
+|     7 |
+|    11 |
+|    13 |
+|    17 |
+|    19 |
+|    23 |
+|    29 |
++-------+
+```
+
+### News mentions
+
+We query [GDELT]() datasets with two questions.
+
+**Who was mentioned in the news in 2020 the most?**
+
+Program `mentions.l`
+```sh
+@OrderBy(Mentions, "mentions desc");
+@Limit(Mentions, 10);
+Mentions(person:, mentions? += 1) distinct :-
+  gdelt-bq.gdeltv2.gkg(persons:, date:),
+  Substr(ToString(date), 0, 4) == "2020",
+  the_persons == Split(persons, ";"),
+  person in the_persons;
+```
+
+Running `mentions.l`
+```
+$ logica mentions.l run Mentions
++----------------+----------------+
+|     person     | mentions_count |
++----------------+----------------+
+| donald trump   |        3077130 |
+| los angeles    |        1078412 |
+| joe biden      |        1054827 |
+| george floyd   |         872919 |
+| boris johnson  |         674786 |
+| barack obama   |         438181 |
+| vladimir putin |         410587 |
+| bernie sanders |         387383 |
+| andrew cuomo   |         345462 |
+| las vegas      |         325487 |
++----------------+----------------+
+```
+
+Note that cities of Los Angeles and Las Vegas are mentioned in this table due to known
+missclasification issue in the GDELT data analysis.
+
+**Which Twitter accounts did New York times cite in 2020 most number of times?**
+
+Program `twitter.l`
+
+```sh
+# Partial function that maps twitter media links to
+# lowercase twitter account.
+ExtractTwitterAccount(media_link) = Lower(account) :-
+  account == RegexpExtract(media_link, "twitter.com/(.*?)/"),
+  !IsNull(account);
+
+# Extracting twitter accounts that were mentioned at New York Times website
+# most number of times.
+@OrderBy(TwitterCitations, "urls_count desc");
+@Limit(TwitterCitations, 10);
+TwitterCitations(twitter_account:, urls_count? Count= url) distinct :-
+  gdelt-bq.gdeltv2.gkg_socialoutlinks(date:, documentidentifier: url, sociallink:),
+  Like(url, "%//www.nytimes.com/%"),
+  Substr(ToString(date), 0, 4) == "2020",
+  twitter_account == ExtractTwitterAccount(sociallink);
+```
+
+Running `twitter.l`
+
+```sh
+$ logica twitter.l run TwitterCitations
++-----------------+------------+
+| twitter_account | urls_count |
++-----------------+------------+
+| realdonaldtrump |       1038 |
+| joebiden        |         63 |
+| nycmayor        |         40 |
+| nygovcuomo      |         39 |
+| aoc             |         36 |
+| donaldjtrumpjr  |         26 |
+| lindseygrahamsc |         25 |
+| berniesanders   |         24 |
+| ewarren         |         23 |
+| paulkrugman     |         22 |
++-----------------+------------+
 ```
 
 ### Feedback
