@@ -19,8 +19,12 @@
 
 import subprocess
 
-from common import color
-from common import logica_lib
+if '.' not in __package__:
+  from common import color
+  from common import logica_lib
+else:
+  from ..common import color
+  from ..common import logica_lib
 
 
 class TestManager(object):
