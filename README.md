@@ -175,9 +175,8 @@ $ logica primes.l run Prime
 
 ### News mentions
 
-We query [GDELT]() datasets with two questions.
-
-**Who was mentioned in the news in 2020 the most?**
+Who was mentioned in the news in 2020 the most?
+Let's query [GDELT Project](https://www.gdeltproject.org/) dataset.
 
 Program `mentions.l`
 ```
@@ -211,48 +210,6 @@ $ logica mentions.l run Mentions
 
 Note that cities of Los Angeles and Las Vegas are mentioned in this table due to known
 missclasification issue in the GDELT data analysis.
-
-**Which Twitter accounts did New York times cite in 2020 most number of times?**
-
-Program `twitter.l`
-
-```
-# Partial function that maps twitter media links to
-# lowercase twitter account.
-ExtractTwitterAccount(media_link) = Lower(account) :-
-  account == RegexpExtract(media_link, "twitter.com/(.*?)/"),
-  !IsNull(account);
-
-# Extracting twitter accounts that were mentioned at New York Times website
-# most number of times.
-@OrderBy(TwitterCitations, "urls_count desc");
-@Limit(TwitterCitations, 10);
-TwitterCitations(twitter_account:, urls_count? Count= url) distinct :-
-  gdelt-bq.gdeltv2.gkg_socialoutlinks(date:, documentidentifier: url, sociallink:),
-  Like(url, "%//www.nytimes.com/%"),
-  Substr(ToString(date), 0, 4) == "2020",
-  twitter_account == ExtractTwitterAccount(sociallink);
-```
-
-Running `twitter.l`
-
-```sh
-$ logica twitter.l run TwitterCitations
-+-----------------+------------+
-| twitter_account | urls_count |
-+-----------------+------------+
-| realdonaldtrump |       1038 |
-| joebiden        |         63 |
-| nycmayor        |         40 |
-| nygovcuomo      |         39 |
-| aoc             |         36 |
-| donaldjtrumpjr  |         26 |
-| lindseygrahamsc |         25 |
-| berniesanders   |         24 |
-| ewarren         |         23 |
-| paulkrugman     |         22 |
-+-----------------+------------+
-```
 
 ### Feedback
 
