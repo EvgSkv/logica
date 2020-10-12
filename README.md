@@ -139,7 +139,7 @@ Here a couple examples of how Logica code looks like.
 Find prime numbers less than 30.
 
 Program `primes.l`:
-```sh
+```prolog
 # Define integers as numbers from 1 to 29.
 Z(x) :- x in Range(30);
 # Define primes.
@@ -180,7 +180,7 @@ We query [GDELT]() datasets with two questions.
 **Who was mentioned in the news in 2020 the most?**
 
 Program `mentions.l`
-```sh
+```prolog
 @OrderBy(Mentions, "mentions desc");
 @Limit(Mentions, 10);
 Mentions(person:, mentions? += 1) distinct :-
@@ -216,7 +216,7 @@ missclasification issue in the GDELT data analysis.
 
 Program `twitter.l`
 
-```sh
+```prolog
 # Partial function that maps twitter media links to
 # lowercase twitter account.
 ExtractTwitterAccount(media_link) = Lower(account) :-
