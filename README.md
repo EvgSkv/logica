@@ -140,14 +140,14 @@ Find prime numbers less than 30.
 
 Program `primes.l`:
 ```
-# Define integers as numbers from 1 to 29.
-Z(x) :- x in Range(30);
+# Define natural numbers from 1 to 29.
+N(x) :- x in Range(30);
 # Define primes.
 Prime(prime: x) :-
-  Z(x),
+  N(x),
   x > 1,
   ~(
-    Z(y),
+    N(y),
     y > 1,
     y != x,
     Mod(x, y) == 0
