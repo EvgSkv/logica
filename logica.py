@@ -178,5 +178,11 @@ def main(argv):
         assert False, 'Unknown engine: %s' % engine
       print(o.decode())
 
+
+def run_main():
+  """Run main function with system arguments."""
+  main(sys.argv)
+
+
 if __name__ == '__main__':
   main(sys.argv)
