@@ -20,3 +20,4 @@ limitations under the License.
 1. [Large countries with top life expectancy.](https://colab.research.google.com/github/EvgSkv/logica/blob/main/examples/Logica_example_Life_expectency.ipynb)
 1. [Covid analysis.](https://colab.research.google.com/github/EvgSkv/logica/blob/main/examples/Logica_example_Covid_Analysis.ipynb)
 1. [News analysis.](https://colab.research.google.com/github/EvgSkv/logica/blob/main/examples/Logica_example_News_Clusters.ipynb)
+1. [Avengers and PostgreSQL](https://colab.research.google.com/github/EvgSkv/logica/blob/main/examples/Logica_example_Avengers_and_PostgreSQL.ipynb)
