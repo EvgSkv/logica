@@ -30,6 +30,7 @@ import pandas
 
 from .parser_py import parse
 
+from google.cloud import auth
 from google.cloud import bigquery
 from google.colab import widgets
 
@@ -38,6 +39,8 @@ PROJECT = None
 
 DB_CONNECTION = None
 
+USER_AUTHENTICATED = False
+
 def SetProject(project):
   global PROJECT
   PROJECT = project
@@ -45,6 +48,18 @@ def SetProject(project):
 def SetDbConnection(connection):
   global DB_CONNECTION
   DB_CONNECTION = connection
+
+def EnsureAuthenticatedUser():
+  global USER_AUTHENTICATED
+  global PROJECT
+  if USER_AUTHENTICATED:
+    return
+  auth.authenticate_user()
+  if PROJECT is None:
+    print("Please enter project_id to use for BigQuery querries.")
+    PROJECT = input()
+    print("project_id is set to %s" % PROJECT)
+    print("You can change it with logica.colab_logica.SetProject command.")
 
 
 @register_cell_magic
