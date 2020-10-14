@@ -35,7 +35,6 @@ from google.colab import auth
 from google.colab import widgets
 
 
-
 PROJECT = None
 
 DB_CONNECTION = None
