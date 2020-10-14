@@ -31,7 +31,7 @@ import pandas
 from .parser_py import parse
 
 from google.cloud import bigquery
-from google.cloud import auth
+from google.colab import auth
 from google.colab import widgets
 
 
