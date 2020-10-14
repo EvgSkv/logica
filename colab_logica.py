@@ -79,6 +79,7 @@ def ParseList(line):
 
 def RunSQL(sql, engine):
   if engine == 'bigquery':
+    EnsureAuthenticatedUser()
     client = bigquery.Client(project=PROJECT)
     return client.query(sql).to_dataframe()
   elif engine == 'psql':
@@ -126,7 +127,6 @@ def Logica(line, cell, run_query):
 
     with bar.output_to(logs_idx):
       if run_query:
-        EnsureAuthenticatedUser()
         t = RunSQL(sql, engine)
         ip.push({predicate: t})
 
