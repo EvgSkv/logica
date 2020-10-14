@@ -21,7 +21,7 @@ language for data manipulation. Logica is a successor to
 [Yedalog](https://research.google/pubs/pub43462/),
 a language created at Google earlier.
 
-### Why?
+## Why?
 
 Logica is for engineers, data scientists and other specialists who want to use
 logic programming syntax when writing queries and pipelines to run on
@@ -40,7 +40,7 @@ We encourage you to try Logica, especially if
 
 In the future we plan to support more SQL dialects and engines.
 
-### I have not heard of logic programming. What is it?
+## I have not heard of logic programming. What is it?
 
 Logic programming is a declarative programming paradigm where the program is
 written as a set of logical statements.
@@ -61,7 +61,7 @@ may become costly when the logic that you want to express is non trivial.
 There are many examples of hard-to-read SQL queries that correspond to simple
 logic programs.
 
-### How does Logica work?
+## How does Logica work?
 
 Logica compiles the logic program into a SQL expression, so it can be executed
 on BigQuery, the state of the art SQL engine.
@@ -73,18 +73,18 @@ negation. In Logica we tried to make choices that make understanding of the
 resulting SQL structure as easy as possible, thus empowering user to write
 programs that are executed efficiently.
 
-### Why is it called _Logica_?
+## Why is it called _Logica_?
 
 _Logica_ stands for _**Logic** with **a**ggregation_.
 
-### How to learn?
+## How to learn?
 
 Learn basics of Logica with the [CoLab tutorial](https://colab.research.google.com/github/EvgSkv/logica/blob/main/tutorial/Logica_tutorial.ipynb) located at [`tutorial`](https://github.com/EvgSkv/logica/tree/main/tutorial) folder.
 See examples of using Logica in [`examples`](https://github.com/EvgSkv/logica/tree/main/examples) folder.
 
 Tutorial and examples show how to access Logica from CoLab. You can also install Logica command line tool.
 
-### Prerequisites
+## Prerequisites
 
 To run Logica programs on BigQuery you will need a 
 [Google Cloud Project](https://console.cloud.google.com/projectcreate).
@@ -97,7 +97,7 @@ you will need `bq`, a
 BigQuery [command line tool](https://cloud.google.com/bigquery/docs/bq-command-line-tool). For that you need to install 
 [Google Cloud SDK](https://cloud.google.com/sdk/docs/install).
 
-### Installation
+## Installation
 
 Google Cloud Project is the only thing you need to run Logica in Colab, see
 [Hello World example](https://colab.research.google.com/github/EvgSkv/logica/blob/main/examples/Logica_example_Hello_World.ipynb).
@@ -130,11 +130,11 @@ cd logica
 ```
 
 
-### Code samples
+## Code samples
 
 Here a couple examples of how Logica code looks like.
 
-#### Prime numbers
+### Prime numbers
 
 Find prime numbers less than 30.
 
@@ -211,7 +211,7 @@ $ logica mentions.l run Mentions
 Note that cities of Los Angeles and Las Vegas are mentioned in this table due to known
 missclasification issue in the GDELT data analysis.
 
-### Feedback
+## Feedback
 
 Feel free to create [github issues](https://github.com/EvgSkv/logica/issues)
 for bugs and feature requests.
