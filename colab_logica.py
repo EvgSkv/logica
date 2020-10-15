@@ -82,10 +82,10 @@ def RunSQL(sql, engine):
     EnsureAuthenticatedUser()
     client = bigquery.Client(project=PROJECT)
     return client.query(sql).to_dataframe()
-  elif engine == 'psql':
+  elif engine == 'psql' or engine == 'sqlite':
     return pandas.read_sql(sql, DB_CONNECTION)
   else:
-    raise Exception('Logica colab only supports BigQuery and PostgreSQL '
+    raise Exception('Logica only supports BigQuery, PostgreSQL and SQLite '
                     'for now.')
 
 
