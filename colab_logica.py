@@ -82,8 +82,13 @@ def RunSQL(sql, engine):
     EnsureAuthenticatedUser()
     client = bigquery.Client(project=PROJECT)
     return client.query(sql).to_dataframe()
-  elif engine == 'psql' or engine == 'sqlite':
+  elif engine == 'psql':
     return pandas.read_sql(sql, DB_CONNECTION)
+  elif engine == 'sqlite':
+    statements = parse.SplitRaw(sql, ';')
+    for s in statements[:-1]:
+      cursor = DB_CONNECTION.execute(s)
+    return pandas.read_sql(statements[-1], DB_CONNECTION)
   else:
     raise Exception('Logica only supports BigQuery, PostgreSQL and SQLite '
                     'for now.')
