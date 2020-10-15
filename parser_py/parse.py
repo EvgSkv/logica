@@ -26,7 +26,6 @@ import re
 import string
 import sys
 from typing import Dict, Iterator, List, Optional, Tuple
-import six
 
 if '.' not in __package__:
   from common import color
