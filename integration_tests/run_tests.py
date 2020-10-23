@@ -44,6 +44,12 @@ def RunAll():
   RunTest("sqlite_test")
 
   RunTest(
+      name="functor_chain_test",
+      src="functor_chain_test.l",
+      golden="functor_chain_test.txt"
+  )
+
+  RunTest(
       name="quote_escape_test",
       src="quote_escape_test.l",
       golden="quote_escape_test.txt",
