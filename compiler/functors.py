@@ -252,6 +252,9 @@ class Functors(object):
         rules_to_update.append(r)
         predicates_to_annotate.add(rule_predicate_name)
       else:
+        # TODO: We should also remove predicates that become unused.
+        if rule_predicate_name in args_map:
+          continue
         call_key = self.CallKey(rule_predicate_name, args_map)
         if call_key in self.cached_calls:
           new_predicate_name = self.cached_calls[call_key]
