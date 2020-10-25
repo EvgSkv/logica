@@ -1092,10 +1092,7 @@ def ParseImport(file_import_str, parsed_imports, import_chain):
   """Parses an import, returns extracted rules."""
   file_import_parts = file_import_str.split('.')
   file_path = '/'.join(file_import_parts) + '.l'
-  print(file_import_str, ':', '->'.join(import_chain +
-                                                      [file_import_str]))
   if file_import_str in parsed_imports:
-
     if parsed_imports[file_import_str] is None:
       raise ParsingException(
           'Circular imports are not allowed: %s.' % '->'.join(import_chain +
