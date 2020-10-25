@@ -80,7 +80,7 @@ def TabBar(*args):
       def __exit__(self, *x):
           pass
   class MockTabBar:
-      def __init__(self, x):
+      def __init__(self):
           pass
       def output_to(self, x):
           return Tab()
