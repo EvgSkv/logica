@@ -41,6 +41,8 @@ DB_CONNECTION = None
 
 USER_AUTHENTICATED = False
 
+TABULATED_OUTPUT = True
+
 def SetProject(project):
   global PROJECT
   PROJECT = project
@@ -62,6 +64,27 @@ def EnsureAuthenticatedUser():
     print("You can change it with logica.colab_logica.SetProject command.")
   USER_AUTHENTICATED = True
 
+def SetTabulatedOutput(tabulated_output):
+  global TABULATED_OUTPUT
+  TABULATED_OUTPUT = tabulated_output
+
+def TabBar(*args):
+  """Returns a real TabBar or a mock. Useful for UIs that don't support JS."""
+  if TABULATED_OUTPUT:
+    return widgets.TabBar(*args)
+  class MockTab:
+      def __init__(self):
+          pass
+      def __enter__(self):
+          pass
+      def __exit__(self, *x):
+          pass
+  class MockTabBar:
+      def __init__(self, x):
+          pass
+      def output_to(self, x):
+          return Tab()
+  return MockTabBar()
 
 @register_cell_magic
 def logica(line, cell):
@@ -105,7 +128,7 @@ def Logica(line, cell, run_query):
   program = universe.LogicaProgram(parsed_rules)
   engine = program.annotations.Engine()
 
-  bar = widgets.TabBar(predicates + ['(Log)'])
+  bar = TabBar(predicates + ['(Log)'])
   logs_idx = len(predicates)
 
   ip = IPython.get_ipython()
@@ -121,7 +144,7 @@ def Logica(line, cell, run_query):
 
     # Publish output to Colab cell.
     with bar.output_to(idx):
-      sub_bar = widgets.TabBar(['SQL', 'Result'])
+      sub_bar = TabBar(['SQL', 'Result'])
       with sub_bar.output_to(0):
         print(
             color.Format(
