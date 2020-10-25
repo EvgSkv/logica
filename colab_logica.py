@@ -83,7 +83,7 @@ def TabBar(*args):
       def __init__(self):
           pass
       def output_to(self, x):
-          return Tab()
+          return MockTab()
   return MockTabBar()
 
 @register_cell_magic
