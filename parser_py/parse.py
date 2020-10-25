@@ -1097,7 +1097,7 @@ def ParseImport(file_import_str, parsed_imports, import_chain):
       raise ParsingException(
           'Circular imports are not allowed: %s.' % '->'.join(import_chain +
                                                              [file_import_str]),
-        HeritageAwareString(file_import_str))    
+          HeritageAwareString(file_import_str))    
     return None
   parsed_imports[file_import_str] = None
   if not os.path.exists(file_path):
