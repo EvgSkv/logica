@@ -26,15 +26,15 @@ Data("three_four_nine", x, y) :-
   y == ToInt64(x == 3 || x == 4 || x == 9);
 
 @OrderBy(DataSum, "col0", "col1");
-DataSum(n, x, y) Aggregate= CumulativeSum(y, [n], [n, x]) :-
+DataSum(n, x, y) Aggr= CumulativeSum(y, [n], [n, x]) :-
   Data(n, x, y);
 
 @OrderBy(DataWindowedSum, "col0", "col1");
-DataWindowedSum(n, x, y) Aggregate= WindowSum(y, [n], [n, x], 3) :-
+DataWindowedSum(n, x, y) Aggr= WindowSum(y, [n], [n, x], 3) :-
   Data(n, x, y);
 
 @OrderBy(NonzeroMax, "col0", "col1");
-NonzeroMax(n, x, y) Aggregate= WindowMax(x * y, [n], [x], 3) :- Data(n, x, y);
+NonzeroMax(n, x, y) Aggr= WindowMax(x * y, [n], [x], 3) :- Data(n, x, y);
 
 Test(DataSum, n, x, y) = DataSum(n, x, y);
 Test(DataWindowedSum, n, x, y) = DataWindowedSum(n, x, y);

@@ -39,20 +39,16 @@ class QL(object):
       'ToUInt64': 'CAST(%s AS UINT64)',
       'ToString': 'CAST(%s AS STRING)',
       # Aggregation.
-      'Aggregate': '%s',  # Placeholder to use formulas for aggregation.
+      'Aggr': '%s',  # Placeholder to use formulas for aggregation.
       'Agg+': 'SUM(%s)',
       'Agg++': 'ARRAY_CONCAT_AGG(%s)',
       # ArgMax and ArgMin return arg which achieves the max/min value.
       'ArgMax': 'ARRAY_AGG({0}.arg order by {0}.value desc limit 1)[OFFSET(0)]',
-      # ArgMaxK and ArgMinK return arg **and** value for K elements that achieve
-      # Max/Min value. It's not ideal that ArgMax and ArgMaxK return different
-      # types, but having values could be useful sometimes and so we'd have to
-      # introduce SortedLimitedList, which would be hard to remember.
       'ArgMaxK':
-          'ARRAY_AGG({0} order by {0}.value desc limit {1})',
+          'ARRAY_AGG({0}.arg order by {0}.value desc limit {1})',
       'ArgMin': 'ARRAY_AGG({0}.arg order by {0}.value limit 1)[OFFSET(0)]',
       'ArgMinK':
-          'ARRAY_AGG({0} order by {0}.value limit {1})',
+          'ARRAY_AGG({0}.arg order by {0}.value limit {1})',
       'Array': 'ARRAY_AGG({0}.value order by {0}.arg)',
       'Container': '%s',
       'Count': 'APPROX_COUNT_DISTINCT(%s)',
