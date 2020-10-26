@@ -67,10 +67,10 @@ class PostgreSQL(Dialect):
     return {
         'ArgMax': '(ARRAY_AGG({0}.arg order by {0}.value desc))[1]',
         'ArgMaxK':
-            'ARRAY_AGG({0} order by {0}.value desc)',
+            'ARRAY_AGG({0}.arg order by {0}.value desc)',
         'ArgMin': '(ARRAY_AGG({0}.arg order by {0}.value))[1]',
         'ArgMinK':
-            'ARRAY_AGG({0} order by {0}.value)',
+            'ARRAY_AGG({0}.arg order by {0}.value)',
         'Range': '(SELECT ARRAY_AGG(x) FROM GENERATE_SERIES(0, {0} - 1) as x)',
         'ToString': 'CAST(%s AS TEXT)'
       }
