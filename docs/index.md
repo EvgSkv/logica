@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 -->
 
-# Logica: language of Big Data
+## What is Logica?
 
 Logica is an open source declarative logic programming
 language for data manipulation. Logica is a successor to
