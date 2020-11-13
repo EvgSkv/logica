@@ -27,7 +27,7 @@ Logica is for engineers, data scientists and other specialists who want to use
 logic programming syntax when writing queries and pipelines to run on
 [BigQuery](https://cloud.google.com/bigquery).
 
-Logica compiles to StandardSQL and gives you access to the power of BigQuery
+Logica compiles to SQL and gives you access to the power of Google BigQuery
 engine with the convenience of logic programming syntax. This is useful because
 BigQuery is magnitudes more powerful than state of the art native
 logic programming engines.
