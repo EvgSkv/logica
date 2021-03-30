@@ -911,12 +911,12 @@ def ParseNegation(s: HeritageAwareString):
 
 def ParseSubscript(s: HeritageAwareString):
   """Parsing subscript expression."""
-  str_path = Split(s, '.')
+  str_path = SplitRaw(s, '.')
   if len(str_path) >= 2:
     record_str = s[:(str_path[-2].stop - s.start)]
     record_str_doublecheck = '.'.join(str_path[:-1])
     assert record_str == record_str_doublecheck, 'This should not happen.'
-    record = ParseExpression(record_str)
+    record = ParseExpression(Strip(record_str))
     if not set(str_path[-1]) <= (set(string.ascii_lowercase) | set('_')
                                  | set(string.digits)):
       raise ParsingException('Subscript must be lowercase.', s)
