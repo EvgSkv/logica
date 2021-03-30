@@ -17,9 +17,8 @@ Test(n, a, b, c) :-
   a == r.a,
   b == r.b,
   i in [{c: 11}, {c: 12}],
-  r2 == (
+  c == (
     if n < 5 then {
       c: 10
     } else i
-  ),
-  c == r2.c;
+  ).c;
