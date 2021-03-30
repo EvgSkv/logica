@@ -365,6 +365,40 @@ class QL(object):
       return self.ANALYTIC_FUNCTIONS[call['predicate_name']].format(
           aggregant, group_by, order_by, window_size)
 
+  def SubIfStruct(self, implication, subscript):
+    """Optimizing SQL for subscript of an 'if' statement.
+    
+    Args:
+      implication: Implication syntax tree.
+      subscript: Subscript string.
+      
+    Returns:
+      optimized SQL if all consequences are syntactic records, or None
+      otherwise.
+    """
+    def GetValueOfField(field_values, field):
+      for field_value in field_values:
+        if field_value['field'] == field:
+          return field_value['value']['expression']
+      assert False
+    all_records = all(
+        ('record' in if_then['consequence'])
+        for if_then in implication['if_then'])
+    if not (all_records and 'record' in implication['otherwise']):
+      return None
+    new_if_thens = []
+    for if_then in implication['if_then']:
+      new_if_then = copy.deepcopy(if_then)
+      consequence = GetValueOfField(
+          if_then['consequence']['record']['field_value'], subscript)
+      new_if_then['consequence'] = consequence
+      new_if_thens.append(new_if_then)
+    new_otherwise = GetValueOfField(
+        implication['otherwise']['record']['field_value'], subscript)
+    new_expr = {
+        'implication': {'if_then': new_if_thens, 'otherwise': new_otherwise}}
+    return self.ConvertToSql(new_expr)
+
   def ConvertToSql(self, expression):
     """Converting Logica expression into SQL."""
     # print('EXPR:', expression)
@@ -481,6 +515,12 @@ class QL(object):
           if f_v['field'] == subscript:
             # Optimizing and returning the field directly.
             return self.ConvertToSql(f_v['value']['expression'])
+      # Trying to optmize subscript of implication.
+      if 'implication' in sub['record']:
+        simplified_sub = self.SubIfStruct(sub['record']['implication'],
+                                          subscript)
+        if simplified_sub:
+          return simplified_sub
       # Couldn't optimize, just return the '.' expression.
       record = self.ConvertToSql(sub['record'])
       return self.Subscript(record, subscript)
