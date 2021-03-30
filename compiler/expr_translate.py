@@ -380,6 +380,9 @@ class QL(object):
       for field_value in field_values:
         if field_value['field'] == field:
           return field_value['value']['expression']
+      raise self.exception_maker(
+          'Expected field %s missing in a record inside %s statement.' % (
+          color.Warn(subscript), color.Warn('if')))
       assert False
     all_records = all(
         ('record' in if_then['consequence'])
