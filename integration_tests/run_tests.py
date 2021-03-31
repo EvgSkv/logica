@@ -43,6 +43,8 @@ def RunAll():
 
   RunTest("sqlite_test")
 
+  RunTest("sub_if_test")
+
   RunTest(
       name="functor_chain_test",
       src="functor_chain_test.l",
