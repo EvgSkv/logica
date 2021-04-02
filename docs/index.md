@@ -216,6 +216,8 @@ missclasification issue in the GDELT data analysis.
 Feel free to create [github issues](https://github.com/EvgSkv/logica/issues)
 for bugs and feature requests.
 
+You questions and comments are welcome at our [github discussions](https://github.com/EvgSkv/logica/discussions)!
+
 ---
 
 Unless otherwise noted, the Logica source files are distributed
