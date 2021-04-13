@@ -1,7 +1,11 @@
 # How to Contribute
 
-We are not currently accepting external code contributions to this project.
-We plan to open for contributions before December 2020, stay tuned.
+Contributions to the project are welcome!
+
+If you consider contributing please start a discussion with your proposal, or
+express your willingness to contribute and we will work with you on scoping
+the project to make sure your contribution is accepted as efficiently as possible.
+
 
 ## Contributor License Agreement
 
