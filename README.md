@@ -121,7 +121,7 @@ run it simply as
 logica - print Greet <<<'Greet(greeting: "Hello world!")'
 ```
 
-Alaternatively, you can clone GitHub repository:
+Alternatively, you can clone GitHub repository:
 
 ```sh
 git clone https://github.com/evgskv/logica
