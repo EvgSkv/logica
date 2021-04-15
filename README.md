@@ -192,20 +192,20 @@ Mentions(person:, mentions? += 1) distinct :-
 Running `mentions.l`
 ```
 $ logica mentions.l run Mentions
-+----------------+----------------+
-|     person     | mentions_count |
-+----------------+----------------+
-| donald trump   |        3077130 |
-| los angeles    |        1078412 |
-| joe biden      |        1054827 |
-| george floyd   |         872919 |
-| boris johnson  |         674786 |
-| barack obama   |         438181 |
-| vladimir putin |         410587 |
-| bernie sanders |         387383 |
-| andrew cuomo   |         345462 |
-| las vegas      |         325487 |
-+----------------+----------------+
++----------------+----------+
+|     person     | mentions |
++----------------+----------+
+| donald trump   |  3624228 |
+| joe biden      |  1591320 |
+| los angeles    |  1221998 |
+| george floyd   |   923472 |
+| boris johnson  |   845955 |
+| barack obama   |   541672 |
+| vladimir putin |   486428 |
+| bernie sanders |   409224 |
+| andrew cuomo   |   375594 |
+| nancy pelosi   |   375373 |
++----------------+----------+
 ```
 
 Note that cities of Los Angeles and Las Vegas are mentioned in this table due to known
