@@ -43,6 +43,8 @@ def RunAll():
 
   RunTest("sqlite_test")
 
+  RunTest("reachability_test")
+  RunTest("closure_test")
   RunTest("sub_if_test")
 
   RunTest(
