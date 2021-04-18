@@ -1,0 +1,432 @@
+DROP TABLE IF EXISTS logica_test.reachability_GP1_f9; -- at [1:1]
+Dropped active-grp.logica_test.reachability_GP1_f9
+
+CREATE TABLE logica_test.reachability_GP1_f9 AS WITH t_5_reachability_GP0_f9 AS (SELECT
+  x_60 AS col0,
+  ((x_60) + (1)) AS col1,
+  ARRAY_AGG((STRUCT(STRUCT(1 AS distance, ARRAY[STRUCT(x_60 AS source, ((x_60) + (1)) AS target)] AS path) AS arg, 1 as value)).arg order by (STRUCT(STRUCT(1 AS distance, ARRAY[STRUCT(x_60 AS source, ((x_60) + (1)) AS target)] AS path) AS arg, 1 as value)).value limit 1)[OFFSET(0)] AS logica_value
+FROM
+  UNNEST(GENERATE_ARRAY(0, 100 - 1)) as x_60
+GROUP BY col0, col1),
+t_4_reachability_GP1_MultBodyAggAux_f9 AS (SELECT * FROM (
+  
+    SELECT
+      reachability_GP0_f9.col0 AS col0,
+      reachability_GP0_f9.col1 AS col1,
+      (STRUCT(reachability_GP0_f9.logica_value AS arg, reachability_GP0_f9.logica_value.distance as value)) AS logica_value
+    FROM
+      t_5_reachability_GP0_f9 AS reachability_GP0_f9
+   UNION ALL
+  
+    SELECT
+      t_6_reachability_GP0_f9.col0 AS col0,
+      t_7_reachability_GP0_f9.col1 AS col1,
+      (STRUCT(STRUCT(((t_6_reachability_GP0_f9.logica_value.distance) + (t_7_reachability_GP0_f9.logica_value.distance)) AS distance, ARRAY_CONCAT(t_6_reachability_GP0_f9.logica_value.path, t_7_reachability_GP0_f9.logica_value.path) AS path) AS arg, ((t_6_reachability_GP0_f9.logica_value.distance) + (t_7_reachability_GP0_f9.logica_value.distance)) as value)) AS logica_value
+    FROM
+      t_5_reachability_GP0_f9 AS t_6_reachability_GP0_f9, t_5_reachability_GP0_f9 AS t_7_reachability_GP0_f9
+    WHERE
+      t_7_reachability_GP0_f9.col0 = t_6_reachability_GP0_f9.col1
+  
+) AS UNUSED_TABLE_NAME  )
+SELECT
+  reachability_GP1_MultBodyAggAux_f9.col0 AS col0,
+  reachability_GP1_MultBodyAggAux_f9.col1 AS col1,
+  ARRAY_AGG(reachability_GP1_MultBodyAggAux_f9.logica_value.arg order by reachability_GP1_MultBodyAggAux_f9.logica_value.value limit 1)[OFFSET(0)] AS logica_value
+FROM
+  t_4_reachability_GP1_MultBodyAggAux_f9 AS reachability_GP1_MultBodyAggAux_f9
+GROUP BY col0, col1; -- at [2:1]
+Created active-grp.logica_test.reachability_GP1_f9
+
+DROP TABLE IF EXISTS logica_test.reachability_GP2_f9; -- at [39:1]
+Dropped active-grp.logica_test.reachability_GP2_f9
+
+CREATE TABLE logica_test.reachability_GP2_f9 AS WITH t_3_reachability_GP1_MultBodyAggAux_f4_f9 AS (SELECT * FROM (
+  
+    SELECT
+      reachability_GP1_f9.col0 AS col0,
+      reachability_GP1_f9.col1 AS col1,
+      (STRUCT(reachability_GP1_f9.logica_value AS arg, reachability_GP1_f9.logica_value.distance as value)) AS logica_value
+    FROM
+      logica_test.reachability_GP1_f9 AS reachability_GP1_f9
+   UNION ALL
+  
+    SELECT
+      t_9_reachability_GP1_f9.col0 AS col0,
+      t_10_reachability_GP1_f9.col1 AS col1,
+      (STRUCT(STRUCT(((t_9_reachability_GP1_f9.logica_value.distance) + (t_10_reachability_GP1_f9.logica_value.distance)) AS distance, ARRAY_CONCAT(t_9_reachability_GP1_f9.logica_value.path, t_10_reachability_GP1_f9.logica_value.path) AS path) AS arg, ((t_9_reachability_GP1_f9.logica_value.distance) + (t_10_reachability_GP1_f9.logica_value.distance)) as value)) AS logica_value
+    FROM
+      logica_test.reachability_GP1_f9 AS t_9_reachability_GP1_f9, logica_test.reachability_GP1_f9 AS t_10_reachability_GP1_f9
+    WHERE
+      t_10_reachability_GP1_f9.col0 = t_9_reachability_GP1_f9.col1
+  
+) AS UNUSED_TABLE_NAME  )
+SELECT
+  reachability_GP1_MultBodyAggAux_f4_f9.col0 AS col0,
+  reachability_GP1_MultBodyAggAux_f4_f9.col1 AS col1,
+  ARRAY_AGG(reachability_GP1_MultBodyAggAux_f4_f9.logica_value.arg order by reachability_GP1_MultBodyAggAux_f4_f9.logica_value.value limit 1)[OFFSET(0)] AS logica_value
+FROM
+  t_3_reachability_GP1_MultBodyAggAux_f4_f9 AS reachability_GP1_MultBodyAggAux_f4_f9
+GROUP BY col0, col1; -- at [40:1]
+Created active-grp.logica_test.reachability_GP2_f9
+
+DROP TABLE IF EXISTS logica_test.reachability_GP1_f5_f9; -- at [70:1]
+Dropped active-grp.logica_test.reachability_GP1_f5_f9
+
+CREATE TABLE logica_test.reachability_GP1_f5_f9 AS WITH t_2_reachability_GP1_MultBodyAggAux_f5_f9 AS (SELECT * FROM (
+  
+    SELECT
+      reachability_GP2_f9.col0 AS col0,
+      reachability_GP2_f9.col1 AS col1,
+      (STRUCT(reachability_GP2_f9.logica_value AS arg, reachability_GP2_f9.logica_value.distance as value)) AS logica_value
+    FROM
+      logica_test.reachability_GP2_f9 AS reachability_GP2_f9
+   UNION ALL
+  
+    SELECT
+      t_11_reachability_GP2_f9.col0 AS col0,
+      t_12_reachability_GP2_f9.col1 AS col1,
+      (STRUCT(STRUCT(((t_11_reachability_GP2_f9.logica_value.distance) + (t_12_reachability_GP2_f9.logica_value.distance)) AS distance, ARRAY_CONCAT(t_11_reachability_GP2_f9.logica_value.path, t_12_reachability_GP2_f9.logica_value.path) AS path) AS arg, ((t_11_reachability_GP2_f9.logica_value.distance) + (t_12_reachability_GP2_f9.logica_value.distance)) as value)) AS logica_value
+    FROM
+      logica_test.reachability_GP2_f9 AS t_11_reachability_GP2_f9, logica_test.reachability_GP2_f9 AS t_12_reachability_GP2_f9
+    WHERE
+      t_12_reachability_GP2_f9.col0 = t_11_reachability_GP2_f9.col1
+  
+) AS UNUSED_TABLE_NAME  )
+SELECT
+  reachability_GP1_MultBodyAggAux_f5_f9.col0 AS col0,
+  reachability_GP1_MultBodyAggAux_f5_f9.col1 AS col1,
+  ARRAY_AGG(reachability_GP1_MultBodyAggAux_f5_f9.logica_value.arg order by reachability_GP1_MultBodyAggAux_f5_f9.logica_value.value limit 1)[OFFSET(0)] AS logica_value
+FROM
+  t_2_reachability_GP1_MultBodyAggAux_f5_f9 AS reachability_GP1_MultBodyAggAux_f5_f9
+GROUP BY col0, col1; -- at [71:1]
+Created active-grp.logica_test.reachability_GP1_f5_f9
+
+DROP TABLE IF EXISTS logica_test.PartialPath; -- at [101:1]
+Dropped active-grp.logica_test.PartialPath
+
+CREATE TABLE logica_test.PartialPath AS WITH t_1_reachability_GP1_MultBodyAggAux_f4_f5_f9 AS (SELECT * FROM (
+  
+    SELECT
+      reachability_GP1_f5_f9.col0 AS col0,
+      reachability_GP1_f5_f9.col1 AS col1,
+      (STRUCT(reachability_GP1_f5_f9.logica_value AS arg, reachability_GP1_f5_f9.logica_value.distance as value)) AS logica_value
+    FROM
+      logica_test.reachability_GP1_f5_f9 AS reachability_GP1_f5_f9
+   UNION ALL
+  
+    SELECT
+      t_13_reachability_GP1_f5_f9.col0 AS col0,
+      t_14_reachability_GP1_f5_f9.col1 AS col1,
+      (STRUCT(STRUCT(((t_13_reachability_GP1_f5_f9.logica_value.distance) + (t_14_reachability_GP1_f5_f9.logica_value.distance)) AS distance, ARRAY_CONCAT(t_13_reachability_GP1_f5_f9.logica_value.path, t_14_reachability_GP1_f5_f9.logica_value.path) AS path) AS arg, ((t_13_reachability_GP1_f5_f9.logica_value.distance) + (t_14_reachability_GP1_f5_f9.logica_value.distance)) as value)) AS logica_value
+    FROM
+      logica_test.reachability_GP1_f5_f9 AS t_13_reachability_GP1_f5_f9, logica_test.reachability_GP1_f5_f9 AS t_14_reachability_GP1_f5_f9
+    WHERE
+      t_14_reachability_GP1_f5_f9.col0 = t_13_reachability_GP1_f5_f9.col1
+  
+) AS UNUSED_TABLE_NAME  )
+SELECT
+  reachability_GP1_MultBodyAggAux_f4_f5_f9.col0 AS col0,
+  reachability_GP1_MultBodyAggAux_f4_f5_f9.col1 AS col1,
+  ARRAY_AGG(reachability_GP1_MultBodyAggAux_f4_f5_f9.logica_value.arg order by reachability_GP1_MultBodyAggAux_f4_f5_f9.logica_value.value limit 1)[OFFSET(0)] AS logica_value
+FROM
+  t_1_reachability_GP1_MultBodyAggAux_f4_f5_f9 AS reachability_GP1_MultBodyAggAux_f4_f5_f9
+GROUP BY col0, col1; -- at [102:1]
+Created active-grp.logica_test.PartialPath
+
+DROP TABLE IF EXISTS logica_test.reachability_D1_f10; -- at [132:1]
+Dropped active-grp.logica_test.reachability_D1_f10
+
+CREATE TABLE logica_test.reachability_D1_f10 AS WITH t_23_reachability_D0_f10 AS (SELECT
+  x_208 AS col0,
+  ((x_208) + (1)) AS col1,
+  MIN(1) AS logica_value
+FROM
+  UNNEST(GENERATE_ARRAY(0, 100 - 1)) as x_208
+GROUP BY col0, col1),
+t_22_reachability_D1_MultBodyAggAux_f10 AS (SELECT * FROM (
+  
+    SELECT
+      reachability_D0_f10.col0 AS col0,
+      reachability_D0_f10.col1 AS col1,
+      reachability_D0_f10.logica_value AS logica_value
+    FROM
+      t_23_reachability_D0_f10 AS reachability_D0_f10
+   UNION ALL
+  
+    SELECT
+      t_25_reachability_D0_f10.col0 AS col0,
+      t_26_reachability_D0_f10.col1 AS col1,
+      ((t_25_reachability_D0_f10.logica_value) + (t_26_reachability_D0_f10.logica_value)) AS logica_value
+    FROM
+      t_23_reachability_D0_f10 AS t_25_reachability_D0_f10, t_23_reachability_D0_f10 AS t_26_reachability_D0_f10
+    WHERE
+      t_26_reachability_D0_f10.col0 = t_25_reachability_D0_f10.col1
+  
+) AS UNUSED_TABLE_NAME  )
+SELECT
+  reachability_D1_MultBodyAggAux_f10.col0 AS col0,
+  reachability_D1_MultBodyAggAux_f10.col1 AS col1,
+  MIN(reachability_D1_MultBodyAggAux_f10.logica_value) AS logica_value
+FROM
+  t_22_reachability_D1_MultBodyAggAux_f10 AS reachability_D1_MultBodyAggAux_f10
+GROUP BY col0, col1; -- at [133:1]
+Created active-grp.logica_test.reachability_D1_f10
+
+DROP TABLE IF EXISTS logica_test.reachability_D2_f10; -- at [170:1]
+Dropped active-grp.logica_test.reachability_D2_f10
+
+CREATE TABLE logica_test.reachability_D2_f10 AS WITH t_21_reachability_D1_MultBodyAggAux_f1_f10 AS (SELECT * FROM (
+  
+    SELECT
+      reachability_D1_f10.col0 AS col0,
+      reachability_D1_f10.col1 AS col1,
+      reachability_D1_f10.logica_value AS logica_value
+    FROM
+      logica_test.reachability_D1_f10 AS reachability_D1_f10
+   UNION ALL
+  
+    SELECT
+      t_28_reachability_D1_f10.col0 AS col0,
+      t_29_reachability_D1_f10.col1 AS col1,
+      ((t_28_reachability_D1_f10.logica_value) + (t_29_reachability_D1_f10.logica_value)) AS logica_value
+    FROM
+      logica_test.reachability_D1_f10 AS t_28_reachability_D1_f10, logica_test.reachability_D1_f10 AS t_29_reachability_D1_f10
+    WHERE
+      t_29_reachability_D1_f10.col0 = t_28_reachability_D1_f10.col1
+  
+) AS UNUSED_TABLE_NAME  )
+SELECT
+  reachability_D1_MultBodyAggAux_f1_f10.col0 AS col0,
+  reachability_D1_MultBodyAggAux_f1_f10.col1 AS col1,
+  MIN(reachability_D1_MultBodyAggAux_f1_f10.logica_value) AS logica_value
+FROM
+  t_21_reachability_D1_MultBodyAggAux_f1_f10 AS reachability_D1_MultBodyAggAux_f1_f10
+GROUP BY col0, col1; -- at [171:1]
+Created active-grp.logica_test.reachability_D2_f10
+
+DROP TABLE IF EXISTS logica_test.reachability_D1_f2_f10; -- at [201:1]
+Dropped active-grp.logica_test.reachability_D1_f2_f10
+
+CREATE TABLE logica_test.reachability_D1_f2_f10 AS WITH t_20_reachability_D1_MultBodyAggAux_f2_f10 AS (SELECT * FROM (
+  
+    SELECT
+      reachability_D2_f10.col0 AS col0,
+      reachability_D2_f10.col1 AS col1,
+      reachability_D2_f10.logica_value AS logica_value
+    FROM
+      logica_test.reachability_D2_f10 AS reachability_D2_f10
+   UNION ALL
+  
+    SELECT
+      t_30_reachability_D2_f10.col0 AS col0,
+      t_31_reachability_D2_f10.col1 AS col1,
+      ((t_30_reachability_D2_f10.logica_value) + (t_31_reachability_D2_f10.logica_value)) AS logica_value
+    FROM
+      logica_test.reachability_D2_f10 AS t_30_reachability_D2_f10, logica_test.reachability_D2_f10 AS t_31_reachability_D2_f10
+    WHERE
+      t_31_reachability_D2_f10.col0 = t_30_reachability_D2_f10.col1
+  
+) AS UNUSED_TABLE_NAME  )
+SELECT
+  reachability_D1_MultBodyAggAux_f2_f10.col0 AS col0,
+  reachability_D1_MultBodyAggAux_f2_f10.col1 AS col1,
+  MIN(reachability_D1_MultBodyAggAux_f2_f10.logica_value) AS logica_value
+FROM
+  t_20_reachability_D1_MultBodyAggAux_f2_f10 AS reachability_D1_MultBodyAggAux_f2_f10
+GROUP BY col0, col1; -- at [202:1]
+Created active-grp.logica_test.reachability_D1_f2_f10
+
+DROP TABLE IF EXISTS logica_test.reachability_D3_f10; -- at [232:1]
+Dropped active-grp.logica_test.reachability_D3_f10
+
+CREATE TABLE logica_test.reachability_D3_f10 AS WITH t_19_reachability_D1_MultBodyAggAux_f1_f2_f10 AS (SELECT * FROM (
+  
+    SELECT
+      reachability_D1_f2_f10.col0 AS col0,
+      reachability_D1_f2_f10.col1 AS col1,
+      reachability_D1_f2_f10.logica_value AS logica_value
+    FROM
+      logica_test.reachability_D1_f2_f10 AS reachability_D1_f2_f10
+   UNION ALL
+  
+    SELECT
+      t_32_reachability_D1_f2_f10.col0 AS col0,
+      t_33_reachability_D1_f2_f10.col1 AS col1,
+      ((t_32_reachability_D1_f2_f10.logica_value) + (t_33_reachability_D1_f2_f10.logica_value)) AS logica_value
+    FROM
+      logica_test.reachability_D1_f2_f10 AS t_32_reachability_D1_f2_f10, logica_test.reachability_D1_f2_f10 AS t_33_reachability_D1_f2_f10
+    WHERE
+      t_33_reachability_D1_f2_f10.col0 = t_32_reachability_D1_f2_f10.col1
+  
+) AS UNUSED_TABLE_NAME  )
+SELECT
+  reachability_D1_MultBodyAggAux_f1_f2_f10.col0 AS col0,
+  reachability_D1_MultBodyAggAux_f1_f2_f10.col1 AS col1,
+  MIN(reachability_D1_MultBodyAggAux_f1_f2_f10.logica_value) AS logica_value
+FROM
+  t_19_reachability_D1_MultBodyAggAux_f1_f2_f10 AS reachability_D1_MultBodyAggAux_f1_f2_f10
+GROUP BY col0, col1; -- at [233:1]
+Created active-grp.logica_test.reachability_D3_f10
+
+DROP TABLE IF EXISTS logica_test.reachability_D1_f3_f10; -- at [263:1]
+Dropped active-grp.logica_test.reachability_D1_f3_f10
+
+CREATE TABLE logica_test.reachability_D1_f3_f10 AS WITH t_18_reachability_D1_MultBodyAggAux_f3_f10 AS (SELECT * FROM (
+  
+    SELECT
+      reachability_D3_f10.col0 AS col0,
+      reachability_D3_f10.col1 AS col1,
+      reachability_D3_f10.logica_value AS logica_value
+    FROM
+      logica_test.reachability_D3_f10 AS reachability_D3_f10
+   UNION ALL
+  
+    SELECT
+      t_34_reachability_D3_f10.col0 AS col0,
+      t_35_reachability_D3_f10.col1 AS col1,
+      ((t_34_reachability_D3_f10.logica_value) + (t_35_reachability_D3_f10.logica_value)) AS logica_value
+    FROM
+      logica_test.reachability_D3_f10 AS t_34_reachability_D3_f10, logica_test.reachability_D3_f10 AS t_35_reachability_D3_f10
+    WHERE
+      t_35_reachability_D3_f10.col0 = t_34_reachability_D3_f10.col1
+  
+) AS UNUSED_TABLE_NAME  )
+SELECT
+  reachability_D1_MultBodyAggAux_f3_f10.col0 AS col0,
+  reachability_D1_MultBodyAggAux_f3_f10.col1 AS col1,
+  MIN(reachability_D1_MultBodyAggAux_f3_f10.logica_value) AS logica_value
+FROM
+  t_18_reachability_D1_MultBodyAggAux_f3_f10 AS reachability_D1_MultBodyAggAux_f3_f10
+GROUP BY col0, col1; -- at [264:1]
+Created active-grp.logica_test.reachability_D1_f3_f10
+
+DROP TABLE IF EXISTS logica_test.reachability_D2_f3_f10; -- at [294:1]
+Dropped active-grp.logica_test.reachability_D2_f3_f10
+
+CREATE TABLE logica_test.reachability_D2_f3_f10 AS WITH t_17_reachability_D1_MultBodyAggAux_f1_f3_f10 AS (SELECT * FROM (
+  
+    SELECT
+      reachability_D1_f3_f10.col0 AS col0,
+      reachability_D1_f3_f10.col1 AS col1,
+      reachability_D1_f3_f10.logica_value AS logica_value
+    FROM
+      logica_test.reachability_D1_f3_f10 AS reachability_D1_f3_f10
+   UNION ALL
+  
+    SELECT
+      t_36_reachability_D1_f3_f10.col0 AS col0,
+      t_37_reachability_D1_f3_f10.col1 AS col1,
+      ((t_36_reachability_D1_f3_f10.logica_value) + (t_37_reachability_D1_f3_f10.logica_value)) AS logica_value
+    FROM
+      logica_test.reachability_D1_f3_f10 AS t_36_reachability_D1_f3_f10, logica_test.reachability_D1_f3_f10 AS t_37_reachability_D1_f3_f10
+    WHERE
+      t_37_reachability_D1_f3_f10.col0 = t_36_reachability_D1_f3_f10.col1
+  
+) AS UNUSED_TABLE_NAME  )
+SELECT
+  reachability_D1_MultBodyAggAux_f1_f3_f10.col0 AS col0,
+  reachability_D1_MultBodyAggAux_f1_f3_f10.col1 AS col1,
+  MIN(reachability_D1_MultBodyAggAux_f1_f3_f10.logica_value) AS logica_value
+FROM
+  t_17_reachability_D1_MultBodyAggAux_f1_f3_f10 AS reachability_D1_MultBodyAggAux_f1_f3_f10
+GROUP BY col0, col1; -- at [295:1]
+Created active-grp.logica_test.reachability_D2_f3_f10
+
+DROP TABLE IF EXISTS logica_test.reachability_D1_f2_f3_f10; -- at [325:1]
+Dropped active-grp.logica_test.reachability_D1_f2_f3_f10
+
+CREATE TABLE logica_test.reachability_D1_f2_f3_f10 AS WITH t_16_reachability_D1_MultBodyAggAux_f2_f3_f10 AS (SELECT * FROM (
+  
+    SELECT
+      reachability_D2_f3_f10.col0 AS col0,
+      reachability_D2_f3_f10.col1 AS col1,
+      reachability_D2_f3_f10.logica_value AS logica_value
+    FROM
+      logica_test.reachability_D2_f3_f10 AS reachability_D2_f3_f10
+   UNION ALL
+  
+    SELECT
+      t_38_reachability_D2_f3_f10.col0 AS col0,
+      t_39_reachability_D2_f3_f10.col1 AS col1,
+      ((t_38_reachability_D2_f3_f10.logica_value) + (t_39_reachability_D2_f3_f10.logica_value)) AS logica_value
+    FROM
+      logica_test.reachability_D2_f3_f10 AS t_38_reachability_D2_f3_f10, logica_test.reachability_D2_f3_f10 AS t_39_reachability_D2_f3_f10
+    WHERE
+      t_39_reachability_D2_f3_f10.col0 = t_38_reachability_D2_f3_f10.col1
+  
+) AS UNUSED_TABLE_NAME  )
+SELECT
+  reachability_D1_MultBodyAggAux_f2_f3_f10.col0 AS col0,
+  reachability_D1_MultBodyAggAux_f2_f3_f10.col1 AS col1,
+  MIN(reachability_D1_MultBodyAggAux_f2_f3_f10.logica_value) AS logica_value
+FROM
+  t_16_reachability_D1_MultBodyAggAux_f2_f3_f10 AS reachability_D1_MultBodyAggAux_f2_f3_f10
+GROUP BY col0, col1; -- at [326:1]
+Created active-grp.logica_test.reachability_D1_f2_f3_f10
+
+DROP TABLE IF EXISTS logica_test.PartialDistance; -- at [356:1]
+Dropped active-grp.logica_test.PartialDistance
+
+CREATE TABLE logica_test.PartialDistance AS WITH t_15_reachability_D1_MultBodyAggAux_f1_f2_f3_f10 AS (SELECT * FROM (
+  
+    SELECT
+      reachability_D1_f2_f3_f10.col0 AS col0,
+      reachability_D1_f2_f3_f10.col1 AS col1,
+      reachability_D1_f2_f3_f10.logica_value AS logica_value
+    FROM
+      logica_test.reachability_D1_f2_f3_f10 AS reachability_D1_f2_f3_f10
+   UNION ALL
+  
+    SELECT
+      t_40_reachability_D1_f2_f3_f10.col0 AS col0,
+      t_41_reachability_D1_f2_f3_f10.col1 AS col1,
+      ((t_40_reachability_D1_f2_f3_f10.logica_value) + (t_41_reachability_D1_f2_f3_f10.logica_value)) AS logica_value
+    FROM
+      logica_test.reachability_D1_f2_f3_f10 AS t_40_reachability_D1_f2_f3_f10, logica_test.reachability_D1_f2_f3_f10 AS t_41_reachability_D1_f2_f3_f10
+    WHERE
+      t_41_reachability_D1_f2_f3_f10.col0 = t_40_reachability_D1_f2_f3_f10.col1
+  
+) AS UNUSED_TABLE_NAME  )
+SELECT
+  reachability_D1_MultBodyAggAux_f1_f2_f3_f10.col0 AS col0,
+  reachability_D1_MultBodyAggAux_f1_f2_f3_f10.col1 AS col1,
+  MIN(reachability_D1_MultBodyAggAux_f1_f2_f3_f10.logica_value) AS logica_value
+FROM
+  t_15_reachability_D1_MultBodyAggAux_f1_f2_f3_f10 AS reachability_D1_MultBodyAggAux_f1_f2_f3_f10
+GROUP BY col0, col1; -- at [357:1]
+Created active-grp.logica_test.PartialDistance
+
+WITH t_0_ZeroConnects AS (SELECT
+  PartialPath.col1 AS col0,
+  PartialPath.col1 AS col1,
+  PartialDistance.logica_value AS col2
+FROM
+  logica_test.PartialPath AS PartialPath, logica_test.PartialDistance AS PartialDistance
+WHERE
+  PartialPath.col0 = 0 AND
+  PartialDistance.col0 = 0 AND
+  PartialDistance.col1 = PartialPath.col1 ORDER BY col0)
+SELECT
+  ZeroConnects.col0 AS col0
+FROM
+  t_0_ZeroConnects AS ZeroConnects; -- at [387:1]
++------+
+| col0 |
++------+
+|    1 |
+|    2 |
+|    3 |
+|    4 |
+|    5 |
+|    6 |
+|    7 |
+|    8 |
+|    9 |
+|   10 |
+|   11 |
+|   12 |
+|   13 |
+|   14 |
+|   15 |
+|   16 |
++------+
