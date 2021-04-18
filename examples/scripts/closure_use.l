@@ -1,4 +1,5 @@
 # Examples of using TransitiveClosure functor.
+# Predicates to run: ClosedGraph, DescendantsOf.
 
 # Importing the closure functor.
 import lib.closure.TransitiveClosure;
