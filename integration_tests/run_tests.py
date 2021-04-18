@@ -38,13 +38,14 @@ def RunAll():
   # Uncomment to test writing tables.
   # RunTest("ground_test")
   # RunTest("ground_psql_test")
+  # RunTest("reachability_test")
+  # RunTest("closure_test")
+
   RunTest("psql_test")
   RunTest("sqlite_subquery_test")
 
   RunTest("sqlite_test")
 
-  RunTest("reachability_test")
-  RunTest("closure_test")
   RunTest("sub_if_test")
 
   RunTest(
