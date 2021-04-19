@@ -40,6 +40,9 @@ class BigQueryDialect(Dialect):
         '->': 'STRUCT(%s AS arg, %s as value)',
     }
 
+  def Subscript(self, record, subscript):
+    return '%s.%s' % (record, subscript)
+
 
 class SqLiteDialect(Dialect):
   """SqLite SQL dialect."""
@@ -56,6 +59,10 @@ class SqLiteDialect(Dialect):
     return {
         '++': '(%s) || (%s)',
     }
+
+  def Subscript(self, record, subscript):
+    return '%s.%s' % (record, subscript)
+
 
 class PostgreSQL(Dialect):
   """PostgreSQL SQL dialect."""
@@ -80,6 +87,10 @@ class PostgreSQL(Dialect):
         '++': 'CONCAT(%s, %s)',
         '->': '(%s, %s)::logica_arrow'
     }
+
+  def Subscript(self, record, subscript):
+    return '(%s).%s' % (record, subscript)
+
 
 DIALECTS = {
     'bigquery': BigQueryDialect,

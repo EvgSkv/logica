@@ -232,7 +232,7 @@ class QL(object):
   def Subscript(self, record, subscript):
     if isinstance(subscript, int):
       subscript = 'col%d' % subscript
-    return '%s.%s' % (record, subscript)
+    return self.dialect.Subscript(record, subscript)
 
   def IntLiteral(self, literal):
     return str(literal['number'])
