@@ -116,8 +116,8 @@ proposition ::=
   inclusion |
   ('(' proposition ')')
 
-conjunction ::= proposition ',' proposition
-disjunction ::= proposition '|' proposition
+conjunction ::= proposition (',' proposition)*
+disjunction ::= proposition ('|' proposition)*
 negation ::= '~' proposition
 
 // Example of assign combination -- l List= (2 * x :- x in [1,2,3])
