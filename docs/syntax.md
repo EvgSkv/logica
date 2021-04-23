@@ -56,7 +56,7 @@ record_internal ::=
 // Example of aggregating_field_value -- x? += 5
 aggregating_field_value ::= field '?' aggregating_assignment
 aggregating_record_internal  ::=
-  (record_field_value | aggregating_field_value)
+  [record_field_value | aggregating_field_value]
   [',' (record_field_value | aggregating_field_value)]*
 
 // Expression is a predicate call, operation, combine,
