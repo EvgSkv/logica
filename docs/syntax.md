@@ -1,14 +1,14 @@
 # Logica Program Syntax
 
-Here is a semi-formal BNF of Logica program.
+Here is a semi-formal [BNF](https://en.wikipedia.org/wiki/Backus%E2%80%93Naur_form) of Logica program.
 
 ```
 
 // Program is a sequence of entries separated by semicolon.
 program ::= program_entry (';' program_entry)* [;]
 
-// Each entry is a rule or an import statement.
-program_entry ::= import | rule
+// Each entry is an import, a rule, or a functor application.
+program_entry ::= import | rule | functor_application
 
 // Example of an import -- import path.to.file.Predicate as AnotherPredicate
 import ::=
@@ -124,6 +124,12 @@ negation ::= '~' proposition
 assign_combination ::= variable
   aggregating_assignment |
   (aggregating_operator '(' expression ':-' proposition ')')
+
+// Example of a functor application -- F := G(A: B)
+functor_application ::= logica_predicate ':=' logica_predicate '(' functor_record_internal ')'
+functor_record_internal ::=
+  [logica_predicate ':' logica_predicate]
+  (',' logica_predicate ':' logica_predicate )*
 
 
 ```
