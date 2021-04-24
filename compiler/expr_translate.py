@@ -42,15 +42,6 @@ class QL(object):
       'Aggr': '%s',  # Placeholder to use formulas for aggregation.
       'Agg+': 'SUM(%s)',
       'Agg++': 'ARRAY_CONCAT_AGG(%s)',
-      # ArgMax and ArgMin return arg which achieves the max/min value.
-      'ArgMax': 'ARRAY_AGG({0}.arg order by {0}.value desc limit 1)[OFFSET(0)]',
-      'ArgMaxK':
-          'ARRAY_AGG({0}.arg order by {0}.value desc limit {1})',
-      # Moved to library. Other Arg<X> to follow.
-      # 'ArgMin': 'ARRAY_AGG({0}.arg order by {0}.value limit 1)[OFFSET(0)]',
-      'ArgMinK':
-          'ARRAY_AGG({0}.arg order by {0}.value limit {1})',
-      'Array': 'ARRAY_AGG({0}.value order by {0}.arg)',
       'Container': '%s',
       'Count': 'APPROX_COUNT_DISTINCT(%s)',
       'ExactCount': 'COUNT(DISTINCT %s)',

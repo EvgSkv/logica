@@ -85,13 +85,13 @@ class PostgreSQL(Dialect):
 
   def BuiltInFunctions(self):
     return {
-        'ArgMax': '(ARRAY_AGG({0}.arg order by {0}.value desc))[1]',
-        'ArgMaxK':
-            'ARRAY_AGG({0}.arg order by {0}.value desc)',
-        # Moved to library. Other Arg<X> to follow.
-        # 'ArgMin': '(ARRAY_AGG({0}.arg order by {0}.value))[1]',
-        'ArgMinK':
-            'ARRAY_AGG({0}.arg order by {0}.value)',
+        # 'ArgMax': '(ARRAY_AGG({0}.arg order by {0}.value desc))[1]',
+        # 'ArgMaxK':
+        #     'ARRAY_AGG({0}.arg order by {0}.value desc)',
+        # # Moved to library. Other Arg<X> to follow.
+        # # 'ArgMin': '(ARRAY_AGG({0}.arg order by {0}.value))[1]',
+        # 'ArgMinK':
+        #     'ARRAY_AGG({0}.arg order by {0}.value)',
         'Range': '(SELECT ARRAY_AGG(x) FROM GENERATE_SERIES(0, {0} - 1) as x)',
         'ToString': 'CAST(%s AS TEXT)'
       }
