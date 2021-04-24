@@ -46,7 +46,8 @@ class QL(object):
       'ArgMax': 'ARRAY_AGG({0}.arg order by {0}.value desc limit 1)[OFFSET(0)]',
       'ArgMaxK':
           'ARRAY_AGG({0}.arg order by {0}.value desc limit {1})',
-      'ArgMin': 'ARRAY_AGG({0}.arg order by {0}.value limit 1)[OFFSET(0)]',
+      # Moved to library. Other Arg<X> to follow.
+      # 'ArgMin': 'ARRAY_AGG({0}.arg order by {0}.value limit 1)[OFFSET(0)]',
       'ArgMinK':
           'ARRAY_AGG({0}.arg order by {0}.value limit {1})',
       'Array': 'ARRAY_AGG({0}.value order by {0}.arg)',
@@ -88,7 +89,7 @@ class QL(object):
       '<': '%s < %s',
       '>=': '%s >= %s',
       '>': '%s > %s',
-      '->': 'STRUCT(%s AS arg, %s as value)',
+      # '->': 'STRUCT(%s AS arg, %s as value)',
       '/': '(%s) / (%s)',
       '+': '(%s) + (%s)',
       '-': '(%s) - (%s)',
@@ -153,7 +154,7 @@ class QL(object):
     self.built_in_infix_operators = copy.deepcopy(
         self.BUILT_IN_INFIX_OPERATORS)
     self.built_in_infix_operators.update(self.dialect.InfixOperators())
-    operators = list(self.built_in_infix_operators.keys())
+    self.CleanOperatorsAndFunctions()
     self.exception_maker = exception_maker
     self.debug_undefined_variables = False
     # We set convert_to_json to convert arguments of annotations to Python
@@ -167,7 +168,8 @@ class QL(object):
     def CleanDictionary(d):
       keys = list(d.keys())
       for k in keys:
-        del d[k]
+        if d[k] is None:
+          del d[k]
     for d in [self.built_in_infix_operators,
               self.built_in_functions]:
       CleanDictionary(self.built_in_infix_operators)
@@ -551,6 +553,7 @@ class QL(object):
       implication = expression['implication']
       return self.Implication(implication)
 
+    print(self.built_in_infix_operators)
     if 'call' in expression and 'predicate_name' in expression['call']:
       raise self.exception_maker(color.Format(
           'Unsupported supposedly built-in function: '

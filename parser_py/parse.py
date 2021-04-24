@@ -749,25 +749,30 @@ def ParseCall(s):
   idx = 0
   if not s:
     return None
-  for (idx, state, status) in Traverse(s):
-    assert status == 'OK'
-    if state == '(':
-      good_chars = (
-          set(string.ascii_letters) |
-          set(['@', '_', '.', '$', '{', '}', '+', '-', '`']) |
-          set(string.digits))
-      if ((idx > 0 and set(s[:idx]) <= good_chars) or
-          s[:idx] == '!' or
-          s[:idx] == '++?' or
-          idx >= 2 and s[0] == '`' and s[idx - 1] == '`'):
-        predicate = s[:idx]
-        break
-      else:
-        return None
-    if state and state != '{' and state[0] != '`':
-      return None
+  # Specialcasing -> operator for definition.
+  if s.startswith('->'):
+    idx = 2
+    predicate = '->'
   else:
-    return None
+    for (idx, state, status) in Traverse(s):
+      assert status == 'OK'
+      if state == '(':
+        good_chars = (
+            set(string.ascii_letters) |
+            set(['@', '_', '.', '$', '{', '}', '+', '-', '`']) |
+            set(string.digits))
+        if ((idx > 0 and set(s[:idx]) <= good_chars) or
+            s[:idx] == '!' or
+            s[:idx] == '++?' or
+            idx >= 2 and s[0] == '`' and s[idx - 1] == '`'):
+          predicate = s[:idx]
+          break
+        else:
+          return None
+      if state and state != '{' and state[0] != '`':
+        return None
+    else:
+      return None
   if (s[idx] == '(' and
       s[-1] == ')' and
       IsWhole(s[idx + 1:-1])):

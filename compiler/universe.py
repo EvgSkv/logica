@@ -468,7 +468,15 @@ class LogicaProgram(object):
               list(set(self.dollar_params) - set(self.flag_values))),
           str(list(set(self.dollar_params) - set(self.flag_values))))
     self.functors = None
+
+    # Extending rules with functors.
     extended_rules = self.RunMakes(rules)  # Populates self.functors.
+
+    # Extending rules with the library of the dialect.
+    library_rules = parse.ParseFile(
+        dialects.Get(self.annotations.Engine()).LibraryProgram())['rule']
+    extended_rules.extend(library_rules)
+
     for rule in extended_rules:
       predicate_name = rule['head']['predicate_name']
       self.defined_predicates.add(predicate_name)
