@@ -153,6 +153,7 @@ class QL(object):
     self.built_in_infix_operators = copy.deepcopy(
         self.BUILT_IN_INFIX_OPERATORS)
     self.built_in_infix_operators.update(self.dialect.InfixOperators())
+    operators = list(self.built_in_infix_operators.keys())
     self.exception_maker = exception_maker
     self.debug_undefined_variables = False
     # We set convert_to_json to convert arguments of annotations to Python
@@ -161,6 +162,15 @@ class QL(object):
     self.convert_to_json = False
     self.flag_values = flag_values
     self.custom_udfs = custom_udfs or {}
+
+  def CleanOperatorsAndFunctions(self):
+    def CleanDictionary(d):
+      keys = list(d.keys())
+      for k in keys:
+        del d[k]
+    for d in [self.built_in_infix_operators,
+              self.built_in_functions]:
+      CleanDictionary(self.built_in_infix_operators)
 
   @classmethod
   def BasisFunctions(cls):
