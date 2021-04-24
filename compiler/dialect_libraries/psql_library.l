@@ -1,7 +1,7 @@
 ->(left:, right:) = {arg: left, value: right};
 
 ArgMin(a) = SqlExpr("(ARRAY_AGG({arg} order by {value}))[1]",
-                    {arg: a.arg, value: a.value})
+                    {arg: a.arg, value: a.value});
 
 ArgMax(a) = SqlExpr(
   "ARRAY_AGG({arg} order by {value} desc limit 1)[1]",
