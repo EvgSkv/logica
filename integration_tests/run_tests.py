@@ -42,6 +42,8 @@ def RunAll():
   # RunTest("closure_test")
 
   RunTest("psql_test")
+  RunTest("psql_arg_min_test")
+
   RunTest("sqlite_subquery_test")
 
   RunTest("sqlite_test")
