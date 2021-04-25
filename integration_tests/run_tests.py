@@ -38,7 +38,6 @@ def RunAll():
   # Uncomment to test writing tables.
   # RunTest("ground_test")
   # RunTest("ground_psql_test")
-  # RunTest("reachability_test")
   # RunTest("closure_test")
 
   RunTest("psql_test")
@@ -251,3 +250,7 @@ def RunAll():
       golden="sql_string_table_test.txt",
       predicate="Test",
   )
+
+
+  RunTest("reachability_test")
+
