@@ -80,7 +80,6 @@ class QL(object):
       '<': '%s < %s',
       '>=': '%s >= %s',
       '>': '%s > %s',
-      # '->': 'STRUCT(%s AS arg, %s as value)',
       '/': '(%s) / (%s)',
       '+': '(%s) + (%s)',
       '-': '(%s) - (%s)',
@@ -544,7 +543,6 @@ class QL(object):
       implication = expression['implication']
       return self.Implication(implication)
 
-    print(self.built_in_infix_operators)
     if 'call' in expression and 'predicate_name' in expression['call']:
       raise self.exception_maker(color.Format(
           'Unsupported supposedly built-in function: '
