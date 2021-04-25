@@ -42,14 +42,6 @@ class QL(object):
       'Aggr': '%s',  # Placeholder to use formulas for aggregation.
       'Agg+': 'SUM(%s)',
       'Agg++': 'ARRAY_CONCAT_AGG(%s)',
-      # ArgMax and ArgMin return arg which achieves the max/min value.
-      'ArgMax': 'ARRAY_AGG({0}.arg order by {0}.value desc limit 1)[OFFSET(0)]',
-      'ArgMaxK':
-          'ARRAY_AGG({0}.arg order by {0}.value desc limit {1})',
-      'ArgMin': 'ARRAY_AGG({0}.arg order by {0}.value limit 1)[OFFSET(0)]',
-      'ArgMinK':
-          'ARRAY_AGG({0}.arg order by {0}.value limit {1})',
-      'Array': 'ARRAY_AGG({0}.value order by {0}.arg)',
       'Container': '%s',
       'Count': 'APPROX_COUNT_DISTINCT(%s)',
       'ExactCount': 'COUNT(DISTINCT %s)',
@@ -88,7 +80,6 @@ class QL(object):
       '<': '%s < %s',
       '>=': '%s >= %s',
       '>': '%s > %s',
-      '->': 'STRUCT(%s AS arg, %s as value)',
       '/': '(%s) / (%s)',
       '+': '(%s) + (%s)',
       '-': '(%s) - (%s)',
@@ -153,6 +144,7 @@ class QL(object):
     self.built_in_infix_operators = copy.deepcopy(
         self.BUILT_IN_INFIX_OPERATORS)
     self.built_in_infix_operators.update(self.dialect.InfixOperators())
+    self.CleanOperatorsAndFunctions()
     self.exception_maker = exception_maker
     self.debug_undefined_variables = False
     # We set convert_to_json to convert arguments of annotations to Python
@@ -161,6 +153,16 @@ class QL(object):
     self.convert_to_json = False
     self.flag_values = flag_values
     self.custom_udfs = custom_udfs or {}
+
+  def CleanOperatorsAndFunctions(self):
+    def CleanDictionary(d):
+      keys = list(d.keys())
+      for k in keys:
+        if d[k] is None:
+          del d[k]
+    for d in [self.built_in_infix_operators,
+              self.built_in_functions]:
+      CleanDictionary(self.built_in_infix_operators)
 
   @classmethod
   def BasisFunctions(cls):
@@ -205,7 +207,7 @@ class QL(object):
                            'ParseTimestamp', 'FormatTimestamp',
                            'TimestampAddDays', 'Split', 'Element',
                            'Concat', 'DateAddDay', 'DateDiffDay',
-                           'ArgMaxK', 'ArgMinK', 'Join']
+                           'Join']
       if f in arity_2_functions:
         return (2, 2)
       return (1, 1)

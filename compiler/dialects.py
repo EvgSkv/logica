@@ -16,6 +16,14 @@
 
 """SQL dialects."""
 
+if '.' not in __package__:
+  from compiler.dialect_libraries import bq_library
+  from compiler.dialect_libraries import psql_library
+  from compiler.dialect_libraries import sqlite_library
+else:
+  from ..compiler.dialect_libraries import bq_library
+  from ..compiler.dialect_libraries import psql_library
+  from ..compiler.dialect_libraries import sqlite_library
 
 def Get(engine):
   return DIALECTS[engine]()
@@ -37,11 +45,13 @@ class BigQueryDialect(Dialect):
   def InfixOperators(self):
     return {
         '++': 'CONCAT(%s, %s)',
-        '->': 'STRUCT(%s AS arg, %s as value)',
     }
 
   def Subscript(self, record, subscript):
     return '%s.%s' % (record, subscript)
+  
+  def LibraryProgram(self):
+    return bq_library.library
 
 
 class SqLiteDialect(Dialect):
@@ -62,6 +72,9 @@ class SqLiteDialect(Dialect):
 
   def Subscript(self, record, subscript):
     return '%s.%s' % (record, subscript)
+  
+  def LibraryProgram(self):
+    return sqlite_library.library
 
 
 class PostgreSQL(Dialect):
@@ -72,12 +85,6 @@ class PostgreSQL(Dialect):
 
   def BuiltInFunctions(self):
     return {
-        'ArgMax': '(ARRAY_AGG({0}.arg order by {0}.value desc))[1]',
-        'ArgMaxK':
-            'ARRAY_AGG({0}.arg order by {0}.value desc)',
-        'ArgMin': '(ARRAY_AGG({0}.arg order by {0}.value))[1]',
-        'ArgMinK':
-            'ARRAY_AGG({0}.arg order by {0}.value)',
         'Range': '(SELECT ARRAY_AGG(x) FROM GENERATE_SERIES(0, {0} - 1) as x)',
         'ToString': 'CAST(%s AS TEXT)'
       }
@@ -85,12 +92,13 @@ class PostgreSQL(Dialect):
   def InfixOperators(self):
     return {
         '++': 'CONCAT(%s, %s)',
-        '->': '(%s, %s)::logica_arrow'
     }
 
   def Subscript(self, record, subscript):
     return '(%s).%s' % (record, subscript)
-
+  
+  def LibraryProgram(self):
+    return psql_library.library
 
 DIALECTS = {
     'bigquery': BigQueryDialect,
