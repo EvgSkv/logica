@@ -16,8 +16,12 @@ import ::=
 dot_separated_path ::= [^<newline>]+
 
 // Predicate defined by the program is alphanumeric starting with an
-// uppercase letter.
-logica_predicate  ::= [A-Z_][0-9a-zA-Z_]*
+// uppercase letter, or '@' if it is an imperative predicate.
+logica_predicate ::= ordinary_logica_predicate | imperative_predicate
+// Ordinary predicates is what Logica is mostly about, example -- Grandparent
+ordinary_logica_predicate ::= [A-Z_][0-9a-zA-Z_]*
+// Imperative predicates are used for annotations, example -- @Ground
+imperative_predicate ::= '@' [0-9a-zA-Z_]*
 
 // You can also use database tables as predicates. 
 predicate ::= logica_predicate | '`'[^`]+'`' | [A-Za-z_0-9.]+
