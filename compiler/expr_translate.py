@@ -208,7 +208,7 @@ class QL(object):
                            'ParseTimestamp', 'FormatTimestamp',
                            'TimestampAddDays', 'Split', 'Element',
                            'Concat', 'DateAddDay', 'DateDiffDay',
-                           'ArgMaxK', 'ArgMinK', 'Join']
+                           'Join']
       if f in arity_2_functions:
         return (2, 2)
       return (1, 1)

@@ -4,7 +4,7 @@ ArgMin(a) = SqlExpr("(ARRAY_AGG({arg} order by {value}))[1]",
                     {arg: a.arg, value: a.value});
 
 ArgMax(a) = SqlExpr(
-  "ARRAY_AGG({arg} order by {value} desc limit 1)[1]",
+  "(ARRAY_AGG({arg} order by {value} desc))[1]",
   {arg: a.arg, value: a.value});
 
 ArgMaxK(a, l) = SqlExpr(
