@@ -74,7 +74,7 @@ class SqLiteDialect(Dialect):
     return '%s.%s' % (record, subscript)
   
   def LibraryProgram(self):
-    return psql_library.library
+    return sqlite_library.library
 
 
 class PostgreSQL(Dialect):
