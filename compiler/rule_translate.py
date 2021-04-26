@@ -429,8 +429,8 @@ class RuleStructure(object):
       self.SortUnnestings()
       for element, the_list in self.unnestings:
         tables.append(
-            'UNNEST(%s) as %s' % (ql.ConvertToSql(the_list),
-                                  ql.ConvertToSql(element)))
+            subquery_encoder.execution.dialect.UnnestPhrase() % (
+                ql.ConvertToSql(the_list), ql.ConvertToSql(element)))
       if not tables:
         tables.append('UNNEST(ARRAY[\'UNUSED\']) as unused_unnest')
       from_str = ', '.join(tables)
@@ -447,7 +447,17 @@ class RuleStructure(object):
         ordered_distinct_vars = [
             v for v in self.select.keys() if v in self.distinct_vars]
         r += '\nGROUP BY '
-        r += ', '.join(map(LogicaFieldToSqlField, ordered_distinct_vars))
+        if subquery_encoder.execution.dialect.GroupBySpecBy() == 'name':
+          r += ', '.join(map(LogicaFieldToSqlField, ordered_distinct_vars))
+        elif subquery_encoder.execution.dialect.GroupBySpecBy() == 'index':
+          selected_fields = list(self.select.keys())
+          r += ', '.join(str(selected_fields.index(v) + 1)
+                         for v in ordered_distinct_vars)
+        else:
+          assert False, 'Broken dialect %s, group by spec: %s' % (
+              subquery_encoder.execution.dialect.Name(),
+              subquery_encoder.execution.dialect.GroupBySpecBy())
+
     return r
 
 

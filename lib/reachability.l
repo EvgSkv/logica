@@ -41,7 +41,9 @@ GraphDistance := D4();
 # This functor finds distance, as well as the shortest path between
 # any two vertices.
 
-GP0(a, b) ArgMin= {distance: 1, path: [{source: a, target: b}]} -> 1 :-
+Edge(a, b) = {source: a, target: b};
+
+GP0(a, b) ArgMin= {distance: 1, path: [Edge(a, b)]} -> 1 :-
   G(a, b);
 
 @Ground(GP1);

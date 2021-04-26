@@ -20,10 +20,12 @@ if '.' not in __package__:
   from compiler.dialect_libraries import bq_library
   from compiler.dialect_libraries import psql_library
   from compiler.dialect_libraries import sqlite_library
+  from compiler.dialect_libraries import trino_library
 else:
   from ..compiler.dialect_libraries import bq_library
   from ..compiler.dialect_libraries import psql_library
   from ..compiler.dialect_libraries import sqlite_library
+  from ..compiler.dialect_libraries import trino_library
 
 def Get(engine):
   return DIALECTS[engine]()
@@ -53,6 +55,11 @@ class BigQueryDialect(Dialect):
   def LibraryProgram(self):
     return bq_library.library
 
+  def UnnestPhrase(self):
+    return 'UNNEST(%s) as %s'
+
+  def GroupBySpecBy(self):
+    return 'name'
 
 class SqLiteDialect(Dialect):
   """SqLite SQL dialect."""
@@ -76,6 +83,11 @@ class SqLiteDialect(Dialect):
   def LibraryProgram(self):
     return sqlite_library.library
 
+  def UnnestPhrase(self):
+    return 'UNNEST(%s) as %s'
+
+  def GroupBySpecBy(self):
+    return 'name'
 
 class PostgreSQL(Dialect):
   """PostgreSQL SQL dialect."""
@@ -100,9 +112,50 @@ class PostgreSQL(Dialect):
   def LibraryProgram(self):
     return psql_library.library
 
+  def UnnestPhrase(self):
+    return 'UNNEST(%s) as %s'
+
+  def GroupBySpecBy(self):
+    return 'name'
+
+
+class Trino(Dialect):
+  """Trino analytic engine dialect."""
+
+  def Name(self):
+    return 'Trino'
+
+  def BuiltInFunctions(self):
+    return {
+        'Range': 'SEQUENCE(0, %s - 1)',
+        'ToString': 'CAST(%s AS VARCHAR)',
+        'ToInt64': 'CAST(%s AS BIGINT)',
+        'ToFloat64': 'CAST(%s AS DOUBLE)',
+        'AnyValue': 'ARBITRARY(%s)'
+    }
+
+  def InfixOperators(self):
+    return {
+        '++': 'CONCAT(%s, %s)',
+    }
+
+  def Subscript(self, record, subscript):
+    return '%s.%s' % (record, subscript)
+  
+  def LibraryProgram(self):
+    return trino_library.library
+
+  def UnnestPhrase(self):
+    return 'UNNEST(%s) as pushkin(%s)'
+
+  def GroupBySpecBy(self):
+    return 'index'
+
+
 DIALECTS = {
     'bigquery': BigQueryDialect,
     'sqlite': SqLiteDialect,
-    'psql': PostgreSQL
+    'psql': PostgreSQL,
+    'trino': Trino
 }
 
