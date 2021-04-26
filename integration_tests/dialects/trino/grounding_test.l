@@ -1,4 +1,3 @@
-#!/usr/bin/python
 #
 # Copyright 2020 Google LLC
 #
@@ -14,6 +13,20 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-library = """
-# Nothing is here yet.
-"""
+# Test grounding of predicates.
+
+@Engine("trino");
+
+T0(0);
+@Ground(Extend);
+Extend(x) :- T(x) | (m Max= (z :- T(z)), x == m + 1);
+
+T1 := Extend(T: T0);
+T2 := Extend(T: T1);
+T3 := Extend(T: T2);
+T4 := Extend(T: T3);
+T5 := Extend(T: T4);
+T6 := Extend(T: T5);
+
+@OrderBy(Test, "col0");
+Test := T6();

@@ -1,0 +1,5 @@
+ opt | arg_opt |                         arg_opt_k                          |        arr         
+-----+---------+------------------------------------------------------------+--------------------
+ Min | b       | [{arg=b, value=5}, {arg=a, value=10}]                      | [b, a, f, c, e, d] 
+ Max | d       | [{arg=d, value=100}, {arg=e, value=30}, {arg=c, value=20}] | [d, e, c, f, a, b] 
+(2 rows)

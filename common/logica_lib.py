@@ -73,6 +73,10 @@ def RunQuery(sql, output_format='pretty', engine='bigquery'):
   elif engine == 'psql':
     p = subprocess.Popen(['psql', '--quiet'],
                          stdin=subprocess.PIPE, stdout=subprocess.PIPE)
+  elif engine == 'trino':
+    p = subprocess.Popen(['trino', '--catalog=memory'] +
+                          ['--output-format=ALIGNED'],
+                          stdin=subprocess.PIPE, stdout=subprocess.PIPE)
   else:
     assert False, 'Unknown engine: %s' % engine
   o, _ = p.communicate(sql.encode())

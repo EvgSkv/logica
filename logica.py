@@ -152,6 +152,7 @@ def main(argv):
     engine = p.annotations.Engine()
 
     if command == 'run' or command == 'run_to_csv':
+      # We should split and move this logic to dialects.
       if engine == 'bigquery':
         output_format = 'csv' if command == 'run_to_csv' else 'pretty'
         p = subprocess.Popen(['bq', 'query',
@@ -174,6 +175,16 @@ def main(argv):
         commands = []
         o, _ = p.communicate(
             '\n'.join(commands + [formatted_sql]).encode())
+      elif engine == 'trino':
+        a = p.annotations.annotations['@Engine']['trino']
+        catalog = a.get('catalog', 'memory')
+
+        p = subprocess.Popen(['trino', '--catalog=%s' % catalog] +
+                             (['--output-format=CSV_HEADER_UNQUOTED']
+                              if command == 'run_to_csv' else
+                              ['--output-format=ALIGNED']),
+                              stdin=subprocess.PIPE, stdout=subprocess.PIPE)
+        o, _ = p.communicate(formatted_sql.encode())
       else:
         assert False, 'Unknown engine: %s' % engine
       print(o.decode())

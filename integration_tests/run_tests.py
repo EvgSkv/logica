@@ -39,6 +39,11 @@ def RunAll():
   # RunTest("ground_test")
   # RunTest("ground_psql_test")
   # RunTest("closure_test")
+  # RunTest("dialects/trino/grounding_test")
+
+  RunTest("dialects/trino/basics_test")
+  RunTest("dialects/trino/arg_min_max_test")
+  RunTest("dialects/trino/joins_test")
 
   RunTest("psql_test")
   RunTest("psql_arg_min_test")
