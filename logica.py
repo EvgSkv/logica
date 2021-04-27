@@ -185,6 +185,19 @@ def main(argv):
                               ['--output-format=ALIGNED']),
                               stdin=subprocess.PIPE, stdout=subprocess.PIPE)
         o, _ = p.communicate(formatted_sql.encode())
+      elif engine == 'presto':
+        a = p.annotations.annotations['@Engine']['presto']
+        catalog = a.get('catalog', 'memory')
+        server = a.get('server', 'localhost:8080')
+        p = subprocess.Popen(['presto',
+                              '--catalog=%s' % catalog,
+                              '--server=%s' % server,
+                              '--file=/dev/stdin'] +
+                             (['--output-format=CSV_HEADER_UNQUOTED']
+                              if command == 'run_to_csv' else
+                              ['--output-format=ALIGNED']),
+                              stdin=subprocess.PIPE, stdout=subprocess.PIPE)
+        o, _ = p.communicate(formatted_sql.encode())
       else:
         assert False, 'Unknown engine: %s' % engine
       print(o.decode())
