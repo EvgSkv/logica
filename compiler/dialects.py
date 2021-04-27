@@ -75,6 +75,7 @@ class SqLiteDialect(Dialect):
   def InfixOperators(self):
     return {
         '++': '(%s) || (%s)',
+        '%' : '(%s) %% (%s)'
     }
 
   def Subscript(self, record, subscript):
