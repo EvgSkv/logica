@@ -60,8 +60,11 @@ def GetProgramOrExit(filename, user_flags=None):
   return p
 
 
-def RunQuery(sql, output_format='pretty', engine='bigquery'):
+def RunQuery(sql,
+             settings=None,
+             output_format='pretty', engine='bigquery'):
   """Run a SQL query on BigQuery."""
+  settings = settings or {}
   if engine == 'bigquery':
     p = subprocess.Popen(['bq', 'query',
                           '--use_legacy_sql=false',
@@ -74,7 +77,20 @@ def RunQuery(sql, output_format='pretty', engine='bigquery'):
     p = subprocess.Popen(['psql', '--quiet'],
                          stdin=subprocess.PIPE, stdout=subprocess.PIPE)
   elif engine == 'trino':
-    p = subprocess.Popen(['trino', '--catalog=memory'] +
+    catalog = settings.get('catalog', 'memory')
+    server = settings.get('server', 'http://localhost:8080')
+    p = subprocess.Popen(['trino',
+                          '--catalog=%s' % catalog,
+                          '--server=%s' % server] +
+                          ['--output-format=ALIGNED'],
+                          stdin=subprocess.PIPE, stdout=subprocess.PIPE)
+  elif engine == 'presto':
+    catalog = settings.get('catalog', 'memory')
+    server = settings.get('server', 'http://localhost:8080')
+    p = subprocess.Popen(['presto',
+                          '--catalog=%s' % catalog,
+                          '--server=%s' % server,
+                          '--file=/dev/stdin'] +
                           ['--output-format=ALIGNED'],
                           stdin=subprocess.PIPE, stdout=subprocess.PIPE)
   else:
@@ -88,4 +104,11 @@ def RunPredicate(filename, predicate,
   """Run a predicate on BigQuery."""
   p = GetProgramOrExit(filename, user_flags=user_flags)
   sql = p.FormattedPredicateSql(predicate)
-  return RunQuery(sql, output_format, engine=p.annotations.Engine())
+  engine = p.annotations.Engine()
+  if ('@Engine' in p.annotations.annotations and
+      engine in p.annotations.annotations['@Engine']):
+    settings = p.annotations.annotations['@Engine'][engine]
+  else:
+    settings = {}
+  return RunQuery(sql, settings,
+                  output_format, engine=engine)

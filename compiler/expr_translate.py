@@ -240,7 +240,7 @@ class QL(object):
     return str(literal['number'])
 
   def StrLiteral(self, literal):
-    if self.dialect.Name() in ["PostgreSQL", "Trino"]:
+    if self.dialect.Name() in ["PostgreSQL", "Presto", "Trino"]:
       # TODO: Do this safely.
       return '\'%s\'' % literal['the_string']
     return json.dumps(literal['the_string'], ensure_ascii=False)

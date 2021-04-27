@@ -41,6 +41,10 @@ def RunAll():
   # RunTest("closure_test")
   # RunTest("dialects/trino/grounding_test")
 
+  RunTest("dialects/presto/basics_test")
+  RunTest("dialects/presto/arg_min_max_test")
+  RunTest("dialects/presto/joins_test")
+
   RunTest("dialects/trino/basics_test")
   RunTest("dialects/trino/arg_min_max_test")
   RunTest("dialects/trino/joins_test")
