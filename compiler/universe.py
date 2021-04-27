@@ -153,8 +153,6 @@ class Annotations(object):
       preamble += (
           '-- Initializing PostgreSQL environment.\n'
           'set client_min_messages to warning;\n'
-          'drop type if exists logica_arrow;\n'
-          'create type logica_arrow as (arg decimal, value decimal);\n'
           'create schema if not exists logica_test;\n\n')
     return preamble
 
