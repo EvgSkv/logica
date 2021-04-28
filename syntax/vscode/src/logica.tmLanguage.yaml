@@ -369,6 +369,7 @@ repository:
   program_entry:
     patterns:
     - include: "#import"
+    - include: "#functor_application"
     - include: "#rule"
   
   rule:
@@ -388,7 +389,34 @@ repository:
       - include: "#assignment"
       - match: (?x)\b distinct \b
         name: "keyword.control.flow.logica"
-
+  
+  functor_application:
+    begin: |
+      (?x)
+        ([A-Z_]\w*)
+        (?: \s*)
+        (:=)
+        (?: \s*)
+        ([A-Z_]\w*)
+        (\()
+    end: (\))
+    beginCaptures:
+      '1': {name: entity.name.function.logica}
+      '2': {name: keyword.operator.assignment.logica}
+      '3': {name: entity.name.function.logica}
+      '4': {name: "punctuation.definition.arguments.begin.logica"}
+    endCaptures:
+      '1': {name: "punctuation.definition.arguments.end.logica"}
+    patterns:
+      - include: "#functor_record_internal"
+  
+  functor_record_internal:
+    patterns:
+      - name: punctuation.separator.colon.logica
+        match: ":"
+      - name: punctuation.separator.element.logica
+        match: ","
+      - include: "#logica_predicate"
 
   comment:
     patterns:
