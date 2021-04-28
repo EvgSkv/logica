@@ -30,7 +30,7 @@ npx js-yaml src/logica.tmLanguage.yaml > syntaxes/logica.tmLanguage.json
 To start using your extension with Visual Studio Code copy it into the `<user home>/.vscode/extensions` folder and restart Code.
 
 ```
-mkdir ~/.vscode/extensions/logica-syntax-highlighting-0.0.1
+mkdir -p ~/.vscode/extensions/logica-syntax-highlighting-0.0.1
 cp -r syntaxes package.json language-configuration.json ~/.vscode/extensions/logica-syntax-highlighting-0.0.1
 ```
 
