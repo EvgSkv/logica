@@ -63,7 +63,11 @@ def RunTest(name, src, predicate, golden,
   print(color.Format('% 50s   %s' % (name, test_result)))
 
   result = logica_lib.RunPredicate(src, predicate,
-                                 user_flags=user_flags)
+                                   user_flags=user_flags)
+  # Hacky way to remove query that BQ prints.
+  if '+---' in result[200:]:
+    result = result[result.index('+---'):]
+
   if overwrite:
     with open(golden, 'w') as w:
       w.write(result)
