@@ -87,7 +87,7 @@ class QL(object):
       '^': 'POW(%s, %s)',
       '!=': '%s != %s',
       '++': 'CONCAT(%s, %s)',
-      'In': '%s IN UNNEST(%s)',
+      'in': '%s IN UNNEST(%s)',
       '||': '%s OR %s',
       '&&': '%s AND %s',
       '%': 'MOD(%s, %s)'
@@ -504,9 +504,7 @@ class QL(object):
       for ydg_op, sql_op in self.built_in_infix_operators.items():
         if call['predicate_name'] == ydg_op:
           result = self.Infix(sql_op, arguments)
-          # TODO: Don't add parenthesis unless they are needed.
-          if ydg_op not in ('++', '++?', 'In', '=='):
-            result = '(' + result + ')'
+          result = '(' + result + ')'
           return result
 
     if 'subscript' in expression:
