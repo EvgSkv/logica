@@ -119,9 +119,9 @@ date_from_unix_date,DATE_FROM_UNIX_DATE,false,0,1,1
 date_sub,DATE_SUB,false,0,3,3
 date_trunc,DATE_TRUNC,false,0,2,2
 datetime,DATETIME,false,0,1,6
-datetime_add,DATETIME_ADD,false,0,3,3
+datetime_add,DATETIME_ADD,false,0,2,2
 datetime_diff,DATETIME_DIFF,false,0,3,3
-datetime_sub,DATETIME_SUB,false,0,3,3
+datetime_sub,DATETIME_SUB,false,0,2,2
 datetime_trunc,DATETIME_TRUNC,false,0,2,2
 dense_rank,DENSE_RANK,false,0,0,0
 div,DIV,false,0,2,2
@@ -301,12 +301,12 @@ sum,SUM,true,0,1,1
 tan,TAN,false,0,1,1
 tanh,TANH,false,0,1,1
 time,TIME,false,0,1,3
-time_add,TIME_ADD,false,0,3,3
+time_add,TIME_ADD,false,0,2,2
 time_diff,TIME_DIFF,false,0,3,3
-time_sub,TIME_SUB,false,0,3,3
+time_sub,TIME_SUB,false,0,2,2
 time_trunc,TIME_TRUNC,false,0,2,2
 timestamp,TIMESTAMP,false,0,1,2
-timestamp_add,TIMESTAMP_ADD,false,0,3,3
+timestamp_add,TIMESTAMP_ADD,false,0,2,2
 timestamp_diff,TIMESTAMP_DIFF,false,0,3,3
 timestamp_from_unix_micros,TIMESTAMP_FROM_UNIX_MICROS,false,0,1,1
 timestamp_from_unix_millis,TIMESTAMP_FROM_UNIX_MILLIS,false,0,1,1
@@ -314,7 +314,7 @@ timestamp_from_unix_seconds,TIMESTAMP_FROM_UNIX_SECONDS,false,0,1,1
 timestamp_micros,TIMESTAMP_MICROS,false,0,1,1
 timestamp_millis,TIMESTAMP_MILLIS,false,0,1,1
 timestamp_seconds,TIMESTAMP_SECONDS,false,0,1,1
-timestamp_sub,TIMESTAMP_SUB,false,0,3,3
+timestamp_sub,TIMESTAMP_SUB,false,0,2,2
 timestamp_trunc,TIMESTAMP_TRUNC,false,0,2,3
 to_base32,TO_BASE32,false,0,1,1
 to_base64,TO_BASE64,false,0,1,1
