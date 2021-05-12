@@ -113,10 +113,10 @@ current_datetime,CURRENT_DATETIME,false,0,0,1
 current_time,CURRENT_TIME,false,0,0,1
 current_timestamp,CURRENT_TIMESTAMP,false,0,0,0
 date,DATE,false,0,1,3
-date_add,DATE_ADD,false,0,3,3
+date_add,DATE_ADD,false,0,2,2
 date_diff,DATE_DIFF,false,0,3,3
 date_from_unix_date,DATE_FROM_UNIX_DATE,false,0,1,1
-date_sub,DATE_SUB,false,0,3,3
+date_sub,DATE_SUB,false,0,2,2
 date_trunc,DATE_TRUNC,false,0,2,2
 datetime,DATETIME,false,0,1,6
 datetime_add,DATETIME_ADD,false,0,2,2
