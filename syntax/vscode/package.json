@@ -4,7 +4,7 @@
     "description": "Syntax highlighting for Logica",
     "version": "0.0.1",
     "engines": {
-        "vscode": "^1.55.0"
+        "vscode": "^1.54.0"
     },
     "categories": [
         "Programming Languages"
@@ -33,5 +33,10 @@
     },
     "devDependencies": {
         "js-yaml": "^4.1.0"
+    },
+    "publisher": "Logica",
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/EvgSkv/logica.git"
     }
 }
