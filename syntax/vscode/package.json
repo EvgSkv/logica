@@ -1,0 +1,42 @@
+{
+    "name": "logica-syntax-highlighting",
+    "displayName": "Logica Syntax Highlighting",
+    "description": "Syntax highlighting for Logica",
+    "version": "0.0.1",
+    "engines": {
+        "vscode": "^1.54.0"
+    },
+    "categories": [
+        "Programming Languages"
+    ],
+    "contributes": {
+        "languages": [
+            {
+                "id": "logica",
+                "aliases": [
+                    "Logica",
+                    "logica"
+                ],
+                "extensions": [
+                    ".l"
+                ],
+                "configuration": "./language-configuration.json"
+            }
+        ],
+        "grammars": [
+            {
+                "language": "logica",
+                "scopeName": "source.logica",
+                "path": "./syntaxes/logica.tmLanguage.json"
+            }
+        ]
+    },
+    "devDependencies": {
+        "js-yaml": "^4.1.0"
+    },
+    "publisher": "Logica",
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/EvgSkv/logica.git"
+    }
+}
