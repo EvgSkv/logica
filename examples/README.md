@@ -23,4 +23,4 @@ limitations under the License.
 1. [Avengers and PostgreSQL](https://colab.research.google.com/github/EvgSkv/logica/blob/main/examples/Logica_example_Avengers_and_PostgreSQL.ipynb)
 1. [News connections](https://colab.research.google.com/github/EvgSkv/logica/blob/main/examples/Logica_example_News_connections.ipynb)
 1. [Reachability proof of concept](https://colab.research.google.com/github/EvgSkv/logica/blob/main/examples/Logica_example_Reachability.ipynb)
-1. [Postgres Quick Start](https://github.com/EvgSkv/logica/blob/main/examples/Logica_example_Postgres_Quick_Start.ipynb)
+1. [Postgres Quick Start](https://colab.research.google.com/github/EvgSkv/logica/blob/main/examples/Logica_example_Postgres_Quick_Start.ipynb)
