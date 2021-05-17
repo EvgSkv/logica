@@ -135,6 +135,8 @@ class Functors(object):
       
     if functor not in self.args_of:
       built_args = self.BuildArgs(functor)
+      # Args could be incomplete due to recursive calls.
+      # Checking for that.
       building_me = 'building_' + functor
       if building_me in built_args:
         built_args = built_args - {building_me}
