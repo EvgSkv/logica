@@ -54,6 +54,10 @@ def RunAll(test_spark=False):
     RunTest("dialects/trino/joins_test")
 
   RunTest("psql_recursion_test")
+  RunTest("sqlite_recursion")
+  RunTest("sqlite_rec_depth")
+  RunTest("sqlite_rec_functor")
+  RunTest("sqlite_pagerank")
 
   RunTest("psql_test")
   RunTest("psql_arg_min_test")
