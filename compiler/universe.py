@@ -128,7 +128,7 @@ class Annotations(object):
       '@Limit', '@OrderBy', '@Ground', '@Flag', '@DefineFlag',
       '@NoInject', '@Make', '@CompileAsTvf', '@With', '@NoWith',
       '@CompileAsUdf', '@ResetFlagValue', '@Dataset', '@AttachDatabase',
-      '@Engine'
+      '@Engine', '@RecursiveDepth'
   ]
 
   def __init__(self, rules, user_flags):
@@ -444,6 +444,8 @@ class LogicaProgram(object):
         BigQuery table name. This table will be used in place of predicate.
       user_flags: Dictionary of user specified flags.
     """
+    rules = self.UnfoldRecursion(rules)
+
     # TODO: Should allocator be a member of Logica?
     self.preparsed_rules = rules
     self.rules = []
@@ -489,6 +491,11 @@ class LogicaProgram(object):
 
     if False:
       self.RunTypechecker()
+
+  def UnfoldRecursion(self, rules):
+    annotations = Annotations(rules, {})
+    f = functors.Functors(rules)
+    return f.UnfoldRecursions(annotations.annotations.get('@RecursiveDepth', {}))
 
   def BuildUdfs(self):
     """Build UDF definitions."""
@@ -578,10 +585,16 @@ class LogicaProgram(object):
                   'currently supported. Consider taking '
                   '{warning}union of bodies manually{end}, if that was what '
                   'you intended.'), rule['full_text'])
-        rules_sql.append('\n%s\n' %
-                         Indent2(
-                             self.SingleRuleSql(
-                                 rule, allocator, external_vocabulary)))
+        single_rule_sql = self.SingleRuleSql(
+            rule, allocator, external_vocabulary)
+        if not single_rule_sql.startswith('/* nil */'):
+          rules_sql.append('\n%s\n' %
+                          Indent2(single_rule_sql))
+      if not rules_sql:
+        raise rule_translate.RuleCompileException(
+          'All disjuncts are nil for predicate %s.' % color.Warn(name),
+          rule['full_text'])
+
       rules_sql = ['\n'.join('  ' + l for l in r.split('\n'))
                    for r in rules_sql]
       return 'SELECT * FROM (\n%s\n) AS UNUSED_TABLE_NAME %s %s' % (
@@ -898,7 +911,9 @@ class LogicaProgram(object):
             s.full_rule_text)
       else:
         raise runtime_error
-
+    if 'nil' in s.tables.values():
+      # Mark rule for deletion.
+      sql = '/* nil */' + sql
     return sql
 
   def GenerateWithClauses(self, predicate_name):
@@ -986,6 +1001,7 @@ class SubqueryTranslator(object):
       # Calling predicate SQL to add the required ground dependencies.
       if table not in self.execution.with_compilation_done_for_parent[
           parent_table]:
+        # Swap these lines to compile a recursive with.
         _ = self.program.PredicateSql(table, self.allocator)
         self.execution.with_compilation_done_for_parent[
             parent_table].add(table)

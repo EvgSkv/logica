@@ -533,6 +533,7 @@ def ParseList(s):
 
 def ParsePredicateLiteral(s):
   if (s == '++?' or
+      s == 'nil' or
       s and
       set(s) <=
       set(string.ascii_letters) | set(string.digits) | set(['_']) and
