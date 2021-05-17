@@ -84,7 +84,6 @@ class Functors(object):
     self.args_of = {}
     self.creation_count = 0
     self.cached_calls = {}
-    self.build_args_state = ('not_running', None)
     for p in self.predicates:
       self.ArgsOf(p)
 
@@ -133,17 +132,15 @@ class Functors(object):
 
   def ArgsOf(self, functor):
     """Arguments of functor. Retrieving from cache, or computing."""
-    if self.args_of.get(functor) == 'BUILDING':
-      self.build_args_state = ('recursion_encountered',
-                                self.build_args_state[1])
-      return set()
       
     if functor not in self.args_of:
       built_args = self.BuildArgs(functor)
-      if self.build_args_state[0] != 'recursion_encountered':
-        self.args_of[functor] = built_args
-      else:
-        return built_args
+      building_me = 'building_' + functor
+      if building_me in built_args:
+        built_args = built_args - {building_me}
+      if any(a.startswith('building_') for a in built_args):
+        return (a for a in built_args if not a.startswith('building_'))
+      self.args_of[functor] = built_args
 
     return self.args_of[functor]
 
@@ -153,28 +150,19 @@ class Functors(object):
       # Assuming this is built-in or table.
       return set()
 
-    self.args_of[functor] = 'BUILDING'
-    state, main_functor = self.build_args_state
-
-    if state == 'not_running':
-      self.build_args_state = ('running_smoothly', functor)
+    self.args_of[functor] = {'building_' + functor}
 
     result = set()
-
     queue = collections.deque(self.direct_args_of[functor])
     while queue:
       e = queue.popleft()
       result.add(e)
-      if e != functor:
-        for a in self.ArgsOf(e):
-          if a not in result:
-            queue.append(a)
+      for a in self.ArgsOf(e):
+        if a not in result:
+          queue.append(a)
 
-    if functor == self.build_args_state[1]:
-      self.build_args_state = ('not_running', None)
-      for p in list(self.args_of):
-        if self.args_of[p] == 'BUILDING':
-          del self.args_of[p]
+    del self.args_of[functor]
+
     return result
 
   def AllRulesOf(self, functor):
