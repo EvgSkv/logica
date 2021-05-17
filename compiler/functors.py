@@ -35,9 +35,11 @@ import sys
 
 if '.' not in __package__:
   from common import color
+  from compiler.dialect_libraries import recursion_library
   from parser_py import parse
 else:
   from ..common import color
+  from ..compiler.dialect_libraries import recursion_library
   from ..parser_py import parse
 
 
@@ -47,6 +49,7 @@ class FunctorError(Exception):
   def __init__(self, message, functor_name):
     super(FunctorError, self).__init__(message)
     self.functor_name = functor_name
+    self.message = message
 
   def ShowMessage(self):
     print(color.Format('{underline}Making{end}:'), file=sys.stderr)
@@ -129,16 +132,29 @@ class Functors(object):
 
   def ArgsOf(self, functor):
     """Arguments of functor. Retrieving from cache, or computing."""
+      
     if functor not in self.args_of:
-      self.args_of[functor] = self.BuildArgs(functor)
+      built_args = self.BuildArgs(functor)
+      # Args could be incomplete due to recursive calls.
+      # Checking for that.
+      building_me = 'building_' + functor
+      if building_me in built_args:
+        built_args = built_args - {building_me}
+      if any(a.startswith('building_') for a in built_args):
+        return (a for a in built_args if not a.startswith('building_'))
+      self.args_of[functor] = built_args
+
     return self.args_of[functor]
 
   def BuildArgs(self, functor):
     """Returning all arguments of a functor."""
-    result = set()
     if functor not in self.direct_args_of:
       # Assuming this is built-in or table.
-      return result
+      return set()
+
+    self.args_of[functor] = {'building_' + functor}
+
+    result = set()
     queue = collections.deque(self.direct_args_of[functor])
     while queue:
       e = queue.popleft()
@@ -146,6 +162,9 @@ class Functors(object):
       for a in self.ArgsOf(e):
         if a not in result:
           queue.append(a)
+
+    del self.args_of[functor]
+
     return result
 
   def AllRulesOf(self, functor):
@@ -288,3 +307,37 @@ class Functors(object):
     Walk(rules, ReplacePredicate, lambda _: True)
     self.extended_rules.extend(rules)
     self.UpdateStructure()
+
+  def UnfoldRecursivePredicate(self, predicate, depth, rules):   
+    """Unfolds recurive predicate.""" 
+    new_predicate_name = predicate + '_recursive'
+    new_predicate_head_name = predicate + '_recursive_head'
+    def ReplaceRecursivePredicate(x):
+      if isinstance(x, dict) and 'predicate_name' in x:
+        if x['predicate_name'] == predicate:
+          x['predicate_name'] = new_predicate_name
+      return []
+
+    for r in rules:
+      if r['head']['predicate_name'] == predicate:
+        r['head']['predicate_name'] = new_predicate_head_name
+        Walk(r, ReplaceRecursivePredicate, lambda _: True)
+      elif predicate + '_MultBodyAggAux' == r['head']['predicate_name']:
+        Walk(r, ReplaceRecursivePredicate, lambda _: True)
+      else:
+        # This rule simply uses the predicate, keep the name.
+        pass
+
+    lib = recursion_library.GetRecursionFunctor(depth)
+    lib = lib.replace('P', predicate)
+    lib_rules = parse.ParseFile(lib)['rule']
+    rules.extend(lib_rules)
+
+  def UnfoldRecursions(self, depth_map):
+    """Unfolds all recursions."""
+    new_rules = copy.deepcopy(self.rules)
+    for p in self.predicates:
+      if p in self.ArgsOf(p) and '_MultBodyAggAux' not in p:
+        depth = depth_map.get(p, {}).get('1', 8)
+        self.UnfoldRecursivePredicate(p, depth, new_rules)
+    return new_rules
