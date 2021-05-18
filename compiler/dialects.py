@@ -101,7 +101,9 @@ class PostgreSQL(Dialect):
   def BuiltInFunctions(self):
     return {
         'Range': '(SELECT ARRAY_AGG(x) FROM GENERATE_SERIES(0, {0} - 1) as x)',
-        'ToString': 'CAST(%s AS TEXT)'
+        'ToString': 'CAST(%s AS TEXT)',
+        'Element': '({0})[{1} + 1]',
+        'Size': 'ARRAY_LENGTH(%s, 1)'
       }
 
   def InfixOperators(self):
