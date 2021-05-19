@@ -312,10 +312,16 @@ class Functors(object):
     """Unfolds recurive predicate.""" 
     new_predicate_name = predicate + '_recursive'
     new_predicate_head_name = predicate + '_recursive_head'
+
     def ReplaceRecursivePredicate(x):
       if isinstance(x, dict) and 'predicate_name' in x:
         if x['predicate_name'] == predicate:
           x['predicate_name'] = new_predicate_name
+      return []
+    def ReplaceRecursiveHeadPredicate(x):
+      if isinstance(x, dict) and 'predicate_name' in x:
+        if x['predicate_name'] == predicate:
+          x['predicate_name'] = new_predicate_head_name
       return []
 
     for r in rules:
@@ -324,6 +330,8 @@ class Functors(object):
         Walk(r, ReplaceRecursivePredicate, lambda _: True)
       elif predicate + '_MultBodyAggAux' == r['head']['predicate_name']:
         Walk(r, ReplaceRecursivePredicate, lambda _: True)
+      elif (r['head']['predicate_name'][0] == '@'):
+        Walk(r, ReplaceRecursiveHeadPredicate, lambda _: True)
       else:
         # This rule simply uses the predicate, keep the name.
         pass

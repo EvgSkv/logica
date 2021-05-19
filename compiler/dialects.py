@@ -103,7 +103,8 @@ class PostgreSQL(Dialect):
         'Range': '(SELECT ARRAY_AGG(x) FROM GENERATE_SERIES(0, {0} - 1) as x)',
         'ToString': 'CAST(%s AS TEXT)',
         'Element': '({0})[{1} + 1]',
-        'Size': 'ARRAY_LENGTH(%s, 1)'
+        'Size': 'ARRAY_LENGTH(%s, 1)',
+        'Count': 'COUNT(DISTINCT {0})'
       }
 
   def InfixOperators(self):
