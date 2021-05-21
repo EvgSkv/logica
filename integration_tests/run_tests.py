@@ -53,6 +53,8 @@ def RunAll(test_spark=False):
     RunTest("dialects/trino/arg_min_max_test")
     RunTest("dialects/trino/joins_test")
 
+  RunTest("functor_arg_update_test")
+
   RunTest("psql_recursion_test")
   RunTest("sqlite_recursion")
   RunTest("sqlite_rec_depth")
