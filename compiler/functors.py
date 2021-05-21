@@ -330,7 +330,8 @@ class Functors(object):
         Walk(r, ReplaceRecursivePredicate, lambda _: True)
       elif predicate + '_MultBodyAggAux' == r['head']['predicate_name']:
         Walk(r, ReplaceRecursivePredicate, lambda _: True)
-      elif (r['head']['predicate_name'][0] == '@'):
+      elif (r['head']['predicate_name'][0] == '@' and
+            r['head']['predicate_name'] != '@Make'):
         Walk(r, ReplaceRecursiveHeadPredicate, lambda _: True)
       else:
         # This rule simply uses the predicate, keep the name.
