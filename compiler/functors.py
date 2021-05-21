@@ -57,19 +57,17 @@ class FunctorError(Exception):
     print(color.Format('\n[ {error}Error{end} ] ') + self.message,
           file=sys.stderr)
 
-
-def Walk(x, act, should_enter):
+def Walk(x, act):
   """Walking over a dictionary of lists, modifying and/or collecting info."""
-  r = []
-  r.extend(act(x))
+  r = set()
+  r |= set(act(x))
   if isinstance(x, list):
     for v in x:
-      r.extend(Walk(v, act, should_enter))
+      r |= Walk(v, act)
   if isinstance(x, dict):
     for k in x:
-      if should_enter(k):
-        r.extend(Walk(x[k], act, should_enter))
-  return set(r)
+      r |= Walk(x[k], act)
+  return r
 
 
 class Functors(object):
@@ -87,13 +85,20 @@ class Functors(object):
     for p in self.predicates:
       self.ArgsOf(p)
 
-  def UpdateStructure(self):
+  def CopyOfArgs(self):
+    """Copying args is separated for profiling."""
+    return {k: v for k, v in list(self.args_of.items())}
+
+  def UpdateStructure(self, new_predicate):
     """Updates rules_of and args_of maps after extebded_rules update."""
     self.rules_of = parse.DefinedPredicatesRules(self.extended_rules)
     self.predicates = set(self.rules_of)
     self.direct_args_of = self.BuildDirectArgsOf()
     # Resetting args_of, to process the new predicates that were added.
-    self.args_of = {}
+    copied_args_of = self.CopyOfArgs()
+    for predicate, args in copied_args_of.items():
+      if new_predicate in args or new_predicate == predicate:
+        del self.args_of[predicate]
     for p in self.predicates:
       self.ArgsOf(p)
 
@@ -115,6 +120,10 @@ class Functors(object):
   def Describe(self):
     return 'DirectArgs: %s,\nArgs: %s' % (self.direct_args_of, self.args_of)
 
+  def BuildDirectArgsOfWalk(self, x, act):
+    """Factored for profiling."""
+    return Walk(x, act)
+
   def BuildDirectArgsOf(self):
     """Builds a map of direct arguments of a functor."""
     def ExtractPredicateName(x):
@@ -125,7 +134,7 @@ class Functors(object):
     for functor, rules in self.rules_of.items():
       args = set()
       for rule in rules:
-        args |= Walk(rule, ExtractPredicateName, lambda _: True)
+        args |= self.BuildDirectArgsOfWalk(rule, ExtractPredicateName)
       args -= set([functor])
       direct_args_of[functor] = args
     return direct_args_of
@@ -304,9 +313,9 @@ class Functors(object):
         if x['predicate_name'] in extended_args_map:
           x['predicate_name'] = extended_args_map[x['predicate_name']]
       return []
-    Walk(rules, ReplacePredicate, lambda _: True)
+    Walk(rules, ReplacePredicate)
     self.extended_rules.extend(rules)
-    self.UpdateStructure()
+    self.UpdateStructure(name)
 
   def UnfoldRecursivePredicate(self, predicate, depth, rules):   
     """Unfolds recurive predicate.""" 
@@ -327,11 +336,12 @@ class Functors(object):
     for r in rules:
       if r['head']['predicate_name'] == predicate:
         r['head']['predicate_name'] = new_predicate_head_name
-        Walk(r, ReplaceRecursivePredicate, lambda _: True)
+        Walk(r, ReplaceRecursivePredicate)
       elif predicate + '_MultBodyAggAux' == r['head']['predicate_name']:
-        Walk(r, ReplaceRecursivePredicate, lambda _: True)
-      elif (r['head']['predicate_name'][0] == '@'):
-        Walk(r, ReplaceRecursiveHeadPredicate, lambda _: True)
+        Walk(r, ReplaceRecursivePredicate)
+      elif (r['head']['predicate_name'][0] == '@' and
+            r['head']['predicate_name'] != '@Make'):
+        Walk(r, ReplaceRecursiveHeadPredicate)
       else:
         # This rule simply uses the predicate, keep the name.
         pass

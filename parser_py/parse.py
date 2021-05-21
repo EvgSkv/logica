@@ -1181,8 +1181,10 @@ class MultiBodyAggregation(object):
         n for n, rs in defined_predicates_rules.items()
         if len(rs) > 1 and 'distinct_denoted' in rs[0]]
     aggregation_field_values_per_predicate = {}
+    original_full_text_per_predicate = {}
     for rule in rules:
       name = rule['head']['predicate_name']
+      original_full_text_per_predicate[name] = rule['full_text']
       if name in multi_body_aggregating_predicates:
         aggregation, new_rule = cls.SplitAggregation(rule)
         if name in aggregation_field_values_per_predicate:
@@ -1231,7 +1233,7 @@ class MultiBodyAggregation(object):
                   }]
               }
           },
-          'full_text': 'automatically built',
+          'full_text': original_full_text_per_predicate[name],
           'distinct_denoted': True
       }
       new_rules.append(aggregating_rule)
