@@ -2,7 +2,7 @@
 
 @Engine("sqlite");                                                                                                                
                                                                                                                                   
-@RecursiveDepth(A, 2);                                                                                                            
+@Recursive(A, 2);                                                                                                            
 A(x) :- B(x), C(x);                                                                                                               
                                                                                                                                   
 B(x) :- D(x);                                                                                                                     
