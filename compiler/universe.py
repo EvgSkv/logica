@@ -128,7 +128,7 @@ class Annotations(object):
       '@Limit', '@OrderBy', '@Ground', '@Flag', '@DefineFlag',
       '@NoInject', '@Make', '@CompileAsTvf', '@With', '@NoWith',
       '@CompileAsUdf', '@ResetFlagValue', '@Dataset', '@AttachDatabase',
-      '@Engine', '@RecursiveDepth'
+      '@Engine', '@Recursive'
   ]
 
   def __init__(self, rules, user_flags):
@@ -495,7 +495,7 @@ class LogicaProgram(object):
   def UnfoldRecursion(self, rules):
     annotations = Annotations(rules, {})
     f = functors.Functors(rules)
-    return f.UnfoldRecursions(annotations.annotations.get('@RecursiveDepth', {}))
+    return f.UnfoldRecursions(annotations.annotations.get('@Recursive', {}))
 
   def BuildUdfs(self):
     """Build UDF definitions."""

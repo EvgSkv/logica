@@ -30,7 +30,7 @@ Edge(10, 11);
 Edge(9, 11);
 
 @OrderBy(Distance, "col0", "col1");
-@RecursiveDepth(Distance, 5);
+@Recursive(Distance, 5);
 Distance(a, b) Min= 1 :- Edge(a, b);
 
 Distance(a, a) Min= 0 :- Distance(a);
