@@ -30,3 +30,31 @@ def GetRecursionFunctor(depth):
           'P_r{1} := P_recursive_head(P_recursive: P_r{0});'.format(i, i + 1))
   result_lines.append('P := P_r{0}();'.format(depth))
   return '\n'.join(result_lines)
+
+def GetRenamingFunctor(member, root):
+  """Renaming recursive cover member.
+
+  Example.
+  # Original:
+  A(x) :- B(x);
+  B(x) :- C(x);
+  C(x) :- D(x);
+  D(x) :- A(x);
+  D(0);
+
+  # After first renaming.
+  D_recursive_head(x) :- A_recursive(x);
+  D_recursive_head(0);
+
+  C_recursive_head(x) :- D_recursive_head(x);
+
+  B_recursive_head(x) :- C_recursive_head(x);
+
+  A_recursive_head(x) :- B_recursive_head(x);
+
+  A := A_r10();
+  D := D_recursive_head(A_recursive: A);  # <-- renaming functor.
+  C := C_recursive_head(A_recursive: A);
+  B := B_recursive_head(A_recursive: A);
+  """
+  return '{0} := {0}_recursive_head({1}_recursive: {1});'.format(member, root)

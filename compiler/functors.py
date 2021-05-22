@@ -134,8 +134,10 @@ class Functors(object):
     for functor, rules in self.rules_of.items():
       args = set()
       for rule in rules:
-        args |= self.BuildDirectArgsOfWalk(rule, ExtractPredicateName)
-      args -= set([functor])
+        if 'body' in rule:
+          args |= self.BuildDirectArgsOfWalk(rule['body'], ExtractPredicateName)
+        args |= self.BuildDirectArgsOfWalk(rule['head']['record'],
+                                           ExtractPredicateName)
       direct_args_of[functor] = args
     return direct_args_of
 
@@ -317,7 +319,7 @@ class Functors(object):
     self.extended_rules.extend(rules)
     self.UpdateStructure(name)
 
-  def UnfoldRecursivePredicate(self, predicate, depth, rules):   
+  def UnfoldRecursivePredicate(self, predicate, cover, depth, rules):   
     """Unfolds recurive predicate.""" 
     new_predicate_name = predicate + '_recursive'
     new_predicate_head_name = predicate + '_recursive_head'
@@ -332,16 +334,29 @@ class Functors(object):
         if x['predicate_name'] == predicate:
           x['predicate_name'] = new_predicate_head_name
       return []
+    def ReplacerOfCoverMember(member):
+      def Replace(x):
+        if isinstance(x, dict) and 'predicate_name' in x:
+          if x['predicate_name'] == member:
+            x['predicate_name'] = member + '_recursive_head'
+        return []
+      return Replace
 
     for r in rules:
       if r['head']['predicate_name'] == predicate:
         r['head']['predicate_name'] = new_predicate_head_name
         Walk(r, ReplaceRecursivePredicate)
-      elif predicate + '_MultBodyAggAux' == r['head']['predicate_name']:
+        for c in cover - {predicate}:
+          Walk(r, ReplacerOfCoverMember(c))
+      elif r['head']['predicate_name'] in cover:
         Walk(r, ReplaceRecursivePredicate)
+        for c in cover - {predicate}:
+          Walk(r, ReplacerOfCoverMember(c))
       elif (r['head']['predicate_name'][0] == '@' and
             r['head']['predicate_name'] != '@Make'):
         Walk(r, ReplaceRecursiveHeadPredicate)
+        for c in cover - {predicate}:
+          Walk(r, ReplacerOfCoverMember(c))        
       else:
         # This rule simply uses the predicate, keep the name.
         pass
@@ -350,12 +365,48 @@ class Functors(object):
     lib = lib.replace('P', predicate)
     lib_rules = parse.ParseFile(lib)['rule']
     rules.extend(lib_rules)
+    for c in cover - {predicate}:
+      rename_lib = recursion_library.GetRenamingFunctor(c, predicate)
+      rename_lib_rules = parse.ParseFile(rename_lib)['rule']
+      rules.extend(rename_lib_rules)
 
   def UnfoldRecursions(self, depth_map):
     """Unfolds all recursions."""
+    should_recurse, my_cover = self.RecursiveAnalysis(depth_map)
     new_rules = copy.deepcopy(self.rules)
-    for p in self.predicates:
-      if p in self.ArgsOf(p) and '_MultBodyAggAux' not in p:
-        depth = depth_map.get(p, {}).get('1', 8)
-        self.UnfoldRecursivePredicate(p, depth, new_rules)
+    for p in should_recurse:
+      depth = depth_map.get(p, {}).get('1', 8)
+      self.UnfoldRecursivePredicate(p, my_cover[p], depth, new_rules)
     return new_rules
+
+  def RecursiveAnalysis(self, depth_map):
+    """Finds recursive cycles and predicates that would unfold them."""
+    # TODO: Select unfolding predicates to guarantee unfolding.
+    cover = []
+    covered = set()
+    deep = set(depth_map)
+    for p, args in self.args_of.items():
+      if p in args and p not in covered and '_MultBodyAggAux' not in p:
+        c = {p}
+        for p2 in args:
+          if p in self.args_of[p2]:
+            c.add(p2)
+        cover.append(c)
+        covered |= c
+
+    my_cover = {}
+    for c in cover:
+      for p in c:
+        my_cover[p] = c
+
+    recursion_covered = set()
+    should_recurse = []
+    for c in cover:
+      if c & deep:
+        p = min(c & deep)
+      else:
+        p = min(c)
+      should_recurse.append(p)
+      recursion_covered |= my_cover[p]
+
+    return should_recurse, my_cover

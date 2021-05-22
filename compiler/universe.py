@@ -571,10 +571,16 @@ class LogicaProgram(object):
     rules = list(self.GetPredicateRules(name))
     if len(rules) == 1:
       [rule] = rules
-      return (
+      result = (
           self.SingleRuleSql(rule, allocator, external_vocabulary) +
           self.annotations.OrderByClause(name) +
           self.annotations.LimitClause(name))
+      if result.startswith('/* nil */'):
+        raise rule_translate.RuleCompileException(
+          'Single ruls has nil for predicate %s. '
+          'Recursion unfolding failed.' % color.Warn(name),
+          rule['full_text'])
+      return result
     elif len(rules) > 1:
       rules_sql = []
       for rule in rules:
