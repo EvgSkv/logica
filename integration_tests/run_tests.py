@@ -55,6 +55,8 @@ def RunAll(test_spark=False):
 
   RunTest("functor_arg_update_test")
 
+  RunTest("ultra_short_cycle_test")
+
   RunTest("rec_small_cycle_test")
   RunTest("rec_cycle_test")
 

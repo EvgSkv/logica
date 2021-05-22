@@ -134,8 +134,10 @@ class Functors(object):
     for functor, rules in self.rules_of.items():
       args = set()
       for rule in rules:
-        args |= self.BuildDirectArgsOfWalk(rule, ExtractPredicateName)
-      args -= set([functor])
+        if 'body' in rule:
+          args |= self.BuildDirectArgsOfWalk(rule['body'], ExtractPredicateName)
+        args |= self.BuildDirectArgsOfWalk(rule['head']['record'],
+                                           ExtractPredicateName)
       direct_args_of[functor] = args
     return direct_args_of
 
