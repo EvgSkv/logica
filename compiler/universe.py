@@ -577,7 +577,7 @@ class LogicaProgram(object):
           self.annotations.LimitClause(name))
       if result.startswith('/* nil */'):
         raise rule_translate.RuleCompileException(
-          'Single ruls has nil for predicate %s. '
+          'Single rule is nil for predicate %s. '
           'Recursion unfolding failed.' % color.Warn(name),
           rule['full_text'])
       return result
