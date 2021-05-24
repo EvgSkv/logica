@@ -185,6 +185,9 @@ class Functors(object):
       return result
     result.extend(self.rules_of[functor])
     for f in self.args_of[functor]:
+      if f == functor:
+        raise FunctorError('Failed to eliminate recursion of %s.' % functor,
+                           functor)
       if f in self.rules_of:
         result.extend(self.rules_of[f])
     return copy.deepcopy(result)
