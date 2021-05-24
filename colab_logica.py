@@ -26,6 +26,8 @@ import IPython
 from IPython.core.magic import register_cell_magic
 from IPython.display import display
 
+import os
+
 import pandas
 
 from .parser_py import parse
@@ -169,3 +171,24 @@ def Logica(line, cell, run_query):
           display(t)
         else:
           print('The query was not run.')
+
+def PostgresJumpStart():
+  # Install postgresql server.
+  result = 0
+  result += os.system('apt-get -y -qq update')
+  result += os.system('apt-get -y -qq install postgresql')
+  result += os.system('service postgresql start')
+  result += os.system(
+    '-u postgres psql -c "CREATE USER logica WITH SUPERUSER"')
+  result += os.system(
+    '-u postgres psql -c "ALTER USER logica PASSWORD \'logica\';"')
+  result += os.system(
+    '-u postgres psql -U postgres -c \'CREATE DATABASE logica;\'')
+
+  # Connect to the database.
+  from logica import colab_logica
+  from sqlalchemy import create_engine
+  import pandas
+  engine = create_engine('postgresql+psycopg2://logica:logica@127.0.0.1', pool_recycle=3600)
+  connection = engine.connect()
+  SetDbConnection(connection)
