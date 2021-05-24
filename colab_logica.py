@@ -176,16 +176,37 @@ def PostgresJumpStart():
   # Install postgresql server.
   print("Installing and configuring an empty PostgreSQL database.")
   result = 0
-  result += os.system('apt-get -y -qq update')
-  result += os.system('apt-get -y -qq install postgresql')
-  result += os.system('service postgresql start')
+  result += os.system('sudo apt-get -y -qq update')
+  result += os.system('sudo apt-get -y -qq install postgresql')
+  result += os.system('sudo service postgresql start')
   result += os.system(
-    'psql -u postgres psql -c "CREATE USER logica WITH SUPERUSER"')
+    'sudo -u postgres psql -c "CREATE USER logica WITH SUPERUSER"')
   result += os.system(
-    'psql -u postgres psql -c "ALTER USER logica PASSWORD \'logica\';"')
+    'sudo -u postgres psql -c "ALTER USER logica PASSWORD \'logica\';"')
   result += os.system(
-    'psql -u postgres psql -U postgres -c \'CREATE DATABASE logica;\'')
+    'sudo -u postgres psql -U postgres -c \'CREATE DATABASE logica;\'')
+  if result != 0:
+    print("""Installation failed. Please try the following manually:
+# Install Logica.
+!pip install logica
 
+# Install postgresql server.
+!sudo apt-get -y -qq update
+!sudo apt-get -y -qq install postgresql
+!sudo service postgresql start
+
+# Prepare database for Logica.
+!sudo -u postgres psql -c "CREATE USER logica WITH SUPERUSER"
+!sudo -u postgres psql -c "ALTER USER logica PASSWORD 'logica';"
+!sudo -u postgres psql -U postgres -c 'CREATE DATABASE logica;'
+
+# Connect to the database.
+from logica import colab_logica
+from sqlalchemy import create_engine
+import pandas
+engine = create_engine('postgresql+psycopg2://logica:logica@127.0.0.1', pool_recycle=3600);
+connection = engine.connect();
+colab_logica.SetDbConnection(connection)""")
   # Connect to the database.
   from logica import colab_logica
   from sqlalchemy import create_engine
