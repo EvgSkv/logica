@@ -174,16 +174,17 @@ def Logica(line, cell, run_query):
 
 def PostgresJumpStart():
   # Install postgresql server.
+  print("Installing and configuring an empty PostgreSQL database.")
   result = 0
   result += os.system('apt-get -y -qq update')
   result += os.system('apt-get -y -qq install postgresql')
   result += os.system('service postgresql start')
   result += os.system(
-    '-u postgres psql -c "CREATE USER logica WITH SUPERUSER"')
+    'psql -u postgres psql -c "CREATE USER logica WITH SUPERUSER"')
   result += os.system(
-    '-u postgres psql -c "ALTER USER logica PASSWORD \'logica\';"')
+    'psql -u postgres psql -c "ALTER USER logica PASSWORD \'logica\';"')
   result += os.system(
-    '-u postgres psql -U postgres -c \'CREATE DATABASE logica;\'')
+    'psql -u postgres psql -U postgres -c \'CREATE DATABASE logica;\'')
 
   # Connect to the database.
   from logica import colab_logica
