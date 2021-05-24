@@ -24,8 +24,8 @@ import numpy
 visjs = urllib.request.urlopen('https://raw.githubusercontent.com/EvgSkv/vis/master/dist/vis-network.min.js').read()
 css = urllib.request.urlopen('https://raw.githubusercontent.com/EvgSkv/vis/master/dist/vis-network.min.css').read()
 
-def DisplayGraph(nodes, edges, options=None, width=640, height=480):
-  options = options or {}
+
+def GraphHtml(nodes, edges, options):
   html = r"""
   <script type="text/javascript">
   %(visjs)s
@@ -65,6 +65,11 @@ def DisplayGraph(nodes, edges, options=None, width=640, height=480):
              options=json.dumps(options),
              height=height,
              width=width)
+  return html
+
+def DisplayGraph(nodes, edges, options=None, width=640, height=480):
+  options = options or {}
+  html = GraphHtml(nodes, edges, options)
   display(HTML(html))
 
 def SimpleGraphFromList(edges):
