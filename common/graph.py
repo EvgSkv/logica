@@ -25,7 +25,7 @@ visjs = urllib.request.urlopen('https://raw.githubusercontent.com/EvgSkv/vis/mas
 css = urllib.request.urlopen('https://raw.githubusercontent.com/EvgSkv/vis/master/dist/vis-network.min.css').read()
 
 
-def GraphHtml(nodes, edges, options):
+def GraphHtml(nodes, edges, options, width, height):
   html = r"""
   <script type="text/javascript">
   %(visjs)s
