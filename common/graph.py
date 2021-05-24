@@ -82,6 +82,17 @@ def SimpleGraph(p, source='col0', target='col1'):
   edges = list(zip(p[source], p[target]))
   SimpleGraphFromList(edges)
 
+def DirectedGraphFromList(edges):
+  nodes = list({n for e in edges for n in e})
+  nodes_json = [{"id": n, "label": str(n)} for n in nodes]
+  edges_json = [{"from": e[0], "to": e[1], "arrows": "to"}
+                for e in edges]
+  DisplayGraph(nodes_json, edges_json)
+
+def DirectedGraph(p, source='col0', target='col1'):
+  edges = list(zip(p[source], p[target]))
+  DirectedGraphFromList(edges)
+
 def Graph(nodes, edges, options=None, width=640, height=480):
   nodes_list = [dict(n) for _, n in nodes.iterrows()]
   edges_list = [dict(e) for _, e in edges.iterrows()]
