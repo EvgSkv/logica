@@ -207,6 +207,8 @@ import pandas
 engine = create_engine('postgresql+psycopg2://logica:logica@127.0.0.1', pool_recycle=3600);
 connection = engine.connect();
 colab_logica.SetDbConnection(connection)""")
+    return
+  print('Installation succeeded. Connecting...')
   # Connect to the database.
   from logica import colab_logica
   from sqlalchemy import create_engine
@@ -214,3 +216,4 @@ colab_logica.SetDbConnection(connection)""")
   engine = create_engine('postgresql+psycopg2://logica:logica@127.0.0.1', pool_recycle=3600)
   connection = engine.connect()
   SetDbConnection(connection)
+  print('Connected.')
