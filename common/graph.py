@@ -69,7 +69,7 @@ def GraphHtml(nodes, edges, options, width, height):
 
 def DisplayGraph(nodes, edges, options=None, width=640, height=480):
   options = options or {}
-  html = GraphHtml(nodes, edges, options)
+  html = GraphHtml(nodes, edges, options, width, height)
   display(HTML(html))
 
 def SimpleGraphFromList(edges):
