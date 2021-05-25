@@ -132,14 +132,14 @@ def RenamePredicate(table_to_export_map, dependency_edges,
   return new_table_to_export_map, new_dependency_edges, new_data_dependency_edges
 
 
-def ExecuteLogicaProgram(logica_executions, sql_runner):
+def ExecuteLogicaProgram(logica_executions, sql_runner, sql_engine):
   def ConcertinaConfig(table_to_export_map, dependency_edges,
                        data_dependency_edges, final_predicates):
     depends_on = {}
     for source, target in dependency_edges | data_dependency_edges:
       depends_on[target] = depends_on.get(target, set()) | {source}
 
-    data = [d for d, _ in data_dependency_edges]
+    data = {d for d, _ in data_dependency_edges}
     result = []
     for d in data:
       result.append({
@@ -159,7 +159,7 @@ def ExecuteLogicaProgram(logica_executions, sql_runner):
           'action': {
               'predicate': t,
               'launcher': 'query',
-              'engine': 'bigquery',
+              'engine': sql_engine,
               'sql': sql
           }
       })
