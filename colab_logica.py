@@ -162,9 +162,7 @@ def Logica(line, cell, run_query):
   with bar.output_to(logs_idx):
     result_map = concertina_lib.ExecuteLogicaProgram(
       executions, sql_runner=RunSQL, sql_engine=engine)
-  #   if run_query:
-  #     t = RunSQL(sql, engine)
-  #    ip.push({predicate: t})
+
   for idx, predicate in enumerate(predicates):
     t = result_map[predicate]
     ip.push({predicate: t})
