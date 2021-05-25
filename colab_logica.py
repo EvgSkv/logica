@@ -138,15 +138,14 @@ def Logica(line, cell, run_query):
   ip = IPython.get_ipython()
   for idx, predicate in enumerate(predicates):
     with bar.output_to(logs_idx):
-      print('Compiling %s\r' % predicate)
       try:
         sql = program.FormattedPredicateSql(predicate)
         executions.append(program.execution)
         ip.push({predicate + '_sql': sql})
       except rule_translate.RuleCompileException as e:
+        print('Encountered error when compiling %s.' % predicate)
         e.ShowMessage()
         return
-    print('Compiled successfully.')
     # Publish output to Colab cell.
     with bar.output_to(idx):
       sub_bar = TabBar(['SQL', 'Result'])
