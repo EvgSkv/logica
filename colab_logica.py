@@ -169,6 +169,7 @@ def Logica(line, cell, run_query):
     with bar.output_to(idx):
       print("outputing to bar", idx)
       with sub_bar.output_to(1):
+        print("outputing to bar", idx, "subbar", 1)
         if run_query:
           print(
               color.Format(
