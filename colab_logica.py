@@ -167,6 +167,7 @@ def Logica(line, cell, run_query):
     t = result_map[predicate]
     ip.push({predicate: t})
     with bar.output_to(idx):
+      print("outputing to bar", idx)
       with sub_bar.output_to(1):
         if run_query:
           print(
