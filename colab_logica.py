@@ -135,6 +135,7 @@ def Logica(line, cell, run_query):
   logs_idx = len(predicates)
 
   executions = []
+  sub_bars = []
   ip = IPython.get_ipython()
   for idx, predicate in enumerate(predicates):
     with bar.output_to(logs_idx):
@@ -149,6 +150,7 @@ def Logica(line, cell, run_query):
     # Publish output to Colab cell.
     with bar.output_to(idx):
       sub_bar = TabBar(['SQL', 'Result'])
+      sub_bars.append(sub_bar)
       with sub_bar.output_to(0):
         print(
             color.Format(
@@ -166,19 +168,17 @@ def Logica(line, cell, run_query):
   for idx, predicate in enumerate(predicates):
     t = result_map[predicate]
     ip.push({predicate: t})
-    with bar.output_to(idx):
-      print("outputing to bar", idx)
-      with sub_bar.output_to(1):
-        print("outputing to bar", idx, "subbar", 1)
-        if run_query:
-          print(
-              color.Format(
-                  'The following table is stored at {warning}%s{end} '
-                  'variable.' %
-                  predicate))
-          display(t)
-        else:
-          print('The query was not run.')
+    with sub_bars[idx].output_to(1): 
+      print("outputing to bar", idx, "subbar", 1)
+      if run_query:
+        print(
+            color.Format(
+                'The following table is stored at {warning}%s{end} '
+                'variable.' %
+                predicate))
+        display(t)  
+      else:
+        print('The query was not run.')
 
 def PostgresJumpStart():
   # Install postgresql server.
