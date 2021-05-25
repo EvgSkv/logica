@@ -17,6 +17,7 @@
 """Library for using Logica in CoLab."""
 
 from .common import color
+from .common import concertina_lib
 
 from .compiler import rule_translate
 from .compiler import universe
@@ -133,20 +134,23 @@ def Logica(line, cell, run_query):
   bar = TabBar(predicates + ['(Log)'])
   logs_idx = len(predicates)
 
+  executions = []
+  sub_bars = []
   ip = IPython.get_ipython()
   for idx, predicate in enumerate(predicates):
     with bar.output_to(logs_idx):
-      print('Running %s' % predicate)
       try:
         sql = program.FormattedPredicateSql(predicate)
+        executions.append(program.execution)
         ip.push({predicate + '_sql': sql})
       except rule_translate.RuleCompileException as e:
+        print('Encountered error when compiling %s.' % predicate)
         e.ShowMessage()
         return
-
     # Publish output to Colab cell.
     with bar.output_to(idx):
       sub_bar = TabBar(['SQL', 'Result'])
+      sub_bars.append(sub_bar)
       with sub_bar.output_to(0):
         print(
             color.Format(
@@ -155,22 +159,25 @@ def Logica(line, cell, run_query):
                     predicate + '_sql')))
         print(sql)
 
-    with bar.output_to(logs_idx):
-      if run_query:
-        t = RunSQL(sql, engine)
-        ip.push({predicate: t})
+  with bar.output_to(logs_idx):
+    result_map = concertina_lib.ExecuteLogicaProgram(
+      executions, sql_runner=RunSQL, sql_engine=engine)
 
+  for idx, predicate in enumerate(predicates):
+    t = result_map[predicate]
+    ip.push({predicate: t})
     with bar.output_to(idx):
-      with sub_bar.output_to(1):
+      with sub_bars[idx].output_to(1): 
         if run_query:
           print(
               color.Format(
                   'The following table is stored at {warning}%s{end} '
                   'variable.' %
                   predicate))
-          display(t)
+          display(t)  
         else:
           print('The query was not run.')
+      print(' ') # To activate the tabbar.
 
 def PostgresJumpStart():
   # Install postgresql server.

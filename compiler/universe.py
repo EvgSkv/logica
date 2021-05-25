@@ -74,6 +74,7 @@ class Logica(object):
     # that Ground dependencies of the With'ed tables are added.
     self.with_compilation_done_for_parent = collections.defaultdict(set)
     self.dependency_edges = []
+    self.data_dependency_edges = []
     self.table_to_export_map = {}
     self.main_predicate_sql = None
     self.preamble = ''
@@ -1043,6 +1044,9 @@ class SubqueryTranslator(object):
           table, self.allocator, external_vocabulary)
       predicate_sql = Indent2(predicate_sql)
       return '(\n%s\n)' % predicate_sql
+    self.execution.data_dependency_edges.append((
+      table,
+      self.execution.workflow_predicates_stack[-1]))
     return self.UnquoteParenthesised(table)
 
   def TranslateRule(self, rule, external_vocabulary):
