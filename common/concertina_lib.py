@@ -140,6 +140,8 @@ def ExecuteLogicaProgram(logica_executions, sql_runner, sql_engine):
       depends_on[target] = depends_on.get(target, set()) | {source}
 
     data = {d for d, _ in data_dependency_edges}
+    data |= {d for d, _ in dependency_edges if d not in table_to_export_map}
+    
     result = []
     for d in data:
       result.append({
