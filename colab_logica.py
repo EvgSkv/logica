@@ -168,17 +168,18 @@ def Logica(line, cell, run_query):
   for idx, predicate in enumerate(predicates):
     t = result_map[predicate]
     ip.push({predicate: t})
-    with sub_bars[idx].output_to(1): 
-      print("outputing to bar", idx, "subbar", 1)
-      if run_query:
-        print(
-            color.Format(
-                'The following table is stored at {warning}%s{end} '
-                'variable.' %
-                predicate))
-        display(t)  
-      else:
-        print('The query was not run.')
+    with bar.output_to(idx):
+      with sub_bars[idx].output_to(1): 
+        print("outputing to bar", idx, "subbar", 1)
+        if run_query:
+          print(
+              color.Format(
+                  'The following table is stored at {warning}%s{end} '
+                  'variable.' %
+                  predicate))
+          display(t)  
+        else:
+          print('The query was not run.')
 
 def PostgresJumpStart():
   # Install postgresql server.
