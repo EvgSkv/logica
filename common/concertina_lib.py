@@ -171,15 +171,15 @@ def ExecuteLogicaProgram(logica_executions, sql_runner):
   final_predicates = {e.main_predicate for e in logica_executions}
   
   for e in logica_executions:
+    p_table_to_export_map, p_dependency_edges, p_data_dependency_edges = (
+        e.table_to_export_map, e.dependency_edges, e.data_dependency_edges
+    )
     for p in final_predicates:
       if e.main_predicate != p and p in e.table_to_export_map:
-        p_table_to_export_map, p_dependency_edges, p_data_dependency_edges = RenamePredicate(
-            e.table_to_export_map, e.dependency_edges, e.data_dependency_edges, p, '⤓' + p
-        )
-      else:
         p_table_to_export_map, p_dependency_edges, p_data_dependency_edges = (
-            e.table_to_export_map, e.dependency_edges, e.data_dependency_edges
-        )
+          RenamePredicate(
+            p_table_to_export_map, p_dependency_edges, p_data_dependency_edges,
+            p, '⤓' + p))
 
     for k, v in p_table_to_export_map.items():
       table_to_export_map[k] = v
