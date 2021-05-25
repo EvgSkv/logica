@@ -131,7 +131,7 @@ def RenamePredicate(table_to_export_map, dependency_edges,
   return new_table_to_export_map, new_dependency_edges, new_data_dependency_edges
 
 
-def ExecuteLogicaProgram(logica_executions):
+def ExecuteLogicaProgram(logica_executions, sql_runner):
   def ConcertinaConfig(table_to_export_map, dependency_edges,
                        data_dependency_edges, final_predicates):
     depends_on = {}
@@ -194,7 +194,7 @@ def ExecuteLogicaProgram(logica_executions):
                             final_predicates)
  
   engine = ConcertinaQueryEngine(
-      final_predicates=final_predicates)
+      final_predicates=final_predicates, sql_runner=sql_runner)
   concertina = Concertina(config, engine)
   concertina.Run()
   return engine.final_result
