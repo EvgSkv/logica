@@ -157,26 +157,26 @@ def Logica(line, cell, run_query):
                     predicate + '_sql')))
         print(sql)
 
-    with bar.output_to(logs_idx):
-      result_map = concertina_lib.ExecuteLogicaProgram(
-        executions, sql_runner=RunSQL)
-    #   if run_query:
-    #     t = RunSQL(sql, engine)
-    #    ip.push({predicate: t})
-    for idx, predicate in enumerate(predicates):
-      t = result_map[predicate]
-      ip.push({predicate: t})
-      with bar.output_to(idx):
-        with sub_bar.output_to(1):
-          if run_query:
-            print(
-                color.Format(
-                    'The following table is stored at {warning}%s{end} '
-                    'variable.' %
-                    predicate))
-            display(t)
-          else:
-            print('The query was not run.')
+  with bar.output_to(logs_idx):
+    result_map = concertina_lib.ExecuteLogicaProgram(
+      executions, sql_runner=RunSQL)
+  #   if run_query:
+  #     t = RunSQL(sql, engine)
+  #    ip.push({predicate: t})
+  for idx, predicate in enumerate(predicates):
+    t = result_map[predicate]
+    ip.push({predicate: t})
+    with bar.output_to(idx):
+      with sub_bar.output_to(1):
+        if run_query:
+          print(
+              color.Format(
+                  'The following table is stored at {warning}%s{end} '
+                  'variable.' %
+                  predicate))
+          display(t)
+        else:
+          print('The query was not run.')
 
 def PostgresJumpStart():
   # Install postgresql server.
