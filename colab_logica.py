@@ -170,7 +170,6 @@ def Logica(line, cell, run_query):
     ip.push({predicate: t})
     with bar.output_to(idx):
       with sub_bars[idx].output_to(1): 
-        print("outputing to bar", idx, "subbar", 1)
         if run_query:
           print(
               color.Format(
@@ -180,7 +179,7 @@ def Logica(line, cell, run_query):
           display(t)  
         else:
           print('The query was not run.')
-      print(' ')
+      print(' ') # To activate the tabbar.
 
 def PostgresJumpStart():
   # Install postgresql server.
