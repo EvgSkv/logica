@@ -158,13 +158,12 @@ def Logica(line, cell, run_query):
                     predicate + '_sql')))
         print(sql)
 
-    # with bar.output_to(logs_idx):
+    with bar.output_to(logs_idx):
+      result_map = concertina_lib.ExecuteLogicaProgram(
+        executions, sql_runner=RunSQL)
     #   if run_query:
     #     t = RunSQL(sql, engine)
     #    ip.push({predicate: t})
-    result_map = concertina_lib.ExecuteLogicaProgram(executions,
-                                                     sql_runner=RunSQL)
- 
     for idx, predicate in enumerate(predicates):
       t = result_map[predicate]
       ip.push({predicate: t})
