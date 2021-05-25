@@ -52,6 +52,7 @@ class Concertina(object):
     self.complete_actions = set()
     self.running_actions = set()
     self.display_id = 'Concertina'
+    self.Display()
 
   def RunOneAction(self):
     self.UpdateDisplay()
