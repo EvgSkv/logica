@@ -241,7 +241,7 @@ class QL(object):
     return str(literal['number'])
 
   def StrLiteral(self, literal):
-    if self.dialect.Name() in ["PostgreSQL", "Presto", "Trino"]:
+    if self.dialect.Name() in ["PostgreSQL", "Presto", "Trino", "SqLite"]:
       # TODO: Do this safely.
       return '\'%s\'' % literal['the_string']
     return json.dumps(literal['the_string'], ensure_ascii=False)
@@ -296,7 +296,7 @@ class QL(object):
     # TODO: Move this to dialects.py.
     if self.dialect.Name() == 'SqLite':
       arguments_str = ', '.join(
-          '"%s", %s' % (f_v['field'],
+          "'%s', %s" % (f_v['field'],
                       self.ConvertToSql(f_v['value']['expression']) )
           for f_v in record['field_value'])
       return 'JSON_OBJECT(%s)' % arguments_str

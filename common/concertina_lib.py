@@ -39,7 +39,7 @@ class Concertina(object):
           complete |= {a}
           actions_to_assign -= {a}
       if len(actions_to_assign) == remains:
-        assert False, "Could not schedule: %s" % config
+        assert False, "Could not schedule: %s" % self.config
     return result
       
   def __init__(self, config, engine):

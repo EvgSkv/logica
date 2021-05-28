@@ -15,11 +15,11 @@
 # limitations under the License.
 
 library = """
-->(left:, right:) = {arrow_arg: left, arrow_value: right};
+->(left:, right:) = {arg: left, value: right};
 
 Arrow(left, right) = arrow :-
-  left == arrow.arrow_arg,
-  right == arrow.arrow_value;
+  left == arrow.arg,
+  right == arrow.value;
 
 PrintToConsole(message) :- 1 == SqlExpr("PrintToConsole({message})", {message:});
 

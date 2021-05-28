@@ -7,6 +7,12 @@ import sqlite3
 import heapq
 import json
 
+def DeFactoType(value):
+  if isinstance(value, int) or isinstance(value, float):
+    return 'number'
+  else:
+    return 'string'
+
 class ArgMin:
   """ArgMin user defined aggregate function."""
   def __init__(self):
@@ -15,6 +21,10 @@ class ArgMin:
   def step(self, arg, value, limit):
     if limit <= 0:
       raise Exception('ArgMin\'s limit must be positive.')
+    if len(self.result) > 0:
+      if DeFactoType(value) != DeFactoType(self.result[0][0]):
+        raise Exception('ArgMin got incompatible values: %s vs %s' %
+                        (repr(value), repr(self.result[0][0])))
     if len(self.result) < limit - 1:
       self.result.append((value, arg))
     elif len(self.result) == limit - 1:
@@ -39,6 +49,10 @@ class ArgMax:
   def step(self, arg, value, limit):
     if limit <= 0:
       raise Exception('ArgMax\'s limit must be positive.')
+    if len(self.result) > 0:
+      if DeFactoType(value) != DeFactoType(self.result[0][0]):
+        raise Exception('ArgMax got incompatible values: %s vs %s' %
+                        (repr(value), repr(self.result[0][0])))
     if len(self.result) < limit - 1:
       self.result.append((value, arg))
     elif len(self.result) == limit - 1:
@@ -53,6 +67,10 @@ class ArgMax:
 
   def finalize(self):
       return json.dumps([x[1] for x in reversed(sorted(self.result))])
+
+
+def ArrayConcat(a, b):
+  return json.dumps(json.loads(a) + json.loads(b))
 
 
 def PrintToConsole(message):
@@ -92,8 +110,32 @@ def SqliteConnect():
   con.create_aggregate('ArgMin', 3, ArgMin)
   con.create_aggregate('ArgMax', 3, ArgMax)
   con.create_function('PrintToConsole', 1, PrintToConsole)
+  con.create_function('ARRAY_CONCAT', 2, ArrayConcat)
   sqlite3.enable_callback_tracebacks(True)
   return con
+
+
+def RunSqlScript(statements, output_format):
+  """Runs a sequence of statements, returning result of final."""
+  assert statements, 'RunSqlScript requires non-empty statements list.'
+  connect = SqliteConnect()
+  cursor = connect.cursor()
+
+  for s in statements[:-1]:
+    cursor.executescript(s)
+  cursor.execute(statements[-1])
+  rows = cursor.fetchall()
+  header = [d[0] for d in cursor.description]
+
+  connect.close()
+  if output_format == 'artistictable':
+    result = ArtisticTable(header, rows)
+  elif output_format == 'csv': 
+    result = Csv(header, rows)
+  else:
+    assert False, 'Bad output format: %s' % output_format
+  return result
+
 
 def RunSQL(sql, output_format='artistictable'):
   """Running SQL with artistictable or csv output."""
