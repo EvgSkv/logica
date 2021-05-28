@@ -765,7 +765,6 @@ class LogicaProgram(object):
     assert self.execution.workflow_predicates_stack == [name], (
         'Logica internal error: unexpected workflow stack: %s' %
         self.execution.workflow_predicates_stack)
-    self.execution.main_predicate_sql = sql
 
     # Wrap query in with
     with_signature = self.GenerateWithClauses(name)
@@ -789,6 +788,7 @@ class LogicaProgram(object):
     if tvf_signature:
       sql = tvf_signature + '\n' + sql
 
+    self.execution.main_predicate_sql = sql
     formatted_sql = (
         self.execution.flags_comment +
         defines_and_exports +
@@ -800,6 +800,8 @@ class LogicaProgram(object):
         self.execution.defines[i] = self.UseFlagsAsParameters(d)
       self.execution.flags_comment = self.UseFlagsAsParameters(
           self.execution.flags_comment)
+      self.execution.main_predicate_sql = self.UseFlagsAsParameters(
+        self.execution.main_predicate_sql)
       return self.UseFlagsAsParameters(formatted_sql)
     else:
       return formatted_sql

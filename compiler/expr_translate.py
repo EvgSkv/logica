@@ -69,6 +69,7 @@ class QL(object):
       'Sort': 'ARRAY(SELECT x FROM UNNEST(%s) as x ORDER BY x)',
       'TimestampAddDays': 'TIMESTAMP_ADD({0}, INTERVAL {1} DAY)',
       'Unique': 'ARRAY(SELECT DISTINCT x FROM UNNEST(%s) as x ORDER BY x)',
+      'ValueOfUnnested': '%s',
       # These functions are treated specially.
       'FlagValue': 'UNUSED',
       'Cast': 'UNUSED',
@@ -250,7 +251,7 @@ class QL(object):
                       for e in literal['element']])
 
   def ListLiteral(self, literal):
-    return 'ARRAY[%s]' % self.ListLiteralInternals(literal)
+    return self.dialect.ArrayPhrase() % self.ListLiteralInternals(literal)
 
   def BoolLiteral(self, literal):
     return literal['the_bool']
@@ -292,6 +293,13 @@ class QL(object):
   def Record(self, record):
     if self.convert_to_json:
       return self.RecordAsJson(record)
+    # TODO: Move this to dialects.py.
+    if self.dialect.Name() == 'SqLite':
+      arguments_str = ', '.join(
+          '"%s", %s' % (f_v['field'],
+                      self.ConvertToSql(f_v['value']['expression']) )
+          for f_v in record['field_value'])
+      return 'JSON_OBJECT(%s)' % arguments_str
     arguments_str = ', '.join(
         '%s AS %s' % (self.ConvertToSql(f_v['value']['expression']),
                       f_v['field'])

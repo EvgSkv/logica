@@ -58,7 +58,10 @@ class BigQueryDialect(Dialect):
     return bq_library.library
 
   def UnnestPhrase(self):
-    return 'UNNEST(%s) as %s'
+    return 'UNNEST({0}) as {1}'
+
+  def ArrayPhrase(self):
+    return 'ARRAY[%s]'
 
   def GroupBySpecBy(self):
     return 'name'
@@ -71,7 +74,14 @@ class SqLiteDialect(Dialect):
 
   def BuiltInFunctions(self):
     return {
-        'Set': None
+        'Set': None,
+        'Element': 'JSON_EXTRACT({0}, "$[{1}]")',
+        'Range': ('(select json_group_array(n) from (with recursive t as'
+                  '(select 0 as n union all '
+                  'select n + 1 as n from t where n + 1 < {0}) '
+                  'select n from t))'),
+        'ValueOfUnnested': '{0}.value',
+        'List': 'JSON_GROUP_ARRAY({0})'
     }
 
   def InfixOperators(self):
@@ -81,13 +91,16 @@ class SqLiteDialect(Dialect):
     }
 
   def Subscript(self, record, subscript):
-    return '%s.%s' % (record, subscript)
+    return 'JSON_EXTRACT(%s, "$.%s")' % (record, subscript)
   
   def LibraryProgram(self):
     return sqlite_library.library
 
   def UnnestPhrase(self):
-    return 'UNNEST(%s) as %s'
+    return 'JSON_EACH({0}) as {1}'
+
+  def ArrayPhrase(self):
+    return 'JSON_ARRAY(%s)'
 
   def GroupBySpecBy(self):
     return 'name'
@@ -119,7 +132,10 @@ class PostgreSQL(Dialect):
     return psql_library.library
 
   def UnnestPhrase(self):
-    return 'UNNEST(%s) as %s'
+    return 'UNNEST({0}) as {1}'
+
+  def ArrayPhrase(self):
+    return 'ARRAY[%s]'
 
   def GroupBySpecBy(self):
     return 'name'
@@ -152,7 +168,10 @@ class Trino(Dialect):
     return trino_library.library
 
   def UnnestPhrase(self):
-    return 'UNNEST(%s) as pushkin(%s)'
+    return 'UNNEST({0}) as pushkin({1})'
+
+  def ArrayPhrase(self):
+    return 'ARRAY[%s]'
 
   def GroupBySpecBy(self):
     return 'index'
@@ -184,7 +203,10 @@ class Presto(Dialect):
     return presto_library.library
 
   def UnnestPhrase(self):
-    return 'UNNEST(%s) as pushkin(%s)'
+    return 'UNNEST({0}) as pushkin({1})'
+
+  def ArrayPhrase(self):
+    return 'ARRAY[%s]'
 
   def GroupBySpecBy(self):
     return 'index'
