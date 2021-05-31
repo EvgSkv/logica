@@ -210,7 +210,8 @@ def ExecuteLogicaProgram(logica_executions, sql_runner, sql_engine):
   preambles = set(e.preamble for e in logica_executions)
   assert len(preambles) == 1, 'Inconsistent preambles: %s' % preambles
   [preamble] = list(preambles)
-  sql_runner(preamble, sql_engine, is_final=False)
+  if preamble:
+    sql_runner(preamble, sql_engine, is_final=False)
 
   concertina = Concertina(config, engine)
   concertina.Run()
