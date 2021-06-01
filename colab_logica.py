@@ -51,7 +51,8 @@ except:
 
 PROJECT = None
 
-# TODO: Should this be renamed to PSQL_CONNECTION?
+# TODO: Should this be renamed to PSQL_ENGINE, PSQL_CONNECTION?
+DB_ENGINE = None
 DB_CONNECTION = None
 
 USER_AUTHENTICATED = False
@@ -154,10 +155,13 @@ class SqliteRunner(object):
 class PostgresRunner(object):
   def __init__(self):
     global DB_CONNECTION
+    global DB_ENGINE
     if DB_CONNECTION:
+      self.engine = DB_ENGINE
       self.connection = DB_CONNECTION
     else:
-      self.connection = PostgresJumpStart()
+      (self.engine, self.connection) = PostgresJumpStart()
+      DB_ENGINE = self.engine
       DB_CONNECTION = self.connection
   
   def  __call__(self, sql, engine, is_final):
@@ -278,4 +282,4 @@ colab_logica.SetDbConnection(connection)""")
   engine = create_engine('postgresql+psycopg2://logica:logica@127.0.0.1', pool_recycle=3600)
   connection = engine.connect()
   print('Connected.')
-  return connection
+  return engine, connection
