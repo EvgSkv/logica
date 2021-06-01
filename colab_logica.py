@@ -51,6 +51,7 @@ except:
 
 PROJECT = None
 
+# TODO: Should this be renamed to PSQL_CONNECTION?
 DB_CONNECTION = None
 
 USER_AUTHENTICATED = False
@@ -127,7 +128,7 @@ def RunSQL(sql, engine, connection=None, is_final=False):
     if is_final:
       return pandas.read_sql(sql, connection)
     else:
-      return connection.executescript(sql)
+      return connection.execute(sql)
   elif engine == 'sqlite':
     statements = parse.SplitRaw(sql, ';')
     connection.executescript(sql)
