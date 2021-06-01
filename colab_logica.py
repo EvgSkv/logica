@@ -124,8 +124,10 @@ def RunSQL(sql, engine, connection=None, is_final=False):
     client = bigquery.Client(project=PROJECT)
     return client.query(sql).to_dataframe()
   elif engine == 'psql':
-    # TODO: Should this use connection?
-    return pandas.read_sql(sql, connection)
+    if is_final:
+      return pandas.read_sql(sql, connection)
+    else:
+      return connection.executescript(sql)
   elif engine == 'sqlite':
     statements = parse.SplitRaw(sql, ';')
     connection.executescript(sql)
