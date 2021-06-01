@@ -34,10 +34,20 @@ import pandas
 from .parser_py import parse
 from .common import sqlite3_logica
 
-from google.cloud import bigquery
-from google.colab import auth
-from google.colab import widgets
+try:
+  from google.cloud import bigquery
+except:
+  print('Could not import google.cloud.bigquery.')
 
+try:
+  from google.colab import auth
+except:
+  print('Could not import google.cloud.auth.')
+
+try:
+  from google.colab import widgets
+except:
+  print('Could not import google.colab.widgets.')
 
 PROJECT = None
 
@@ -109,17 +119,13 @@ def ParseList(line):
 
 
 def RunSQL(sql, engine, connection=None, is_final=False):
-  global DB_CONNECTION
-  if connection is None:
-    connection = DB_CONNECTION
-
   if engine == 'bigquery':
     EnsureAuthenticatedUser()
     client = bigquery.Client(project=PROJECT)
     return client.query(sql).to_dataframe()
   elif engine == 'psql':
     # TODO: Should this use connection?
-    return pandas.read_sql(sql, DB_CONNECTION)
+    return pandas.read_sql(sql, connection)
   elif engine == 'sqlite':
     statements = parse.SplitRaw(sql, ';')
     connection.executescript(sql)
@@ -139,6 +145,17 @@ class SqliteRunner(object):
   
   # TODO: Sqlite runner should not be accepting an engine.
   def __call__(self, sql, engine, is_final):
+    return RunSQL(sql, engine, self.connection, is_final)
+
+
+class PostgresRunner(object):
+  def __init__(self):
+    if DB_CONNECTION:
+      self.connection = DB_CONNECTION
+    else:
+      self.connection = PostgresJumpStart()
+  
+  def  __call__(self, sql, engine, is_final):
     return RunSQL(sql, engine, self.connection, is_final)
 
 
@@ -186,7 +203,12 @@ def Logica(line, cell, run_query):
                 color.Warn(predicate + '_sql'))
 
   with bar.output_to(logs_idx):
-    sql_runner = SqliteRunner() if engine == 'sqlite' else RunSQL
+    if engine == 'sqlite':
+      sql_runner = SqliteRunner()
+    elif engine == 'psql':
+      sql_runner = PostgresRunner()
+    else:
+      sql_runner = RunSQL
     result_map = concertina_lib.ExecuteLogicaProgram(
       executions, sql_runner=sql_runner, sql_engine=engine)
 
@@ -213,7 +235,8 @@ def PostgresJumpStart():
   result += os.system('sudo apt-get -y -qq update')
   result += os.system('sudo apt-get -y -qq install postgresql')
   result += os.system('sudo service postgresql start')
-  result += os.system(
+  # Ignoring user creation error, as you may already exist.
+  result += 0 * os.system(
     'sudo -u postgres psql -c "CREATE USER logica WITH SUPERUSER"')
   result += os.system(
     'sudo -u postgres psql -c "ALTER USER logica PASSWORD \'logica\';"')
@@ -249,5 +272,5 @@ colab_logica.SetDbConnection(connection)""")
   import pandas
   engine = create_engine('postgresql+psycopg2://logica:logica@127.0.0.1', pool_recycle=3600)
   connection = engine.connect()
-  SetDbConnection(connection)
   print('Connected.')
+  return connection
