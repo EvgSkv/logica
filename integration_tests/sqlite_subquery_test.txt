@@ -1,4 +1,6 @@
-state                 employee_count      
---------------------  --------------------
-California            1                   
-Washington            3                   
++------------+----------------+
+| state      | employee_count |
++------------+----------------+
+| California | 1              |
+| Washington | 3              |
++------------+----------------+

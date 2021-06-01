@@ -65,6 +65,8 @@ def RunAll(test_spark=False):
   RunTest("sqlite_rec_depth")
   RunTest("sqlite_rec_functor")
   RunTest("sqlite_pagerank")
+  RunTest("sqlite_composite_test")
+  RunTest("sqlite_reachability")
 
   RunTest("psql_test")
   RunTest("psql_arg_min_test")
@@ -278,5 +280,5 @@ def RunAll(test_spark=False):
   )
 
 
-  RunTest("reachability_test")
+  # RunTest("reachability_test")
 

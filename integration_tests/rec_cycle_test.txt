@@ -1,272 +1,274 @@
-col0                
---------------------
-g                   
-g                   
-g                   
-g                   
-g                   
-g                   
-g                   
-g                   
-g                   
-g                   
-g                   
-g                   
-g                   
-g                   
-g                   
-g                   
-g                   
-g                   
-g                   
-g                   
-g                   
-g                   
-g                   
-g                   
-g                   
-g                   
-g                   
-g                   
-g                   
-g                   
-g                   
-g                   
-g                   
-g                   
-g                   
-g                   
-g                   
-g                   
-g                   
-g                   
-g                   
-g                   
-g                   
-g                   
-g                   
-g                   
-g                   
-g                   
-g                   
-g                   
-g                   
-g                   
-g                   
-g                   
-g                   
-g                   
-g                   
-g                   
-g                   
-g                   
-g                   
-g                   
-g                   
-g                   
-g                   
-g                   
-g                   
-g                   
-g                   
-g                   
-g                   
-g                   
-g                   
-g                   
-g                   
-g                   
-g                   
-g                   
-g                   
-g                   
-g                   
-g                   
-g                   
-g                   
-g                   
-g                   
-g                   
-g                   
-g                   
-g                   
-g                   
-g                   
-g                   
-g                   
-g                   
-g                   
-g                   
-g                   
-g                   
-g                   
-g                   
-g                   
-g                   
-g                   
-g                   
-g                   
-g                   
-g                   
-g                   
-g                   
-g                   
-g                   
-g                   
-g                   
-g                   
-g                   
-g                   
-g                   
-g                   
-g                   
-g                   
-g                   
-g                   
-g                   
-g                   
-g                   
-g                   
-g                   
-g                   
-g                   
-g                   
-g                   
-g                   
-g                   
-g                   
-g                   
-g                   
-g                   
-g                   
-g                   
-g                   
-g                   
-g                   
-g                   
-g                   
-g                   
-g                   
-g                   
-g                   
-g                   
-g                   
-g                   
-g                   
-g                   
-g                   
-g                   
-g                   
-g                   
-g                   
-g                   
-g                   
-g                   
-g                   
-g                   
-g                   
-g                   
-g                   
-g                   
-g                   
-g                   
-g                   
-g                   
-g                   
-g                   
-g                   
-g                   
-g                   
-g                   
-g                   
-g                   
-g                   
-g                   
-g                   
-g                   
-g                   
-g                   
-g                   
-g                   
-g                   
-g                   
-g                   
-g                   
-g                   
-g                   
-g                   
-g                   
-g                   
-g                   
-g                   
-g                   
-g                   
-g                   
-g                   
-g                   
-g                   
-g                   
-g                   
-g                   
-g                   
-g                   
-g                   
-g                   
-g                   
-g                   
-g                   
-g                   
-g                   
-g                   
-g                   
-g                   
-g                   
-g                   
-g                   
-g                   
-g                   
-g                   
-g                   
-g                   
-g                   
-g                   
-g                   
-g                   
-g                   
-g                   
-g                   
-g                   
-g                   
-g                   
-g                   
-g                   
-g                   
-g                   
-g                   
-g                   
-g                   
-g                   
-g                   
-g                   
-g                   
-g                   
-g                   
-g                   
-g                   
-g                   
-g                   
-g                   
-g                   
-g                   
-g                   
-i                   
-l                   
-l                   
-l                   
-l                   
-l                   
-l                   
-l                   
-l                   
-l                   
-l                   
++------+
+| col0 |
++------+
+| g    |
+| g    |
+| g    |
+| g    |
+| g    |
+| g    |
+| g    |
+| g    |
+| g    |
+| g    |
+| g    |
+| g    |
+| g    |
+| g    |
+| g    |
+| g    |
+| g    |
+| g    |
+| g    |
+| g    |
+| g    |
+| g    |
+| g    |
+| g    |
+| g    |
+| g    |
+| g    |
+| g    |
+| g    |
+| g    |
+| g    |
+| g    |
+| g    |
+| g    |
+| g    |
+| g    |
+| g    |
+| g    |
+| g    |
+| g    |
+| g    |
+| g    |
+| g    |
+| g    |
+| g    |
+| g    |
+| g    |
+| g    |
+| g    |
+| g    |
+| g    |
+| g    |
+| g    |
+| g    |
+| g    |
+| g    |
+| g    |
+| g    |
+| g    |
+| g    |
+| g    |
+| g    |
+| g    |
+| g    |
+| g    |
+| g    |
+| g    |
+| g    |
+| g    |
+| g    |
+| g    |
+| g    |
+| g    |
+| g    |
+| g    |
+| g    |
+| g    |
+| g    |
+| g    |
+| g    |
+| g    |
+| g    |
+| g    |
+| g    |
+| g    |
+| g    |
+| g    |
+| g    |
+| g    |
+| g    |
+| g    |
+| g    |
+| g    |
+| g    |
+| g    |
+| g    |
+| g    |
+| g    |
+| g    |
+| g    |
+| g    |
+| g    |
+| g    |
+| g    |
+| g    |
+| g    |
+| g    |
+| g    |
+| g    |
+| g    |
+| g    |
+| g    |
+| g    |
+| g    |
+| g    |
+| g    |
+| g    |
+| g    |
+| g    |
+| g    |
+| g    |
+| g    |
+| g    |
+| g    |
+| g    |
+| g    |
+| g    |
+| g    |
+| g    |
+| g    |
+| g    |
+| g    |
+| g    |
+| g    |
+| g    |
+| g    |
+| g    |
+| g    |
+| g    |
+| g    |
+| g    |
+| g    |
+| g    |
+| g    |
+| g    |
+| g    |
+| g    |
+| g    |
+| g    |
+| g    |
+| g    |
+| g    |
+| g    |
+| g    |
+| g    |
+| g    |
+| g    |
+| g    |
+| g    |
+| g    |
+| g    |
+| g    |
+| g    |
+| g    |
+| g    |
+| g    |
+| g    |
+| g    |
+| g    |
+| g    |
+| g    |
+| g    |
+| g    |
+| g    |
+| g    |
+| g    |
+| g    |
+| g    |
+| g    |
+| g    |
+| g    |
+| g    |
+| g    |
+| g    |
+| g    |
+| g    |
+| g    |
+| g    |
+| g    |
+| g    |
+| g    |
+| g    |
+| g    |
+| g    |
+| g    |
+| g    |
+| g    |
+| g    |
+| g    |
+| g    |
+| g    |
+| g    |
+| g    |
+| g    |
+| g    |
+| g    |
+| g    |
+| g    |
+| g    |
+| g    |
+| g    |
+| g    |
+| g    |
+| g    |
+| g    |
+| g    |
+| g    |
+| g    |
+| g    |
+| g    |
+| g    |
+| g    |
+| g    |
+| g    |
+| g    |
+| g    |
+| g    |
+| g    |
+| g    |
+| g    |
+| g    |
+| g    |
+| g    |
+| g    |
+| g    |
+| g    |
+| g    |
+| g    |
+| g    |
+| g    |
+| g    |
+| g    |
+| g    |
+| g    |
+| g    |
+| g    |
+| g    |
+| g    |
+| g    |
+| g    |
+| g    |
+| g    |
+| g    |
+| g    |
+| g    |
+| g    |
+| g    |
+| g    |
+| g    |
+| i    |
+| l    |
+| l    |
+| l    |
+| l    |
+| l    |
+| l    |
+| l    |
+| l    |
+| l    |
+| l    |
++------+

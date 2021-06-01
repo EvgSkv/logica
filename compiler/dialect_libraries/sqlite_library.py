@@ -15,5 +15,25 @@
 # limitations under the License.
 
 library = """
-# Nothing is here yet.
+->(left:, right:) = {arg: left, value: right};
+
+Arrow(left, right) = arrow :-
+  left == arrow.arg,
+  right == arrow.value;
+
+PrintToConsole(message) :- 1 == SqlExpr("PrintToConsole({message})", {message:});
+
+ArgMin(arr) = Element(
+    SqlExpr("ArgMin({a}, {v}, 1)", {a:, v:}), 0) :- Arrow(a, v) == arr;
+
+ArgMax(arr) = Element(
+    SqlExpr("ArgMax({a}, {v}, 1)", {a:, v:}), 0) :- Arrow(a, v) == arr;
+
+ArgMinK(arr, k) = 
+    SqlExpr("ArgMin({a}, {v}, {k})", {a:, v:, k:}) :-
+  Arrow(a, v) == arr;
+
+ArgMaxK(arr, k) =
+    SqlExpr("ArgMax({a}, {v}, {k})", {a:, v:, k:}) :- Arrow(a, v) == arr;
+
 """

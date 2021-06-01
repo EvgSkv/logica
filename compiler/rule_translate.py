@@ -429,10 +429,10 @@ class RuleStructure(object):
       self.SortUnnestings()
       for element, the_list in self.unnestings:
         tables.append(
-            subquery_encoder.execution.dialect.UnnestPhrase() % (
+            subquery_encoder.execution.dialect.UnnestPhrase().format(
                 ql.ConvertToSql(the_list), ql.ConvertToSql(element)))
       if not tables:
-        tables.append('UNNEST(ARRAY[\'UNUSED\']) as unused_unnest')
+        tables.append('(SELECT "singleton" as s) as unused_singleton')
       from_str = ', '.join(tables)
       # Indent the from_str.
       from_str = '\n'.join('  ' + l for l in from_str.split('\n'))
@@ -521,9 +521,21 @@ def ExtractInclusionStructure(inclusion, s):
   s.vars_unification.append({
       'left': inclusion['element'],
       'right': {
-          'variable': {
-              'var_name': var_name
+        'call': {
+          'predicate_name': 'ValueOfUnnested',
+          'record': {
+            'field_value': [{
+              'field': 0,
+              'value': {
+                'expression': {
+                  'variable': {
+                    'var_name': var_name
+                  }
+                }
+              }
+            }]
           }
+        }
       }
   })
 

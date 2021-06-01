@@ -21,11 +21,13 @@ import subprocess
 import sys
 
 if '.' not in __package__:
+  from common import sqlite3_logica
   from compiler import functors
   from compiler import rule_translate
   from compiler import universe
   from parser_py import parse
 else:
+  from ..common import sqlite3_logica
   from ..compiler import functors
   from ..compiler import rule_translate
   from ..compiler import universe
@@ -71,8 +73,8 @@ def RunQuery(sql,
                           '--format=%s' % output_format],
                          stdin=subprocess.PIPE, stdout=subprocess.PIPE)
   elif engine == 'sqlite':
-    p = subprocess.Popen(['sqlite3'],
-                         stdin=subprocess.PIPE, stdout=subprocess.PIPE)
+    # TODO: Make multi-statement scripts work.
+    return sqlite3_logica.RunSQL(sql)
   elif engine == 'psql':
     p = subprocess.Popen(['psql', '--quiet'],
                          stdin=subprocess.PIPE, stdout=subprocess.PIPE)

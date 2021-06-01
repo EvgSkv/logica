@@ -16,7 +16,8 @@ class ConcertinaQueryEngine(object):
     if action['launcher'] == 'query':
       predicate = action['predicate']
       print('Running predicate:', predicate)
-      result = self.sql_runner(action['sql'], action['engine'])
+      result = self.sql_runner(action['sql'], action['engine'],
+                               is_final=(predicate in self.final_predicates))
       if predicate in self.final_predicates:
         self.final_result[predicate] = result
 
@@ -27,6 +28,13 @@ class ConcertinaDryRunEngine(object):
 
 
 class Concertina(object):
+  DISPLAY_COUNT = 0
+
+  @classmethod
+  def GetDisplayId(cls):
+    cls.DISPLAY_COUNT = cls.DISPLAY_COUNT + 1
+    return 'Concertina_%d' % cls.DISPLAY_COUNT
+
   def SortActions(self):
     actions_to_assign = {a['name'] for a in self.config}
     complete = set()
@@ -39,7 +47,7 @@ class Concertina(object):
           complete |= {a}
           actions_to_assign -= {a}
       if len(actions_to_assign) == remains:
-        assert False, "Could not schedule: %s" % config
+        assert False, "Could not schedule: %s" % self.config
     return result
       
   def __init__(self, config, engine):
@@ -51,7 +59,7 @@ class Concertina(object):
     self.all_actions = {a["name"] for a in self.config}
     self.complete_actions = set()
     self.running_actions = set()
-    self.display_id = 'Concertina'
+    self.display_id = self.GetDisplayId()
     self.Display()
 
   def RunOneAction(self):
@@ -198,6 +206,13 @@ def ExecuteLogicaProgram(logica_executions, sql_runner, sql_engine):
  
   engine = ConcertinaQueryEngine(
       final_predicates=final_predicates, sql_runner=sql_runner)
+
+  preambles = set(e.preamble for e in logica_executions)
+  assert len(preambles) == 1, 'Inconsistent preambles: %s' % preambles
+  [preamble] = list(preambles)
+  if preamble:
+    sql_runner(preamble, sql_engine, is_final=False)
+
   concertina = Concertina(config, engine)
   concertina.Run()
   return engine.final_result

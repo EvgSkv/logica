@@ -32,6 +32,7 @@ import os
 import pandas
 
 from .parser_py import parse
+from .common import sqlite3_logica
 
 from google.cloud import bigquery
 from google.colab import auth
@@ -45,6 +46,8 @@ DB_CONNECTION = None
 USER_AUTHENTICATED = False
 
 TABULATED_OUTPUT = True
+
+SHOW_FULL_QUERY = True
 
 def SetProject(project):
   global PROJECT
@@ -69,7 +72,9 @@ def EnsureAuthenticatedUser():
 
 def SetTabulatedOutput(tabulated_output):
   global TABULATED_OUTPUT
+  global SHOW_FULL_QUERY
   TABULATED_OUTPUT = tabulated_output
+  SHOW_FULL_QUERY = TABULATED_OUTPUT
 
 def TabBar(*args):
   """Returns a real TabBar or a mock. Useful for UIs that don't support JS."""
@@ -103,21 +108,38 @@ def ParseList(line):
   return predicates
 
 
-def RunSQL(sql, engine):
+def RunSQL(sql, engine, connection=None, is_final=False):
+  global DB_CONNECTION
+  if connection is None:
+    connection = DB_CONNECTION
+
   if engine == 'bigquery':
     EnsureAuthenticatedUser()
     client = bigquery.Client(project=PROJECT)
     return client.query(sql).to_dataframe()
   elif engine == 'psql':
+    # TODO: Should this use connection?
     return pandas.read_sql(sql, DB_CONNECTION)
   elif engine == 'sqlite':
     statements = parse.SplitRaw(sql, ';')
-    for s in statements[:-2]:
-      cursor = DB_CONNECTION.execute(s)
-    return pandas.read_sql(statements[-2], DB_CONNECTION)
+    connection.executescript(sql)
+    if is_final:
+      return pandas.read_sql(statements[-1], connection)
+    else:
+      pass
+    return None
   else:
     raise Exception('Logica only supports BigQuery, PostgreSQL and SQLite '
                     'for now.')
+
+
+class SqliteRunner(object):
+  def __init__(self):
+    self.connection = sqlite3_logica.SqliteConnect()
+  
+  # TODO: Sqlite runner should not be accepting an engine.
+  def __call__(self, sql, engine, is_final):
+    return RunSQL(sql, engine, self.connection, is_final)
 
 
 def Logica(line, cell, run_query):
@@ -152,16 +174,21 @@ def Logica(line, cell, run_query):
       sub_bar = TabBar(['SQL', 'Result'])
       sub_bars.append(sub_bar)
       with sub_bar.output_to(0):
-        print(
-            color.Format(
-                'The following query is stored at {warning}%s{end} '
-                'variable.' % (
-                    predicate + '_sql')))
-        print(sql)
+        if SHOW_FULL_QUERY:
+          print(
+              color.Format(
+                  'The following query is stored at {warning}%s{end} '
+                  'variable.' % (
+                      predicate + '_sql')))
+          print(sql)
+        else:
+          print('Query is stored at %s variable.' %
+                color.Warn(predicate + '_sql'))
 
   with bar.output_to(logs_idx):
+    sql_runner = SqliteRunner() if engine == 'sqlite' else RunSQL
     result_map = concertina_lib.ExecuteLogicaProgram(
-      executions, sql_runner=RunSQL, sql_engine=engine)
+      executions, sql_runner=sql_runner, sql_engine=engine)
 
   for idx, predicate in enumerate(predicates):
     t = result_map[predicate]
