@@ -152,10 +152,12 @@ class SqliteRunner(object):
 
 class PostgresRunner(object):
   def __init__(self):
+    global DB_CONNECTION
     if DB_CONNECTION:
       self.connection = DB_CONNECTION
     else:
       self.connection = PostgresJumpStart()
+      DB_CONNECTION = self.connection
   
   def  __call__(self, sql, engine, is_final):
     return RunSQL(sql, engine, self.connection, is_final)
