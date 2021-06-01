@@ -244,7 +244,7 @@ def PostgresJumpStart():
   result += os.system('sudo apt-get -y -qq update')
   result += os.system('sudo apt-get -y -qq install postgresql')
   result += os.system('sudo service postgresql start')
-  # Ignoring user creation error, as you may already exist.
+  # Ignoring user creation error, as they may already exist.
   result += 0 * os.system(
     'sudo -u postgres psql -c "CREATE USER logica WITH SUPERUSER"')
   result += os.system(
