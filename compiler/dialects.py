@@ -153,7 +153,8 @@ class Trino(Dialect):
         'ToString': 'CAST(%s AS VARCHAR)',
         'ToInt64': 'CAST(%s AS BIGINT)',
         'ToFloat64': 'CAST(%s AS DOUBLE)',
-        'AnyValue': 'ARBITRARY(%s)'
+        'AnyValue': 'ARBITRARY(%s)',
+        'ArrayConcat': '{0} || {1}'
     }
 
   def InfixOperators(self):

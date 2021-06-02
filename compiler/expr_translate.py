@@ -304,6 +304,8 @@ class QL(object):
         '%s AS %s' % (self.ConvertToSql(f_v['value']['expression']),
                       f_v['field'])
         for f_v in record['field_value'])
+    if self.dialect.Name() == 'Trino':
+      return '(SELECT %s)' % arguments_str
     return 'STRUCT(%s)' % arguments_str
 
   def GenericSqlExpression(self, record):
