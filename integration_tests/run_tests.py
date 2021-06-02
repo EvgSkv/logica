@@ -33,7 +33,7 @@ def RunTest(name, src=None, golden=None, predicate=None,
       user_flags=user_flags)
 
 
-def RunAll(test_spark=False):
+def RunAll(test_presto=False, test_trino=False):
   """Running all tests."""
   # Uncomment to test writing tables.
   # RunTest("ground_test")
@@ -41,17 +41,20 @@ def RunAll(test_spark=False):
   # RunTest("closure_test")
   # RunTest("dialects/trino/grounding_test")
 
-  RunTest("in_expr_test")
-  RunTest("equals_true_test")
-
-  if test_spark:
+  if test_presto:
     RunTest("dialects/presto/basics_test")
     RunTest("dialects/presto/arg_min_max_test")
     RunTest("dialects/presto/joins_test")
 
+  if test_trino:
+    RunTest("dialects/trino/trino_reachability_test")
     RunTest("dialects/trino/basics_test")
     RunTest("dialects/trino/arg_min_max_test")
     RunTest("dialects/trino/joins_test")
+    RunTest("dialects/trino/joins_test")
+
+  RunTest("in_expr_test")
+  RunTest("equals_true_test")
 
   RunTest("functor_arg_update_test")
 
