@@ -196,6 +196,11 @@ class Annotations(object):
         AnnotationError('@AttachDatabase must have a single argument.',
                         v)
       result[k] = v['1']
+    if (self.Engine() == 'sqlite'
+        and 'logica_test' not in result
+        and '@Ground' in self.annotations and
+        self.annotations['@Ground']):
+      result['logica_test'] = ':memory:'
     return result
 
   def AttachDatabaseStatements(self):

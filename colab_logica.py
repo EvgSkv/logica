@@ -34,19 +34,25 @@ import pandas
 from .parser_py import parse
 from .common import sqlite3_logica
 
+BQ_READY = True  # By default.
+
 try:
   from google.cloud import bigquery
 except:
+  BQ_READY = False
   print('Could not import google.cloud.bigquery.')
 
 try:
   from google.colab import auth
 except:
+  BQ_READY = False
   print('Could not import google.cloud.auth.')
 
 try:
   from google.colab import widgets
+  WIDGETS_IMPORTED = True
 except:
+  WIDGETS_IMPORTED = False
   print('Could not import google.colab.widgets.')
 
 PROJECT = None
@@ -87,6 +93,9 @@ def SetTabulatedOutput(tabulated_output):
   global SHOW_FULL_QUERY
   TABULATED_OUTPUT = tabulated_output
   SHOW_FULL_QUERY = TABULATED_OUTPUT
+
+if not WIDGETS_IMPORTED:
+  SetTabulatedOutput(False)
 
 def TabBar(*args):
   """Returns a real TabBar or a mock. Useful for UIs that don't support JS."""
@@ -178,6 +187,16 @@ def Logica(line, cell, run_query):
     return
   program = universe.LogicaProgram(parsed_rules)
   engine = program.annotations.Engine()
+
+  if engine == 'bigquery' and not BQ_READY:
+    print(color.Format(
+      '[ {error}Error{end} ] BigQuery client and/or authentification is not installed. \n'
+      'It is the easiest to run BigQuery requests from Google CoLab:\n'
+      '  https://colab.research.google.com/.\n'
+      'Note that running Logica on SQLite requires no installation.\n'
+      'This could be a good fit for working with small data or learning Logica.\n'
+      'Use {warning}@Engine("sqlite");{end} annotation in your program to use SQLite.'))
+    return
 
   bar = TabBar(predicates + ['(Log)'])
   logs_idx = len(predicates)
