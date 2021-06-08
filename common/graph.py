@@ -24,6 +24,7 @@ import numpy
 visjs = urllib.request.urlopen('https://raw.githubusercontent.com/EvgSkv/vis/master/dist/vis-network.min.js').read()
 css = urllib.request.urlopen('https://raw.githubusercontent.com/EvgSkv/vis/master/dist/vis-network.min.css').read()
 
+RENDERED_GRAPHS = 0
 
 def GraphHtml(nodes, edges, options, width, height):
   html_colab = r"""
@@ -34,13 +35,13 @@ def GraphHtml(nodes, edges, options, width, height):
   %(css)s
   </style>
   <style type="text/css">
-  #graph {
+  #graph_%(idx) {
     width: %(width)spx;
     height: %(height)spx;
     border: 1px solid lightgray;
   }
   </style>
-  <div id="graph"></div>
+  <div id="graph_%(idx)"></div>
 
   <script type="text/javascript">
     // Nodes array.
@@ -50,7 +51,7 @@ def GraphHtml(nodes, edges, options, width, height):
     var edges = new vis.DataSet(%(edges)s);
 
     // Network.
-    var container = document.getElementById('graph');
+    var container = document.getElementById('graph_%(idx)');
     var data = {
       nodes: nodes,
       edges: edges
@@ -60,18 +61,18 @@ def GraphHtml(nodes, edges, options, width, height):
   </script>
   """
 
-  html_jupyter = """
+  html_jupyter = r"""
   <style>
   %(css)s
   </style>
   <style type="text/css">
-  #graph {
+  #graph_%(idx) {
     width: %(width)spx;
     height: %(height)spx;
     border: 1px solid lightgray;
   }
   </style>
-  <div id="graph"></div>
+  <div id="graph_%(idx)"></div>
 
   <script type="text/javascript">
     require(['https://evgskv.github.io/vis/dist/vis.js'], function(vis) {
@@ -82,7 +83,7 @@ def GraphHtml(nodes, edges, options, width, height):
       var edges = new vis.DataSet(%(edges)s);
 
       // Network.
-      var container = document.getElementById('graph');
+      var container = document.getElementById('graph_%(idx)');
       var data = {
         nodes: nodes,
         edges: edges
@@ -96,12 +97,16 @@ def GraphHtml(nodes, edges, options, width, height):
     html = html_colab
   else:
     html = html_jupyter
+  global RENDERED_GRAPHS
+  idx = RENDERED_GRAPHS
+  RENDERED_GRAPHS = RENDERED_GRAPHS + 1
   result = html % dict(visjs=visjs.decode(), css=css.decode(),
                        nodes=json.dumps(nodes),
                        edges=json.dumps(edges),
                        options=json.dumps(options),
                        height=height,
-                       width=width)
+                       width=width,
+                       idx=idx)
   return result
 
 def DisplayGraph(nodes, edges, options=None, width=640, height=480):
