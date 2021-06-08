@@ -24,9 +24,10 @@ import numpy
 visjs = urllib.request.urlopen('https://raw.githubusercontent.com/EvgSkv/vis/master/dist/vis-network.min.js').read()
 css = urllib.request.urlopen('https://raw.githubusercontent.com/EvgSkv/vis/master/dist/vis-network.min.css').read()
 
+RENDERED_GRAPHS = 0
 
 def GraphHtml(nodes, edges, options, width, height):
-  html = r"""
+  html_colab = r"""
   <script type="text/javascript">
   %(visjs)s
   </script>
@@ -34,13 +35,13 @@ def GraphHtml(nodes, edges, options, width, height):
   %(css)s
   </style>
   <style type="text/css">
-  #graph {
+  #graph_%(idx)s {
     width: %(width)spx;
     height: %(height)spx;
     border: 1px solid lightgray;
   }
   </style>
-  <div id="graph"></div>
+  <div id="graph_%(idx)s"></div>
 
   <script type="text/javascript">
     // Nodes array.
@@ -50,7 +51,7 @@ def GraphHtml(nodes, edges, options, width, height):
     var edges = new vis.DataSet(%(edges)s);
 
     // Network.
-    var container = document.getElementById('graph');
+    var container = document.getElementById('graph_%(idx)s');
     var data = {
       nodes: nodes,
       edges: edges
@@ -58,14 +59,55 @@ def GraphHtml(nodes, edges, options, width, height):
     var options = %(options)s;
     var network = new vis.Network(container, data, options);
   </script>
+  """
 
-  """ % dict(visjs=visjs.decode(), css=css.decode(),
-             nodes=json.dumps(nodes),
-             edges=json.dumps(edges),
-             options=json.dumps(options),
-             height=height,
-             width=width)
-  return html
+  html_jupyter = r"""
+  <style>
+  %(css)s
+  </style>
+  <style type="text/css">
+  #graph_%(idx)s {
+    width: %(width)spx;
+    height: %(height)spx;
+    border: 1px solid lightgray;
+  }
+  </style>
+  <div id="graph_%(idx)s"></div>
+
+  <script type="text/javascript">
+    require(['https://evgskv.github.io/vis/dist/vis.js'], function(vis) {
+      // Nodes array.
+      var nodes = new vis.DataSet(%(nodes)s);
+
+      // Edges array.
+      var edges = new vis.DataSet(%(edges)s);
+
+      // Network.
+      var container = document.getElementById('graph_%(idx)s');
+      var data = {
+        nodes: nodes,
+        edges: edges
+      };
+      var options = %(options)s;
+      var network = new vis.Network(container, data, options);
+    });
+  </script>
+  """
+  if 'google.colab' in str(get_ipython()):
+    html = html_colab
+  else:
+    html = html_jupyter
+  global RENDERED_GRAPHS
+  idx = RENDERED_GRAPHS
+  RENDERED_GRAPHS = RENDERED_GRAPHS + 1
+  result = html % dict(visjs=visjs.decode(), css=css.decode(),
+                       nodes=json.dumps(nodes),
+                       edges=json.dumps(edges),
+                       options=json.dumps(options),
+                       height=height,
+                       width=width,
+                       idx=idx)
+  return result
 
 def DisplayGraph(nodes, edges, options=None, width=640, height=480):
   options = options or {}
