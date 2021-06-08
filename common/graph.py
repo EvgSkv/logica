@@ -35,13 +35,13 @@ def GraphHtml(nodes, edges, options, width, height):
   %(css)s
   </style>
   <style type="text/css">
-  #graph_%(idx) {
+  #graph_%(idx)s {
     width: %(width)spx;
     height: %(height)spx;
     border: 1px solid lightgray;
   }
   </style>
-  <div id="graph_%(idx)"></div>
+  <div id="graph_%(idx)s"></div>
 
   <script type="text/javascript">
     // Nodes array.
@@ -51,7 +51,7 @@ def GraphHtml(nodes, edges, options, width, height):
     var edges = new vis.DataSet(%(edges)s);
 
     // Network.
-    var container = document.getElementById('graph_%(idx)');
+    var container = document.getElementById('graph_%(idx)s');
     var data = {
       nodes: nodes,
       edges: edges
@@ -66,13 +66,13 @@ def GraphHtml(nodes, edges, options, width, height):
   %(css)s
   </style>
   <style type="text/css">
-  #graph_%(idx) {
+  #graph_%(idx)s {
     width: %(width)spx;
     height: %(height)spx;
     border: 1px solid lightgray;
   }
   </style>
-  <div id="graph_%(idx)"></div>
+  <div id="graph_%(idx)s"></div>
 
   <script type="text/javascript">
     require(['https://evgskv.github.io/vis/dist/vis.js'], function(vis) {
@@ -83,7 +83,7 @@ def GraphHtml(nodes, edges, options, width, height):
       var edges = new vis.DataSet(%(edges)s);
 
       // Network.
-      var container = document.getElementById('graph_%(idx)');
+      var container = document.getElementById('graph_%(idx)s');
       var data = {
         nodes: nodes,
         edges: edges
