@@ -64,6 +64,7 @@ def RunAll(test_presto=False, test_trino=False):
   RunTest("rec_cycle_test")
 
   RunTest("psql_recursion_test")
+  RunTest("sqlite_file_test")
   RunTest("sqlite_recursion")
   RunTest("sqlite_rec_depth")
   RunTest("sqlite_rec_functor")

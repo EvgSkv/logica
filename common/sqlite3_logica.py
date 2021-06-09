@@ -79,6 +79,28 @@ def PrintToConsole(message):
   return 1
 
 
+def Join(array, separator):
+  return separator.join(map(str, json.loads(array)))
+
+
+def ReadFile(filename):
+  try:
+    with open(filename) as f:
+      result = f.read()
+  except:
+    result = None
+  return result
+
+
+def WriteFile(filename, content):
+  try:
+    with open(filename, 'w') as w:
+      w.write(content)
+  except Exception as e:
+    return str(e)
+  return 'OK'
+
+
 def ArtisticTable(header, rows):
   """ASCII art table for query output."""
   width = [0] * len(header)
@@ -111,6 +133,9 @@ def SqliteConnect():
   con.create_aggregate('ArgMax', 3, ArgMax)
   con.create_function('PrintToConsole', 1, PrintToConsole)
   con.create_function('ARRAY_CONCAT', 2, ArrayConcat)
+  con.create_function('JOIN_STRINGS', 2, Join)
+  con.create_function('ReadFile', 1, ReadFile)
+  con.create_function('WriteFile', 2, WriteFile)
   sqlite3.enable_callback_tracebacks(True)
   return con
 
