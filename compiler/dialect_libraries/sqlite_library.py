@@ -36,4 +36,10 @@ ArgMinK(arr, k) =
 ArgMaxK(arr, k) =
     SqlExpr("ArgMax({a}, {v}, {k})", {a:, v:, k:}) :- Arrow(a, v) == arr;
 
+ReadFile(filename) = SqlExpr("ReadFile({filename})", {filename:});
+
+ReadJson(filename) = ReadFile(filename);
+
+WriteFile(filename, content:) = SqlExpr("WriteFile({filename}, {content})",
+                                        {filename:, content:});
 """
