@@ -136,6 +136,8 @@ def SqliteConnect():
   con.create_function('JOIN_STRINGS', 2, Join)
   con.create_function('ReadFile', 1, ReadFile)
   con.create_function('WriteFile', 2, WriteFile)
+  con.create_function('SQRT', 1, lambda x: float(x) ** 0.5)
+  con.create_function('POW', 2, lambda x, p: float(x) ** p)
   sqlite3.enable_callback_tracebacks(True)
   return con
 
