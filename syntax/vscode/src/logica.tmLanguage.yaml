@@ -18,25 +18,11 @@
 name: Logica
 patterns:
   - include: "#program"
-  - include: "#temporary_operators"
 
 repository:
-  # This entry is added temporarily to make the highlighting work.
-  temporary_operators:
-    patterns:
-      - name: keyword.operator.arithmetic.logica
-        match: "@"
-      - name: keyword.operator.spread.logica
-        match: "\\.\\."
-      - name: keyword.operator.assignment.logica
-        match: "(:-|:=)"
-      - name: keyword.control.flow.logica
-        match: "\\bcombine\\b"
-      - include: "#negation"
-  
   expression:
     patterns:
-      # - include: "#combine"
+      - include: "#combine"
       - include: "#string_literal"
       - include: "#number_literal"
       - include: "#boolean_literal"
@@ -48,7 +34,8 @@ repository:
       - include: "#binary_operator_call"
       - include: "#record"
       - include: "#call"
-      - include: "#temporary_operators"
+      # assign_combination is included as an expression for convenience.
+      - include: "#assign_combination"
       - begin: "\\("
         end: "\\)"
         beginCaptures:
@@ -57,8 +44,13 @@ repository:
           '0': {name: "punctuation.parenthesis.end.logica"}
         patterns:
           - include: "#expression"
-
-
+  
+  combine:
+    patterns:
+      - name: keyword.control.flow.logica
+        match: "\\bcombine\\b"
+      - include: "#aggregating_operator"
+      
   string_literal:
     name: string.quoted.double.logica
     begin: "\""
@@ -113,25 +105,11 @@ repository:
     patterns:
       - name: keyword.operator.logical.logica
         match: \bin\b
-      # - include: "#expression"
   
   implication:
-    # begin: \(
-    # end: \)
-    # beginCaptures:
-    #   '0': {name: "punctuation.parenthesis.begin.logica"}
-    # endCaptures:
-    #   '0': {name: "punctuation.parenthesis.end.logica"}
     patterns:
       - name: keyword.operator.logical.logica
         match: \b(if|else|then)\b
-      # - include: "#expression"
-  
-  # variable:
-  #   # match: \[a-z_][a-z0-9_]*
-  #   # name: "variable.parameter.logica"
-  #   patterns:
-  #     - include: "#field"
   
   field:
     match: "\\b(?<!@)[A-Za-z_]\\w*\\b(?=[:?])"
@@ -146,12 +124,15 @@ repository:
   
   record_internal:
     patterns:
-      - name: keyword.operator.spread.logica
-        match: (?<!\.)\.\.(?!\.)
       - name: punctuation.separator.element.logica
         match: ","
+      - match: |
+          (?x)
+            ((?<!\.)\.\.(?!\.))
+            (?:[a-z0-9_]+)
+        captures:
+          '1': {'name': 'keyword.operator.spread.logica'}
       - include: "#record_field_value"
-      # - include: "#variable"
   
   aggregating_field_value:
     patterns:
@@ -191,17 +172,15 @@ repository:
       - name: keyword.operator.logical.logica
         match: \!(?!=)
       - name: keyword.operator.arithmetic.logica
-        match: -(?!=)
+        match: (?<!:)-(?!=)
   
   unary_operator_call:
     patterns:
       - include: "#unary_operator"
-      # - include: "#expression"
   
   binary_operator_call:
     patterns:
       - include: "#operator"
-      # - include: "#expression"
 
   import:
     patterns:
@@ -215,7 +194,9 @@ repository:
                 (?:.+)
                 \. 
                 (\w+)
-                \b(as)\b 
+                \s+
+                (as)
+                \s+
                 (\w+)
             captures:
               '1': {patterns: [{include: "#logica_predicate"}]}
@@ -228,34 +209,19 @@ repository:
                 (\w+)
             captures:
               '1': {patterns: [{include: "#logica_predicate"}]}
-
-  # ordinary_logica_predicate:
-  #   match: "(?<!@)[A-Z_]\\w*"
-  #   name: "entity.name.function.logica"
-  
-  # imperative_predicate:
-  #   match: "(@)(\\w*)"
-  #   captures:
-  #     '1': {name: keyword.operator.arithmetic.logica}
-  #     '2': {name: entity.name.function.logica}
   
   logica_predicate:
     match: |
       (?x) 
         (?<!\w)
-        (?: (@) | ([A-Z_]))
-        (\w*)
+        ([A-Z_]\w*)
     captures:
-      '1': {name: keyword.operator.arithmetic.logica}
-      '2': {name: entity.name.function.logica}
-      '3': {name: entity.name.function.logica}
+      '1': {name: entity.name.function.logica}
   
   other_predicate:
     patterns:
       - match: "`[^`]+`"
         name: "string.interpolated.logica"
-      # - match: "[\\w.]+"
-      #   name: "variable.other.logica" # database tables
   
   predicate:
     patterns:
@@ -263,9 +229,11 @@ repository:
       - include: "#other_predicate"
     
   call:
+    # This entry includes patterns of both call and head_call.
     name: meta.function-call.logica
     begin: |
       (?x)
+        (@)?
         (?:
           ([A-Z_]\w*) |
           (
@@ -277,30 +245,16 @@ repository:
         (\()
     end: (\))
     beginCaptures:
-      '1': {name: entity.name.function.logica}
-      '2': {patterns: [{include: "#other_predicate"}]}
-      '3': {name: "punctuation.definition.arguments.begin.logica"}
+      '1': {name: keyword.operator.arithmetic.logica}
+      '2': {name: entity.name.function.logica}
+      '3': {patterns: [{include: "#other_predicate"}]}
+      '4': {name: "punctuation.definition.arguments.begin.logica"}
     endCaptures:
       '1': {name: "punctuation.definition.arguments.end.logica"}
     patterns:
       - include: "#record_internal"
+      - include: "#aggregating_field_value"
   
-  head_call:
-    name: meta.function-call.logica
-    begin: |
-      (?x)
-        ([A-Z_]\w*)
-        (\()
-    end: (\))
-    beginCaptures:
-      '1': {patterns: [{include: "#logica_predicate"}]}
-      '3': {name: "punctuation.definition.arguments.begin.logica"}
-    endCaptures:
-      '1': {name: "punctuation.definition.arguments.end.logica"}
-    patterns:
-      - include: "#aggregating_record_internal"
-
-
   assignment:
     patterns:
       - include: "#simple_assignment"
@@ -359,6 +313,12 @@ repository:
     name: keyword.operator.logical.logica
     match: "~"
   
+  assign_combination:
+    patterns:
+      - include: '#aggregating_operator'  
+      - name: keyword.operator.assignment.logica
+        match: ":-"
+  
   program: 
     patterns:
       - include: "#program_entry"
@@ -385,8 +345,8 @@ repository:
   
   rule_head:
     patterns:
-      - include: "#head_call"
       - include: "#assignment"
+      - include: "#head_call"
       - match: (?x)\b distinct \b
         name: "keyword.control.flow.logica"
   
@@ -422,6 +382,7 @@ repository:
     patterns:
     - include: "#inline_comment"
     - include: "#block_comment"
+  
   inline_comment:
     patterns:
     - name: comment.line.number-sign.logica
@@ -430,6 +391,7 @@ repository:
         '1':
           name: punctuation.definition.comment.logica
       end: "$"
+  
   block_comment:
     name: comment.block.logica
     begin: \s*+(\/\*)
@@ -440,7 +402,5 @@ repository:
     endCaptures:
       '1':
         name: punctuation.definition.comment.end.logica
-
-  
 
 scopeName: source.logica

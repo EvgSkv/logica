@@ -4,37 +4,14 @@
   "patterns": [
     {
       "include": "#program"
-    },
-    {
-      "include": "#temporary_operators"
     }
   ],
   "repository": {
-    "temporary_operators": {
-      "patterns": [
-        {
-          "name": "keyword.operator.arithmetic.logica",
-          "match": "@"
-        },
-        {
-          "name": "keyword.operator.spread.logica",
-          "match": "\\.\\."
-        },
-        {
-          "name": "keyword.operator.assignment.logica",
-          "match": "(:-|:=)"
-        },
-        {
-          "name": "keyword.control.flow.logica",
-          "match": "\\bcombine\\b"
-        },
-        {
-          "include": "#negation"
-        }
-      ]
-    },
     "expression": {
       "patterns": [
+        {
+          "include": "#combine"
+        },
         {
           "include": "#string_literal"
         },
@@ -69,7 +46,7 @@
           "include": "#call"
         },
         {
-          "include": "#temporary_operators"
+          "include": "#assign_combination"
         },
         {
           "begin": "\\(",
@@ -89,6 +66,17 @@
               "include": "#expression"
             }
           ]
+        }
+      ]
+    },
+    "combine": {
+      "patterns": [
+        {
+          "name": "keyword.control.flow.logica",
+          "match": "\\bcombine\\b"
+        },
+        {
+          "include": "#aggregating_operator"
         }
       ]
     },
@@ -183,12 +171,16 @@
     "record_internal": {
       "patterns": [
         {
-          "name": "keyword.operator.spread.logica",
-          "match": "(?<!\\.)\\.\\.(?!\\.)"
-        },
-        {
           "name": "punctuation.separator.element.logica",
           "match": ","
+        },
+        {
+          "match": "(?x)\n  ((?<!\\.)\\.\\.(?!\\.))\n  (?:[a-z0-9_]+)\n",
+          "captures": {
+            "1": {
+              "name": "keyword.operator.spread.logica"
+            }
+          }
         },
         {
           "include": "#record_field_value"
@@ -266,7 +258,7 @@
         },
         {
           "name": "keyword.operator.arithmetic.logica",
-          "match": "-(?!=)"
+          "match": "(?<!:)-(?!=)"
         }
       ]
     },
@@ -296,7 +288,7 @@
           },
           "patterns": [
             {
-              "match": "(?x)\n  (?:.+)\n  \\. \n  (\\w+)\n  \\b(as)\\b \n  (\\w+)\n",
+              "match": "(?x)\n  (?:.+)\n  \\. \n  (\\w+)\n  \\s+\n  (as)\n  \\s+\n  (\\w+)\n",
               "captures": {
                 "1": {
                   "patterns": [
@@ -333,16 +325,18 @@
         }
       ]
     },
+    "imperative_predicate": {
+      "patterns": [
+        {
+          "name": "keyword.operator.arithmetic.logica",
+          "match": "@"
+        }
+      ]
+    },
     "logica_predicate": {
-      "match": "(?x) \n  (?<!\\w)\n  (?: (@) | ([A-Z_]))\n  (\\w*)\n",
+      "match": "(?x) \n  (?<!\\w)\n  ([A-Z_]\\w*)\n",
       "captures": {
         "1": {
-          "name": "keyword.operator.arithmetic.logica"
-        },
-        "2": {
-          "name": "entity.name.function.logica"
-        },
-        "3": {
           "name": "entity.name.function.logica"
         }
       }
@@ -366,21 +360,25 @@
       ]
     },
     "call": {
+      "comment": "This entry includes patterns of both call and head_call.",
       "name": "meta.function-call.logica",
-      "begin": "(?x)\n  (?:\n    ([A-Z_]\\w*) |\n    (\n      (?: `[^`]+`) | \n      (?: [\\w.]+)\n    )\n  )\n  (?<= [\\w`])\n  (\\()\n",
+      "begin": "(?x)\n  (@)?\n  (?:\n    ([A-Z_]\\w*) |\n    (\n      (?: `[^`]+`) | \n      (?: [\\w.]+)\n    )\n  )\n  (?<= [\\w`])\n  (\\()\n",
       "end": "(\\))",
       "beginCaptures": {
         "1": {
-          "name": "entity.name.function.logica"
+          "name": "keyword.operator.arithmetic.logica"
         },
         "2": {
+          "name": "entity.name.function.logica"
+        },
+        "3": {
           "patterns": [
             {
               "include": "#other_predicate"
             }
           ]
         },
-        "3": {
+        "4": {
           "name": "punctuation.definition.arguments.begin.logica"
         }
       },
@@ -392,33 +390,9 @@
       "patterns": [
         {
           "include": "#record_internal"
-        }
-      ]
-    },
-    "head_call": {
-      "name": "meta.function-call.logica",
-      "begin": "(?x)\n  ([A-Z_]\\w*)\n  (\\()\n",
-      "end": "(\\))",
-      "beginCaptures": {
-        "1": {
-          "patterns": [
-            {
-              "include": "#logica_predicate"
-            }
-          ]
         },
-        "3": {
-          "name": "punctuation.definition.arguments.begin.logica"
-        }
-      },
-      "endCaptures": {
-        "1": {
-          "name": "punctuation.definition.arguments.end.logica"
-        }
-      },
-      "patterns": [
         {
-          "include": "#aggregating_record_internal"
+          "include": "#aggregating_field_value"
         }
       ]
     },
@@ -539,6 +513,17 @@
       "name": "keyword.operator.logical.logica",
       "match": "~"
     },
+    "assign_combination": {
+      "patterns": [
+        {
+          "include": "#aggregating_operator"
+        },
+        {
+          "name": "keyword.operator.assignment.logica",
+          "match": ":-"
+        }
+      ]
+    },
     "program": {
       "patterns": [
         {
@@ -590,10 +575,10 @@
     "rule_head": {
       "patterns": [
         {
-          "include": "#head_call"
+          "include": "#assignment"
         },
         {
-          "include": "#assignment"
+          "include": "#head_call"
         },
         {
           "match": "(?x)\\b distinct \\b",
