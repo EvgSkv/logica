@@ -33,7 +33,7 @@ def RunTest(name, src=None, golden=None, predicate=None,
       user_flags=user_flags)
 
 
-def RunAll():
+def RunAll(test_presto=False, test_trino=False):
   """Running all tests."""
   # Uncomment to test writing tables.
   # RunTest("ground_test")
@@ -41,13 +41,36 @@ def RunAll():
   # RunTest("closure_test")
   # RunTest("dialects/trino/grounding_test")
 
-  RunTest("dialects/presto/basics_test")
-  RunTest("dialects/presto/arg_min_max_test")
-  RunTest("dialects/presto/joins_test")
+  if test_presto:
+    RunTest("dialects/presto/basics_test")
+    RunTest("dialects/presto/arg_min_max_test")
+    RunTest("dialects/presto/joins_test")
 
-  RunTest("dialects/trino/basics_test")
-  RunTest("dialects/trino/arg_min_max_test")
-  RunTest("dialects/trino/joins_test")
+  if test_trino:
+    RunTest("dialects/trino/trino_reachability_test")
+    RunTest("dialects/trino/basics_test")
+    RunTest("dialects/trino/arg_min_max_test")
+    RunTest("dialects/trino/joins_test")
+    RunTest("dialects/trino/joins_test")
+
+  RunTest("in_expr_test")
+  RunTest("equals_true_test")
+
+  RunTest("functor_arg_update_test")
+
+  RunTest("ultra_short_cycle_test")
+
+  RunTest("rec_small_cycle_test")
+  RunTest("rec_cycle_test")
+
+  RunTest("psql_recursion_test")
+  RunTest("sqlite_file_test")
+  RunTest("sqlite_recursion")
+  RunTest("sqlite_rec_depth")
+  RunTest("sqlite_rec_functor")
+  RunTest("sqlite_pagerank")
+  RunTest("sqlite_composite_test")
+  RunTest("sqlite_reachability")
 
   RunTest("psql_test")
   RunTest("psql_arg_min_test")
@@ -261,5 +284,5 @@ def RunAll():
   )
 
 
-  RunTest("reachability_test")
+  # RunTest("reachability_test")
 

@@ -58,7 +58,10 @@ class BigQueryDialect(Dialect):
     return bq_library.library
 
   def UnnestPhrase(self):
-    return 'UNNEST(%s) as %s'
+    return 'UNNEST({0}) as {1}'
+
+  def ArrayPhrase(self):
+    return 'ARRAY[%s]'
 
   def GroupBySpecBy(self):
     return 'name'
@@ -71,7 +74,16 @@ class SqLiteDialect(Dialect):
 
   def BuiltInFunctions(self):
     return {
-        'Set': None
+        'Set': None,
+        'Element': "JSON_EXTRACT({0}, '$[{1}]')",
+        'Range': ('(select json_group_array(n) from (with recursive t as'
+                  '(select 0 as n union all '
+                  'select n + 1 as n from t where n + 1 < {0}) '
+                  'select n from t))'),
+        'ValueOfUnnested': '{0}.value',
+        'List': 'JSON_GROUP_ARRAY({0})',
+        'Size': 'JSON_ARRAY_LENGTH({0})',
+        'Join': 'JOIN_STRINGS({0}, {1})'
     }
 
   def InfixOperators(self):
@@ -81,13 +93,16 @@ class SqLiteDialect(Dialect):
     }
 
   def Subscript(self, record, subscript):
-    return '%s.%s' % (record, subscript)
+    return 'JSON_EXTRACT(%s, "$.%s")' % (record, subscript)
   
   def LibraryProgram(self):
     return sqlite_library.library
 
   def UnnestPhrase(self):
-    return 'UNNEST(%s) as %s'
+    return 'JSON_EACH({0}) as {1}'
+
+  def ArrayPhrase(self):
+    return 'JSON_ARRAY(%s)'
 
   def GroupBySpecBy(self):
     return 'name'
@@ -101,7 +116,10 @@ class PostgreSQL(Dialect):
   def BuiltInFunctions(self):
     return {
         'Range': '(SELECT ARRAY_AGG(x) FROM GENERATE_SERIES(0, {0} - 1) as x)',
-        'ToString': 'CAST(%s AS TEXT)'
+        'ToString': 'CAST(%s AS TEXT)',
+        'Element': '({0})[{1} + 1]',
+        'Size': 'ARRAY_LENGTH(%s, 1)',
+        'Count': 'COUNT(DISTINCT {0})'
       }
 
   def InfixOperators(self):
@@ -116,7 +134,10 @@ class PostgreSQL(Dialect):
     return psql_library.library
 
   def UnnestPhrase(self):
-    return 'UNNEST(%s) as %s'
+    return 'UNNEST({0}) as {1}'
+
+  def ArrayPhrase(self):
+    return 'ARRAY[%s]'
 
   def GroupBySpecBy(self):
     return 'name'
@@ -134,7 +155,8 @@ class Trino(Dialect):
         'ToString': 'CAST(%s AS VARCHAR)',
         'ToInt64': 'CAST(%s AS BIGINT)',
         'ToFloat64': 'CAST(%s AS DOUBLE)',
-        'AnyValue': 'ARBITRARY(%s)'
+        'AnyValue': 'ARBITRARY(%s)',
+        'ArrayConcat': '{0} || {1}'
     }
 
   def InfixOperators(self):
@@ -149,7 +171,10 @@ class Trino(Dialect):
     return trino_library.library
 
   def UnnestPhrase(self):
-    return 'UNNEST(%s) as pushkin(%s)'
+    return 'UNNEST({0}) as pushkin({1})'
+
+  def ArrayPhrase(self):
+    return 'ARRAY[%s]'
 
   def GroupBySpecBy(self):
     return 'index'
@@ -181,7 +206,10 @@ class Presto(Dialect):
     return presto_library.library
 
   def UnnestPhrase(self):
-    return 'UNNEST(%s) as pushkin(%s)'
+    return 'UNNEST({0}) as pushkin({1})'
+
+  def ArrayPhrase(self):
+    return 'ARRAY[%s]'
 
   def GroupBySpecBy(self):
     return 'index'

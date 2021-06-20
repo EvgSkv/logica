@@ -74,6 +74,7 @@ class Logica(object):
     # that Ground dependencies of the With'ed tables are added.
     self.with_compilation_done_for_parent = collections.defaultdict(set)
     self.dependency_edges = []
+    self.data_dependency_edges = []
     self.table_to_export_map = {}
     self.main_predicate_sql = None
     self.preamble = ''
@@ -128,7 +129,7 @@ class Annotations(object):
       '@Limit', '@OrderBy', '@Ground', '@Flag', '@DefineFlag',
       '@NoInject', '@Make', '@CompileAsTvf', '@With', '@NoWith',
       '@CompileAsUdf', '@ResetFlagValue', '@Dataset', '@AttachDatabase',
-      '@Engine'
+      '@Engine', '@Recursive'
   ]
 
   def __init__(self, rules, user_flags):
@@ -195,6 +196,11 @@ class Annotations(object):
         AnnotationError('@AttachDatabase must have a single argument.',
                         v)
       result[k] = v['1']
+    if (self.Engine() == 'sqlite'
+        and 'logica_test' not in result
+        and '@Ground' in self.annotations and
+        self.annotations['@Ground']):
+      result['logica_test'] = ':memory:'
     return result
 
   def AttachDatabaseStatements(self):
@@ -444,6 +450,8 @@ class LogicaProgram(object):
         BigQuery table name. This table will be used in place of predicate.
       user_flags: Dictionary of user specified flags.
     """
+    rules = self.UnfoldRecursion(rules)
+
     # TODO: Should allocator be a member of Logica?
     self.preparsed_rules = rules
     self.rules = []
@@ -489,6 +497,11 @@ class LogicaProgram(object):
 
     if False:
       self.RunTypechecker()
+
+  def UnfoldRecursion(self, rules):
+    annotations = Annotations(rules, {})
+    f = functors.Functors(rules)
+    return f.UnfoldRecursions(annotations.annotations.get('@Recursive', {}))
 
   def BuildUdfs(self):
     """Build UDF definitions."""
@@ -564,10 +577,16 @@ class LogicaProgram(object):
     rules = list(self.GetPredicateRules(name))
     if len(rules) == 1:
       [rule] = rules
-      return (
+      result = (
           self.SingleRuleSql(rule, allocator, external_vocabulary) +
           self.annotations.OrderByClause(name) +
           self.annotations.LimitClause(name))
+      if result.startswith('/* nil */'):
+        raise rule_translate.RuleCompileException(
+          'Single rule is nil for predicate %s. '
+          'Recursion unfolding failed.' % color.Warn(name),
+          rule['full_text'])
+      return result
     elif len(rules) > 1:
       rules_sql = []
       for rule in rules:
@@ -578,10 +597,16 @@ class LogicaProgram(object):
                   'currently supported. Consider taking '
                   '{warning}union of bodies manually{end}, if that was what '
                   'you intended.'), rule['full_text'])
-        rules_sql.append('\n%s\n' %
-                         Indent2(
-                             self.SingleRuleSql(
-                                 rule, allocator, external_vocabulary)))
+        single_rule_sql = self.SingleRuleSql(
+            rule, allocator, external_vocabulary)
+        if not single_rule_sql.startswith('/* nil */'):
+          rules_sql.append('\n%s\n' %
+                          Indent2(single_rule_sql))
+      if not rules_sql:
+        raise rule_translate.RuleCompileException(
+          'All disjuncts are nil for predicate %s.' % color.Warn(name),
+          rule['full_text'])
+
       rules_sql = ['\n'.join('  ' + l for l in r.split('\n'))
                    for r in rules_sql]
       return 'SELECT * FROM (\n%s\n) AS UNUSED_TABLE_NAME %s %s' % (
@@ -745,7 +770,6 @@ class LogicaProgram(object):
     assert self.execution.workflow_predicates_stack == [name], (
         'Logica internal error: unexpected workflow stack: %s' %
         self.execution.workflow_predicates_stack)
-    self.execution.main_predicate_sql = sql
 
     # Wrap query in with
     with_signature = self.GenerateWithClauses(name)
@@ -769,6 +793,7 @@ class LogicaProgram(object):
     if tvf_signature:
       sql = tvf_signature + '\n' + sql
 
+    self.execution.main_predicate_sql = sql
     formatted_sql = (
         self.execution.flags_comment +
         defines_and_exports +
@@ -780,6 +805,8 @@ class LogicaProgram(object):
         self.execution.defines[i] = self.UseFlagsAsParameters(d)
       self.execution.flags_comment = self.UseFlagsAsParameters(
           self.execution.flags_comment)
+      self.execution.main_predicate_sql = self.UseFlagsAsParameters(
+        self.execution.main_predicate_sql)
       return self.UseFlagsAsParameters(formatted_sql)
     else:
       return formatted_sql
@@ -898,7 +925,9 @@ class LogicaProgram(object):
             s.full_rule_text)
       else:
         raise runtime_error
-
+    if 'nil' in s.tables.values():
+      # Mark rule for deletion.
+      sql = '/* nil */' + sql
     return sql
 
   def GenerateWithClauses(self, predicate_name):
@@ -986,6 +1015,7 @@ class SubqueryTranslator(object):
       # Calling predicate SQL to add the required ground dependencies.
       if table not in self.execution.with_compilation_done_for_parent[
           parent_table]:
+        # Swap these lines to compile a recursive with.
         _ = self.program.PredicateSql(table, self.allocator)
         self.execution.with_compilation_done_for_parent[
             parent_table].add(table)
@@ -1021,6 +1051,9 @@ class SubqueryTranslator(object):
           table, self.allocator, external_vocabulary)
       predicate_sql = Indent2(predicate_sql)
       return '(\n%s\n)' % predicate_sql
+    self.execution.data_dependency_edges.append((
+      table,
+      self.execution.workflow_predicates_stack[-1]))
     return self.UnquoteParenthesised(table)
 
   def TranslateRule(self, rule, external_vocabulary):

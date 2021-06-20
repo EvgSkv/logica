@@ -69,6 +69,7 @@ class QL(object):
       'Sort': 'ARRAY(SELECT x FROM UNNEST(%s) as x ORDER BY x)',
       'TimestampAddDays': 'TIMESTAMP_ADD({0}, INTERVAL {1} DAY)',
       'Unique': 'ARRAY(SELECT DISTINCT x FROM UNNEST(%s) as x ORDER BY x)',
+      'ValueOfUnnested': '%s',
       # These functions are treated specially.
       'FlagValue': 'UNUSED',
       'Cast': 'UNUSED',
@@ -87,7 +88,7 @@ class QL(object):
       '^': 'POW(%s, %s)',
       '!=': '%s != %s',
       '++': 'CONCAT(%s, %s)',
-      'In': '%s IN UNNEST(%s)',
+      'in': '%s IN UNNEST(%s)',
       '||': '%s OR %s',
       '&&': '%s AND %s',
       '%': 'MOD(%s, %s)'
@@ -240,7 +241,7 @@ class QL(object):
     return str(literal['number'])
 
   def StrLiteral(self, literal):
-    if self.dialect.Name() in ["PostgreSQL", "Presto", "Trino"]:
+    if self.dialect.Name() in ["PostgreSQL", "Presto", "Trino", "SqLite"]:
       # TODO: Do this safely.
       return '\'%s\'' % literal['the_string']
     return json.dumps(literal['the_string'], ensure_ascii=False)
@@ -250,7 +251,7 @@ class QL(object):
                       for e in literal['element']])
 
   def ListLiteral(self, literal):
-    return 'ARRAY[%s]' % self.ListLiteralInternals(literal)
+    return self.dialect.ArrayPhrase() % self.ListLiteralInternals(literal)
 
   def BoolLiteral(self, literal):
     return literal['the_bool']
@@ -292,10 +293,19 @@ class QL(object):
   def Record(self, record):
     if self.convert_to_json:
       return self.RecordAsJson(record)
+    # TODO: Move this to dialects.py.
+    if self.dialect.Name() == 'SqLite':
+      arguments_str = ', '.join(
+          "'%s', %s" % (f_v['field'],
+                      self.ConvertToSql(f_v['value']['expression']) )
+          for f_v in record['field_value'])
+      return 'JSON_OBJECT(%s)' % arguments_str
     arguments_str = ', '.join(
         '%s AS %s' % (self.ConvertToSql(f_v['value']['expression']),
                       f_v['field'])
         for f_v in record['field_value'])
+    if self.dialect.Name() == 'Trino':
+      return '(SELECT %s)' % arguments_str
     return 'STRUCT(%s)' % arguments_str
 
   def GenericSqlExpression(self, record):
@@ -504,9 +514,7 @@ class QL(object):
       for ydg_op, sql_op in self.built_in_infix_operators.items():
         if call['predicate_name'] == ydg_op:
           result = self.Infix(sql_op, arguments)
-          # TODO: Don't add parenthesis unless they are needed.
-          if ydg_op not in ('++', '++?', 'In', '=='):
-            result = '(' + result + ')'
+          result = '(' + result + ')'
           return result
 
     if 'subscript' in expression:
