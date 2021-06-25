@@ -53,6 +53,9 @@ def RunAll(test_presto=False, test_trino=False):
     RunTest("dialects/trino/joins_test")
     RunTest("dialects/trino/joins_test")
 
+
+  RunTest("unification_priority_test")
+
   RunTest("in_expr_test")
   RunTest("equals_true_test")
 

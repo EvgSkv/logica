@@ -563,11 +563,13 @@ def ParseLiteral(s):
     return {'the_predicate': v}
 
 
-def ParseInfix(s):
+def ParseInfix(s, operators=None):
   """Parses an infix operator expression."""
+  operators = operators or [
+      '||', '&&', '->', '==', '<=', '>=', '<', '>', '!=',
+      '++?', '++', '+', '-', '*', '/', '%', '^', ' in ', '!']
   unary_operators = ['-', '!']
-  for op in ['||', '&&', '->', '==', '<=', '>=', '<', '>', '!=',
-             '++?', '++', '+', '-', '*', '/', '%', '^', ' in ', '!']:
+  for op in operators:
     parts = SplitRaw(s, op)
     if len(parts) > 1:
       # Right is the rightmost operand and left are all the other operands.
@@ -806,6 +808,9 @@ def ParseProposition(s):
     raise ParsingException('If-then-else clause is only supported as an '
                            'expression, not as a proposition.', s)
   c = ParseCall(s)
+  if c:
+    return {'predicate': c}
+  c = ParseInfix(s, operators=['&&', '||'])
   if c:
     return {'predicate': c}
   c = ParseUnification(s)
