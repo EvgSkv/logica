@@ -46,16 +46,19 @@ class TestManager(object):
     cls.RUN_ONLY = value
 
   @classmethod
-  def RunTest(cls, name, src, predicate, golden, user_flags):
+  def RunTest(cls, name, src, predicate, golden, user_flags,
+              import_root=None):
     if cls.RUN_ONLY and name not in cls.RUN_ONLY:
       return
     RunTest(name, src, predicate, golden, user_flags,
-            cls.GOLDEN_RUN, cls.ANNOUNCE_TESTS)
+            cls.GOLDEN_RUN, cls.ANNOUNCE_TESTS,
+            import_root)
 
 
 def RunTest(name, src, predicate, golden,
             user_flags=None,
-            overwrite=False, announce=False):
+            overwrite=False, announce=False,
+            import_root=None):
   """Run one test."""
   if announce:
     print('Running test:', name)
@@ -63,7 +66,8 @@ def RunTest(name, src, predicate, golden,
   print(color.Format('% 50s   %s' % (name, test_result)))
 
   result = logica_lib.RunPredicate(src, predicate,
-                                   user_flags=user_flags)
+                                   user_flags=user_flags,
+                                   import_root=import_root)
   # Hacky way to remove query that BQ prints.
   if '+---' in result[200:]:
     result = result[result.index('+---'):]

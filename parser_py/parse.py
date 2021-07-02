@@ -1099,10 +1099,10 @@ def SplitImport(import_str):
   return ('.'.join(import_parts[:-1]), import_parts[-1], synonym)
 
 
-def ParseImport(file_import_str, parsed_imports, import_chain):
+def ParseImport(file_import_str, parsed_imports, import_chain, import_root):
   """Parses an import, returns extracted rules."""
   file_import_parts = file_import_str.split('.')
-  file_path = '/'.join(file_import_parts) + '.l'
+  file_path = os.path.join(import_root, '/'.join(file_import_parts) + '.l')
   if file_import_str in parsed_imports:
     if parsed_imports[file_import_str] is None:
       raise ParsingException(
@@ -1419,13 +1419,15 @@ class AggergationsAsExpressions(object):
     return rules
 
 
-def ParseFile(s, this_file_name=None, parsed_imports=None, import_chain=None):
+def ParseFile(s, this_file_name=None, parsed_imports=None, import_chain=None,
+              import_root=None):
   """Parsing logica.Logica."""
   s = HeritageAwareString(RemoveComments(HeritageAwareString(s)))
   parsed_imports = parsed_imports or {}
   this_file_name = this_file_name or 'main'
   import_chain = import_chain or []
   import_chain = import_chain + [this_file_name]
+  import_root = import_root or ''
   str_statements = Split(s, ';')
   rules = []
   imported_predicates = []
@@ -1436,7 +1438,8 @@ def ParseFile(s, this_file_name=None, parsed_imports=None, import_chain=None):
     if str_statement.startswith('import '):
       import_str = str_statement[len('import '):]
       file_import_str, import_predicate, synonym = SplitImport(import_str)
-      ParseImport(file_import_str, parsed_imports, import_chain)
+      ParseImport(file_import_str, parsed_imports, import_chain,
+                  import_root)
       imported_predicates.append({
           'file': file_import_str, 'predicate_name': import_predicate,
           'synonym': synonym})

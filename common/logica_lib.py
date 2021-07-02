@@ -34,13 +34,14 @@ else:
   from ..parser_py import parse
 
 
-def ParseOrExit(filename):
+def ParseOrExit(filename, import_root=None):
   """Parse a Logica program."""
   with open(filename) as f:
     program_text = f.read()
 
   try:
-    parsed_rules = parse.ParseFile(program_text)['rule']
+    parsed_rules = parse.ParseFile(program_text,
+                                   import_root=import_root)['rule']
   except parse.ParsingException as parsing_exception:
     parsing_exception.ShowMessage()
     sys.exit(1)
@@ -48,9 +49,9 @@ def ParseOrExit(filename):
   return parsed_rules
 
 
-def GetProgramOrExit(filename, user_flags=None):
+def GetProgramOrExit(filename, user_flags=None, import_root=None):
   """Get program object from a file."""
-  parsed_rules = ParseOrExit(filename)
+  parsed_rules = ParseOrExit(filename, import_root=import_root)
   try:
     p = universe.LogicaProgram(parsed_rules, user_flags=user_flags)
   except rule_translate.RuleCompileException as rule_compilation_exception:
@@ -102,9 +103,11 @@ def RunQuery(sql,
 
 
 def RunPredicate(filename, predicate,
-                 output_format='pretty', user_flags=None):
+                 output_format='pretty', user_flags=None,
+                 import_root=None):
   """Run a predicate on BigQuery."""
-  p = GetProgramOrExit(filename, user_flags=user_flags)
+  p = GetProgramOrExit(filename, user_flags=user_flags,
+                       import_root=import_root)
   sql = p.FormattedPredicateSql(predicate)
   engine = p.annotations.Engine()
   if ('@Engine' in p.annotations.annotations and
