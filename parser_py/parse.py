@@ -268,9 +268,9 @@ def Strip(s):
 def StripSpaces(s):
   left_idx = 0
   right_idx = len(s) - 1
-  while left_idx < len(s) and s[left_idx] in [' ', '\n']:
+  while left_idx < len(s) and s[left_idx].isspace():
     left_idx += 1
-  while right_idx > left_idx and s[right_idx] in [' ', '\n']:
+  while right_idx > left_idx and s[right_idx].isspace():
     right_idx -= 1
   return s[left_idx:right_idx + 1]
 
