@@ -1,4 +1,4 @@
-# Small part of Queen Victoria descended tree.
+# Small part of Queen Victoria descendent tree.
 # Source:
 # https://en.wikipedia.org/wiki/Royal_descendants_of_Queen_Victoria_and_King_Christian_IX
 

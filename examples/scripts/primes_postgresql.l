@@ -14,7 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# Example of a program running on Trino engine.
+# Example of a program running on PostgreSQL engine.
 
 # ********
 # * This only works if you have PostgreSQL installed.
