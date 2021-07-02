@@ -20,7 +20,7 @@ from common import logica_test
 
 
 def RunTest(name, src=None, golden=None, predicate=None,
-            user_flags=None):
+            user_flags=None, import_root=None):
   """Run one test from this folder with TestManager."""
   src = src or (name + ".l")
   golden = golden or (name + ".txt")
@@ -30,7 +30,8 @@ def RunTest(name, src=None, golden=None, predicate=None,
       src="integration_tests/" + src,
       golden="integration_tests/" + golden,
       predicate=predicate,
-      user_flags=user_flags)
+      user_flags=user_flags,
+      import_root=import_root)
 
 
 def RunAll(test_presto=False, test_trino=False):
@@ -53,7 +54,7 @@ def RunAll(test_presto=False, test_trino=False):
     RunTest("dialects/trino/joins_test")
     RunTest("dialects/trino/joins_test")
 
-
+  RunTest("import_root_test", import_root="integration_tests/import_tests")
   RunTest("unification_priority_test")
 
   RunTest("in_expr_test")
