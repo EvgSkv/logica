@@ -98,7 +98,7 @@ def main(argv):
     pass  # compile needs just 2 actual arguments.
   else:
     if len(argv) < 4:
-      print('Not enought arguments. Run \'logica help\' for help.',
+      print('Not enough arguments. Run \'logica help\' for help.',
             file=sys.stderr)
       return 1
 
