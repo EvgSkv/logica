@@ -78,6 +78,18 @@ def ReadUserFlags(rules, argv):
   return user_flags
 
 
+def GetImportRoot():
+  """Parses LOGICAPATH environment variable."""
+  import_root_env = os.environ.get('LOGICAPATH')
+  if not import_root_env:
+    return None
+  roots = import_root_env.split(':')
+  if len(roots) > 1:
+    return roots
+  else:
+    return import_root_env
+
+
 def main(argv):
   if len(argv) <= 1 or argv[1] == 'help':
     print('Usage:')
@@ -122,7 +134,8 @@ def main(argv):
   program_text = open(filename).read()
 
   try:
-    parsed_rules = parse.ParseFile(program_text)['rule']
+    parsed_rules = parse.ParseFile(program_text,
+                                   import_root=GetImportRoot())['rule']
   except parse.ParsingException as parsing_exception:
     parsing_exception.ShowMessage()
     sys.exit(1)

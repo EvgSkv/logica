@@ -72,7 +72,7 @@ class HeritageAwareString(str):
     if stop > len(self):
       stop = len(self)
     if stop < 0:
-      stop = len(self) - stop
+      stop = len(self) + stop
     substring.start = self.start + start
     substring.stop = self.start + stop
     substring.heritage = self.heritage
@@ -1102,7 +1102,6 @@ def SplitImport(import_str):
 def ParseImport(file_import_str, parsed_imports, import_chain, import_root):
   """Parses an import, returns extracted rules."""
   file_import_parts = file_import_str.split('.')
-  file_path = os.path.join(import_root, '/'.join(file_import_parts) + '.l')
   if file_import_str in parsed_imports:
     if parsed_imports[file_import_str] is None:
       raise ParsingException(
@@ -1111,9 +1110,26 @@ def ParseImport(file_import_str, parsed_imports, import_chain, import_root):
           HeritageAwareString(file_import_str))    
     return None
   parsed_imports[file_import_str] = None
-  if not os.path.exists(file_path):
-    raise ParsingException('Imported file not found: %s.' % file_path,
-                           HeritageAwareString(file_import_str))
+  if isinstance(import_root, str):
+    file_path = os.path.join(import_root, '/'.join(file_import_parts) + '.l')
+    if not os.path.exists(file_path):
+      raise ParsingException('Imported file not found: %s.' % file_path,
+                             HeritageAwareString(file_import_str))
+  else:
+    assert isinstance(import_root, list), 'import_root must be of type str or list.'
+    considered_files = []
+    for root in import_root:
+      file_path = os.path.join(root, '/'.join(file_import_parts) + '.l')
+      considered_files.append(file_path)
+      if os.path.exists(file_path):
+        break
+    else:
+      raise ParsingException(
+          'Imported file not found. Considered: \n- %s.' % '\n- '.join(
+              considered_files),
+          HeritageAwareString(
+              'import ' + file_import_str + '.<PREDICATE>')[7:-11])
+
   file_content = open(file_path).read()
   parsed_file = ParseFile(file_content, file_import_str, parsed_imports,
                           import_chain)

@@ -13,11 +13,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# Testing import_root parser parameter.
-# Test needs to run with import_root=integration_tests/import_tests, where
-# canada.l is located.
+# Testing multiple import roots.
+# This test needs [integration_tests, integration_tests/import_test]
+# improt root.
 
+import sqlite_test.Animal;
 import canada.ProductCanada;
 
-@Engine("sqlite");
-Test(..r) :- ProductCanada(..r);
+Test(animal:, product:, price:) :-
+  ProductCanada(product, price:),
+  Animal(animal);
