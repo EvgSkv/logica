@@ -55,7 +55,8 @@ def RunAll(test_presto=False, test_trino=False):
     RunTest("dialects/trino/joins_test")
 
   RunTest("import_root_test", import_root="integration_tests/import_tests")
-  RunTest("import_roots_test", import_root=["integration_tests",
+  RunTest("import_roots_test", import_root=["",
+                                            "integration_tests",
                                             "integration_tests/import_tests"])
   RunTest("unification_priority_test")
 

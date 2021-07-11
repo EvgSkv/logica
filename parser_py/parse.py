@@ -1113,8 +1113,10 @@ def ParseImport(file_import_str, parsed_imports, import_chain, import_root):
   if isinstance(import_root, str):
     file_path = os.path.join(import_root, '/'.join(file_import_parts) + '.l')
     if not os.path.exists(file_path):
-      raise ParsingException('Imported file not found: %s.' % file_path,
-                             HeritageAwareString(file_import_str))
+      raise ParsingException(
+          'Imported file not found: %s.' % file_path,
+          HeritageAwareString(
+              'import ' + file_import_str + '.<PREDICATE>')[7:-11])
   else:
     assert isinstance(import_root, list), 'import_root must be of type str or list.'
     considered_files = []
@@ -1132,7 +1134,7 @@ def ParseImport(file_import_str, parsed_imports, import_chain, import_root):
 
   file_content = open(file_path).read()
   parsed_file = ParseFile(file_content, file_import_str, parsed_imports,
-                          import_chain)
+                          import_chain, import_root)
   parsed_imports[file_import_str] = parsed_file
   return parsed_file
 

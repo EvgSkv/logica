@@ -17,7 +17,7 @@
 # Test needs to run with import_root=integration_tests/import_tests, where
 # canada.l is located.
 
-import canada.ProductCanada;
+import usa.ProductUSA;
 
 @Engine("sqlite");
-Test(..r) :- ProductCanada(..r);
+Test(..r) :- ProductUSA(..r);
