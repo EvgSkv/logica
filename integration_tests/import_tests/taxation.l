@@ -13,11 +13,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# Testing import_root parser parameter.
-# Test needs to run with import_root=integration_tests/import_tests, where
-# canada.l is located.
+# Testing relative import, this library assumes that import root is set to
+# integration_tests/import_tests folder.
 
-import taxation.ProductTax;
+import usa.ProductUSA;
 
-@Engine("sqlite");
-Test(..r) :- ProductTax(..r);
+@With(ProductTax);
+ProductTax(product, tax: price * 0.1) :-
+  ProductUSA(product, price:);
