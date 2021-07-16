@@ -67,6 +67,13 @@ TABULATED_OUTPUT = True
 
 SHOW_FULL_QUERY = True
 
+PREAMBLE = None
+
+
+def SetPreamble(preamble):
+  global PREAMBLE
+  PREAMBLE = preamble
+
 def SetProject(project):
   global PROJECT
   PROJECT = project
@@ -181,7 +188,8 @@ def Logica(line, cell, run_query):
   """Running Logica predicates and storing results."""
   predicates = ParseList(line)
   try:
-    parsed_rules = parse.ParseFile(cell)['rule']
+    program = ';\n'.join(s for s in [PREAMBLE, cell] if s)
+    parsed_rules = parse.ParseFile(program)['rule']
   except parse.ParsingException as e:
     e.ShowMessage()
     return
