@@ -130,28 +130,29 @@ def ParseList(line):
 
 
 def RunSQL(sql, engine, connection=None, is_final=False):
-  if engine == 'bigquery':
-    EnsureAuthenticatedUser()
-    client = bigquery.Client(project=PROJECT)
-    return client.query(sql).to_dataframe()
-  elif engine == 'psql':
-    if is_final:
-      return pandas.read_sql(sql, connection)
-    else:
-      return connection.execute(sql)
-  elif engine == 'sqlite':
-    statements = parse.SplitRaw(sql, ';')
-    connection.executescript(sql)
-    if is_final:
-      return pandas.read_sql(statements[-1], connection)
-    else:
-      pass
-    return None
-  else:
-    raise Exception('Logica only supports BigQuery, PostgreSQL and SQLite '
+  
+  return
+  #if engine == 'bigquery':
+  #  EnsureAuthenticatedUser()
+  #  client = bigquery.Client(project=PROJECT)
+  #  return client.query(sql).to_dataframe()
+  #elif engine == 'psql':
+  #  if is_final:
+  #    return pandas.read_sql(sql, connection)
+  #  else:
+  #    return connection.execute(sql)
+  #elif engine == 'sqlite':
+  #  statements = parse.SplitRaw(sql, ';')
+  #  connection.executescript(sql)
+  #  if is_final:
+  #    return pandas.read_sql(statements[-1], connection)
+  #  else:
+  #    pass
+  #  return None
+  #else:
+  #  raise Exception('Logica only supports BigQuery, PostgreSQL and SQLite '
                     'for now.')
-
-
+  
 class SqliteRunner(object):
   def __init__(self):
     self.connection = sqlite3_logica.SqliteConnect()
