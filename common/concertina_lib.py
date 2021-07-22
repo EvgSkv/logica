@@ -192,7 +192,7 @@ def ExecuteLogicaProgram(logica_executions, sql_runner, sql_engine):
             p, '⤓' + p))
 
     for k, v in p_table_to_export_map.items():
-      table_to_export_map[k] = v
+      table_to_export_map[k] = e.PredicateSpecificPreamble(e.main_predicate) + v
 
     for a, b in p_dependency_edges:
       dependency_edges.add((a, b))
