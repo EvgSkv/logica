@@ -78,6 +78,7 @@ def RunAll(test_presto=False, test_trino=False):
   RunTest("sqlite_pagerank")
   RunTest("sqlite_composite_test")
   RunTest("sqlite_reachability")
+  RunTest("sqlite_element_test")
 
   RunTest("psql_test")
   RunTest("psql_arg_min_test")

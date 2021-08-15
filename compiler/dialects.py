@@ -75,7 +75,7 @@ class SqLiteDialect(Dialect):
   def BuiltInFunctions(self):
     return {
         'Set': None,
-        'Element': "JSON_EXTRACT({0}, '$[{1}]')",
+        'Element': "JSON_EXTRACT({0}, '$[' || {1} || ']')",
         'Range': ('(select json_group_array(n) from (with recursive t as'
                   '(select 0 as n union all '
                   'select n + 1 as n from t where n + 1 < {0}) '
