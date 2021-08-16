@@ -107,7 +107,7 @@ class SqLiteDialect(Dialect):
     return 'JSON_ARRAY(%s)'
 
   def GroupBySpecBy(self):
-    return 'name'
+    return 'expr'
 
 class PostgreSQL(Dialect):
   """PostgreSQL SQL dialect."""

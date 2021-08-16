@@ -70,6 +70,7 @@ def RunAll(test_presto=False, test_trino=False):
   RunTest("rec_small_cycle_test")
   RunTest("rec_cycle_test")
 
+  RunTest("sqlite_groupby_test")
   RunTest("sqlite_in_expr_test")
   RunTest("psql_recursion_test")
   RunTest("sqlite_file_test")
