@@ -567,7 +567,7 @@ def ParseInfix(s, operators=None):
   """Parses an infix operator expression."""
   operators = operators or [
       '||', '&&', '->', '==', '<=', '>=', '<', '>', '!=',
-      '++?', '++', '+', '-', '*', '/', '%', '^', ' in ', '!']
+      ' in ', '++?', '++', '+', '-', '*', '/', '%', '^', '!']
   unary_operators = ['-', '!']
   for op in operators:
     parts = SplitRaw(s, op)

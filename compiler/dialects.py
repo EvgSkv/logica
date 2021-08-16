@@ -75,7 +75,7 @@ class SqLiteDialect(Dialect):
   def BuiltInFunctions(self):
     return {
         'Set': None,
-        'Element': "JSON_EXTRACT({0}, '$[{1}]')",
+        'Element': "JSON_EXTRACT({0}, '$[' || {1} || ']')",
         'Range': ('(select json_group_array(n) from (with recursive t as'
                   '(select 0 as n union all '
                   'select n + 1 as n from t where n + 1 < {0}) '
@@ -90,7 +90,8 @@ class SqLiteDialect(Dialect):
   def InfixOperators(self):
     return {
         '++': '(%s) || (%s)',
-        '%' : '(%s) %% (%s)'
+        '%' : '(%s) %% (%s)',
+        'in': '%s in (SELECT e.value FROM JSON_EACH(%s) AS e)'
     }
 
   def Subscript(self, record, subscript):
@@ -106,7 +107,7 @@ class SqLiteDialect(Dialect):
     return 'JSON_ARRAY(%s)'
 
   def GroupBySpecBy(self):
-    return 'name'
+    return 'expr'
 
 class PostgreSQL(Dialect):
   """PostgreSQL SQL dialect."""
