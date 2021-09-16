@@ -84,7 +84,8 @@ class SqLiteDialect(Dialect):
         'List': 'JSON_GROUP_ARRAY({0})',
         'Size': 'JSON_ARRAY_LENGTH({0})',
         'Join': 'JOIN_STRINGS({0}, {1})',
-        'Count': 'COUNT(DISTINCT {0})'
+        'Count': 'COUNT(DISTINCT {0})',
+        'StringAgg': 'GROUP_CONCAT(%s)'
     }
 
   def InfixOperators(self):

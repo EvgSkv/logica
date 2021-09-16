@@ -19,13 +19,13 @@ class ArgMin:
       self.result = []
 
   def step(self, arg, value, limit):
-    if limit <= 0:
+    if limit is not None and limit <= 0:
       raise Exception('ArgMin\'s limit must be positive.')
     if len(self.result) > 0:
       if DeFactoType(value) != DeFactoType(self.result[0][0]):
         raise Exception('ArgMin got incompatible values: %s vs %s' %
                         (repr(value), repr(self.result[0][0])))
-    if len(self.result) < limit - 1:
+    if limit is None or len(self.result) < limit - 1:
       self.result.append((value, arg))
     elif len(self.result) == limit - 1:
       self.result.append((value, arg))
@@ -42,18 +42,18 @@ class ArgMin:
 
 
 class ArgMax:
-  """ArgMax user defined aggregate functiom."""
+  """ArgMax user defined aggregate function."""
   def __init__(self):
       self.result = []
 
   def step(self, arg, value, limit):
-    if limit <= 0:
+    if limit is not None and limit <= 0:
       raise Exception('ArgMax\'s limit must be positive.')
     if len(self.result) > 0:
       if DeFactoType(value) != DeFactoType(self.result[0][0]):
         raise Exception('ArgMax got incompatible values: %s vs %s' %
                         (repr(value), repr(self.result[0][0])))
-    if len(self.result) < limit - 1:
+    if limit is None or len(self.result) < limit - 1:
       self.result.append((value, arg))
     elif len(self.result) == limit - 1:
       self.result.append((value, arg))
