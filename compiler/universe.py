@@ -799,6 +799,8 @@ class LogicaProgram(object):
         defines_and_exports +
         FormatSql(sql))
     if True:
+      self.execution.preamble = self.UseFlagsAsParameters(
+          self.execution.preamble)
       for k, v in self.execution.table_to_export_map.items():
         self.execution.table_to_export_map[k] = self.UseFlagsAsParameters(v)
       for i, d in enumerate(self.execution.defines):
