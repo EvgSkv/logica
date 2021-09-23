@@ -152,11 +152,12 @@ def main(argv):
   predicates_list = predicates.split(',')
   for predicate in predicates_list:
     try:
-      p = universe.LogicaProgram(parsed_rules, user_flags=user_flags)
-      formatted_sql = p.FormattedPredicateSql(predicate)
-      preamble = p.execution.preamble
-      defines_and_exports = p.execution.defines_and_exports
-      main_predicate_sql = p.execution.main_predicate_sql
+      logic_program = universe.LogicaProgram(
+          parsed_rules, user_flags=user_flags)
+      formatted_sql = logic_program.FormattedPredicateSql(predicate)
+      preamble = logic_program.execution.preamble
+      defines_and_exports = logic_program.execution.defines_and_exports
+      main_predicate_sql = logic_program.execution.main_predicate_sql
     except rule_translate.RuleCompileException as rule_compilation_exception:
       rule_compilation_exception.ShowMessage()
       sys.exit(1)
@@ -167,7 +168,7 @@ def main(argv):
     if command == 'print':
       print(formatted_sql)
 
-    engine = p.annotations.Engine()
+    engine = logic_program.annotations.Engine()
 
     if command == 'run' or command == 'run_to_csv':
       # We should split and move this logic to dialects.
@@ -181,9 +182,10 @@ def main(argv):
       elif engine == 'sqlite':
         # TODO: Make multi-statement scripts work.
         format = ('artistictable' if command == 'run' else 'csv')
-        o = sqlite3_logica.RunSqlScript(
-          [preamble] + defines_and_exports + [main_predicate_sql],
-          format).encode()
+        statements_to_execute = (
+          [preamble] + defines_and_exports + [main_predicate_sql])
+        o = sqlite3_logica.RunSqlScript(statements_to_execute,
+                                        format).encode()
       elif engine == 'psql':
         p = subprocess.Popen(['psql', '--quiet'] +
                              (['--csv'] if command == 'run_to_csv' else []),
