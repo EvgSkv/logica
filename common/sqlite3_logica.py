@@ -2,6 +2,7 @@
 
 import csv
 import io
+import math
 import sys
 import sqlite3
 import heapq
@@ -138,6 +139,13 @@ def SqliteConnect():
   con.create_function('WriteFile', 2, WriteFile)
   con.create_function('SQRT', 1, lambda x: float(x) ** 0.5)
   con.create_function('POW', 2, lambda x, p: float(x) ** p)
+  con.create_function('Exp', 1, lambda x: math.exp(x))
+  con.create_function('Log', 1, lambda x: math.log(x))
+  con.create_function('Sin', 1, lambda x: math.sin(x))
+  con.create_function('Cos', 1, lambda x: math.cos(x))
+  con.create_function('Asin', 1, lambda x: math.asin(x))
+  con.create_function('Acos', 1, lambda x: math.acos(x))
+
   sqlite3.enable_callback_tracebacks(True)
   return con
 
