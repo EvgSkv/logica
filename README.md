@@ -150,7 +150,7 @@ Prime(prime: x) :-
     N(y),
     y > 1,
     y != x,
-    Mod(x, y) == 0
+    x % y == 0
   );
 ```
 
