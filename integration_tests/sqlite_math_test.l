@@ -13,7 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# Testing mathematical functions in SQLite.
+# Testing mathematical and string functions in SQLite.
 
 @Engine("sqlite");
 Test(Sqrt(2));
@@ -24,3 +24,4 @@ Test(Sin(3.141592 / 3));
 Test(Cos(3.141592 / 3));
 Test(Acos(-1));
 Test(Asin(1));
+Test(Split("a,b,cd,ef", ","));

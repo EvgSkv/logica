@@ -145,6 +145,7 @@ def SqliteConnect():
   con.create_function('Cos', 1, lambda x: math.cos(x))
   con.create_function('Asin', 1, lambda x: math.asin(x))
   con.create_function('Acos', 1, lambda x: math.acos(x))
+  con.create_function('Split', 2, lambda x, y: json.dumps((x.split(y))))
 
   sqlite3.enable_callback_tracebacks(True)
   return con
