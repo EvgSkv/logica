@@ -70,6 +70,18 @@ class ArgMax:
       return json.dumps([x[1] for x in reversed(sorted(self.result))])
 
 
+class DistinctListAgg:
+  """Collecting a list of distinct elements."""
+  def __init__(self):
+    self.result = set()
+
+  def step(self, element):
+    self.result.add(element)
+  
+  def finalize(self):
+    return json.dumps(list(self.result))
+
+
 def ArrayConcat(a, b):
   return json.dumps(json.loads(a) + json.loads(b))
 
@@ -128,10 +140,14 @@ def Csv(header, rows):
     writer.writerow(row)
   return stringio.getvalue()
 
+def SortList(input_list_json):
+  return json.dumps(list(sorted(json.loads(input_list_json))))
+  
 def SqliteConnect():
   con = sqlite3.connect(':memory:')
   con.create_aggregate('ArgMin', 3, ArgMin)
   con.create_aggregate('ArgMax', 3, ArgMax)
+  con.create_aggregate('DistinctListAgg', 1, DistinctListAgg)
   con.create_function('PrintToConsole', 1, PrintToConsole)
   con.create_function('ARRAY_CONCAT', 2, ArrayConcat)
   con.create_function('JOIN_STRINGS', 2, Join)
@@ -147,6 +163,7 @@ def SqliteConnect():
   con.create_function('Acos', 1, lambda x: math.acos(x))
   con.create_function('Split', 2, lambda x, y: json.dumps((x.split(y))))
   con.create_function('ARRAY_TO_STRING', 2, lambda x, y: y.join(x))
+  con.create_function('SortList', 1, SortList)
   
   sqlite3.enable_callback_tracebacks(True)
   return con
