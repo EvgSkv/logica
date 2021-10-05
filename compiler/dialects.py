@@ -74,7 +74,7 @@ class SqLiteDialect(Dialect):
 
   def BuiltInFunctions(self):
     return {
-        'Set': None,
+        'Set': 'DistinctListAgg({0})',
         'Element': "JSON_EXTRACT({0}, '$[' || {1} || ']')",
         'Range': ('(select json_group_array(n) from (with recursive t as'
                   '(select 0 as n union all '
@@ -85,7 +85,8 @@ class SqLiteDialect(Dialect):
         'Size': 'JSON_ARRAY_LENGTH({0})',
         'Join': 'JOIN_STRINGS({0}, {1})',
         'Count': 'COUNT(DISTINCT {0})',
-        'StringAgg': 'GROUP_CONCAT(%s)'
+        'StringAgg': 'GROUP_CONCAT(%s)',
+        'Sort': 'SortList({0})'
     }
 
   def InfixOperators(self):
