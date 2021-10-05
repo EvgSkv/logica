@@ -25,3 +25,4 @@ Test(Cos(3.141592 / 3));
 Test(Acos(-1));
 Test(Asin(1));
 Test(Split("a,b,cd,ef", ","));
+Test(Join(["abc", "de", "fg"], ","));
