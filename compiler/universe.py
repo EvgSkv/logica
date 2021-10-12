@@ -906,10 +906,13 @@ class LogicaProgram(object):
       s.tables = new_tables
 
   def SingleRuleSql(self, rule,
-                    allocator=None, external_vocabulary=None):
+                    allocator=None, external_vocabulary=None,
+                    is_combine=False):
     """Producing SQL for a given rule in the program."""
     allocator = allocator or self.NewNamesAllocator()
     r = rule
+    if (is_combine):
+      r = self.execution.dialect.DecorateCombineRule(r, allocator.AllocateVar())
     s = rule_translate.ExtractRuleStructure(
         r, allocator, external_vocabulary)
 
@@ -1058,8 +1061,10 @@ class SubqueryTranslator(object):
       self.execution.workflow_predicates_stack[-1]))
     return self.UnquoteParenthesised(table)
 
-  def TranslateRule(self, rule, external_vocabulary):
-    return self.program.SingleRuleSql(rule, self.allocator, external_vocabulary)
+  def TranslateRule(self, rule, external_vocabulary, is_combine=False):
+    return self.program.SingleRuleSql(
+      rule, self.allocator, external_vocabulary,
+      is_combine=is_combine)
 
 
 def InjectStructure(target, source):

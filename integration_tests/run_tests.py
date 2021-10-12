@@ -60,9 +60,6 @@ def RunAll(test_presto=False, test_trino=False):
                                             "integration_tests/import_tests"])
   RunTest("unification_priority_test")
 
-  RunTest("in_expr_test")
-  RunTest("equals_true_test")
-
   RunTest("functor_arg_update_test")
 
   RunTest("ultra_short_cycle_test")
@@ -70,6 +67,7 @@ def RunAll(test_presto=False, test_trino=False):
   RunTest("rec_small_cycle_test")
   RunTest("rec_cycle_test")
 
+  RunTest("sqlite_combine_test")
   RunTest("sqlite_funcs_test")
   RunTest("sqlite_math_test")
   RunTest("sqlite_array_test")
@@ -95,6 +93,9 @@ def RunAll(test_presto=False, test_trino=False):
   RunTest("sqlite_test")
 
   RunTest("sub_if_test")
+
+  RunTest("in_expr_test")
+  RunTest("equals_true_test")
 
   RunTest(
       name="functor_chain_test",
