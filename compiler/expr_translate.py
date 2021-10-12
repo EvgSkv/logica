@@ -70,6 +70,7 @@ class QL(object):
       'TimestampAddDays': 'TIMESTAMP_ADD({0}, INTERVAL {1} DAY)',
       'Unique': 'ARRAY(SELECT DISTINCT x FROM UNNEST(%s) as x ORDER BY x)',
       'ValueOfUnnested': '%s',
+      'MagicalEntangle': '{0}',
       # These functions are treated specially.
       'FlagValue': 'UNUSED',
       'Cast': 'UNUSED',
@@ -208,7 +209,7 @@ class QL(object):
                            'ParseTimestamp', 'FormatTimestamp',
                            'TimestampAddDays', 'Split', 'Element',
                            'Concat', 'DateAddDay', 'DateDiffDay',
-                           'Join']
+                           'Join', 'MagicalEntangle']
       if f in arity_2_functions:
         return (2, 2)
       return (1, 1)
@@ -544,8 +545,10 @@ class QL(object):
 
     if 'combine' in expression:
       return '(%s)' % (
-          self.subquery_translator.TranslateRule(expression['combine'],
-                                                 self.vocabulary))
+          self.subquery_translator.TranslateRule(
+              expression['combine'],
+              self.vocabulary,
+              is_combine=True))
 
     if 'implication' in expression:
       implication = expression['implication']

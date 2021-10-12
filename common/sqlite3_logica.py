@@ -164,6 +164,7 @@ def SqliteConnect():
   con.create_function('Split', 2, lambda x, y: json.dumps((x.split(y))))
   con.create_function('ARRAY_TO_STRING', 2, lambda x, y: y.join(x))
   con.create_function('SortList', 1, SortList)
+  con.create_function('MagicalEntangle', 2, lambda x, y: x)
   
   sqlite3.enable_callback_tracebacks(True)
   return con
