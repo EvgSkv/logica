@@ -142,7 +142,14 @@ def Csv(header, rows):
 
 def SortList(input_list_json):
   return json.dumps(list(sorted(json.loads(input_list_json))))
-  
+
+def InList(item, a_list):
+  return item in json.loads(a_list)
+
+def UserError(error_text):
+  print('[USER DEFINED ERROR]: %s' % error_text)
+  assert False
+
 def SqliteConnect():
   con = sqlite3.connect(':memory:')
   con.create_aggregate('ArgMin', 3, ArgMin)
@@ -165,7 +172,9 @@ def SqliteConnect():
   con.create_function('ARRAY_TO_STRING', 2, lambda x, y: y.join(x))
   con.create_function('SortList', 1, SortList)
   con.create_function('MagicalEntangle', 2, lambda x, y: x)
-  
+  con.create_function('IN_LIST', 2, InList)
+  con.create_function('ERROR', 1, UserError)
+
   sqlite3.enable_callback_tracebacks(True)
   return con
 

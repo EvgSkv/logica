@@ -169,7 +169,7 @@ class SqLiteDialect(Dialect):
     return {
         '++': '(%s) || (%s)',
         '%' : '(%s) %% (%s)',
-        'in': '%s in (SELECT e.value FROM JSON_EACH(%s) AS e)'
+        'in': 'IN_LIST(%s, %s)'
     }
 
   def Subscript(self, record, subscript):

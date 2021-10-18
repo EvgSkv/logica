@@ -19,3 +19,9 @@
 
 Test("Set") = Size(s) :- s Set= (x + y :- x in Range(5), y in Range(5));
 Test("Sort") = Sort([6,3,2,5,1,4]);
+Test("InList") = r :-
+  r List= (
+    x ++ "," ++ y :-
+    x in Range(3), y in Range(3),
+    Constraint(x in [y + 1, y + 2])
+  );
