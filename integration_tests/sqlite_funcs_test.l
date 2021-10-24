@@ -25,3 +25,7 @@ Test("InList") = r :-
     x in Range(3), y in Range(3),
     Constraint(x in [y + 1, y + 2])
   );
+Test("Fingerprint") = t :-
+  fs List= (Abs(Fingerprint(i) / 9223372036854775808.) :- i in Range(10000)),
+  a += (1 :- f < 0.4, f in fs),
+  t == a / 10000.;  
