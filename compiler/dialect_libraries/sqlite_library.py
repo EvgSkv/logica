@@ -45,4 +45,6 @@ ReadJson(filename) = ReadFile(filename);
 
 WriteFile(filename, content:) = SqlExpr("WriteFile({filename}, {content})",
                                         {filename:, content:});
+
+Fingerprint(s) = SqlExpr("Fingerprint({s})", {s:});
 """

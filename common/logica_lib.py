@@ -117,3 +117,33 @@ def RunPredicate(filename, predicate,
     settings = {}
   return RunQuery(sql, settings,
                   output_format, engine=engine)
+
+
+def RunQueryPandas(sql, engine, connection=None):
+  """Running SQL query on the engine, returning Pandas dataframe."""
+  import pandas
+  if connection is None and engine == 'sqlite':
+    connection = sqlite3_logica.SqliteConnect()
+  if connection is None:
+    assert False, 'Connection is required for engines other than SQLite.'
+  if engine == 'bigquery':
+    return connection.query(sql).to_dataframe()
+  elif engine == 'psql':
+    return pandas.read_sql(sql, connection)
+  elif engine == 'sqlite':
+    statements = parse.SplitRaw(sql, ';')[:-1]
+    if len(statements) > 1:
+      connection.executescript(';\n'.join(statements[:-1]))
+    return pandas.read_sql(statements[-1], connection)
+  else:
+    raise Exception('Logica only supports BigQuery, PostgreSQL and SQLite '
+                    'for now.')
+
+
+def RunPredicateToPandas(filename, predicate,
+                         user_flags=None, import_root=None):
+  p = GetProgramOrExit(filename, user_flags=user_flags,
+                       import_root=import_root)
+  sql = p.FormattedPredicateSql(predicate)
+  engine = p.annotations.Engine()
+  return RunQueryPandas(sql, engine)

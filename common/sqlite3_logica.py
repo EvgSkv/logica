@@ -1,6 +1,7 @@
 """Provides connection to SQLite extended with UDFs needed by Logica."""
 
 import csv
+import hashlib
 import io
 import math
 import sys
@@ -150,6 +151,9 @@ def UserError(error_text):
   print('[USER DEFINED ERROR]: %s' % error_text)
   assert False
 
+def Fingerprint(s):
+  return int(hashlib.md5(str(s).encode()).hexdigest()[:16], 16) - (1 << 63)
+
 def SqliteConnect():
   con = sqlite3.connect(':memory:')
   con.create_aggregate('ArgMin', 3, ArgMin)
@@ -174,6 +178,7 @@ def SqliteConnect():
   con.create_function('MagicalEntangle', 2, lambda x, y: x)
   con.create_function('IN_LIST', 2, InList)
   con.create_function('ERROR', 1, UserError)
+  con.create_function('Fingerprint', 1, Fingerprint)
 
   sqlite3.enable_callback_tracebacks(True)
   return con
