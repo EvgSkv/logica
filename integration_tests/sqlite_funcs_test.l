@@ -28,4 +28,7 @@ Test("InList") = r :-
 Test("Fingerprint") = t :-
   fs List= (Abs(Fingerprint(i) / 9223372036854775808.) :- i in Range(10000)),
   a += (1 :- f < 0.4, f in fs),
-  t == a / 10000.;  
+  t == a / 10000.;
+
+Test("Floor") = l :-
+  l List= (Format("%.2f->%.2f", x, Floor(x)) :- t in Range(7), x == t / 3.0);
