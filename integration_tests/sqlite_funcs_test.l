@@ -32,3 +32,6 @@ Test("Fingerprint") = t :-
 
 Test("Floor") = l :-
   l List= (Format("%.2f->%.2f", x, Floor(x)) :- t in Range(7), x == t / 3.0);
+
+Test("Range2") = Range(2);
+Test("Range0") = Range(0);
