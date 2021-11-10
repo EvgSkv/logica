@@ -93,7 +93,9 @@ class SqLiteDialect(Dialect):
         'StringAgg': 'GROUP_CONCAT(%s)',
         'Sort': 'SortList({0})',
         'MagicalEntangle': 'MagicalEntangle({0}, {1})',
-        'Format': 'Printf(%s)'
+        'Format': 'Printf(%s)',
+        'Least': 'MIN(%s)',
+        'Greatest': 'MAX(%s)'
     }
 
   def DecorateCombineRule(self, rule, var):
