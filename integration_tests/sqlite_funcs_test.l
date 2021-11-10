@@ -35,3 +35,6 @@ Test("Floor") = l :-
 
 Test("Range2") = Range(2);
 Test("Range0") = Range(0);
+
+Test("Least") = Least(5, 3, 6, 4);
+Test("Greatest") = Greatest(5, 3, 6, 4);
