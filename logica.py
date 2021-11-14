@@ -194,7 +194,7 @@ def main(argv):
         o, _ = p.communicate(
             '\n'.join(commands + [formatted_sql]).encode())
       elif engine == 'trino':
-        a = p.annotations.annotations['@Engine']['trino']
+        a = logic_program.annotations.annotations['@Engine']['trino']
         catalog = a.get('catalog', 'memory')
 
         p = subprocess.Popen(['trino', '--catalog=%s' % catalog] +
@@ -204,7 +204,7 @@ def main(argv):
                               stdin=subprocess.PIPE, stdout=subprocess.PIPE)
         o, _ = p.communicate(formatted_sql.encode())
       elif engine == 'presto':
-        a = p.annotations.annotations['@Engine']['presto']
+        a = logic_program.annotations.annotations['@Engine']['presto']
         catalog = a.get('catalog', 'memory')
         server = a.get('server', 'localhost:8080')
         p = subprocess.Popen(['presto',
