@@ -91,11 +91,27 @@ def GetImportRoot():
 
 
 def GetTrinoParameters(a):
-  parametersWithoutValue = ["debug", "disable-compression", "ignore-errors", "insecure", "krb5-disable-remote-service-hostname-canonicalization", "password", "progress"]
-  parameters = ["access-token", "catalog", "client-info", "client-request-timeout", "client-tags", "execute", "external-authentication", "extra-credential", "http-proxy", "keystore-password", "keystore-path", "keystore-type", "krb5-config-path", "krb5-credential-cache-path", "krb5-keytab-path", "krb5-principal", "krb5-remote-service-name", "krb5-service-principal-pattern", "log-levels-file", "resource-estimate", "schema", "server", "session", "session-user", "socks-proxy", "source", "timezone", "trace-token", "truststore-password", "truststore-path", "truststore-type", "user"]
-  r1 = ["--%s=%s" % (p, a.get(p)) for p in parameters if p in a]
-  r2 = ["--%s" % p for p in parametersWithoutValue if p in a]
-  return r1 + r2
+  boolean_parameters = [
+    "debug", "disable-compression", "ignore-errors",
+    "insecure", "krb5-disable-remote-service-hostname-canonicalization",
+    "password", "progress"]
+  parameters = [
+    "access-token", "catalog", "client-info", "client-request-timeout",
+    "client-tags", "execute", "external-authentication",
+    "extra-credential", "http-proxy", "keystore-password",
+    "keystore-path", "keystore-type", "krb5-config-path",
+    "krb5-credential-cache-path", "krb5-keytab-path",
+    "krb5-principal", "krb5-remote-service-name",
+    "krb5-service-principal-pattern", "log-levels-file",
+    "resource-estimate", "schema", "server", "session",
+    "session-user", "socks-proxy", "source", "timezone", "trace-token",
+    "truststore-password", "truststore-path", "truststore-type", "user"]
+  boolean_params = ["--%s" % p for p in boolean_parameters
+    if (p in a and type(a.get(p)) == bool and a.get(p))]
+  params = ["--%s=%s" % (p, a.get(p)) for p in parameters if p in a]
+  if "catalog" not in a:
+    params.append("--catalog=memory")
+  return boolean_params + params
 
 
 def main(argv):
@@ -204,7 +220,7 @@ def main(argv):
       elif engine == 'trino':
         a = logic_program.annotations.annotations['@Engine']['trino']
         params = GetTrinoParameters(a)
-        p = subprocess.Popen(['/Users/sdesai/Tools/trino-cli/trino'] + params +
+        p = subprocess.Popen(['trino'] + params +
                              (['--output-format=CSV_HEADER_UNQUOTED']
                               if command == 'run_to_csv' else
                               ['--output-format=ALIGNED']),
