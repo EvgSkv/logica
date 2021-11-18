@@ -90,6 +90,30 @@ def GetImportRoot():
     return import_root_env
 
 
+def GetTrinoParameters(a):
+  boolean_parameters = [
+    "debug", "disable-compression", "ignore-errors",
+    "insecure", "krb5-disable-remote-service-hostname-canonicalization",
+    "password", "progress"]
+  parameters = [
+    "access-token", "catalog", "client-info", "client-request-timeout",
+    "client-tags", "execute", "external-authentication",
+    "extra-credential", "http-proxy", "keystore-password",
+    "keystore-path", "keystore-type", "krb5-config-path",
+    "krb5-credential-cache-path", "krb5-keytab-path",
+    "krb5-principal", "krb5-remote-service-name",
+    "krb5-service-principal-pattern", "log-levels-file",
+    "resource-estimate", "schema", "server", "session",
+    "session-user", "socks-proxy", "source", "timezone", "trace-token",
+    "truststore-password", "truststore-path", "truststore-type", "user"]
+  boolean_params = ["--%s" % p for p in boolean_parameters
+    if (p in a and type(a.get(p)) == bool and a.get(p))]
+  params = ["--%s=%s" % (p, a.get(p)) for p in parameters if p in a]
+  if "catalog" not in a:
+    params.append("--catalog=memory")
+  return boolean_params + params
+
+
 def main(argv):
   if len(argv) <= 1 or argv[1] == 'help':
     print('Usage:')
@@ -194,17 +218,16 @@ def main(argv):
         o, _ = p.communicate(
             '\n'.join(commands + [formatted_sql]).encode())
       elif engine == 'trino':
-        a = p.annotations.annotations['@Engine']['trino']
-        catalog = a.get('catalog', 'memory')
-
-        p = subprocess.Popen(['trino', '--catalog=%s' % catalog] +
+        a = logic_program.annotations.annotations['@Engine']['trino']
+        params = GetTrinoParameters(a)
+        p = subprocess.Popen(['trino'] + params +
                              (['--output-format=CSV_HEADER_UNQUOTED']
                               if command == 'run_to_csv' else
                               ['--output-format=ALIGNED']),
                               stdin=subprocess.PIPE, stdout=subprocess.PIPE)
         o, _ = p.communicate(formatted_sql.encode())
       elif engine == 'presto':
-        a = p.annotations.annotations['@Engine']['presto']
+        a = logic_program.annotations.annotations['@Engine']['presto']
         catalog = a.get('catalog', 'memory')
         server = a.get('server', 'localhost:8080')
         p = subprocess.Popen(['presto',
