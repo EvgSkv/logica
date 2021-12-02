@@ -204,9 +204,6 @@ def Logica(line, cell, run_query):
       'This could be a good fit for working with small data or learning Logica.\n'
       'Use {warning}@Engine("sqlite");{end} annotation in your program to use SQLite.'))
     return
-  
-  if engine == 'bigquery':
-    EnsureAuthenticatedUser()
 
   bar = TabBar(predicates + ['(Log)'])
   logs_idx = len(predicates)
@@ -245,8 +242,13 @@ def Logica(line, cell, run_query):
       sql_runner = SqliteRunner()
     elif engine == 'psql':
       sql_runner = PostgresRunner()
-    else:
+    elif engine == 'bigquery':
+      EnsureAuthenticatedUser()
       sql_runner = RunSQL
+    else:
+      raise Exception('Logica only supports BigQuery, PostgreSQL and SQLite '
+                      'for now.')   
+                      
     result_map = concertina_lib.ExecuteLogicaProgram(
       executions, sql_runner=sql_runner, sql_engine=engine)
 
