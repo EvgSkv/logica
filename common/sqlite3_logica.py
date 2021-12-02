@@ -83,6 +83,18 @@ class DistinctListAgg:
     return json.dumps(list(self.result))
 
 
+class ArrayConcatAgg:
+  """List concatenation aggregation."""
+  def __init__(self):
+    self.result = []
+  
+  def step(self, a):
+    self.result.extend(json.loads(a))
+  
+  def finalize(self):
+    return json.dumps(self.result)
+  
+
 def ArrayConcat(a, b):
   return json.dumps(json.loads(a) + json.loads(b))
 
@@ -159,6 +171,7 @@ def SqliteConnect():
   con.create_aggregate('ArgMin', 3, ArgMin)
   con.create_aggregate('ArgMax', 3, ArgMax)
   con.create_aggregate('DistinctListAgg', 1, DistinctListAgg)
+  con.create_aggregate('ARRAY_CONCAT_AGG', 1, ArrayConcatAgg)
   con.create_function('PrintToConsole', 1, PrintToConsole)
   con.create_function('ARRAY_CONCAT', 2, ArrayConcat)
   con.create_function('JOIN_STRINGS', 2, Join)
