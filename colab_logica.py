@@ -138,7 +138,6 @@ def ParseList(line):
 
 def RunSQL(sql, engine, connection=None, is_final=False):
   if engine == 'bigquery':
-    EnsureAuthenticatedUser()
     client = bigquery.Client(project=PROJECT)
     return client.query(sql).to_dataframe()
   elif engine == 'psql':
@@ -205,6 +204,9 @@ def Logica(line, cell, run_query):
       'This could be a good fit for working with small data or learning Logica.\n'
       'Use {warning}@Engine("sqlite");{end} annotation in your program to use SQLite.'))
     return
+  
+  if engine == 'bigquery':
+    EnsureAuthenticatedUser()
 
   bar = TabBar(predicates + ['(Log)'])
   logs_idx = len(predicates)
