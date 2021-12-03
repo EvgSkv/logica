@@ -138,7 +138,6 @@ def ParseList(line):
 
 def RunSQL(sql, engine, connection=None, is_final=False):
   if engine == 'bigquery':
-    EnsureAuthenticatedUser()
     client = bigquery.Client(project=PROJECT)
     return client.query(sql).to_dataframe()
   elif engine == 'psql':
@@ -243,8 +242,13 @@ def Logica(line, cell, run_query):
       sql_runner = SqliteRunner()
     elif engine == 'psql':
       sql_runner = PostgresRunner()
-    else:
+    elif engine == 'bigquery':
+      EnsureAuthenticatedUser()
       sql_runner = RunSQL
+    else:
+      raise Exception('Logica only supports BigQuery, PostgreSQL and SQLite '
+                      'for now.')   
+                      
     result_map = concertina_lib.ExecuteLogicaProgram(
       executions, sql_runner=sql_runner, sql_engine=engine)
 
