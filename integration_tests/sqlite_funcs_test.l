@@ -42,6 +42,8 @@ Test("ToString") = ToString("fire");
 
 Test("ArrayConcatAgg") = TestArrayConcatAgg();
 
+Test("StringLiteral") = "People's artist";
+
 TestArrayConcatAgg() ArrayConcatAgg= l :-
   l == Range(i + 1),
   i in Range(3);
