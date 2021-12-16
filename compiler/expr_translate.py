@@ -244,7 +244,8 @@ class QL(object):
   def StrLiteral(self, literal):
     if self.dialect.Name() in ["PostgreSQL", "Presto", "Trino", "SqLite"]:
       # TODO: Do this safely.
-      return '\'%s\'' % literal['the_string']
+      return '\'%s\'' % (literal['the_string'].replace("'", "''"))
+
     return json.dumps(literal['the_string'], ensure_ascii=False)
 
   def ListLiteralInternals(self, literal):
