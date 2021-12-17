@@ -208,6 +208,7 @@ class Functors(object):
                                                               instruction)
         if (new_predicate not in needs_building or
             applicant in needs_building or
+            (self.args_of[applicant] & needs_building) or
             (set(args_map.values()) & needs_building)):
           continue
         self.Make(new_predicate, instruction)
