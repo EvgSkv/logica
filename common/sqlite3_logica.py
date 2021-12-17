@@ -97,9 +97,9 @@ class ArrayConcatAgg:
 
 def ArrayConcat(a, b):
   if not isinstance(a, str):
-    print('Bad first concatenation argument:', a)
+    print('Bad first concatenation argument:', a, b)
   if not isinstance(b, str):
-    print('Bad second concatenation argument:', b)
+    print('Bad second concatenation argument:', a, b)
   return json.dumps(json.loads(a) + json.loads(b))
 
 
