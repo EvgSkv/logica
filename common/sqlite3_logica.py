@@ -89,6 +89,8 @@ class ArrayConcatAgg:
     self.result = []
   
   def step(self, a):
+    if a is None:
+      return
     self.result.extend(json.loads(a))
   
   def finalize(self):
@@ -96,6 +98,12 @@ class ArrayConcatAgg:
   
 
 def ArrayConcat(a, b):
+  if a is None or b is None:
+    return None
+  if not isinstance(a, str):
+    print('Bad first concatenation argument:', a, b)
+  if not isinstance(b, str):
+    print('Bad second concatenation argument:', a, b)
   return json.dumps(json.loads(a) + json.loads(b))
 
 
