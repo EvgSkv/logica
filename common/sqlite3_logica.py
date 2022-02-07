@@ -15,6 +15,13 @@ def DeFactoType(value):
   else:
     return 'string'
 
+def LoadJson(s):
+  try:
+    return json.loads(s)
+  except ValueError as e:
+    print('Failed to parse JSON object: %s' % s, file=sys.stderr)
+    raise e
+
 class ArgMin:
   """ArgMin user defined aggregate function."""
   def __init__(self):
@@ -91,7 +98,7 @@ class ArrayConcatAgg:
   def step(self, a):
     if a is None:
       return
-    self.result.extend(json.loads(a))
+    self.result.extend(LoadJson(a))
   
   def finalize(self):
     return json.dumps(self.result)
@@ -104,7 +111,7 @@ def ArrayConcat(a, b):
     print('Bad first concatenation argument:', a, b)
   if not isinstance(b, str):
     print('Bad second concatenation argument:', a, b)
-  return json.dumps(json.loads(a) + json.loads(b))
+  return json.dumps(LoadJson(a) + LoadJson(b))
 
 
 def PrintToConsole(message):
@@ -114,7 +121,7 @@ def PrintToConsole(message):
 
 
 def Join(array, separator):
-  return separator.join(map(str, json.loads(array)))
+  return separator.join(map(str, LoadJson(array)))
 
 
 def ReadFile(filename):
@@ -162,10 +169,10 @@ def Csv(header, rows):
   return stringio.getvalue()
 
 def SortList(input_list_json):
-  return json.dumps(list(sorted(json.loads(input_list_json))))
+  return json.dumps(list(sorted(LoadJson(input_list_json))))
 
 def InList(item, a_list):
-  return item in json.loads(a_list)
+  return item in LoadJson(a_list)
 
 def UserError(error_text):
   print('[USER DEFINED ERROR]: %s' % error_text)
