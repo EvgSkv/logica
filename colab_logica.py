@@ -19,6 +19,7 @@
 from .common import color
 from .common import concertina_lib
 
+from .compiler import functors
 from .compiler import rule_translate
 from .compiler import universe
 
@@ -199,7 +200,12 @@ def Logica(line, cell, run_query):
   except parse.ParsingException as e:
     e.ShowMessage()
     return
-  program = universe.LogicaProgram(parsed_rules)
+  try:
+    program = universe.LogicaProgram(parsed_rules)
+  except functors.FunctorError as e:
+    e.ShowMessage()
+    return
+
   engine = program.annotations.Engine()
 
   if engine == 'bigquery' and not BQ_READY:
