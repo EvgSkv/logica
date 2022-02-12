@@ -104,7 +104,8 @@ class Functors(object):
 
   def ParseMakeInstruction(self, predicate, instruction):
     """Parses Make instruction from syntax tree."""
-    error_message = 'Bad Make instruction: %s' % instruction
+    error_message = (
+      'Bad functor call (aka @Make instruction):\n%s' % instruction)
     if '1' not in instruction or '2' not in instruction:
       raise FunctorError(error_message, predicate)
     if 'predicate_name' not in instruction['1']:
@@ -112,7 +113,8 @@ class Functors(object):
     applicant = instruction['1']['predicate_name']
     args_map = {}
     for arg_name, arg_value_dict in instruction['2'].items():
-      if 'predicate_name' not in arg_value_dict:
+      if (not isinstance(arg_value_dict, dict) or
+          'predicate_name' not in arg_value_dict):
         raise FunctorError(error_message, predicate)
       args_map[arg_name] = arg_value_dict['predicate_name']
     return predicate, applicant, args_map
