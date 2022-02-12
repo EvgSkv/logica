@@ -184,7 +184,7 @@ class PostgresRunner(object):
 
 
 def ShowError(error_text):
-  print(color.Format('[ {error}Error{end} ]' + error_text))
+  print(color.Format('[ {error}Error{end} ] ' + error_text))
 
 
 def Logica(line, cell, run_query):
