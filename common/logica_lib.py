@@ -141,9 +141,9 @@ def RunQueryPandas(sql, engine, connection=None):
 
 
 def RunPredicateToPandas(filename, predicate,
-                         user_flags=None, import_root=None):
+                         user_flags=None, import_root=None, connection=None):
   p = GetProgramOrExit(filename, user_flags=user_flags,
                        import_root=import_root)
   sql = p.FormattedPredicateSql(predicate)
   engine = p.annotations.Engine()
-  return RunQueryPandas(sql, engine)
+  return RunQueryPandas(sql, engine, connection=connection)
