@@ -90,7 +90,7 @@ def EnsureAuthenticatedUser():
     return
   auth.authenticate_user()
   if PROJECT is None:
-    print("Please enter project_id to use for BigQuery querries.")
+    print("Please enter project_id to use for BigQuery queries.")
     PROJECT = input()
     print("project_id is set to %s" % PROJECT)
     print("You can change it with logica.colab_logica.SetProject command.")
