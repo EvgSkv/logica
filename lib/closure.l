@@ -12,7 +12,7 @@
 # Without recursion in the language we have to unfold recursion into a
 # series of non-recursive steps.
 # TC<N> is running O(2^N) SQL querries and is capturing chains of the
-# lenght up to 2^(2^(N - 1)).
+# length up to 2^(2^(N - 1)).
 
 
 TC0(a, b) distinct :- R(a, b);

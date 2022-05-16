@@ -140,5 +140,5 @@ functor_record_internal ::=
 
 **Comments**: A symbol `#` occurring outside of a string starts a comment that
 goes to the end of the line. A combination `/*` occurring anywhere outside a string
-starts a comment that goes to the first occurence of `/*`.
+starts a comment that goes to the first occurrence of `/*`.
 
