@@ -147,12 +147,12 @@ def RunSQL(sql, engine, connection=None, is_final=False):
     else:
       return connection.execute(sql)
   elif engine == 'sqlite':
-    statements = parse.SplitRaw(sql, ';')
-    connection.executescript(sql)
+    # TODO: Verify Logica never generates more than one statement.
+    # statements = parse.SplitRaw(sql, ';')
     if is_final:
-      return pandas.read_sql(statements[-1], connection)
+      return pandas.read_sql(sql, connection)
     else:
-      pass
+      connection.executescript(sql)
     return None
   else:
     raise Exception('Logica only supports BigQuery, PostgreSQL and SQLite '
