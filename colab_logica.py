@@ -147,10 +147,9 @@ def RunSQL(sql, engine, connection=None, is_final=False):
     else:
       return connection.execute(sql)
   elif engine == 'sqlite':
-    # TODO: Verify Logica never generates more than one statement.
-    # statements = parse.SplitRaw(sql, ';')
     try:
       if is_final:
+        # For final predicates this SQL is always a single statement.
         return pandas.read_sql(sql, connection)
       else:
         connection.executescript(sql)
