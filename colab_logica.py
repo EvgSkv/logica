@@ -157,7 +157,8 @@ def RunSQL(sql, engine, connection=None, is_final=False):
     except Exception as e:
       print("\n--- SQL ---")
       print(sql)
-      ShowError("Error while executing SQL: %s" % e)
+      ShowError("Error while executing SQL:\n%s" % e)
+      raise e
     return None
   else:
     raise Exception('Logica only supports BigQuery, PostgreSQL and SQLite '
