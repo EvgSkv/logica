@@ -210,6 +210,9 @@ def Logica(line, cell, run_query):
   except functors.FunctorError as e:
     e.ShowMessage()
     return
+  except rule_translate.RuleCompileException as e:
+    e.ShowMessage()
+    return
 
   engine = program.annotations.Engine()
 
