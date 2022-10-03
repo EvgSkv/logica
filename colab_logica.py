@@ -19,6 +19,7 @@
 from .common import color
 from .common import concertina_lib
 
+from .compiler import functors
 from .compiler import rule_translate
 from .compiler import universe
 
@@ -89,7 +90,7 @@ def EnsureAuthenticatedUser():
     return
   auth.authenticate_user()
   if PROJECT is None:
-    print("Please enter project_id to use for BigQuery querries.")
+    print("Please enter project_id to use for BigQuery queries.")
     PROJECT = input()
     print("project_id is set to %s" % PROJECT)
     print("You can change it with logica.colab_logica.SetProject command.")
@@ -138,7 +139,6 @@ def ParseList(line):
 
 def RunSQL(sql, engine, connection=None, is_final=False):
   if engine == 'bigquery':
-    EnsureAuthenticatedUser()
     client = bigquery.Client(project=PROJECT)
     return client.query(sql).to_dataframe()
   elif engine == 'psql':
@@ -147,12 +147,17 @@ def RunSQL(sql, engine, connection=None, is_final=False):
     else:
       return connection.execute(sql)
   elif engine == 'sqlite':
-    statements = parse.SplitRaw(sql, ';')
-    connection.executescript(sql)
-    if is_final:
-      return pandas.read_sql(statements[-1], connection)
-    else:
-      pass
+    try:
+      if is_final:
+        # For final predicates this SQL is always a single statement.
+        return pandas.read_sql(sql, connection)
+      else:
+        connection.executescript(sql)
+    except Exception as e:
+      print("\n--- SQL ---")
+      print(sql)
+      ShowError("Error while executing SQL:\n%s" % e)
+      raise e
     return None
   else:
     raise Exception('Logica only supports BigQuery, PostgreSQL and SQLite '
@@ -184,26 +189,41 @@ class PostgresRunner(object):
     return RunSQL(sql, engine, self.connection, is_final)
 
 
+def ShowError(error_text):
+  print(color.Format('[ {error}Error{end} ] ' + error_text))
+
+
 def Logica(line, cell, run_query):
   """Running Logica predicates and storing results."""
   predicates = ParseList(line)
+  if not predicates:
+    ShowError('No predicates to run.')
+    return
   try:
     program = ';\n'.join(s for s in [PREAMBLE, cell] if s)
     parsed_rules = parse.ParseFile(program)['rule']
   except parse.ParsingException as e:
     e.ShowMessage()
     return
-  program = universe.LogicaProgram(parsed_rules)
+  try:
+    program = universe.LogicaProgram(parsed_rules)
+  except functors.FunctorError as e:
+    e.ShowMessage()
+    return
+  except rule_translate.RuleCompileException as e:
+    e.ShowMessage()
+    return
+
   engine = program.annotations.Engine()
 
   if engine == 'bigquery' and not BQ_READY:
-    print(color.Format(
-      '[ {error}Error{end} ] BigQuery client and/or authentification is not installed. \n'
+    ShowError(
+      'BigQuery client and/or authentification is not installed. \n'
       'It is the easiest to run BigQuery requests from Google CoLab:\n'
       '  https://colab.research.google.com/.\n'
       'Note that running Logica on SQLite requires no installation.\n'
       'This could be a good fit for working with small data or learning Logica.\n'
-      'Use {warning}@Engine("sqlite");{end} annotation in your program to use SQLite.'))
+      'Use {warning}@Engine("sqlite");{end} annotation in your program to use SQLite.')
     return
 
   bar = TabBar(predicates + ['(Log)'])
@@ -243,8 +263,13 @@ def Logica(line, cell, run_query):
       sql_runner = SqliteRunner()
     elif engine == 'psql':
       sql_runner = PostgresRunner()
-    else:
+    elif engine == 'bigquery':
+      EnsureAuthenticatedUser()
       sql_runner = RunSQL
+    else:
+      raise Exception('Logica only supports BigQuery, PostgreSQL and SQLite '
+                      'for now.')   
+                      
     result_map = concertina_lib.ExecuteLogicaProgram(
       executions, sql_runner=sql_runner, sql_engine=engine)
 

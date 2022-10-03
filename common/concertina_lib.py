@@ -1,5 +1,6 @@
 """Concertina: small Python Workflow execution handler."""
 
+import datetime
 import graphviz
 from IPython.display import display
 from IPython.display import update_display
@@ -15,9 +16,12 @@ class ConcertinaQueryEngine(object):
     assert action['launcher'] in ('query', 'none')
     if action['launcher'] == 'query':
       predicate = action['predicate']
-      print('Running predicate:', predicate)
+      print('Running predicate:', predicate, end='')
+      start = datetime.datetime.now()
       result = self.sql_runner(action['sql'], action['engine'],
                                is_final=(predicate in self.final_predicates))
+      end = datetime.datetime.now()
+      print(' (%d seconds)' % (end - start).seconds)
       if predicate in self.final_predicates:
         self.final_result[predicate] = result
 

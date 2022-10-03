@@ -39,3 +39,19 @@ Test("Range0") = Range(0);
 Test("Least") = Least(5, 3, 6, 4);
 Test("Greatest") = Greatest(5, 3, 6, 4);
 Test("ToString") = ToString("fire");
+
+Test("ArrayConcatAgg") = TestArrayConcatAgg();
+
+Test("StringLiteral") = "People's artist";
+
+Test("ArrayConcatNull") = ArrayConcat([1,2,3], null);
+
+Test("ArrayConcatAggNull") = TestArrayConcatAggNull();
+
+TestArrayConcatAgg() ArrayConcatAgg= l :-
+  l == Range(i + 1),
+  i in Range(3);
+
+TestArrayConcatAggNull() ArrayConcatAgg= l :-
+  (l == Range(i + 1) | l == null),
+  i in Range(3);

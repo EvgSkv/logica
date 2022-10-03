@@ -1083,7 +1083,7 @@ def ParseRule(s: HeritageAwareString) -> Dict:
 
 def SplitImport(import_str):
   """Splitting import statement into (path, predicate, synonym)."""
-  # TODO: It's not ideal to rely on percise spaces.
+  # TODO: It's not ideal to rely on precise spaces.
   import_path_synonym = Split(import_str, ' as ')
   if len(import_path_synonym) > 2:
     raise ParsingException('Too many "as":' % import_str,
