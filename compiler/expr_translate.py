@@ -164,7 +164,7 @@ class QL(object):
           del d[k]
     for d in [self.built_in_infix_operators,
               self.built_in_functions]:
-      CleanDictionary(self.built_in_infix_operators)
+      CleanDictionary(d)
 
   @classmethod
   def BasisFunctions(cls):
@@ -381,11 +381,11 @@ class QL(object):
 
   def SubIfStruct(self, implication, subscript):
     """Optimizing SQL for subscript of an 'if' statement.
-    
+
     Args:
       implication: Implication syntax tree.
       subscript: Subscript string.
-      
+
     Returns:
       optimized SQL if all consequences are syntactic records, or None
       otherwise.
