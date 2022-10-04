@@ -880,8 +880,7 @@ class LogicaProgram(object):
                 else:
                   extra_hint = '' if table_var != '*' else (
                       ' Are you using ..<rest of> for injectible predicate? '
-                      'Please list the fields that you extract explicitly. '
-                      'Tracking bug: b/131759583.')
+                      'Please list the fields that you extract explicitly.')
                   raise rule_translate.RuleCompileException(
                       color.Format(
                           'Predicate {warning}{table_predicate_rsql}{end} '
