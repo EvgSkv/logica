@@ -374,7 +374,8 @@ def ParseRecord(s):
 
 
 def ParseRecordInternals(s,
-                         is_record_literal = False):
+                         is_record_literal = False,
+                         is_aggregation_allowed=False):
   """Parsing internals of a record."""
   s = Strip(s)
   if len(Split(s, ':-')) > 1:
@@ -439,6 +440,9 @@ def ParseRecordInternals(s,
       else:
         (_, question_split) = SplitInOneOrTwo(field_value, '?')
         if question_split:
+          if not is_aggregation_allowed:
+            raise ParsingException('Aggregation of fields is only allowed in the head '
+                                   'of a rule.')
           positional_ok = False
           field, value = question_split
           observed_field = field
@@ -722,7 +726,7 @@ def ParseExpression(s):
   v = ParseRecord(s)
   if v:
     return {'record': v}
-  v = ParseCall(s)
+  v = ParseCall(s, is_aggregation_allowed=False)
   if v:
     return {'call': v}
   v = ParseInfix(s)
@@ -745,7 +749,7 @@ def ParseInclusion(s):
             'element': ParseExpression(element_list_str[0])}
 
 
-def ParseCall(s):
+def ParseCall(s, is_aggregation_allowed):
   """Parsing logica.PredicateCall."""
   s = Strip(s)
   predicate = ''
@@ -780,7 +784,9 @@ def ParseCall(s):
       s[-1] == ')' and
       IsWhole(s[idx + 1:-1])):
     return {'predicate_name': predicate,
-            'record': ParseRecordInternals(s[idx + 1: -1])}
+            'record': ParseRecordInternals(
+                s[idx + 1: -1],
+                is_aggregation_allowed=is_aggregation_allowed)}
 
 
 def ParseUnification(s):
@@ -807,7 +813,7 @@ def ParseProposition(s):
   if c:
     raise ParsingException('If-then-else clause is only supported as an '
                            'expression, not as a proposition.', s)
-  c = ParseCall(s)
+  c = ParseCall(s, is_aggregation_allowed=False)
   if c:
     return {'predicate': c}
   c = ParseInfix(s, operators=['&&', '||'])
@@ -951,7 +957,7 @@ def ParseHeadCall(s):
   assert idx > 0
   call_str = s[:(idx + 1)]
   post_call_str = s[idx + 1:]
-  call = ParseCall(call_str)
+  call = ParseCall(call_str, is_aggregation_allowed=True)
   if not call:
     raise ParsingException('Could not parse predicate call.', call_str)
   operator_expression = Split(post_call_str, '=')
@@ -1034,7 +1040,7 @@ def ParseFunctionRule(s: HeritageAwareString) -> Optional[List[Dict]]:
   parts = SplitRaw(s, '-->')
   if len(parts) != 2:
     return None
-  this_predicate_call = ParseCall(parts[0])
+  this_predicate_call = ParseCall(parts[0], is_aggregation_allowed=False)
   if not this_predicate_call:
     raise ParsingException('Left hand side of function definition must be '
                            'a predicate call.', parts[0])
