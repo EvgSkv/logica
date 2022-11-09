@@ -483,11 +483,6 @@ def ExtractPredicateStructure(c, s):
       table_var = ExceptExpression.Build(table_name, field_value['except'])
     else:
       table_var = field_value['field']
-    
-    if 'expression' not in field_value['value']:
-      raise RuleCompileException(
-            color.Format('Aggregation the predicate calls in the body is impossible.'),
-            self.full_rule_text)
 
     expr = field_value['value']['expression']
     var_name = s.allocator.AllocateVar('%s_%s' % (table_name, table_var))
