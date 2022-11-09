@@ -483,7 +483,6 @@ def ExtractPredicateStructure(c, s):
       table_var = ExceptExpression.Build(table_name, field_value['except'])
     else:
       table_var = field_value['field']
-
     expr = field_value['value']['expression']
     var_name = s.allocator.AllocateVar('%s_%s' % (table_name, table_var))
     s.vars_map[table_name, table_var] = var_name
