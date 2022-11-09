@@ -442,7 +442,8 @@ def ParseRecordInternals(s,
         if question_split:
           if not is_aggregation_allowed:
             raise ParsingException('Aggregation of fields is only allowed in the head '
-                                   'of a rule.')
+                                   'of a rule.',
+                                   field_value)
           positional_ok = False
           field, value = question_split
           observed_field = field
