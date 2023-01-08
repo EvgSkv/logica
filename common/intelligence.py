@@ -44,6 +44,7 @@ def Intelligence(command):
   """Executing command on OpenAI API and returning the response."""
   # Imporing only if needed, so that installation is not required.
   import openai
+  global intelligence_executed
   if not intelligence_executed or not openai.api_key:
     InitializeOpenAI()
   intelligence_executed = True
