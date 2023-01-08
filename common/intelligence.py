@@ -22,6 +22,7 @@ intelligence_executed = False
 def InitializeOpenAI():
   """Initializng OpenAI api by setting the API key."""
   import openai
+  print()
   print('OpenAI API will be used to run Logica Intelligence function. '
         'Logica Engine does not have any throttling for it. '
         'Please be mindful that naturally OpenAI project which key you provide '
@@ -56,6 +57,6 @@ def Intelligence(command):
     presence_penalty=0
   )
 
-  response_text = response.choices[0].text
+  response_text = response.choices[0].text.strip()
 
   return response_text
