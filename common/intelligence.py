@@ -24,7 +24,7 @@ def InitializeOpenAI():
   import openai
   print()
   print('OpenAI API will be used to run Logica Intelligence function. '
-        'Logica Engine does not have any throttling for it. '
+        'Logica engine does not have any throttling for it. '
         'Please be mindful that naturally OpenAI project which key you provide '
         'will be charged by OpenAI.')
 
@@ -46,6 +46,7 @@ def Intelligence(command):
   import openai
   if not intelligence_executed or not openai.api_key:
     InitializeOpenAI()
+  intelligence_executed = True
 
   response = openai.Completion.create(
     model="text-davinci-003",
