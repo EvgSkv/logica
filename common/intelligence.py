@@ -14,9 +14,20 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import getpass
 import os
 
 intelligence_executed = False
+
+# TODO: Make this controllable via function parameters.
+INTELLIGENCE_PARAMS = dict(
+  model="text-davinci-003",
+  prompt = None,
+  temperature=0.7,
+  max_tokens=512,
+  top_p=1,
+  frequency_penalty=0,
+  presence_penalty=0)
 
 
 def InitializeOpenAI():
@@ -34,8 +45,8 @@ def InitializeOpenAI():
     openai.api_key = os.getenv('LOGICA_OPENAI_API_KEY')
     if not openai.api_key:
       print('No key provided in the environment variable.')  
-      openai.api_key = input('Please provie OpenAI API key to run '
-                             'Intelligence function:')
+      openai.api_key = getpass.getpass('Please provie OpenAI API key to run '
+                                       'Intelligence function:')
       if not openai.api_key:
         raise Exception('Intelligence function could not obtain openai.api_key.')
 
@@ -45,19 +56,15 @@ def Intelligence(command):
   # Imporing only if needed, so that installation is not required.
   import openai
   global intelligence_executed
+  global INTELLIGENCE_PARAMS
+
   if not intelligence_executed or not openai.api_key:
     InitializeOpenAI()
   intelligence_executed = True
 
-  response = openai.Completion.create(
-    model="text-davinci-003",
-    prompt = command,
-    temperature=0.7,
-    max_tokens=1024,
-    top_p=1,
-    frequency_penalty=0,
-    presence_penalty=0
-  )
+  args = INTELLIGENCE_PARAMS.copy()
+  args['prompt]'] = command
+  response = openai.Completion.create(**args)
 
   response_text = response.choices[0].text.strip()
 
