@@ -63,7 +63,7 @@ def Intelligence(command):
   intelligence_executed = True
 
   args = INTELLIGENCE_PARAMS.copy()
-  args['prompt]'] = command
+  args['prompt'] = command
   response = openai.Completion.create(**args)
 
   response_text = response.choices[0].text.strip()
