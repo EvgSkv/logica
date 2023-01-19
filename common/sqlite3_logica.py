@@ -8,6 +8,14 @@ import sys
 import sqlite3
 import heapq
 import json
+import re
+
+
+if '.' not in __package__:
+  from common import intelligence
+else:
+  from ..common import intelligence
+
 
 def DeFactoType(value):
   if isinstance(value, int) or isinstance(value, float):
@@ -208,7 +216,9 @@ def SqliteConnect():
   con.create_function('ERROR', 1, UserError)
   con.create_function('Fingerprint', 1, Fingerprint)
   con.create_function('Floor', 1, math.floor)
-
+  con.create_function('RE_SUB', 5, lambda string, pattern, repl="", count=0, flags=0: \
+                                    re.sub(pattern, repl, string ,count, flags))
+  con.create_function('Intelligence', 1, intelligence.Intelligence)
   sqlite3.enable_callback_tracebacks(True)
   return con
 
