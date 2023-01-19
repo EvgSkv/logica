@@ -20,4 +20,6 @@ WordsByLengthList() Array= length -> StringNumPair(word, length) :-
   length == word_and_length.second;
 
 Test := WordsByLengthList()
+# If test fails create the type by running:
+# create type StringNumPair AS (first text, second numeric);
 
