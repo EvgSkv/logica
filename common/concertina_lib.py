@@ -1,27 +1,39 @@
 """Concertina: small Python Workflow execution handler."""
 
 import datetime
-import graphviz
-from IPython.display import display
-from IPython.display import update_display
 
+try:
+  import graphviz
+  from IPython.display import display
+  from IPython.display import update_display
+except:
+  print('Could not import CoLab tools in Concertina.')
+
+if '.' not in __package__:
+  from common import graph_art
+else:
+  from ..common import graph_art
 
 class ConcertinaQueryEngine(object):
-  def __init__(self, final_predicates, sql_runner):
+  def __init__(self, final_predicates, sql_runner,
+               print_running_predicate=True):
     self.final_predicates = final_predicates
     self.final_result = {}
     self.sql_runner = sql_runner
+    self.print_running_predicate = print_running_predicate
 
   def Run(self, action):
     assert action['launcher'] in ('query', 'none')
     if action['launcher'] == 'query':
       predicate = action['predicate']
-      print('Running predicate:', predicate, end='')
+      if self.print_running_predicate:
+        print('Running predicate:', predicate, end='')
       start = datetime.datetime.now()
       result = self.sql_runner(action['sql'], action['engine'],
                                is_final=(predicate in self.final_predicates))
       end = datetime.datetime.now()
-      print(' (%d seconds)' % (end - start).seconds)
+      if self.print_running_predicate:
+        print(' (%d seconds)' % (end - start).seconds)
       if predicate in self.final_predicates:
         self.final_result[predicate] = result
 
@@ -54,7 +66,7 @@ class Concertina(object):
         assert False, "Could not schedule: %s" % self.config
     return result
       
-  def __init__(self, config, engine):
+  def __init__(self, config, engine, display_mode='colab'):
     self.config = config
     self.action = {a["name"]: a for a in self.config}
     self.actions_to_run = self.SortActions()
@@ -63,6 +75,9 @@ class Concertina(object):
     self.all_actions = {a["name"] for a in self.config}
     self.complete_actions = set()
     self.running_actions = set()
+    assert display_mode in ('colab', 'terminal'), (
+      'Unrecognized display mode: %s' % display_mode)
+    self.display_mode = display_mode
     self.display_id = self.GetDisplayId()
     self.Display()
 
@@ -89,7 +104,7 @@ class Concertina(object):
     if a in self.running_actions:
       return 'gold'
     return 'gray'
-  
+
   def ActionShape(self, a):
     if 'type' in self.action[a]:
       action_type = self.action[a]['type']
@@ -112,12 +127,44 @@ class Concertina(object):
 
     return g
 
+  def AsTextPicture(self, updating):
+    def AsArtGraph():
+      nodes, edges = self.AsNodesAndEdges()
+      return graph_art.Graph(nodes, edges)
+    return AsArtGraph().GetPicture(updating=updating)
+
+  def AsNodesAndEdges(self):
+    """Nodes and edges to display in terminal."""
+    def ColoredNode(node):
+      if node in self.running_actions:
+        return '\033[1m\033[93m' + node + '\033[0m'
+      else:
+        return node
+    nodes = []
+    edges = []
+    for a in self.all_actions:
+      a_node = ColoredNode(a)
+      nodes.append(a_node)
+      for prerequisite in self.action[a]['requires']:
+        prerequisite_node = ColoredNode(prerequisite)
+        edges.append([prerequisite_node, a_node])
+    return nodes, edges
+
   def Display(self):
-    display(self.AsGraphViz(), display_id=self.display_id)
+    if self.display_mode == 'colab':
+      display(self.AsGraphViz(), display_id=self.display_id)
+    elif self.display_mode == 'terminal':
+      print(self.AsTextPicture(updating=False))
+    else:
+      assert 'Unexpected mode:', self.display_mode
 
   def UpdateDisplay(self):
-    update_display(self.AsGraphViz(), display_id=self.display_id)
-
+    if self.display_mode == 'colab':
+      update_display(self.AsGraphViz(), display_id=self.display_id)
+    elif self.display_mode == 'terminal':
+      print(self.AsTextPicture(updating=True))
+    else:
+      assert 'Unexpected mode:', self.display_mode
 
 def RenamePredicate(table_to_export_map, dependency_edges,
                     data_dependency_edges, from_name, to_name):
@@ -144,7 +191,8 @@ def RenamePredicate(table_to_export_map, dependency_edges,
   return new_table_to_export_map, new_dependency_edges, new_data_dependency_edges
 
 
-def ExecuteLogicaProgram(logica_executions, sql_runner, sql_engine):
+def ExecuteLogicaProgram(logica_executions, sql_runner, sql_engine,
+                         display_mode='colab'):
   def ConcertinaConfig(table_to_export_map, dependency_edges,
                        data_dependency_edges, final_predicates):
     depends_on = {}
@@ -209,7 +257,8 @@ def ExecuteLogicaProgram(logica_executions, sql_runner, sql_engine):
                             final_predicates)
  
   engine = ConcertinaQueryEngine(
-      final_predicates=final_predicates, sql_runner=sql_runner)
+      final_predicates=final_predicates, sql_runner=sql_runner,
+      print_running_predicate=(display_mode != 'terminal'))
 
   preambles = set(e.preamble for e in logica_executions)
   assert len(preambles) == 1, 'Inconsistent preambles: %s' % preambles
@@ -217,6 +266,6 @@ def ExecuteLogicaProgram(logica_executions, sql_runner, sql_engine):
   if preamble:
     sql_runner(preamble, sql_engine, is_final=False)
 
-  concertina = Concertina(config, engine)
+  concertina = Concertina(config, engine, display_mode=display_mode)
   concertina.Run()
   return engine.final_result
