@@ -145,7 +145,7 @@ def main(argv):
 
   command = argv[2]
 
-  commands = ['parse', 'print', 'run', 'run_to_csv']
+  commands = ['parse', 'print', 'run', 'run_to_csv', 'run_in_terminal']
 
   if command not in commands:
     print(color.Format('Unknown command {warning}{command}{end}. '
@@ -242,6 +242,11 @@ def main(argv):
       else:
         assert False, 'Unknown engine: %s' % engine
       print(o.decode())
+
+    if command == 'run_in_terminal':
+      from tools import run_in_terminal
+      artistic_table = run_in_terminal.Run(filename, predicate)
+      print(artistic_table)
 
 
 def run_main():

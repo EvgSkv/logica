@@ -33,18 +33,16 @@ INTELLIGENCE_PARAMS = dict(
 def InitializeOpenAI():
   """Initializng OpenAI api by setting the API key."""
   import openai
-  print()
-  print('OpenAI API will be used to run Logica Intelligence function. '
-        'Logica engine does not have any throttling for it. '
-        'Please be mindful that naturally OpenAI project which key you provide '
-        'will be charged by OpenAI.')
 
   if not openai.api_key:
-    print('Trying to retrieve OpenAI API key to run Intelligence function from '
-          'environment variable LOGICA_OPENAI_API_KEY.')
     openai.api_key = os.getenv('LOGICA_OPENAI_API_KEY')
     if not openai.api_key:
-      print('No key provided in the environment variable.')  
+      print()
+      print('OpenAI API will be used to run Logica Intelligence function. '
+            'Logica engine does not have any throttling for it. '
+            'Please be mindful that naturally OpenAI project which key you provide '
+            'will be charged by OpenAI.')
+      print('No key provided in the environment variable LOGICA_OPENAI_API_KEY.')  
       openai.api_key = getpass.getpass('Please provie OpenAI API key to run '
                                        'Intelligence function:')
       if not openai.api_key:
