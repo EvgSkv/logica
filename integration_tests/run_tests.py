@@ -69,13 +69,13 @@ def RunAll(test_presto=False, test_trino=False):
   RunTest("rec_small_cycle_test")
   RunTest("rec_cycle_test")
 
+  RunTest("sqlite_array_sub_test")
   RunTest("sqlite_combine_test")
   RunTest("sqlite_funcs_test")
   RunTest("sqlite_math_test")
   RunTest("sqlite_array_test")
   RunTest("sqlite_groupby_test")
   RunTest("sqlite_in_expr_test")
-  RunTest("psql_recursion_test")
   RunTest("sqlite_file_test")
   RunTest("sqlite_recursion")
   RunTest("sqlite_rec_depth")
@@ -85,6 +85,7 @@ def RunAll(test_presto=False, test_trino=False):
   RunTest("sqlite_reachability")
   RunTest("sqlite_element_test")
 
+  RunTest("psql_recursion_test")
   RunTest("psql_test")
   RunTest("psql_arg_min_test")
   RunTest("psql_arg_min_max_k_test")
