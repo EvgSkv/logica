@@ -739,7 +739,9 @@ def ParseExpression(s):
   v = ParseNegationExpression(s)
   if v:
     return v  # ParseNegationExpression returns an expression.
-
+  v = ParseArraySub(s)
+  if v:
+    return {'call': v}
   raise ParsingException('Could not parse expression of a value.', s)
 
 
@@ -750,8 +752,8 @@ def ParseInclusion(s):
             'element': ParseExpression(element_list_str[0])}
 
 
-def ParseCall(s, is_aggregation_allowed):
-  """Parsing logica.PredicateCall."""
+def ParseGenericCall(s, opening, closing):
+  """Parsing predicate call or array subscript."""
   s = Strip(s)
   predicate = ''
   idx = 0
@@ -764,7 +766,7 @@ def ParseCall(s, is_aggregation_allowed):
   else:
     for (idx, state, status) in Traverse(s):
       assert status == 'OK'
-      if state == '(':
+      if state == opening:
         good_chars = (
             set(string.ascii_letters) |
             set(['@', '_', '.', '$', '{', '}', '+', '-', '`']) |
@@ -781,13 +783,44 @@ def ParseCall(s, is_aggregation_allowed):
         return None
     else:
       return None
-  if (s[idx] == '(' and
-      s[-1] == ')' and
+  if (s[idx] == opening and
+      s[-1] == closing and
       IsWhole(s[idx + 1:-1])):
-    return {'predicate_name': predicate,
-            'record': ParseRecordInternals(
-                s[idx + 1: -1],
-                is_aggregation_allowed=is_aggregation_allowed)}
+    return predicate, s[idx + 1: -1]
+
+
+def ParseCall(s, is_aggregation_allowed):
+  """Parsing logica.PredicateCall."""
+  generic_parse = ParseGenericCall(s, '(', ')')
+  if generic_parse is None:
+    return None
+  caller, args_str = generic_parse
+  args = ParseRecordInternals(
+      args_str,
+      is_aggregation_allowed=is_aggregation_allowed)
+  return {'predicate_name': caller,
+          'record': args}
+
+
+def ParseArraySub(s):
+  """Parsing array subscription into a call to Element function."""
+  generic_parse = ParseGenericCall(s, '[', ']')
+  if generic_parse is None:
+    return None
+  caller, args_str = generic_parse
+  args = ParseRecordInternals(
+      args_str,
+      is_aggregation_allowed=False)
+  array = ParseExpression(caller)
+
+  # Now take the arguments, shift positional arguments and place
+  # the array as a zero-th argument.
+  for e in args['field_value']:
+    if isinstance(e['field'], int):
+      e['field'] += 1
+  args['field_value'].append({'field': 0, 'value': {'expression': array}})
+  return {'predicate_name': 'Element',
+          'record': args}
 
 
 def ParseUnification(s):
