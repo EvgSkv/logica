@@ -61,5 +61,16 @@ NameAndAuthor() List=
   j in Range(i),
   books[i].author == books[j].author;
 
+A2d() Array= row_index -> row :-
+  row_index in Range(5),
+  row Array= (element_index -> element :-
+              element_index in Range(4),
+              element == 10 * row_index + element_index);
+
+FromMatrix() = [{a23: a[2, 3],
+                 a41: a[4, 1],
+                 a11: a[1, 1]}] :- a == A2d();
+
 Test("OrwellBooks", OrwellBooks());
 Test("NameAndAuthor", NameAndAuthor());
+Test("FromMatrix", FromMatrix());
