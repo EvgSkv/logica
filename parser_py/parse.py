@@ -812,15 +812,33 @@ def ParseArraySub(s):
       args_str,
       is_aggregation_allowed=False)
   array = ParseExpression(caller)
+  return NestedElement(s, array, args)
 
-  # Now take the arguments, shift positional arguments and place
-  # the array as a zero-th argument.
-  for e in args['field_value']:
-    if isinstance(e['field'], int):
-      e['field'] += 1
-  args['field_value'].append({'field': 0, 'value': {'expression': array}})
-  return {'predicate_name': 'Element',
-          'record': args}
+
+def NestedElement(s, array, args):
+  """Nested Element function calls on the array with args as indexes."""
+  result = None
+  for i, fv in enumerate(args['field_value']):
+    fv = fv.copy()
+    if (fv['field'] != i):
+      raise ParsingException(
+        'Array subscription must only have positional arguments. '
+        'Non positional argument: >>%s<<' % fv['field'] , s)
+    fv['field'] = 1
+    if result is None:
+      first_argument = array
+    else:
+      first_argument = {'call': result}
+    element_args = {
+      'field_value': [
+          {'field': 0, 'value': {'expression': first_argument}},
+          fv]
+    }
+    result = {
+      'predicate_name': 'Element',
+      'record': element_args
+    }
+  return result
 
 
 def ParseUnification(s):
