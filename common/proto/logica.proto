@@ -1,0 +1,124 @@
+// Copyright 2023 Google LLC
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+// Protobuffer for Logica syntax tree.
+// While current parser is using a simple Python dictionary/list/pod object,
+// it is (supposedly) following this proto.
+
+syntax = "proto3";
+
+message Program {
+  repeated LogicalRule rule = 1;
+}
+
+message LogicalRule {
+  PredicateCall head = 1;
+  Proposition body = 2;
+  bool distinct_denoted = 3;
+  string full_text = 4;
+}
+
+message Expression {
+  oneof the_expression {
+    Variable variable = 1;
+    Record record = 2;
+    PredicateCall call = 3;
+    RecordSubscript subscript = 4;
+    Literal literal = 5;
+    LogicalRule combine = 6;
+    Implication implication = 7;
+  }
+}
+
+message Variable {
+  string var_name = 1;
+}
+
+message Aggregation {
+  string operator = 1;
+  Expression argument = 2;
+}
+
+message RecordValue {
+  oneof the_value {
+    Expression expression = 1;
+    Aggregation aggregation = 2;
+  }
+}
+
+message FieldValue {
+  // In Python it can actually also be an integer.
+  string field = 1;
+  RecordValue value = 2;
+}
+
+message Record {
+  repeated FieldValue filed_value = 1;
+}
+
+message PredicateCall {
+  string predicate_name = 1;
+  RecordInternals record = 2;
+}
+
+message RecordSubscript {
+  optional Expression record = 1;
+  // De-facto subscript is a string, but it's encoded as a symbolic literal.
+  optional Expression subscript = 2; 
+}
+
+message Implication {
+  repeated IfThen if_then = 1;
+  Expression otherwise = 2;
+}
+
+message IfThen {
+  Expression condition = 1;
+  Expression consequence = 2;
+}
+
+message Literal {
+  oneof the_literal {
+    NumericLiteral the_number = 1;
+    StringLiteral the_string = 2;
+    ListLiteral the_list = 3;
+    BoolLiteral the_bool = 4;
+    Predicate the_predicate = 5;
+    NullLiteral the_null = 6;
+  }
+}
+
+message NumericLiteral {
+  string number = 1;
+}
+
+message StringLiteral {
+  string the_string = 1;
+}
+
+message BoolLiteral {
+  string the_bool = 1;
+}
+
+message NullLiteral {
+  string the_null = 1;
+}
+
+message ListLiteral {
+  repeated Expression element = 1;
+}
+
+message Predicate {
+  string predicate_name = 1;
+}
