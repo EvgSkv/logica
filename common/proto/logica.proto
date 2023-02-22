@@ -96,7 +96,12 @@ message Literal {
     BoolLiteral the_bool = 4;
     Predicate the_predicate = 5;
     NullLiteral the_null = 6;
+    SymbolicLiteral the_symbol = 7;
   }
+}
+
+message SymbolicLiteral {
+  string symbol = 1; 
 }
 
 message NumericLiteral {
