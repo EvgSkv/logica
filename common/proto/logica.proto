@@ -63,7 +63,7 @@ message FieldValue {
   RecordValue value = 2;
 }
 
-message Record {
+message RecordInternals {
   repeated FieldValue filed_value = 1;
 }
 
