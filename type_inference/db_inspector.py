@@ -1,12 +1,12 @@
 import sys
-from typing import List
+from typing import List, Set
 
 from parser_py import parse
 from type_inference.column_info import ColumnInfo
 from type_inference.type_inference_exception import TypeInferenceException
 
 
-def get_predicates(rule: dict) -> set:
+def get_predicates(rule: dict) -> Set[str]:
   conjuncts = []
   if 'body' in rule:
     body_conjuncts = rule['body']['conjunction']['conjunct']
@@ -22,7 +22,7 @@ def get_predicates(rule: dict) -> set:
   return predicates
 
 
-def fill_predicates_list(dictionary: dict, predicates: set):
+def fill_predicates_list(dictionary: dict, predicates: Set[str]):
   try:
     for key, value in dictionary.items():
       if key == 'predicate_name':
@@ -33,35 +33,43 @@ def fill_predicates_list(dictionary: dict, predicates: set):
     return
 
 
-def connect_to_database():
-  from sqlalchemy import create_engine
-  return create_engine('postgresql+psycopg2://logica:logica@127.0.0.1', pool_recycle=3600)
+def inspect_table(name: str, inspector) -> List[ColumnInfo]:
+  columns_info = inspector.get_columns(name)
+  return [ColumnInfo(column['name'], name, column['type']) for column in columns_info]
 
 
-def inspect_table(name: str, engine) -> List[ColumnInfo]:
-  from sqlalchemy import inspect
-  inspector = inspect(engine)
-  if not inspector.has_table(name):
-    raise TypeInferenceException(f"No table {name}")
-  else:
-    columns_info = inspector.get_columns(name)
-    return [ColumnInfo(column['name'], name, column['type']) for column in columns_info]
-
-
-def run(raw_program: str):
+def get_unknown_predicates(raw_program: str) -> Set[str]:
   parsed = parse.ParseFile(raw_program)
   rules = parsed['rule']
   defined_predicates_names = set([rule['head']['predicate_name'] for rule in rules])
   all_predicates = set()
   for rule in rules:
     all_predicates = all_predicates.union(get_predicates(rule))
-  unknown_predicates = all_predicates.difference(defined_predicates_names)
+  return all_predicates.difference(defined_predicates_names)
 
-  engine = connect_to_database()
+
+def run(raw_program: str):
+  unknown_predicates = get_unknown_predicates(raw_program)
+
+  if not unknown_predicates:
+    return
+
+  from sqlalchemy import create_engine, inspect
+  engine = create_engine('postgresql+psycopg2://logica:logica@127.0.0.1', pool_recycle=3600)
+  inspector = inspect(engine)
+
+  not_found_tables = []
+
   for predicate in unknown_predicates:
-    columns_info = inspect_table(predicate, engine)
-    for column in columns_info:
-      print(str(column))
+    if not inspector.has_table(predicate):
+      not_found_tables.append(predicate)
+    else:
+      columns_info = inspect_table(predicate, inspector)
+      for column in columns_info:
+        print(str(column))
+
+  if not_found_tables:
+    raise TypeInferenceException(f'Not found tables: {", ".join(not_found_tables)}')
 
 
 # Examples:
