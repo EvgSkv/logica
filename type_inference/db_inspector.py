@@ -3,6 +3,7 @@ from typing import List
 
 from parser_py import parse
 from type_inference.column_info import ColumnInfo
+from type_inference.type_inference_exception import TypeInferenceException
 
 
 def get_predicates(rule: dict) -> set:
@@ -41,7 +42,7 @@ def inspect_table(name: str, engine) -> List[ColumnInfo]:
   from sqlalchemy import inspect
   inspector = inspect(engine)
   if not inspector.has_table(name):
-    print(f"No such table {name}")
+    raise TypeInferenceException(f"No table {name}")
   else:
     columns_info = inspector.get_columns(name)
     return [ColumnInfo(column['name'], name, column['type']) for column in columns_info]
