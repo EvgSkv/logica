@@ -1,6 +1,8 @@
 import sys
+from typing import List
 
 from parser_py import parse
+from type_inference.column_info import ColumnInfo
 
 
 def get_predicates(rule: dict) -> set:
@@ -35,13 +37,14 @@ def connect_to_database():
   return create_engine('postgresql+psycopg2://logica:logica@127.0.0.1', pool_recycle=3600)
 
 
-def inspect_table(name: str, engine) -> list:
+def inspect_table(name: str, engine) -> List[ColumnInfo]:
   from sqlalchemy import inspect
   inspector = inspect(engine)
   if not inspector.has_table(name):
     print(f"No such table {name}")
   else:
-    return inspector.get_columns(name)
+    columns_info = inspector.get_columns(name)
+    return [ColumnInfo(column['name'], name, column['type']) for column in columns_info]
 
 
 def run(raw_program: str):
@@ -55,7 +58,9 @@ def run(raw_program: str):
 
   engine = connect_to_database()
   for predicate in unknown_predicates:
-    print(inspect_table(predicate, engine))
+    columns_info = inspect_table(predicate, engine)
+    for column in columns_info:
+      print(str(column))
 
 
 # Examples:
