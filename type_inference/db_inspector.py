@@ -3,7 +3,8 @@ from typing import List, Set
 
 from parser_py import parse
 from type_inference.column_info import ColumnInfo
-from type_inference.type_inference_exception import TypeInferenceException
+from type_inference.inspectors.sqlite_inspector import SQLiteInspector
+from type_inference.logger import Logger
 
 
 def get_predicates(rule: dict) -> Set[str]:
@@ -54,22 +55,14 @@ def run(raw_program: str):
   if not unknown_predicates:
     return
 
-  from sqlalchemy import create_engine, inspect
-  engine = create_engine('postgresql+psycopg2://logica:logica@127.0.0.1', pool_recycle=3600)
-  inspector = inspect(engine)
-
-  not_found_tables = []
+  logger = Logger()
+  # inspector = PostgresInspector('logica', 'logica', logger)
+  inspector = SQLiteInspector('type_inference/logica.db', logger)
 
   for predicate in unknown_predicates:
-    if not inspector.has_table(predicate):
-      not_found_tables.append(predicate)
-    else:
-      columns_info = inspect_table(predicate, inspector)
-      for column in columns_info:
-        print(str(column))
-
-  if not_found_tables:
-    raise TypeInferenceException(f'Not found tables: {", ".join(not_found_tables)}')
+    columns_info = inspector.try_get_columns_info(predicate)
+    for column in columns_info:
+      print(str(column))
 
 
 # Examples:
@@ -80,6 +73,7 @@ def run(raw_program: str):
 # Q(x: U(1), y: A()); A();
 # Q(x: U(1), y: G()) :- V();
 # Q(x: U(1));
+# Q(a, b) :- a < b, a in Range(10), b in Range(10)
 
 # Run
 # python3 -m type_inference.db_inspector 'StudentName(name:) :- students(name:);'
