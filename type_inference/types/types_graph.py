@@ -1,17 +1,7 @@
 from collections import defaultdict
 
-from type_inference.types.edge import Edge, Equality, EqualityOfField, EqualityOfElement
-
-
-def _get_expressions(edge: Edge):
-  if isinstance(edge, Equality):
-    return edge.left, edge.right
-
-  if isinstance(edge, EqualityOfField):
-    return edge.record, edge.value
-
-  if isinstance(edge, EqualityOfElement):
-    return edge.list, edge.element
+from type_inference.types.edge import Edge, Equality
+from type_inference.types.expression import PredicateAddressing, NumberLiteral, Variable
 
 
 class TypesGraph:
@@ -20,8 +10,7 @@ class TypesGraph:
     self.expression_type = dict()
 
   def connect(self, edge: Edge):
-    first_expression, second_expression = _get_expressions(edge)
-
+    first_expression, second_expression = edge.vertices
     self.expression_connections[first_expression][second_expression].append(edge)
     self.expression_connections[second_expression][first_expression].append(edge)
 
