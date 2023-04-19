@@ -8,10 +8,12 @@ class TypesGraph:
     self.expression_connections = defaultdict(lambda: defaultdict(list))
     self.expression_type = dict()
 
-  def connect(self, edge: Edge):
+  def connect(self, edge: Edge, oriented: bool = False):
     first_expression, second_expression = edge.vertices
     self.expression_connections[first_expression][second_expression].append(edge)
-    self.expression_connections[second_expression][first_expression].append(edge)
+
+    if not oriented:
+      self.expression_connections[second_expression][first_expression].append(edge)
 
   def __or__(self, other):
     if not isinstance(other, TypesGraph):
