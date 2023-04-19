@@ -1,7 +1,6 @@
 from collections import defaultdict
 
-from type_inference.types.edge import Edge, Equality
-from type_inference.types.expression import PredicateAddressing, NumberLiteral, Variable
+from type_inference.types.edge import Edge
 
 
 class TypesGraph:
@@ -26,4 +25,3 @@ class TypesGraph:
         result.expression_connections[key1][key2].extend(value)
 
     return result
-
