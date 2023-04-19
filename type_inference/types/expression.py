@@ -1,4 +1,4 @@
-from typing import Dict
+from typing import Dict, List
 
 
 class Expression:
@@ -8,13 +8,24 @@ class Expression:
   def __hash__(self):
     return hash(type(self))
 
+  def __str__(self):
+    return type(self).__name__
+
 
 class PredicateFieldAddressing(Expression):
-  pass
+  _predicates_counter = 0
+
+  def __init__(self):
+    self._id = PredicateFieldAddressing._predicates_counter
+    PredicateFieldAddressing._predicates_counter += 1
+
+  def __eq__(self, other):
+    return super().__eq__(other) and self._id == other._id
 
 
 class PredicateAddressing(PredicateFieldAddressing):
   def __init__(self, predicate_name: str, field: str):
+    super().__init__()
     self.predicate_name = predicate_name
     self.field = field
 
@@ -24,9 +35,13 @@ class PredicateAddressing(PredicateFieldAddressing):
   def __hash__(self):
     return hash((self.predicate_name, self.field))
 
+  def __str__(self):
+    return super().__str__() + f'({self.predicate_name}.{self.field})'
+
 
 class SubscriptAddressing(PredicateFieldAddressing):
   def __init__(self, subscript_field: str):
+    super().__init__()
     self.subscript_field = subscript_field
 
   def __eq__(self, other):
@@ -34,6 +49,9 @@ class SubscriptAddressing(PredicateFieldAddressing):
 
   def __hash__(self):
     return hash(self.subscript_field)
+
+  def __str__(self):
+    return super().__str__() + f'(.{self.subscript_field})'
 
 
 class Variable(Expression):
@@ -45,6 +63,9 @@ class Variable(Expression):
 
   def __hash__(self):
     return hash(self.variable_name)
+
+  def __str__(self):
+    return super().__str__() + f'({self.variable_name})'
 
 
 class Literal(Expression):
@@ -64,7 +85,11 @@ class BooleanLiteral(Literal):
 
 
 class ListLiteral(Literal):
-  pass
+  def __init__(self, elements: List[Expression]):
+    self.elements = elements
+
+  def __eq__(self, other):
+    return super().__eq__(other) and self.elements == self.elements
 
 
 class NullLiteral(Literal):
@@ -72,7 +97,7 @@ class NullLiteral(Literal):
 
 
 class RecordLiteral(Literal):
-  def __init__(self, fields: Dict[str, Literal]):
+  def __init__(self, fields: Dict[str, Expression]):
     self.fields = fields
 
   def __eq__(self, other):
@@ -80,3 +105,7 @@ class RecordLiteral(Literal):
 
   def __hash__(self):
     return hash(tuple(sorted(self.fields.items())))
+
+  def __str__(self):
+    fields = ", ".join(map(str, self.fields.items()))
+    return super().__str__() + f'({fields})'

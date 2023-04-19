@@ -32,7 +32,7 @@ class Field:
     self.type = type
 
 
-class Record(Type):
+class RecordType(Type):
   def __init__(self, fields: List[Field], is_opened: bool):
     self.fields = fields
     self.is_opened = is_opened
