@@ -1,7 +1,7 @@
 import sys
 
 from parser_py import parse
-from type_inference.types import TypesGraph
+from type_inference.types.types_graph import TypesGraph
 
 
 def traverse_tree(rule):
