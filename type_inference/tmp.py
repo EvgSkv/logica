@@ -24,24 +24,24 @@ def infer_type(expr: expression.Expression, visited: Set, graph: TypesGraph):
     run(expr.predicate_name)
     return inferred_rules[expr.predicate_name][expr.field]
 
-  current = None
+  current = variable_types.AnyType()
   visited.add(expr)
 
   for neighbour, connection in graph.expression_connections[expr].items():
     if neighbour == expr or neighbour in visited:
       continue
     neighbour_type = infer_type(neighbour, visited, graph)
-    constraint = None
+    constraint = variable_types.AnyType()
     if type(connection[0]) == edge.Equality:
       constraint = neighbour_type
     elif type(connection[0]) == edge.EqualityOfElement:
       if type(neighbour_type) != variable_types.ListType:
         raise Exception
       constraint = (cast(variable_types.ListType, neighbour_type)).element
-    if current is None:
+    if type(current) is variable_types.AnyType:
       current = constraint
     else:
-      if constraint != current:
+      if type(constraint) != variable_types.AnyType and constraint != current:
         raise Exception
 
   return current
@@ -49,8 +49,8 @@ def infer_type(expr: expression.Expression, visited: Set, graph: TypesGraph):
 def wip(predicate_name: str):
   if predicate_name == 'Q':
     return [expression.Variable('x'), expression.Variable('y')]
-  # return [expression.Variable('col0'), expression.Variable('logica_value')]
-  return [expression.Variable('logica_value')]
+  return [expression.Variable('col0'), expression.Variable('logica_value')]
+  # return [expression.Variable('logica_value')]
 
 def run(predicate_name: str):
   variables = wip(predicate_name)
@@ -60,25 +60,25 @@ def run(predicate_name: str):
 
 
 
-predicate = 'Q(x: 1, y:) :- y == P()'
+predicate = 'Q(x: 1, y:) :- y == P(1)'
+# predicate = 'Q(x: 1, y:) :- y == P()'
 
 graphQ = TypesGraph()
 equalityEdgeX = edge.Equality(expression.Variable('x'), expression.NumberLiteral(), 0, 0)
 equalityEdgeY = edge.Equality(expression.Variable('y'), expression.PredicateAddressing('P', 'logica_value'), 0, 0)
-# equalityEdgeP = edge.Equality(expression.NumberLiteral(), expression.PredicateAddressing('P', 'col0'), 0, 0)
+equalityEdgeP = edge.Equality(expression.NumberLiteral(), expression.PredicateAddressing('P', 'col0'), 0, 0)
 graphQ.connect(equalityEdgeX)
 graphQ.connect(equalityEdgeY)
-# graphQ.connect(equalityEdgeP)
+graphQ.connect(equalityEdgeP)
 
-predicateP = 'P() = a :- a in Range(10)'
-# predicateP = 'P(a) = a :- a in Range(10)'
-# 'P(a:, b: a) :- a in Range(10)'
+# predicateP = 'P() = a :- a in Range(10)'
+predicateP = 'P(a) = a :- a in Range(10)'
 graphP = TypesGraph()
-# equalityEdgeA = edge.Equality(expression.Variable('col0'), expression.Variable('a'), 0, 0)
+equalityEdgeA = edge.Equality(expression.Variable('col0'), expression.Variable('a'), 0, 0)
 e3 = edge.Equality(expression.Variable('logica_value'), expression.Variable('a'), 0, 0)
 eq1 = edge.EqualityOfElement(expression.PredicateAddressing('Range', 'logica_value'), expression.Variable('a'), 0, 0)
 e2 = edge.Equality(expression.PredicateAddressing('Range', 'col0'), expression.NumberLiteral(), 0, 0)
-# graphP.connect(equalityEdgeA)
+graphP.connect(equalityEdgeA)
 graphP.connect(eq1)
 graphP.connect(e2)
 graphP.connect(e3)
