@@ -1,41 +1,47 @@
-from queue import Queue
-from type_inference.types.types_graph import TypesGraph
-from type_inference.types import edge, expression
-from typing import Set
 from collections import defaultdict
+from typing import Set, cast
+
+from type_inference.types import edge, expression
 from type_inference.types import variable_types
+from type_inference.types.types_graph import TypesGraph
 
-literal_to_type = dict()
-literal_to_type[expression.NumberLiteral()] = variable_types.NumberType()
-literal_to_type[expression.StringLiteral()] = variable_types.StringType()
+literal_to_type = {expression.NumberLiteral(): variable_types.NumberType(),
+                   expression.StringLiteral(): variable_types.StringType()}
 
-d = dict()
+inferred_rules = defaultdict(dict)
+inferred_rules['Range']['col0'] = variable_types.NumberType()
+inferred_rules['Range']['logica_value'] = variable_types.ListType(variable_types.NumberType())
 
-inferred_graphs = defaultdict(dict)
-inferred_graphs['Range']['col0'] = variable_types.NumberType()
-inferred_graphs['Range']['logica_value'] = variable_types.ListType(variable_types.NumberType())
+graphs = dict()
 
-def infer_type(variable: expression.Expression, visited: Set, graph: TypesGraph):
-  if isinstance(variable, expression.Literal):
-    return literal_to_type[variable]
+def infer_type(expr: expression.Expression, visited: Set, graph: TypesGraph):
+  if isinstance(expr, expression.Literal):
+    return literal_to_type[expr]
 
-  if isinstance(variable, expression.PredicateAddressing):
-    if variable.predicate_name in inferred_graphs:
-      return inferred_graphs[variable.predicate_name][variable.field]
-    run(variable.predicate_name)
-    return inferred_graphs[variable.predicate_name][variable.field]
+  if isinstance(expr, expression.PredicateAddressing):
+    if expr.predicate_name in inferred_rules:
+      return inferred_rules[expr.predicate_name][expr.field]
+    run(expr.predicate_name)
+    return inferred_rules[expr.predicate_name][expr.field]
 
   current = None
-  visited.add(variable)
+  visited.add(expr)
 
-  for neighbour in graph.expression_connections[variable]:
-    if neighbour == variable or neighbour in visited:
+  for neighbour, connection in graph.expression_connections[expr].items():
+    if neighbour == expr or neighbour in visited:
       continue
-    k = infer_type(neighbour, visited, graph)
+    neighbour_type = infer_type(neighbour, visited, graph)
+    constraint = None
+    if type(connection[0]) == edge.Equality:
+      constraint = neighbour_type
+    elif type(connection[0]) == edge.EqualityOfElement:
+      if type(neighbour_type) != variable_types.ListType:
+        raise Exception
+      constraint = (cast(variable_types.ListType, neighbour_type)).element
     if current is None:
-      current = k
+      current = constraint
     else:
-      if k != current:
+      if constraint != current:
         raise Exception
 
   return current
@@ -49,13 +55,14 @@ def wip(predicate_name: str):
 def run(predicate_name: str):
   variables = wip(predicate_name)
   for variable in variables:
-    var_type = infer_type(variable, set(), d[predicate_name])
-    inferred_graphs[predicate_name][variable.variable_name] = var_type
+    var_type = infer_type(variable, set(), graphs[predicate_name])
+    inferred_rules[predicate_name][variable.variable_name] = var_type
+
 
 
 predicate = 'Q(x: 1, y:) :- y == P()'
-graphQ = TypesGraph()
 
+graphQ = TypesGraph()
 equalityEdgeX = edge.Equality(expression.Variable('x'), expression.NumberLiteral(), 0, 0)
 equalityEdgeY = edge.Equality(expression.Variable('y'), expression.PredicateAddressing('P', 'logica_value'), 0, 0)
 # equalityEdgeP = edge.Equality(expression.NumberLiteral(), expression.PredicateAddressing('P', 'col0'), 0, 0)
@@ -76,9 +83,12 @@ graphP.connect(eq1)
 graphP.connect(e2)
 graphP.connect(e3)
 
-d['Q'] = graphQ
-d['P'] = graphP
+graphs['Q'] = graphQ
+graphs['P'] = graphP
 
 run('Q')
-for (predicate_name, inferred_graph) in inferred_graphs.items():
-  print(f'{predicate_name}: {inferred_graph}')
+for predicate_name, inferred_graph in inferred_rules.items():
+  vars_to_print = []
+  for var_name, var_type in inferred_graph.items():
+    vars_to_print.append(f"{var_name}: {var_type}")
+  print(f'{predicate_name}({", ".join(vars_to_print)})')
