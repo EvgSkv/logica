@@ -6,24 +6,31 @@ class Type:
 
 
 class AtomicType(Type):
-  pass
+  def __str__(self):
+    return "atomic"
 
 
 class NumberType(AtomicType):
-  pass
+  def __str__(self):
+    return "number"
 
 
 class StringType(AtomicType):
-  pass
+  def __str__(self):
+    return "string"
 
 
 class AnyType(Type):
-  pass
+  def __str__(self):
+    return "any"
 
 
 class ListType(Type):
   def __init__(self, element: Type):
     self.element = element
+
+  def __str__(self):
+    return f"[{self.element}]"
 
 
 class Field:
