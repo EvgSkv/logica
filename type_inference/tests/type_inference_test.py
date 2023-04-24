@@ -5,9 +5,9 @@ from type_inference.type_inference_service import TypeInferenceService
 predicate = 'Q(x) :- T(x), Num(x)'
 
 graphQ = TypesGraph()
-edge1 = edge.Equality(expression.Variable('col0'), expression.Variable('x'), 0, 0)
-edge2 = edge.Equality(expression.Variable('x'), expression.PredicateAddressing('T', 'col0'), 0, 0)
-edge3 = edge.Equality(expression.Variable('x'), expression.PredicateAddressing('Num', 'col0'), 0, 0)
+edge1 = edge.Equality(expression.Variable('col0'), expression.Variable('x'), (0, 0))
+edge2 = edge.Equality(expression.Variable('x'), expression.PredicateAddressing('T', 'col0'), (0, 0))
+edge3 = edge.Equality(expression.Variable('x'), expression.PredicateAddressing('Num', 'col0'), (0, 0))
 graphQ.connect(edge1)
 graphQ.connect(edge2)
 graphQ.connect(edge3)
