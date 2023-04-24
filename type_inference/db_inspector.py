@@ -1,3 +1,4 @@
+import argparse
 import sys
 from typing import List, Set
 
@@ -31,7 +32,7 @@ def fill_predicates_list(dictionary: dict, predicates: Set[str]):
       else:
         fill_predicates_list(value, predicates)
   except AttributeError:
-    return
+    pass
 
 
 def inspect_table(name: str, inspector) -> List[ColumnInfo]:
@@ -80,4 +81,7 @@ def run(raw_program: str):
 
 
 if __name__ == '__main__':
-  run(sys.argv[1])
+  args_parser = argparse.ArgumentParser()
+  args_parser.add_argument('-p', '--program', required=True)
+  args = args_parser.parse_args()
+  run(args.program)

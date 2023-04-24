@@ -1,10 +1,11 @@
 import sys
 
 from common import color
+from logging import info
 
 
 class TypeInferenceException(Exception):
 
-  def ShowMessage(self, stream=sys.stderr):
-    print(color.Format('{underline}Infering types{end}:'), file=stream)
-    print(color.Format('[ {error}Error{end} ] ') + str(self), file=stream)
+  def ShowMessage(self):
+    info(color.Format('{underline}Infering types{end}:'))
+    info(f'{color.Format("[ {error}Error{end} ]")} {str(self)}')

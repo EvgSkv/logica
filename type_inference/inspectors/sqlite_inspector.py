@@ -23,5 +23,5 @@ class SQLiteInspector(Inspector):
 
     columns_info = self._cursor.execute(
       f'PRAGMA table_info({table_name});').fetchall()
-    return [ColumnInfo(column[1], table_name, column[2])
+    return [ColumnInfo(column_name=column[1], table_name=table_name, type_name=column[2])
             for column in columns_info]
