@@ -16,11 +16,12 @@ class TestTypeInference(unittest.TestCase):
     graph.connect(edge.Equality(expression.Variable('x'), expression.PredicateAddressing('Num', 'col0'), (0, 0)))
     graphs = dict()
     graphs['Q'] = graph
-    type_inference_service.get_variables = Mock(return_value=[expression.Variable('col0')])
+    type_inference_service.get_variables = Mock(return_value=[expression.Variable('col0'), expression.Variable('x')])
 
     inferred_rules = TypeInferenceService(graphs).infer_type('Q')
 
     self.assertIsInstance(inferred_rules['Q']['col0'], variable_types.NumberType)
+    self.assertIsInstance(inferred_rules['Q']['x'], variable_types.NumberType)
     self.assertIsInstance(inferred_rules['T']['col0'], variable_types.AnyType)
 
 
@@ -36,11 +37,17 @@ class TestTypeInference(unittest.TestCase):
     graph.connect(edge.Equality(y_var, expression.PredicateAddressing('T', 'col0'), (0, 0)))
     graphs = dict()
     graphs['Q'] = graph
-    type_inference_service.get_variables = Mock(return_value=[expression.Variable('col0')])
+    type_inference_service.get_variables = Mock(return_value=[
+      expression.Variable('col0'),
+      expression.Variable('x'),
+      expression.Variable('y')
+    ])
 
     inferred_rules = TypeInferenceService(graphs).infer_type('Q')
 
     self.assertIsInstance(inferred_rules['Q']['col0'], variable_types.NumberType)
+    self.assertIsInstance(inferred_rules['Q']['x'], variable_types.NumberType)
+    self.assertIsInstance(inferred_rules['Q']['y'], variable_types.NumberType)
     # self.assertIsInstance(inferred_rules['T']['col0'], variable_types.NumberType)
 
   def test_when_str(self):
@@ -55,11 +62,17 @@ class TestTypeInference(unittest.TestCase):
     graph.connect(edge.Equality(x_var, y_var, (0, 0)))
     graphs = dict()
     graphs['Q'] = graph
-    type_inference_service.get_variables = Mock(return_value=[expression.Variable('col0')])
+    type_inference_service.get_variables = Mock(return_value=[
+      expression.Variable('col0'),
+      expression.Variable('x'),
+      expression.Variable('y')
+    ])
 
     inferred_rules = TypeInferenceService(graphs).infer_type('Q')
 
     self.assertIsInstance(inferred_rules['Q']['col0'], variable_types.StringType)
+    self.assertIsInstance(inferred_rules['Q']['x'], variable_types.StringType)
+    self.assertIsInstance(inferred_rules['Q']['y'], variable_types.StringType)
     # self.assertIsInstance(inferred_rules['T']['col0'], variable_types.StringType)
 
   def test_when_concat_operator(self):
@@ -75,11 +88,17 @@ class TestTypeInference(unittest.TestCase):
     graph.connect(edge.Equality(y_var, expression.PredicateAddressing('T', 'col0'), (0, 0)))
     graphs = dict()
     graphs['Q'] = graph
-    type_inference_service.get_variables = Mock(return_value=[expression.Variable('col0')])
+    type_inference_service.get_variables = Mock(return_value=[
+      expression.Variable('col0'),
+      expression.Variable('x'),
+      expression.Variable('y')
+    ])
 
     inferred_rules = TypeInferenceService(graphs).infer_type('Q')
 
     self.assertIsInstance(inferred_rules['Q']['col0'], variable_types.StringType)
+    self.assertIsInstance(inferred_rules['Q']['x'], variable_types.StringType)
+    self.assertIsInstance(inferred_rules['Q']['y'], variable_types.StringType)
     # self.assertIsInstance(inferred_rules['T']['col0'], variable_types.StringType)
 
   def test_when_in_operator(self):
@@ -93,11 +112,17 @@ class TestTypeInference(unittest.TestCase):
     graph.connect(edge.EqualityOfElement(x_var, y_var, (0, 0)))
     graphs = dict()
     graphs['Q'] = graph
-    type_inference_service.get_variables = Mock(return_value=[expression.Variable('col0')])
+    type_inference_service.get_variables = Mock(return_value=[
+      expression.Variable('col0'),
+      expression.Variable('x'),
+      expression.Variable('y')
+    ])
 
     inferred_rules = TypeInferenceService(graphs).infer_type('Q')
 
     self.assertIsInstance(inferred_rules['Q']['col0'], variable_types.NumberType)
+    self.assertIsInstance(inferred_rules['Q']['x'], variable_types.ListType)
+    self.assertIsInstance(inferred_rules['Q']['y'], variable_types.NumberType)
     # self.assertIsInstance(inferred_rules['T']['col0'], variable_types.ListType)
 
   def test_when_record(self):
@@ -124,7 +149,7 @@ class TestTypeInference(unittest.TestCase):
 
     def side_effect_function(rule: str):
       if rule == 'Q':
-        return [a_var, b_var]
+        return [a_var, b_var, x_var, y_var]
       else:
         return [expression.Variable('col0')]
 
@@ -135,6 +160,8 @@ class TestTypeInference(unittest.TestCase):
 
     self.assertIsInstance(inferred_rules['Q']['a'], variable_types.NumberType)
     self.assertIsInstance(inferred_rules['Q']['b'], variable_types.NumberType)
+    self.assertIsInstance(inferred_rules['Q']['x'], variable_types.NumberType)
+    self.assertIsInstance(inferred_rules['Q']['y'], variable_types.NumberType)
     # self.assertIsInstance(inferred_rules['T']['col0'], variable_types.NumberType)
     # self.assertIsInstance(inferred_rules['T']['col1'], variable_types.NumberType)
 

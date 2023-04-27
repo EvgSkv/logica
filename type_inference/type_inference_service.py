@@ -79,7 +79,9 @@ class TypeInferenceService:
       constraint = neighbour_type
     elif type(connection) == edge.EqualityOfElement:
       if type(neighbour_type) != variable_types.ListType and type(neighbour_type) != variable_types.AnyType:
-        raise TypeInferenceException()
-      constraint = cast(variable_types.ListType, neighbour_type).element if type(neighbour_type) == variable_types.ListType else variable_types.AnyType()
+        # TODO check for bug here
+        constraint = variable_types.ListType(neighbour_type)
+      else:
+        constraint = cast(variable_types.ListType, neighbour_type).element if type(neighbour_type) == variable_types.ListType else variable_types.AnyType()
     # todo for other edges
     return constraint
