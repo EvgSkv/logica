@@ -22,6 +22,14 @@ inferred_rules['Num']['logica_value'] = number_type
 inferred_rules['Str']['col0'] = string_type
 inferred_rules['Str']['logica_value'] = string_type
 
+inferred_rules['+']['col0'] = number_type
+inferred_rules['+']['col1'] = number_type
+inferred_rules['+']['logica_value'] = number_type
+
+inferred_rules['++']['col0'] = string_type
+inferred_rules['++']['col1'] = string_type
+inferred_rules['++']['logica_value'] = string_type
+
 
 class TypeInferenceService:
   def __init__(self, graphs: dict):
@@ -70,8 +78,10 @@ class TypeInferenceService:
     if type(connection) == edge.Equality:
       constraint = neighbour_type
     elif type(connection) == edge.EqualityOfElement:
-      if type(neighbour_type) != variable_types.ListType:
-        raise TypeInferenceException()
-      constraint = cast(variable_types.ListType, neighbour_type).element
+      if type(neighbour_type) != variable_types.ListType and type(neighbour_type) != variable_types.AnyType:
+        # TODO check for bug here
+        constraint = variable_types.ListType(neighbour_type)
+      else:
+        constraint = cast(variable_types.ListType, neighbour_type).element if type(neighbour_type) == variable_types.ListType else variable_types.AnyType()
     # todo for other edges
     return constraint
