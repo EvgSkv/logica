@@ -63,17 +63,25 @@ class TypeInferenceService:
         continue
       neighbour_type = self._infer_type(neighbour, visited, graph)
       # take 0th edge because algorithm does not support many edges for one variable yet
-      constraint = self._get_neighbour_constraint(neighbour_type, connection[0], expr, neighbour)
+      constraint = self._get_constraint(neighbour_type, connection[0], expr, neighbour)
       if type(current) is variable_types.AnyType:
         current = constraint
       else:
         if type(constraint) != variable_types.AnyType and constraint != current:
           raise TypeInferenceException()
-
+        elif isinstance(constraint, variable_types.RecordType) and isinstance(current, variable_types.RecordType):
+          set1 = set(current.fields)
+          set2 = set(constraint.fields)
+          union = set1.union(set2)
+          if not current.is_opened:
+            if len(set1) != len(union):
+              raise Exception
+          else:
+            current.fields = list(union)
     return current
 
   @staticmethod
-  def _get_neighbour_constraint(neighbour_type: variable_types.Type, connection: edge.Edge, expr: expression.Expression, neighbour: expression.Expression) -> variable_types.Type:
+  def _get_constraint(neighbour_type: variable_types.Type, connection: edge.Edge, expr: expression.Expression, neighbour: expression.Expression) -> variable_types.Type:
     constraint = variable_types.AnyType()
     if isinstance(connection, edge.Equality):
       constraint = neighbour_type
@@ -85,7 +93,18 @@ class TypeInferenceService:
         constraint = cast(variable_types.ListType, neighbour_type).element if type(neighbour_type) == variable_types.ListType else variable_types.AnyType()
     elif isinstance(connection, edge.FieldBelonging):
       if expr == connection.vertices[0]:
+        # x.b (x)
         constraint = variable_types.RecordType([variable_types.Field(connection.field.subscript_field, neighbour_type)], True)
       else:
-        constraint =
+        neighbour_type = cast(neighbour_type, variable_types.RecordType)
+        for field in neighbour_type.fields:
+          if field.name == connection.field.subscript_field:
+            constraint = field.type
+            break
+        else:
+          if not neighbour_type.is_opened:
+            raise Exception
+          constraint = variable_types.AnyType
+
+        # constraint = variable_types.RecordType([variable_types.Field(connection.field.subscript_field, neighbour_type)], True)
     return constraint

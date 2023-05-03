@@ -139,8 +139,8 @@ class TestTypeInference(unittest.TestCase):
     expected = [edge.Equality(p_var, expression.PredicateAddressing("Str", "logica_value"), (0, 0)),
                 edge.Equality(y_var, expression.PredicateAddressing("Str", "col0"), (0, 0)),
                 edge.Equality(q_var, expression.PredicateAddressing("+", "logica_value"), (0, 0)),
-                edge.Equality(z_var, expression.PredicateAddressing("+", "left"), (0, 0)),
-                edge.Equality(w_var, expression.PredicateAddressing("+", "right"), (0, 0)),
+                edge.Equality(z_var, expression.PredicateAddressing("+", "col0"), (0, 0)),
+                edge.Equality(w_var, expression.PredicateAddressing("+", "col1"), (0, 0)),
                 edge.Equality(s_var, x_var, (0, 0)),
                 edge.Equality(x_var, expression.PredicateAddressing("T", "col0"), (0, 0)),
                 edge.Equality(expression.SubscriptAddressing(x_var, 'a'), y_var, (0, 0)),
@@ -156,7 +156,14 @@ class TestTypeInference(unittest.TestCase):
     graphs = dict()
     graphs['Q'] = graph
 
-    type_inference_service.get_variables = Mock(return_value=[p_var, q_var, s_var, y_var, z_var, w_var, x_var])
+    def side_effect_function(rule: str):
+      if rule == 'Q':
+        return [p_var, q_var, s_var, y_var, z_var, w_var, x_var]
+      else:
+        return [expression.Variable('col0')]
+
+    m = MagicMock(side_effect=side_effect_function)
+    type_inference_service.get_variables = Mock(side_effect=side_effect_function)
 
     inferred_rules = TypeInferenceService(graphs).infer_type('Q')
 
