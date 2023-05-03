@@ -13,14 +13,7 @@ class Expression:
 
 
 class PredicateFieldAddressing(Expression):
-  _predicates_counter = 0
-
-  def __init__(self):
-    self._id = PredicateFieldAddressing._predicates_counter
-    PredicateFieldAddressing._predicates_counter += 1
-
-  def __eq__(self, other):
-    return super().__eq__(other) and self._id == other._id
+  pass
 
 
 class PredicateAddressing(PredicateFieldAddressing):
