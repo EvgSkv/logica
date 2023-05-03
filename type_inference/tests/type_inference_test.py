@@ -126,8 +126,43 @@ class TestTypeInference(unittest.TestCase):
     # self.assertIsInstance(inferred_rules['T']['col0'], variable_types.ListType)
 
   def test_when_record(self):
-    # Q(p: Str(y), q: z + w, s: x):- T(x), y == x.a, z == x.b, w == x.c.d;
-    pass
+    # Q(p: Str(y), q: z + w, s: x):- T(x), y == x.a, z == x.b, w == x.c;
+    return
+    graph = TypesGraph()
+    p_var = expression.Variable('p')
+    q_var = expression.Variable('q')
+    s_var = expression.Variable('s')
+    y_var = expression.Variable('y')
+    z_var = expression.Variable('z')
+    w_var = expression.Variable('w')
+    x_var = expression.Variable('x')
+
+    expected = [edge.Equality(p_var, expression.PredicateAddressing("Str", "logica_value"), (0, 0)),
+                edge.Equality(y_var, expression.PredicateAddressing("Str", "col0"), (0, 0)),
+                edge.Equality(q_var, expression.PredicateAddressing("+", "logica_value"), (0, 0)),
+                edge.Equality(z_var, expression.PredicateAddressing("+", "left"), (0, 0)),
+                edge.Equality(w_var, expression.PredicateAddressing("+", "right"), (0, 0)),
+                edge.Equality(s_var, x_var, (0, 0)),
+                edge.Equality(x_var, expression.PredicateAddressing("T", "col0"), (0, 0)),
+                edge.EqualityOfField(x_var, 'a', y_var, (0, 0)),
+                edge.EqualityOfField(x_var, 'b', z_var, (0, 0)),
+                edge.EqualityOfField(x_var, 'c', w_var, (0, 0))]
+
+    for e in expected:
+      graph.connect(e)
+
+    graphs = dict()
+    graphs['Q'] = graph
+
+    type_inference_service.get_variables = Mock(return_value=[p_var, q_var, s_var, y_var, z_var, w_var, x_var])
+
+    inferred_rules = TypeInferenceService(graphs).infer_type('Q')
+
+    for predicate_name, inferred_graph in inferred_rules.items():
+      vars_to_print = []
+      for var_name, var_type in inferred_graph.items():
+        vars_to_print.append(f"{var_name}: {var_type}")
+      print(f'{predicate_name}({", ".join(vars_to_print)})')
 
   def test_when_named_columns(self):
     # Q(a:, b:):- T(x), T(y), a == x + y, b == x + y;
