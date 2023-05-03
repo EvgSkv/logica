@@ -85,6 +85,9 @@ class ListLiteral(Literal):
   def __eq__(self, other):
     return super().__eq__(other) and self.elements == self.elements
 
+  def __hash__(self):
+    return hash(tuple(self.elements))
+
 
 class NullLiteral(Literal):
   pass

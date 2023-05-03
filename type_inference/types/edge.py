@@ -1,6 +1,6 @@
 from typing import Tuple
 
-from type_inference.types.expression import Expression, SubscriptAddressing
+from type_inference.types.expression import Expression, SubscriptAddressing, PredicateAddressing
 
 
 class Edge:
@@ -23,8 +23,15 @@ class EqualityOfElement(Edge):
     self.element = element
 
 
-class BelongingField(Edge):
+class FieldBelonging(Edge):
   def __init__(self, parent: Expression, field: SubscriptAddressing, bounds: Tuple[int, int]):
-    super(BelongingField, self).__init__((parent, field), bounds)
+    super(FieldBelonging, self).__init__((parent, field), bounds)
     self.parent = parent
     self.field = field
+
+
+class PredicateArgument(Edge):
+  def __init__(self, logica_value: PredicateAddressing, argument: PredicateAddressing, bounds: Tuple[int, int]):
+    super(PredicateArgument, self).__init__((logica_value, argument), bounds)
+    self.logica_value = logica_value
+    self.argument = argument
