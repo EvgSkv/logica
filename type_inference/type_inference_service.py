@@ -63,7 +63,7 @@ class TypeInferenceService:
         continue
       neighbour_type = self._infer_type(neighbour, visited, graph)
       # take 0th edge because algorithm does not support many edges for one variable yet
-      constraint = self._get_neighbour_constraint(neighbour_type, connection[0])
+      constraint = self._get_neighbour_constraint(neighbour_type, connection[0], expr, neighbour)
       if type(current) is variable_types.AnyType:
         current = constraint
       else:
@@ -73,15 +73,19 @@ class TypeInferenceService:
     return current
 
   @staticmethod
-  def _get_neighbour_constraint(neighbour_type: variable_types.Type, connection: edge.Edge) -> variable_types.Type:
+  def _get_neighbour_constraint(neighbour_type: variable_types.Type, connection: edge.Edge, expr: expression.Expression, neighbour: expression.Expression) -> variable_types.Type:
     constraint = variable_types.AnyType()
-    if type(connection) == edge.Equality:
+    if isinstance(connection, edge.Equality):
       constraint = neighbour_type
-    elif type(connection) == edge.EqualityOfElement:
-      if type(neighbour_type) != variable_types.ListType and type(neighbour_type) != variable_types.AnyType:
+    elif isinstance(connection, edge.EqualityOfElement):
+      if not isinstance(neighbour_type, variable_types.ListType) and not isinstance(neighbour_type, variable_types.AnyType):
         # TODO check for bug here
         constraint = variable_types.ListType(neighbour_type)
       else:
         constraint = cast(variable_types.ListType, neighbour_type).element if type(neighbour_type) == variable_types.ListType else variable_types.AnyType()
-    # todo for other edges
+    elif isinstance(connection, edge.FieldBelonging):
+      if expr == connection.vertices[0]:
+        constraint = variable_types.RecordType([variable_types.Field(connection.field.subscript_field, neighbour_type)], True)
+      else:
+        constraint =
     return constraint

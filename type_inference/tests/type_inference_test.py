@@ -127,7 +127,6 @@ class TestTypeInference(unittest.TestCase):
 
   def test_when_record(self):
     # Q(p: Str(y), q: z + w, s: x):- T(x), y == x.a, z == x.b, w == x.c;
-    return
     graph = TypesGraph()
     p_var = expression.Variable('p')
     q_var = expression.Variable('q')
@@ -144,9 +143,12 @@ class TestTypeInference(unittest.TestCase):
                 edge.Equality(w_var, expression.PredicateAddressing("+", "right"), (0, 0)),
                 edge.Equality(s_var, x_var, (0, 0)),
                 edge.Equality(x_var, expression.PredicateAddressing("T", "col0"), (0, 0)),
-                edge.EqualityOfField(x_var, 'a', y_var, (0, 0)),
-                edge.EqualityOfField(x_var, 'b', z_var, (0, 0)),
-                edge.EqualityOfField(x_var, 'c', w_var, (0, 0))]
+                edge.Equality(expression.SubscriptAddressing(x_var, 'a'), y_var, (0, 0)),
+                edge.Equality(expression.SubscriptAddressing(x_var, 'b'), z_var, (0, 0)),
+                edge.Equality(expression.SubscriptAddressing(x_var, 'c'), w_var, (0, 0)),
+                edge.FieldBelonging(x_var, expression.SubscriptAddressing(x_var, 'a'), (0, 0)),
+                edge.FieldBelonging(x_var, expression.SubscriptAddressing(x_var, 'b'), (0, 0)),
+                edge.FieldBelonging(x_var, expression.SubscriptAddressing(x_var, 'c'), (0, 0))]
 
     for e in expected:
       graph.connect(e)
