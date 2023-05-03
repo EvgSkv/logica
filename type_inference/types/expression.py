@@ -40,8 +40,9 @@ class PredicateAddressing(PredicateFieldAddressing):
 
 
 class SubscriptAddressing(PredicateFieldAddressing):
-  def __init__(self, subscript_field: str):
+  def __init__(self, base: Expression, subscript_field: str):
     super().__init__()
+    self.base = base
     self.subscript_field = subscript_field
 
   def __eq__(self, other):
@@ -51,7 +52,7 @@ class SubscriptAddressing(PredicateFieldAddressing):
     return hash(self.subscript_field)
 
   def __str__(self):
-    return super().__str__() + f'(.{self.subscript_field})'
+    return super().__str__() + f'{str(self.base)}.{self.subscript_field}'
 
 
 class Variable(Expression):

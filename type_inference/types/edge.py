@@ -16,14 +16,6 @@ class Equality(Edge):
     self.right = right
 
 
-class EqualityOfField(Edge):
-  def __init__(self, record: Expression, field: str, value: Expression, bounds: Tuple[int, int]):
-    super().__init__((record, value), bounds)
-    self.record = record
-    self.field = field
-    self.value = value
-
-
 class EqualityOfElement(Edge):
   def __init__(self, list: Expression, element: Expression, bounds: Tuple[int, int]):
     super().__init__((list, element), bounds)
