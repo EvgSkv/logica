@@ -258,12 +258,24 @@ class RuleStructure(object):
             self.full_rule_text)
     self.unnestings = ordered_unnestings
 
+  def ReplaceVariableEverywhere(self, u_left, u_right):
+    if 'variable' in u_right:
+      l = self.synonym_log.get(u_right['variable']['var_name'], [])
+      l.append(u_left)
+      l.extend(self.synonym_log.get(u_left, []))
+      self.synonym_log[u_right['variable']['var_name']] = l
+    ReplaceVariable(u_left, u_right, self.unnestings)
+    ReplaceVariable(u_left, u_right, self.select)
+    ReplaceVariable(u_left, u_right, self.vars_unification)
+    ReplaceVariable(u_left, u_right, self.constraints)
+    
   def ElliminateInternalVariables(self, assert_full_ellimination=False):
     """Elliminates internal variables via substitution."""
     variables = self.InternalVariables()
     while True:
       done = True
       for u in self.vars_unification:
+        # Direct variable assignments.
         for k, r in [['left', 'right'], ['right', 'left']]:
           if u[k] == u[r]:
             continue
@@ -279,16 +291,35 @@ class RuleStructure(object):
                   not str(u[k]['variable']['var_name']).startswith('x_'))):
             u_left = u[k]['variable']['var_name']
             u_right = u[r]
-            if 'variable' in u_right:
-              l = self.synonym_log.get(u_right['variable']['var_name'], [])
-              l.append(u_left)
-              l.extend(self.synonym_log.get(u_left, []))
-              self.synonym_log[u_right['variable']['var_name']] = l
-            ReplaceVariable(u_left, u_right, self.unnestings)
-            ReplaceVariable(u_left, u_right, self.select)
-            ReplaceVariable(u_left, u_right, self.vars_unification)
-            ReplaceVariable(u_left, u_right, self.constraints)
+            self.ReplaceVariableEverywhere(u_left, u_right)
             done = False
+        # Assignments to variables in record fields.
+        if True:  # Confirm that unwraping works and make this unconditional.
+          for k, r in [['left', 'right'], ['right', 'left']]:
+            if u[k] == u[r]:
+              continue
+            ur_variables = AllMentionedVariables(u[r])
+            ur_variables_incl_combines = AllMentionedVariables(
+                u[r], dive_in_combines=True)
+            if (isinstance(u[k], dict) and
+                'record' in u[k] and
+                ur_variables <= self.ExtractedVariables()):
+              for fv in u[k]['record']['field_value']:
+                if ('variable' in fv['value']['expression'] and
+                    fv['value']['expression']['variable']['var_name']
+                      in variables and
+                    fv['value']['expression']['variable']['var_name']
+                      not in ur_variables_incl_combines):
+                  u_left = fv['value']['expression']['variable']['var_name']
+                  u_right = {
+                    'subscript': {
+                      'record': u[r],
+                      'subscript': {'literal': {'the_symbol': {'symbol': fv['field']}}}
+                    }
+                  }
+                  self.ReplaceVariableEverywhere(u_left, u_right)
+                  done = False
+      
       if done:
         variables = self.InternalVariables()
         if assert_full_ellimination:
@@ -551,7 +582,9 @@ def ExtractConjunctiveStructure(conjuncts, s):
       ExtractPredicateStructure(c['predicate'], s)
     elif 'unification' in c:
       if ('variable' in c['unification']['right_hand_side'] or
-          'variable' in c['unification']['left_hand_side']):
+          'variable' in c['unification']['left_hand_side'] or
+          'record' in c['unification']['left_hand_side'] or
+          'record' in c['unification']['right_hand_side']):
         s.vars_unification.append({
             'left': c['unification']['left_hand_side'],
             'right': c['unification']['right_hand_side']})
