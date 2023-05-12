@@ -304,21 +304,31 @@ class RuleStructure(object):
             if (isinstance(u[k], dict) and
                 'record' in u[k] and
                 ur_variables <= self.ExtractedVariables()):
-              for fv in u[k]['record']['field_value']:
-                if ('variable' in fv['value']['expression'] and
-                    fv['value']['expression']['variable']['var_name']
-                      in variables and
-                    fv['value']['expression']['variable']['var_name']
-                      not in ur_variables_incl_combines):
-                  u_left = fv['value']['expression']['variable']['var_name']
-                  u_right = {
-                    'subscript': {
-                      'record': u[r],
-                      'subscript': {'literal': {'the_symbol': {'symbol': fv['field']}}}
+              def AssignToRecord(target, source):
+                global done
+                for fv in target['record']['field_value']:
+                  def MakeNewSource():
+                    return {
+                      'subscript': {
+                        'record': source,
+                        'subscript': {'literal': {'the_symbol': {'symbol': fv['field']}}}
+                      }
                     }
-                  }
-                  self.ReplaceVariableEverywhere(u_left, u_right)
-                  done = False
+                  if ('variable' in fv['value']['expression'] and
+                      fv['value']['expression']['variable']['var_name']
+                        in variables and
+                      fv['value']['expression']['variable']['var_name']
+                        not in ur_variables_incl_combines):
+                    u_left = fv['value']['expression']['variable']['var_name']
+                    u_right = MakeNewSource()
+                    self.ReplaceVariableEverywhere(u_left, u_right)
+                    done = False
+                  if 'record' in fv['value']['expression']:
+                    new_target = fv['value']['expression']
+                    new_source = MakeNewSource()
+                    AssignToRecord(new_target, new_source)
+
+              AssignToRecord(u[k], u[r])
       
       if done:
         variables = self.InternalVariables()

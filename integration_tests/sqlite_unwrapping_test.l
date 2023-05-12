@@ -29,3 +29,5 @@ Test("assignment_aggr_lookup", {a:, b:}) :-
   a in [0, 1],
   m == [1 -> "a", 2 -> "b"],
   b Max= (v :- a -> v in m);
+Test("nested_assignment", a -> b -> c) :-
+  {a:, x: {b:, z: {w: c}}} == {a: "va", x: {b: "vb", z: {w: "vc"}}};
