@@ -16,6 +16,7 @@
 
 library = """
 ->(left:, right:) = {arg: left, value: right};
+`=`(left:, right:) = right :- left == right;
 
 # All ORDER BY arguments are wrapped, to avoid confusion with
 # column index.
