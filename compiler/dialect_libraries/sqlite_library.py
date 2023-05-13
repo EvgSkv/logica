@@ -16,6 +16,7 @@
 
 library = """
 ->(left:, right:) = {arg: left, value: right};
+`=`(left:, right:) = right :- left == right;
 
 Arrow(left, right) = arrow :-
   left == arrow.arg,
