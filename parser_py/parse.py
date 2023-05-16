@@ -166,7 +166,7 @@ def Traverse(s):
       track_parenthesis = False
       if c == '\n':
         yield (idx, None, 'EOL in string')
-      if c == '"':
+      elif c == '"' and s[idx - 1] != "\\":
         state = state[:-1]
     elif State() == '`':
       track_parenthesis = False
@@ -174,7 +174,7 @@ def Traverse(s):
         state = state[:-1]
     elif State() == '3':
       track_parenthesis = False
-      if c3 == '"""':
+      if c3 == '"""' and s[idx - 1] != '\\':
         state = state[:-1]
         yield (idx, state, 'OK')
         idx += 1
@@ -509,7 +509,10 @@ def ParseString(s):
       s[:3] == '"""' and
       s[-3:] == '"""' and
       '"""' not in s[3:-3]):
-    return {'the_string': s[3:-3]}
+    return {"the_string": s[3:-3].replace('\\"', '"')}
+
+  if len(s) >= 2 and s[0] == '"' and s[-1] == '"':
+      return {"the_string": s[1:-1].replace('\\"', '"')}
 
 
 def ParseBoolean(s):
