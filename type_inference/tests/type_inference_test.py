@@ -24,9 +24,34 @@ class TestTypeInference(unittest.TestCase):
     self.assertIsInstance(inferred_rules['Q']['x'], variable_types.NumberType)
     self.assertIsInstance(inferred_rules['T']['col0'], variable_types.AnyType)
 
+  def test_when_connection_with_other_predicates1(self):
+    # 'Q(x) :- T(x), Num(x)'
+    # T(x) :- x == 10
+    graph = TypesGraph()
+    graph.connect(edge.Equality(expression.Variable('col0'), expression.Variable('x'), (0, 0)))
+    graph.connect(edge.Equality(expression.Variable('x'), expression.PredicateAddressing('T', 'col0'), (0, 0)))
+    graph.connect(edge.Equality(expression.Variable('x'), expression.PredicateAddressing('Num', 'col0'), (0, 0)))
+    graphs = dict()
+    graphs['Q'] = graph
+
+    graphT = TypesGraph()
+    graphT.connect(edge.Equality(expression.Variable('col0'), expression.Variable('x'), (0, 0)))
+    graphT.connect(edge.Equality(expression.Variable('x'), expression.NumberLiteral(), (0, 0)))
+
+    graphs['T'] = graphT
+
+    type_inference_service.get_variables = Mock(return_value=[expression.Variable('col0'), expression.Variable('x')])
+
+    inferred_rules = TypeInference(graphs).infer_type('Q')
+
+    self.assertIsInstance(inferred_rules['Q']['col0'], variable_types.NumberType)
+    self.assertIsInstance(inferred_rules['Q']['x'], variable_types.NumberType)
+    self.assertIsInstance(inferred_rules['T']['col0'], variable_types.NumberType)
+    self.assertIsInstance(inferred_rules['T']['x'], variable_types.NumberType)
 
   def test_when_plus_operator(self):
     # Q(x + y) :- T(x), T(y);
+    # T(x) :- x == 1
     graph = TypesGraph()
     x_var = expression.Variable('x')
     y_var = expression.Variable('y')
@@ -37,18 +62,36 @@ class TestTypeInference(unittest.TestCase):
     graph.connect(edge.Equality(y_var, expression.PredicateAddressing('T', 'col0'), (0, 0)))
     graphs = dict()
     graphs['Q'] = graph
+
+    def side_effect_function(rule: str):
+      if rule == 'Q':
+        return [ expression.Variable('col0'),
+      expression.Variable('x'),
+      expression.Variable('y')]
+      else:
+        return [expression.Variable('col0'), expression.Variable('x')]
+
+    type_inference_service.get_variables = Mock(side_effect=side_effect_function)
+
     type_inference_service.get_variables = Mock(return_value=[
       expression.Variable('col0'),
       expression.Variable('x'),
       expression.Variable('y')
     ])
 
+    graphT = TypesGraph()
+    graphT.connect(edge.Equality(expression.Variable('col0'), expression.Variable('x'), (0, 0)))
+    graphT.connect(edge.Equality(expression.Variable('x'), expression.NumberLiteral(), (0, 0)))
+
+    graphs['T'] = graphT
+
     inferred_rules = TypeInference(graphs).infer_type('Q')
 
     self.assertIsInstance(inferred_rules['Q']['col0'], variable_types.NumberType)
     self.assertIsInstance(inferred_rules['Q']['x'], variable_types.NumberType)
     self.assertIsInstance(inferred_rules['Q']['y'], variable_types.NumberType)
-    # self.assertIsInstance(inferred_rules['T']['col0'], variable_types.NumberType)
+    self.assertIsInstance(inferred_rules['T']['col0'], variable_types.NumberType)
+    self.assertIsInstance(inferred_rules['T']['x'], variable_types.NumberType)
 
   def test_when_str(self):
     # Q(x): - T(x), T(y), Str(x), x == y;
@@ -139,8 +182,8 @@ class TestTypeInference(unittest.TestCase):
     expected = [edge.Equality(p_var, expression.PredicateAddressing("Str", "logica_value"), (0, 0)),
                 edge.Equality(y_var, expression.PredicateAddressing("Str", "col0"), (0, 0)),
                 edge.Equality(q_var, expression.PredicateAddressing("+", "logica_value"), (0, 0)),
-                edge.Equality(z_var, expression.PredicateAddressing("+", "col0"), (0, 0)),
-                edge.Equality(w_var, expression.PredicateAddressing("+", "col1"), (0, 0)),
+                edge.Equality(z_var, expression.PredicateAddressing("+", "left"), (0, 0)),
+                edge.Equality(w_var, expression.PredicateAddressing("+", "right"), (0, 0)),
                 edge.Equality(s_var, x_var, (0, 0)),
                 edge.Equality(x_var, expression.PredicateAddressing("T", "col0"), (0, 0)),
                 edge.Equality(expression.SubscriptAddressing(x_var, 'a'), y_var, (0, 0)),
@@ -162,7 +205,63 @@ class TestTypeInference(unittest.TestCase):
       else:
         return [expression.Variable('col0')]
 
-    m = MagicMock(side_effect=side_effect_function)
+    type_inference_service.get_variables = Mock(side_effect=side_effect_function)
+
+    inferred_rules = TypeInference(graphs).try_inference('Q')
+
+    for predicate_name, inferred_graph in inferred_rules.items():
+      vars_to_print = []
+      for var_name, var_type in inferred_graph.items():
+        vars_to_print.append(f"{var_name}: {var_type}")
+      print(f'{predicate_name}({", ".join(vars_to_print)})')
+
+  def test_when_record1(self):
+    # Q(p: Str(y), q: z + w, s: x):- T(x), y == x.a, z == x.b, w == x.c.d;
+    graph = TypesGraph()
+    p_var = expression.Variable('p')
+    q_var = expression.Variable('q')
+    s_var = expression.Variable('s')
+    y_var = expression.Variable('y')
+    z_var = expression.Variable('z')
+    w_var = expression.Variable('w')
+    x_var = expression.Variable('x')
+
+    expected = [edge.Equality(p_var, expression.PredicateAddressing("Str", "logica_value"), (0, 0)),
+                # edge.PredicateArgument(expression.PredicateAddressing('Str', 'logica_value'),
+                #                        expression.PredicateAddressing('Str', 'col0'), (0, 0)),
+                edge.Equality(y_var, expression.PredicateAddressing("Str", "col0"), (0, 0)),
+                edge.Equality(q_var, expression.PredicateAddressing("+", "logica_value"), (0, 0)),
+                # edge.PredicateArgument(expression.PredicateAddressing('+', 'logica_value'),
+                #                        expression.PredicateAddressing('+', 'left'), (0, 0)),
+                # edge.PredicateArgument(expression.PredicateAddressing('+', 'logica_value'),
+                #                        expression.PredicateAddressing('+', 'right'), (0, 0)),
+                edge.Equality(z_var, expression.PredicateAddressing("+", "left"), (0, 0)),
+                edge.Equality(w_var, expression.PredicateAddressing("+", "right"), (0, 0)),
+                edge.Equality(s_var, x_var, (0, 0)),
+                edge.Equality(x_var, expression.PredicateAddressing("T", "col0"), (0, 0)),
+                edge.Equality(expression.SubscriptAddressing(x_var, 'a'), y_var, (0, 0)),
+                edge.Equality(expression.SubscriptAddressing(x_var, 'b'), z_var, (0, 0)),
+                edge.Equality(expression.SubscriptAddressing(expression.SubscriptAddressing(x_var, 'c'), 'd'), w_var,
+                              (0, 0)),
+                edge.FieldBelonging(x_var, expression.SubscriptAddressing(x_var, 'a'), (0, 0)),
+                edge.FieldBelonging(x_var, expression.SubscriptAddressing(x_var, 'b'), (0, 0)),
+                edge.FieldBelonging(x_var, expression.SubscriptAddressing(x_var, 'c'), (0, 0)),
+                edge.FieldBelonging(expression.SubscriptAddressing(x_var, 'c'),
+                                    expression.SubscriptAddressing(expression.SubscriptAddressing(x_var, 'c'), 'd'),
+                                    (0, 0))]
+
+    for e in expected:
+      graph.connect(e)
+
+    graphs = dict()
+    graphs['Q'] = graph
+
+    def side_effect_function(rule: str):
+      if rule == 'Q':
+        return [p_var, q_var, s_var, y_var, z_var, w_var, x_var]
+      else:
+        return [expression.Variable('col0')]
+
     type_inference_service.get_variables = Mock(side_effect=side_effect_function)
 
     inferred_rules = TypeInference(graphs).infer_type('Q')

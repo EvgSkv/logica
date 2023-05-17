@@ -23,18 +23,35 @@ inferred_rules['Num']['logica_value'] = number_type
 inferred_rules['Str']['col0'] = string_type
 inferred_rules['Str']['logica_value'] = string_type
 
-inferred_rules['+']['col0'] = number_type
-inferred_rules['+']['col1'] = number_type
+inferred_rules['+']['left'] = number_type
+inferred_rules['+']['left'] = number_type
+inferred_rules['+']['right'] = number_type
 inferred_rules['+']['logica_value'] = number_type
 
-inferred_rules['++']['col0'] = string_type
-inferred_rules['++']['col1'] = string_type
+inferred_rules['++']['left'] = string_type
+inferred_rules['++']['right'] = string_type
 inferred_rules['++']['logica_value'] = string_type
 
 
 class TypeInference:
   def __init__(self, graphs: dict):
     self.graphs = graphs
+
+  def try_inference(self, rule: str):
+    while True:
+      changed = False
+      variables = get_variables(rule)
+      for variable in variables:
+        if rule in self.graphs:
+          var_type = self._infer_type(variable, set(), self.graphs[rule])
+        else:
+          var_type = AnyType()
+        if variable.variable_name not in inferred_rules[rule] or inferred_rules[rule][variable.variable_name] != var_type:
+          changed = True
+          inferred_rules[rule][variable.variable_name] = var_type
+      if not changed:
+        return inferred_rules
+    # return inferred_rules
 
   def infer_type(self, rule: str):
     variables = get_variables(rule)
@@ -64,7 +81,7 @@ class TypeInference:
         continue
       neighbour_type = self._infer_type(neighbour, visited, graph)
       # take 0th edge because algorithm does not support many edges for one variable yet
-      constraint = self._get_constraint(neighbour_type, connection[0], expr, neighbour)
+      constraint = self._get_constraint(neighbour_type, connection[0], expr)
       if type(current) is AnyType:
         current = constraint
       else:
@@ -82,7 +99,7 @@ class TypeInference:
     return current
 
   @staticmethod
-  def _get_constraint(neighbour_type: Type, connection: edge.Edge, expr: expression.Expression, neighbour: expression.Expression) -> Type:
+  def _get_constraint(neighbour_type: Type, connection: edge.Edge, expr: expression.Expression) -> Type:
     constraint = AnyType()
     if isinstance(connection, edge.Equality):
       constraint = neighbour_type

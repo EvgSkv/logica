@@ -20,6 +20,9 @@ class NumberType(AtomicType):
   def __hash__(self):
     return hash("number")
 
+  def __eq__(self, other):
+    return isinstance(other, NumberType)
+
 
 class StringType(AtomicType):
   def __str__(self):
@@ -28,6 +31,9 @@ class StringType(AtomicType):
   def __hash__(self):
     return hash("string")
 
+  def __eq__(self, other):
+    return isinstance(other, StringType)
+
 
 class AnyType(Type):
   def __str__(self):
@@ -35,6 +41,9 @@ class AnyType(Type):
 
   def __hash__(self):
     return hash("any")
+
+  def __eq__(self, other):
+    return isinstance(other, AnyType)
 
 
 class ListType(Type):
@@ -46,6 +55,9 @@ class ListType(Type):
 
   def __hash__(self):
     return hash(f"[{self.element}]")
+
+  def __eq__(self, other):
+    return isinstance(other, ListType) and self.element == other.element
 
 
 class Field:
@@ -60,6 +72,9 @@ class Field:
     if not isinstance(other, Field):
       return False
     return self.name == other.name and self.type == other.type
+
+  def __str__(self):
+    return f"{self.name}: {self.type}"
 
 
 class RecordType(Type):
@@ -114,6 +129,9 @@ class RecordType(Type):
     for field in fields:
       if field.name == field_name:
         return field.type
+
+  def __str__(self):
+    return f"{{{', '.join(map(str, self.fields))}}}"
 
 
   def __hash__(self):
