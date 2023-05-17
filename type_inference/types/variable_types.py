@@ -1,4 +1,4 @@
-from typing import List
+from typing import List, cast
 
 
 class Type:
@@ -67,10 +67,54 @@ class RecordType(Type):
     self.fields = fields
     self.is_opened = is_opened
 
-  def __eq__(self, other):
-    return isinstance(other, RecordType)
+  def __eq__(self, other): # TODO TESTS !!! BITCHES
+    if not isinstance(other, RecordType):
+      return False
+
+    other = cast(RecordType, other)
+
+    if self.is_opened and other.is_opened:
+      fields_set = set()
+      for field in self.fields:
+        fields_set.add(field.name)
+      other_fields_set = set()
+      for field in other.fields:
+        other_fields_set.add(field.name)
+      intersection = fields_set.intersection(other_fields_set)
+      for field in intersection:
+        if self.find_field_type(self.fields, field) != self.find_field_type(other.fields, field):
+          return False
+      return True
+
+    if self.is_opened and not other.is_opened:
+      return self.equal_open_close(self.fields, other.fields)
+
+    if not self.is_opened and other.is_opened:
+      return self.equal_open_close(other.fields, self.fields)
+
+    fields_set = set()
+    for field in self.fields:
+      fields_set.add(field)
+    other_fields_set = set()
+    for field in other.fields:
+      other_fields_set.add(field)
+    intersection = fields_set.intersection(other_fields_set)
+
+    return len(intersection) == len(fields_set)
+
+  @staticmethod
+  def equal_open_close(opened: List[Field], closed: List[Field]):
+    for field in opened:
+      if field not in closed:  # check eq
+        return False
+    return True
+
+  @staticmethod
+  def find_field_type(fields: List[Field], field_name):
+    for field in fields:
+      if field.name == field_name:
+        return field.type
 
 
   def __hash__(self):
     pass
-    # TODO

@@ -1,6 +1,6 @@
 from type_inference.types.types_graph import TypesGraph
 from type_inference.types import edge, expression, variable_types
-from type_inference.type_inference_service import TypeInferenceService
+from type_inference.type_inference_service import TypeInference
 from type_inference import type_inference_service
 
 import unittest
@@ -18,7 +18,7 @@ class TestTypeInference(unittest.TestCase):
     graphs['Q'] = graph
     type_inference_service.get_variables = Mock(return_value=[expression.Variable('col0'), expression.Variable('x')])
 
-    inferred_rules = TypeInferenceService(graphs).infer_type('Q')
+    inferred_rules = TypeInference(graphs).infer_type('Q')
 
     self.assertIsInstance(inferred_rules['Q']['col0'], variable_types.NumberType)
     self.assertIsInstance(inferred_rules['Q']['x'], variable_types.NumberType)
@@ -43,7 +43,7 @@ class TestTypeInference(unittest.TestCase):
       expression.Variable('y')
     ])
 
-    inferred_rules = TypeInferenceService(graphs).infer_type('Q')
+    inferred_rules = TypeInference(graphs).infer_type('Q')
 
     self.assertIsInstance(inferred_rules['Q']['col0'], variable_types.NumberType)
     self.assertIsInstance(inferred_rules['Q']['x'], variable_types.NumberType)
@@ -68,7 +68,7 @@ class TestTypeInference(unittest.TestCase):
       expression.Variable('y')
     ])
 
-    inferred_rules = TypeInferenceService(graphs).infer_type('Q')
+    inferred_rules = TypeInference(graphs).infer_type('Q')
 
     self.assertIsInstance(inferred_rules['Q']['col0'], variable_types.StringType)
     self.assertIsInstance(inferred_rules['Q']['x'], variable_types.StringType)
@@ -94,7 +94,7 @@ class TestTypeInference(unittest.TestCase):
       expression.Variable('y')
     ])
 
-    inferred_rules = TypeInferenceService(graphs).infer_type('Q')
+    inferred_rules = TypeInference(graphs).infer_type('Q')
 
     self.assertIsInstance(inferred_rules['Q']['col0'], variable_types.StringType)
     self.assertIsInstance(inferred_rules['Q']['x'], variable_types.StringType)
@@ -118,7 +118,7 @@ class TestTypeInference(unittest.TestCase):
       expression.Variable('y')
     ])
 
-    inferred_rules = TypeInferenceService(graphs).infer_type('Q')
+    inferred_rules = TypeInference(graphs).infer_type('Q')
 
     self.assertIsInstance(inferred_rules['Q']['col0'], variable_types.NumberType)
     self.assertIsInstance(inferred_rules['Q']['x'], variable_types.ListType)
@@ -165,7 +165,7 @@ class TestTypeInference(unittest.TestCase):
     m = MagicMock(side_effect=side_effect_function)
     type_inference_service.get_variables = Mock(side_effect=side_effect_function)
 
-    inferred_rules = TypeInferenceService(graphs).infer_type('Q')
+    inferred_rules = TypeInference(graphs).infer_type('Q')
 
     for predicate_name, inferred_graph in inferred_rules.items():
       vars_to_print = []
@@ -200,7 +200,7 @@ class TestTypeInference(unittest.TestCase):
     m = MagicMock(side_effect=side_effect_function)
     type_inference_service.get_variables = Mock(side_effect=side_effect_function)
 
-    inferred_rules = TypeInferenceService(graphs).infer_type('Q')
+    inferred_rules = TypeInference(graphs).infer_type('Q')
 
     self.assertIsInstance(inferred_rules['Q']['a'], variable_types.NumberType)
     self.assertIsInstance(inferred_rules['Q']['b'], variable_types.NumberType)
