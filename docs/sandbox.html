@@ -1,0 +1,312 @@
+<!--
+Copyright 2023 Google LLC
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+     http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+-->
+
+<html>
+<head>
+</head>
+<link rel="stylesheet" href="logica_syntax.css" type="text/css"/>
+<script src="syntax_highlighting.js"></script>
+
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Ubuntu:wght@300;400;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Nunito:wght@400;700;800&display=swap');
+
+body {
+    background-color:#f1f1f1
+}
+.header {
+      max-width: 870px;
+      margin:10px;
+      /*height: auto;*/
+      
+      display:flex;
+      flex-wrap: wrap;
+
+      height: fit-content;
+      background-color: #fefefe;
+      box-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
+      padding:5px;
+      border-radius: 3px;
+      text-align: left;
+      padding: 20px;
+      padding-left: 50px;
+      margin-left: auto;
+      margin-right: auto;
+      padding-top: 30px;
+      padding-bottom: 30px;
+}
+.subheader {
+      padding-left: 15px;
+      float: right;
+      margin-left:auto;
+      font-size: 30px;
+      font-family: 'Ubuntu', sans-serif;
+      line-height: 1.5;
+      color: #55a;
+      font-weight: 900;
+}
+.content {
+      max-width: 860px;
+      margin:10px;
+      height: auto;
+      background-color: #fefefe;
+      box-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
+      padding-left:40px;
+      padding-right:40px;
+      padding-top:1px;
+      padding-bottom:40px;
+      border-radius: 3px;
+      margin-left: auto;
+      margin-right: auto;
+      font-family: 'Nunito', sans-serif;
+}
+.predicate_selector {
+  font-family: 'Roboto Mono', monospace;
+}
+.run_button {
+  border: 1px solid;
+  padding: 5px; 
+  padding-left: 20px; 
+  padding-right: 20px; 
+  border-radius: 10px;
+  font-family: inherit; 
+  font-size: inherit;
+  background-color: white; 
+  border-color: white; 
+  box-shadow:5px 5px 10px rgba(0, 0, 0, 0.5);
+  color: black;
+  transition: 0.4s;
+  margin-left:auto;
+  float: right;
+}
+.run_button:active, .run_button_quazy_active {
+  box-shadow: 1px 1px 2px rgba(0, 0, 0, 0.3);
+  background-image: linear-gradient(-45deg, #eee, #fff);
+  scale: 0.95;
+  transition: 0.05s;
+}
+
+.run_button:active + #output {
+  color: red;
+}
+
+.code_title {
+  font-family: 'Roboto Mono', monospace;
+  font-size:1.3em;
+  margin-top: 10px;
+}
+
+@keyframes bumpup-anime {
+  0% {transform: scale(1);}
+  70% {transform: scale(1.1); box-shadow: 5px 15px 30px rgba(0, 0, 0, 0.5);}
+  100% {transform: scale(1);}
+}
+
+.animated_bump {
+  animation: bumpup-anime 0.5s;
+}
+
+.code {
+  outline-color: #222;
+  border: solid 3px black;
+  transition: 0.5s;
+}
+.code:focus {
+  /* outline-color: #222;*/
+  /* outline: none;*/
+  border: solid 3px greenyellow;
+  overflow-y: scroll;
+}
+
+</style>
+<script defer src="https://pyscript.net/latest/pyscript.js"></script>
+
+
+<body onkeydown="lastKeyPressedTime=performance.now()">
+
+<div class="header">
+    <a href="index_new.html">
+      <img src="logica_logo.png" width="200px"/>
+    </a>
+    
+    
+    <div class="subheader"> <!-- style="width:auto"> -->
+        <!-- Logic Programming Language  <br/><span style="width: 20px;  display: inline-block;"></span>for Data Analysis-->
+        <!--Logic Programming Language for Data Analysis -->
+    
+        <!-- Modern Logic Programming  🏖️ -->
+        
+        Playground(🏐)
+    </div>
+    </div>
+
+
+<div class="content">
+
+  <div class="code_title">
+    Program:
+  </div>
+
+  <pre class="code" id="program" contenteditable="true" style="padding:10px; height: 370px;">
+# Welcome to Logica Playground!
+# Go ahead and edit this program. Start with editing book names and prices.
+# You can write new predicates, specify which predicate you want to
+# run in the input box below.
+Book("From Caves to Stars", 120);
+Book("Morning of Juliet", 40);
+Book("Dawn of the Apes", 45);
+Book("Tragedy and Discord", 124);
+Book("How to Get Rich Writing Books for $5", 5);
+Book("I Wrote a Book for $5, Guess What Happened Next!", 4);
+Book("Breakfast at Paris", 30);
+Book("My Friend: Dragon", 102);
+
+ExpensiveBook(book_name) :-
+  Book(book_name, price),
+  price > 100;
+  </pre>
+<div class="predicate_selector" style="width:auto">
+  <div style="display: inline;">Predicate to run:</div>
+  <input id="main_predicate" style="font-family: inherit; font-size: inherit; padding: 5px; border-radius: 10px; border: solid 1px gray; " value="ExpensiveBook"></input>
+  <button id="the_run_button" class="run_button" onclick="executeAndOutput()">RUN (Ctrl-Enter)</button>
+
+</div>
+<div class="code_title">
+  Output:
+</div>
+  <div class="plain_code" id="output">
+  </div>
+
+  <script>
+    setInterval(executeHideError, 1000);
+
+    document.addEventListener('keydown', function(event) {
+      if (event.ctrlKey && event.key === 'Enter') {
+        console.log('Ctrl+Enter was pressed');
+        let button = document.getElementById('the_run_button');
+        button.classList.add('run_button_quazy_active');
+        let main_predicate = document.getElementById('main_predicate');
+        let selection = window.getSelection().toString();
+        if (selection != '') {
+          main_predicate.value = selection;
+        }
+        setTimeout(() => {button.classList.remove('run_button_quazy_active');}, 1000);
+        executeAndOutput();
+
+      }
+    });
+
+    var lastKeyPressedTime = 0;
+    function outputResult(execution_result) {
+      if (execution_result.get('status') == 'OK') {
+          output.innerHTML = `Predicate: ${execution_result.get('predicate_name')}` + '\n' + execution_result.get('result');
+        } else {
+          output.innerHTML = `
+<u>Rule:</u><br/>
+${execution_result.get('error_context')}
+
+
+[ <div style="color:red;font-weight:bold;display:inline">Error</div> ] ${execution_result.get('error_message')}
+`;
+          output.innerHTML = output.innerHTML.replaceAll('{logica error}-*', '<div style="color:yellow;font-weight:bold;display:inline">');
+          output.innerHTML = output.innerHTML.replaceAll('*-{logica error}', '</div>');
+    
+        }
+    }
+
+    function bumpItUp() {
+      let output = document.getElementById('output');
+      output.classList.add('animated_bump');
+      setTimeout(() => {output.classList.remove('animated_bump');}, 1000);
+    }
+    var last_queried = 0;
+    function executeAndOutput() {
+      let now = performance.now();
+      if (now - last_queried < 500) {
+        return;
+      }
+      last_queried = now;
+      bumpItUp();
+      let execution_result = execute();
+      let output = document.getElementById('output');
+      outputResult(execution_result);
+    }
+    var lastProgramExecuted = "";
+    function executeHideError() {
+      console.log('start');
+      let program = document.getElementById('program').innerText + '->' + document.getElementById('main_predicate').value;
+      if (lastProgramExecuted == program) {
+        console.log('end');
+        return;
+      }
+  
+      
+      let execution_result = execute();
+      if (execution_result.get('status') != 'OK') {
+        return;
+      }
+      console.log('end');
+      let output = document.getElementById('output');
+      outputResult(execution_result);      
+      lastProgramExecuted = program;
+    }
+    function execute() {
+        let program_div = document.getElementById('program');
+        c = pyscript.interpreter.globals.get('RunPredicate')
+        let clean_program = document.getElementById('program').innerText;
+        let main_predicate = document.getElementById('main_predicate').value;
+        let execution_result = c('@Engine("sqlite");' + clean_program, main_predicate);
+        return execution_result;
+    }
+  </script>
+  <py-config style="display: none">
+    packages = ["logica", "sqlite3"]
+  </py-config>
+  <py-script style="display: none">
+from logica.parser_py import parse
+from logica.compiler import universe
+from logica.compiler import rule_translate
+from logica.common import logica_lib
+from logica.common import color
+
+color.CHR_WARNING = '{logica error}-*'
+color.CHR_END = '*-{logica error}'
+
+def RunPredicate(program, predicate):
+  try:
+    rules = parse.ParseFile(program)['rule']
+  except parse.ParsingException as e:
+    before, error, after = e.location.Pieces()
+    error_context = before + "{logica error}-*" + error + "*-{logica error}" + after;
+    return {"result": "", "error_context": error_context, "error_message": str(e), "status": "error", "predicate_name": predicate}
+  try:
+    u = universe.LogicaProgram(rules)
+    sql = u.FormattedPredicateSql(predicate)
+  except rule_translate.RuleCompileException as e:
+    return {"result": "", "error_context": e.rule_str, "error_message": str(e), "status": "error", "predicate_name": predicate}
+
+  try:
+    data = logica_lib.RunQuery(sql, engine='sqlite')
+  except Exception as e:
+    return {"result": "", "error_context": sql, "error_message": "Error while executing SQL:\n%s" % e, "status": "error", "predicate_name": predicate}
+
+
+  return {"result": data, "error_message": "",  "error_context": "", "status": "OK", "predicate_name": predicate}
+  </py-script>
+</div>
+</body>
+</html>
