@@ -286,6 +286,26 @@ from logica.common import color
 color.CHR_WARNING = '{logica error}-*'
 color.CHR_END = '*-{logica error}'
 
+import csv
+
+def CreateBooksCsvFile():
+  with open('books.csv', 'w') as w:
+    writer = csv.writer(w)
+    # It's easier to parse without header and it is
+    # impossible to use the header anyway.
+    # writer.writerow(['name', 'author', 'price'])
+    writer.writerow(['From Caves to Stars', 'Beans A.A.', 120])
+    writer.writerow(['Morning of Juliet', 'Smitey E.', 40])
+    writer.writerow(['Dawn of the Apes', 'Mon K.', 45])
+    writer.writerow(['Tragedy and Discord', 'Tarklor D.', 124])
+    writer.writerow(['How to Get Rich Writing Book for $5', 'Getri C. H.', 5])
+    writer.writerow(['I Wrote a Book for $5 - Guess What Happened Next!', 'Getri C. H.', 4])
+    writer.writerow(['Breakfast at Paris', 'Degaul C.', 30])
+    writer.writerow(['My Friend: Dragon', 'Tame R.', 102])
+
+CreateBooksCsvFile()
+
+
 def RunPredicate(program, predicate):
   try:
     rules = parse.ParseFile(program)['rule']
