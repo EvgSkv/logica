@@ -15,7 +15,7 @@ limitations under the License.
 -->
 
 <head>
-  <meta name="viewport" content="width=device-width">
+  <!--<meta name="viewport" content="width=device-width, initial-scale=1">-->
 
   <title>
     Logica: Modern Logic Programming
@@ -122,7 +122,7 @@ limitations under the License.
 </head>
 <body onload="HighlightCodeElements(document);">
 <div class="header">
-<img src="logica_logo.png" width="500px"/>
+<img id="logica_logo" src="logica_logo.png" width="500px"/>
 
 
 <div class="subheader"> <!-- style="width:auto"> -->
@@ -390,7 +390,7 @@ Logica stands for <b>Logic</b> with <b>a</b>ggregation.
       <span style="display:inline-block;" id="hat">🎓</span> <span style="display:none" id="grad">👨‍🎓</span> Tutorial 
     </div>
   </a>
-<script>
+  <script>
   function graduate() {
     let g1 = document.getElementById('hat');
     let g2 = document.getElementById('grad');
@@ -403,7 +403,7 @@ Logica stands for <b>Logic</b> with <b>a</b>ggregation.
     g1.style.display = 'none'
     g2.style.display = 'inline-block'
   }
-</script>
+  </script>
 </div>
 
 <p>
