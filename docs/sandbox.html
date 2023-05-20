@@ -74,10 +74,11 @@ body {
       margin-right: auto;
       font-family: 'Nunito', sans-serif;
 }
-.predicate_selector {
+.predicate_selector, .upper_bar {
   font-family: 'Roboto Mono', monospace;
+  width:auto;
 }
-.run_button {
+.run_button, .logical_button {
   border: 1px solid;
   padding: 5px; 
   padding-left: 20px; 
@@ -93,7 +94,7 @@ body {
   margin-left:auto;
   float: right;
 }
-.run_button:active, .run_button_quazy_active {
+.run_button:active, .run_button_quazy_active, .logical_button:active {
   box-shadow: 1px 1px 2px rgba(0, 0, 0, 0.3);
   background-image: linear-gradient(-45deg, #eee, #fff);
   scale: 0.95;
@@ -111,13 +112,28 @@ body {
 }
 
 @keyframes bumpup-anime {
-  0% {transform: scale(1);}
-  70% {transform: scale(1.1); box-shadow: 5px 15px 30px rgba(0, 0, 0, 0.5);}
-  100% {transform: scale(1);}
+  0% {transform: rotateZ(0deg);}
+  10% {transform: rotateZ(0deg) scale(1.2); box-shadow: 5px 20px 40px rgba(0, 0, 0, 0.5);}
+  80% {transform: rotateZ(0deg) scale(1.2); box-shadow: 5px 20px 40px rgba(0, 0, 0, 0.5);}
+  100% {transform: rotateZ(0deg);}
+}
+
+@keyframes flip-anime {
+  0% {transform: rotateZ(0deg);}
+  10% {transform: rotateZ(10deg) scale(1.2); box-shadow: 5px 20px 40px rgba(0, 0, 0, 0.5);}
+  40% {transform: rotateZ(10deg) scale(1.2); box-shadow: 5px 20px 40px rgba(0, 0, 0, 0.5);}
+  50% {transform: rotateZ(-7deg) scale(1.3); box-shadow: 5px 20px 70px rgba(0, 0, 0, 0.5);}
+  80% {transform: rotateZ(-7deg) scale(1.3); box-shadow: 5px 20px 70px rgba(0, 0, 0, 0.5);}
+  100% {transform: rotateZ(0deg);}
 }
 
 .animated_bump {
   animation: bumpup-anime 0.5s;
+}
+
+.animated_flip {
+  animation: flip-anime 0.7s;
+  animation-timing-function: linear;
 }
 
 .code {
@@ -132,6 +148,9 @@ body {
   overflow-y: scroll;
 }
 
+.upper_bar {
+  margin-top: 5px;
+}
 </style>
 <script defer src="https://pyscript.net/latest/pyscript.js"></script>
 
@@ -157,8 +176,23 @@ body {
 
 <div class="content">
 
-  <div class="code_title">
-    Program:
+  <div class="upper_bar">
+    <div class="code_title" style="display:inline">
+      Program:
+    </div>
+    <button class="logical_button" onclick="copyProgram()">
+      🔗 Copy Link
+    </button>
+    <script>
+      function copyProgram() {
+        let url = new URL(window.location.href);
+        url.searchParams.set('program', document.getElementById('program').innerText);
+        url.searchParams.set('main_predicate', document.getElementById('main_predicate').value);
+        navigator.clipboard.writeText(url.toString());
+        flipIt();
+        setTimeout(() => {window.history.replaceState(null, null, url.toString())}, 700);
+      }
+    </script>
   </div>
 
   <pre class="code" id="program" contenteditable="true" style="padding:10px; height: 370px;">
@@ -179,7 +213,7 @@ ExpensiveBook(book_name) :-
   Book(book_name, price),
   price > 100;
   </pre>
-<div class="predicate_selector" style="width:auto">
+<div class="predicate_selector">
   <div style="display: inline;">Predicate to run:</div>
   <input id="main_predicate" style="font-family: inherit; font-size: inherit; padding: 5px; border-radius: 10px; border: solid 1px gray; " value="ExpensiveBook"></input>
   <button id="the_run_button" class="run_button" onclick="executeAndOutput()">RUN (Ctrl-Enter)</button>
@@ -209,6 +243,19 @@ ExpensiveBook(book_name) :-
 
       }
     });
+    
+    function GetProgramFromURL() {
+      let program_from_url = new URLSearchParams(window.location.search).get('program');
+      let main_predicate_from_url = new URLSearchParams(window.location.search).get('main_predicate');
+
+      if (program_from_url.length > 0) {
+        document.getElementById('program').innerHTML = program_from_url;
+      }
+      if (main_predicate_from_url.length > 0) {
+        document.getElementById('main_predicate').value = main_predicate_from_url;
+      }
+    }
+    GetProgramFromURL();
 
     var lastKeyPressedTime = 0;
     function outputResult(execution_result) {
@@ -233,6 +280,12 @@ ${execution_result.get('error_context')}
       output.classList.add('animated_bump');
       setTimeout(() => {output.classList.remove('animated_bump');}, 1000);
     }
+    function flipIt() {
+      let p = document.getElementById('program');
+      p.classList.add('animated_flip');
+      setTimeout(() => {p.classList.remove('animated_flip');}, 1000);
+    }
+
     var last_queried = 0;
     function executeAndOutput() {
       let now = performance.now();
@@ -263,6 +316,13 @@ ${execution_result.get('error_context')}
       let output = document.getElementById('output');
       outputResult(execution_result);      
       lastProgramExecuted = program;
+
+      // UpdateProgramInUrl();
+    }
+    function UpdateProgramInUrl() {
+      let url = new URL(window.location.href);
+      url.searchParams.set('program', document.getElementById('program').innerText);
+      window.history.replaceState(null, null, url.toString());
     }
     function execute() {
         let program_div = document.getElementById('program');
