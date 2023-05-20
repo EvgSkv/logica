@@ -182,6 +182,22 @@ def SortList(input_list_json):
 def InList(item, a_list):
   return item in LoadJson(a_list)
 
+def AssembleRecord(field_value_list):
+  field_value_list = LoadJson(field_value_list)
+  result = {}
+  for kv in field_value_list:
+    if isinstance(kv, dict) and 'arg' in kv and 'value' in kv:
+      k = kv['arg']
+      v = kv['value']
+      result[k] = v
+    else:
+      return 'ERROR: AssembleRecord called on bad input: %s' % field_value_list
+  return json.dumps(result)
+
+def DisassembleRecord(record):
+  record = LoadJson(record)
+  return json.dumps([{'arg': k, 'value': v} for k, v in record.items()])
+
 def UserError(error_text):
   print('[USER DEFINED ERROR]: %s' % error_text)
   assert False
@@ -219,6 +235,8 @@ def SqliteConnect():
   con.create_function('RE_SUB', 5, lambda string, pattern, repl="", count=0, flags=0: \
                                     re.sub(pattern, repl, string ,count, flags))
   con.create_function('Intelligence', 1, intelligence.Intelligence)
+  con.create_function('AssembleRecord', 1, AssembleRecord)
+  con.create_function('DisassembleRecord', 1, DisassembleRecord)
   sqlite3.enable_callback_tracebacks(True)
   return con
 
