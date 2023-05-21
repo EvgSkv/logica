@@ -40,7 +40,7 @@ class PlatonicAdherence:
     return not self.error
   
   def __str__(self):
-    return self.error
+    return self.error if self.error else 'OK'
   
   def Elements(self):
     return (self.the_object, self.success, self.error)
