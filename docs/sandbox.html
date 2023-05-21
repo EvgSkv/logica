@@ -101,10 +101,18 @@ body {
   margin-left:auto;
   float: right;
 }
+
+/* 
+.emerged {
+  transform: scale(1.0);
+  transform-origin: 50% 50%;
+}  */
+
 .run_button:active, .run_button_quazy_active, .logical_button:active {
-  box-shadow: 1px 1px 2px rgba(0, 0, 0, 0.3);
+  box-shadow: inset 1px 1px 4px rgba(0, 0, 0, 0.3);
   background-image: linear-gradient(-45deg, #eee, #fff);
   scale: 0.95;
+  transform-origin: 50% 50%;
   transition: 0.05s;
 }
 
@@ -158,6 +166,13 @@ body {
 .upper_bar {
   margin-top: 5px;
 }
+
+.button_pit {
+  /*box-shadow: inset 0px 0px 6px rgba(0, 0, 0, 0.6);*/
+  border-radius: 10px;
+  float:right;
+  margin-left:auto
+}
 </style>
 <script defer src="https://pyscript.net/latest/pyscript.js"></script>
 
@@ -187,9 +202,11 @@ body {
     <div class="code_title" style="display:inline">
       Program:
     </div>
+    <div class="button_pit">
     <button class="logical_button" onclick="copyProgram()">
       🔗 Copy Link
     </button>
+    </div>
     <script>
       function copyProgram() {
         let url = new URL(window.location.href);
@@ -225,10 +242,13 @@ ExpensiveBook(book_name) :-
 <div class="predicate_selector">
   <div style="display: inline;">Predicate to run:</div>
   <input id="main_predicate" style="font-family: inherit; font-size: inherit; padding: 5px; border-radius: 10px; border: solid 1px gray; " value="ExpensiveBook"></input>
+
+  <div class="button_pit">
   <button id="the_run_button" class="run_button" onclick="executeAndOutput()">RUN (Ctrl-Enter)</button>
+  </div>
 
 </div>
-<div class="code_title">
+<div class="code_title" style="display: none">
   Output:
 </div>
   <div class="plain_code" id="output">
@@ -269,7 +289,7 @@ ExpensiveBook(book_name) :-
     var lastKeyPressedTime = 0;
     function outputResult(execution_result) {
       if (execution_result.get('status') == 'OK') {
-          output.innerHTML = `Predicate: ${execution_result.get('predicate_name')}` + '\n' + execution_result.get('result');
+          output.innerHTML = execution_result.get('result');
         } else {
           output.innerHTML = `
 <u>Rule:</u><br/>
