@@ -289,7 +289,7 @@ ExpensiveBook(book_name) :-
     var lastKeyPressedTime = 0;
     function outputResult(execution_result) {
       if (execution_result.get('status') == 'OK') {
-          output.innerHTML = `Predicate: ${execution_result.get('predicate_name')}` + '\n' + execution_result.get('result');
+          output.innerHTML = execution_result.get('result');
         } else {
           output.innerHTML = `
 <u>Rule:</u><br/>
