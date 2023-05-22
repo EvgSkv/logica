@@ -269,7 +269,10 @@ ExpensiveBook(book_name) :-
         }
         setTimeout(() => {button.classList.remove('run_button_quazy_active');}, 1000);
         executeAndOutput();
-
+      }
+      if (event.ctrlKey && event.key == 'Escape') {
+        console.log('Ctrl+Esc was pressed.');
+        HighlightCodeElements(document);
       }
     });
     
