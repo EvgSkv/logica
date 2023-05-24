@@ -136,6 +136,10 @@ limitations under the License.
       font-family: monospace;
       font-size:1.2em;
     }
+
+    .larger_code_font {
+      font-size: 35px;
+    }
   </style>
 </head>
 <body onload="HighlightCodeElements(document);">
@@ -166,6 +170,16 @@ limitations under the License.
     let s = document.getElementById('thumbs_up');
     s.style.display = 'inline'
   }
+
+  function reactToDevice() {
+    if (window.screen.width < 400) {
+      let code = document.querySelectorAll('.code');
+      code.forEach((e) => {
+        e.classList.add('larger_code_font');
+      });
+    }
+  }
+  // setTimeout(reactToDevice, 500);
 </script>
 <h1>What is Logica?</h1>
 
