@@ -36,8 +36,8 @@ body {
     background-color:#f1f1f1
 }
 .header {
-      max-width: 870px;
-      margin:10px;
+      max-width: 900px;
+      margin:3px;
       /*height: auto;*/
       
       display:flex;
@@ -46,15 +46,14 @@ body {
       height: fit-content;
       background-color: #fefefe;
       box-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
-      padding:5px;
       border-radius: 3px;
       text-align: left;
-      padding: 20px;
-      padding-left: 50px;
+      padding: 10px;
+      padding-left: 30px;
       margin-left: auto;
       margin-right: auto;
-      padding-top: 30px;
-      padding-bottom: 30px;
+      padding-top: 10px;
+      padding-bottom: 10px;
 }
 .subheader {
       padding-left: 15px;
@@ -155,6 +154,11 @@ body {
   outline-color: #222;
   border: solid 3px black;
   transition: 0.5s;
+  margin-top: 10px;
+  margin-bottom: 5px;
+}
+.plain_code {
+  margin-top: 7px;
 }
 .code:focus {
   /* outline-color: #222;*/
@@ -179,13 +183,13 @@ body {
 
 <body onkeydown="lastKeyPressedTime=performance.now()">
 
-<div class="header">
+<div class="header" id="header">
     <a href="index.html">
       <img src="logica_logo.png" width="200px"/>
     </a>
     
     
-    <div class="subheader"> <!-- style="width:auto"> -->
+    <div class="subheader" ondblclick="hideHeader()"> <!-- style="width:auto"> -->
         <!-- Logic Programming Language  <br/><span style="width: 20px;  display: inline-block;"></span>for Data Analysis-->
         <!--Logic Programming Language for Data Analysis -->
     
@@ -193,7 +197,13 @@ body {
         
         Playground(🏐)
     </div>
-    </div>
+    <script>
+      function hideHeader() {
+        document.getElementById('header')['style']['display'] = 'none';
+      }
+    </script>
+
+</div>
 
 
 <div class="content">
@@ -267,8 +277,8 @@ ExpensiveBook(book_name) :-
         if (selection != '') {
           main_predicate.value = selection;
         }
-        setTimeout(() => {button.classList.remove('run_button_quazy_active');}, 1000);
         executeAndOutput();
+        setTimeout(() => {button.classList.remove('run_button_quazy_active');}, 1000);
       }
       if (event.ctrlKey && event.key == 'Escape') {
         console.log('Ctrl+Esc was pressed.');
