@@ -1,7 +1,33 @@
 from typing import Dict, List
+from type_inference.types.variable_types import AnyType, NumberType, StringType, ListType, RecordType, Field
+from collections import defaultdict
 
+#region BUILT_IN
+inferred_rules = defaultdict(dict)
+number_type = NumberType()
+string_type = StringType()
+inferred_rules['Range']['col0'] = number_type
+inferred_rules['Range']['logica_value'] = ListType(number_type)
+
+inferred_rules['Num']['col0'] = number_type
+inferred_rules['Num']['logica_value'] = number_type
+
+inferred_rules['Str']['col0'] = string_type
+inferred_rules['Str']['logica_value'] = string_type
+
+inferred_rules['+']['left'] = number_type
+inferred_rules['+']['right'] = number_type
+inferred_rules['+']['logica_value'] = number_type
+
+inferred_rules['++']['left'] = string_type
+inferred_rules['++']['right'] = string_type
+inferred_rules['++']['logica_value'] = string_type
+#endregion
 
 class Expression:
+  def __init__(self):
+    self.type = AnyType()
+
   def __eq__(self, other):
     return isinstance(other, type(self))
 
@@ -16,6 +42,7 @@ class PredicateFieldAddressing(Expression):
   _predicates_counter = 0
 
   def __init__(self):
+    super().__init__()
     self._id = PredicateFieldAddressing._predicates_counter
     PredicateFieldAddressing._predicates_counter += 1
 
@@ -28,6 +55,8 @@ class PredicateAddressing(PredicateFieldAddressing):
     super().__init__()
     self.predicate_name = predicate_name
     self.field = field
+    if predicate_name in inferred_rules:
+      self.type = inferred_rules[predicate_name][field]
 
   def __eq__(self, other):
     return super().__eq__(other) and self.predicate_name == other.predicate_name and self.field == other.field
@@ -57,6 +86,7 @@ class SubscriptAddressing(PredicateFieldAddressing):
 
 class Variable(Expression):
   def __init__(self, variable_name):
+    super().__init__()
     self.variable_name = variable_name
 
   def __eq__(self, other):
@@ -74,11 +104,15 @@ class Literal(Expression):
 
 
 class StringLiteral(Literal):
-  pass
+  def __init__(self):
+    super().__init__()
+    self.type = StringType()
 
 
 class NumberLiteral(Literal):
-  pass
+  def __init__(self):
+    super().__init__()
+    self.type = NumberType()
 
 
 class BooleanLiteral(Literal):
@@ -87,6 +121,7 @@ class BooleanLiteral(Literal):
 
 class ListLiteral(Literal):
   def __init__(self, elements: List[Expression]):
+    super().__init__()
     self.elements = elements
 
   def __eq__(self, other):
@@ -99,7 +134,9 @@ class NullLiteral(Literal):
 
 class RecordLiteral(Literal):
   def __init__(self, fields: Dict[str, Expression]):
+    super().__init__()
     self.fields = fields
+    self.type = RecordType([Field(name, expr.type) for name, expr in fields.items()], False) # todo {a: f(x)}
 
   def __eq__(self, other):
     return super().__eq__(other) and self.fields == other.fields

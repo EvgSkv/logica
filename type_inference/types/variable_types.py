@@ -80,7 +80,12 @@ class Field:
 class RecordType(Type):
   def __init__(self, fields: List[Field], is_opened: bool):
     self.fields = fields
+    self.fields_dict = {field.name: field.type for field in fields}
     self.is_opened = is_opened
+
+  @property
+  def fields_names(self):
+    return map(lambda x: x.name, self.fields)
 
   def __eq__(self, other): # TODO TESTS !!! BITCHES
     if not isinstance(other, RecordType):

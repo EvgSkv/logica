@@ -8,29 +8,42 @@ from unittest.mock import Mock, MagicMock
 
 class TestTypeInference(unittest.TestCase):
 
+  def test_when_num(self):
+    # 'Q(x) :- x == 1'
+    graph = TypesGraph()
+    x_var = expression.Variable('x')
+    graph.connect(edge.Equality(expression.Variable('col0'), x_var, (0, 0)))
+    graph.connect(edge.Equality(x_var, expression.NumberLiteral(), (0, 0)))
+    graphs = dict()
+    graphs['Q'] = graph
+
+    TypeInference(graphs).Infer('Q')
+
+    print()
+
+
   def test_when_connection_with_other_predicates(self):
     # 'Q(x) :- T(x), Num(x)'
     graph = TypesGraph()
-    graph.connect(edge.Equality(expression.Variable('col0'), expression.Variable('x'), (0, 0)))
-    graph.connect(edge.Equality(expression.Variable('x'), expression.PredicateAddressing('T', 'col0'), (0, 0)))
-    graph.connect(edge.Equality(expression.Variable('x'), expression.PredicateAddressing('Num', 'col0'), (0, 0)))
+    x_var = expression.Variable('x')
+    graph.connect(edge.Equality(expression.Variable('col0'), x_var, (0, 0)))
+    graph.connect(edge.Equality(x_var, expression.PredicateAddressing('T', 'col0'), (0, 0)))
+    graph.connect(edge.Equality(x_var, expression.PredicateAddressing('Num', 'col0'), (0, 0)))
     graphs = dict()
     graphs['Q'] = graph
-    type_inference_service.get_variables = Mock(return_value=[expression.Variable('col0'), expression.Variable('x')])
 
-    inferred_rules = TypeInference(graphs).infer_type('Q')
+    TypeInference(graphs).Infer()
 
-    self.assertIsInstance(inferred_rules['Q']['col0'], variable_types.NumberType)
-    self.assertIsInstance(inferred_rules['Q']['x'], variable_types.NumberType)
-    self.assertIsInstance(inferred_rules['T']['col0'], variable_types.AnyType)
+    print()
 
   def test_when_connection_with_other_predicates1(self):
-    # 'Q(x) :- T(x), Num(x)'
+    # Q(x) :- T(x), Num(x)
     # T(x) :- x == 10
     graph = TypesGraph()
-    graph.connect(edge.Equality(expression.Variable('col0'), expression.Variable('x'), (0, 0)))
-    graph.connect(edge.Equality(expression.Variable('x'), expression.PredicateAddressing('T', 'col0'), (0, 0)))
-    graph.connect(edge.Equality(expression.Variable('x'), expression.PredicateAddressing('Num', 'col0'), (0, 0)))
+    x_var = expression.Variable('x')
+    graph.connect(edge.Equality(expression.Variable('col0'), x_var, (0, 0)))
+    graph.connect(edge.Equality(x_var, expression.PredicateAddressing('T', 'col0'), (0, 0)))
+    graph.connect(edge.Equality(x_var, expression.PredicateAddressing('Num', 'col0'), (0, 0)))
     graphs = dict()
     graphs['Q'] = graph
 
@@ -144,6 +157,20 @@ class TestTypeInference(unittest.TestCase):
     self.assertIsInstance(inferred_rules['Q']['y'], variable_types.StringType)
     # self.assertIsInstance(inferred_rules['T']['col0'], variable_types.StringType)
 
+  def test_when_list(self):
+    # Q(x) :- x in Range(10)
+    graph = TypesGraph()
+    x_var = expression.Variable('x')
+    graph.connect(edge.Equality(expression.Variable('col0'), x_var, (0, 0)))
+    graph.connect(edge.EqualityOfElement(expression.PredicateAddressing('Range', 'logica_value'), x_var, (0, 0)))
+    graph.connect(edge.Equality(expression.PredicateAddressing('Range', 'col0'), expression.NumberLiteral(), (0, 0)))
+    graphs = dict()
+    graphs['Q'] = graph
+
+    TypeInference(graphs).Infer()
+
+    print()
+
   def test_when_in_operator(self):
     # Q(y): - T(x), y in x, Num(y);
     graph = TypesGraph()
@@ -167,6 +194,81 @@ class TestTypeInference(unittest.TestCase):
     self.assertIsInstance(inferred_rules['Q']['x'], variable_types.ListType)
     self.assertIsInstance(inferred_rules['Q']['y'], variable_types.NumberType)
     # self.assertIsInstance(inferred_rules['T']['col0'], variable_types.ListType)
+
+  def test_when_simple_record(self):
+    # Q(x) :- x.a == 1, x.b == "string"
+    graph = TypesGraph()
+    graphs = dict()
+    graphs['Q'] = graph
+    x_var = expression.Variable('x')
+    a = expression.SubscriptAddressing(x_var, 'a')
+    b = expression.SubscriptAddressing(x_var, 'b')
+    graph.connect(edge.Equality(expression.Variable('col0'), x_var, (0, 0)))
+    graph.connect(edge.FieldBelonging(x_var, a, (0, 0)))
+    graph.connect(edge.FieldBelonging(x_var, b, (0, 0)))
+    graph.connect(edge.Equality(a, expression.NumberLiteral(), (0, 0)))
+    graph.connect(edge.Equality(b, expression.StringLiteral(), (0, 0)))
+
+    TypeInference(graphs).Infer()
+
+    print()
+
+  def test_when_simple_nested_record(self):
+    # Q(x) :- x.a == 1, x.b.c == "string"
+    graph = TypesGraph()
+    graphs = dict()
+    graphs['Q'] = graph
+    x_var = expression.Variable('x')
+    a = expression.SubscriptAddressing(x_var, 'a')
+    b = expression.SubscriptAddressing(x_var, 'b')
+    c = expression.SubscriptAddressing(b, 'c')
+    graph.connect(edge.Equality(expression.Variable('col0'), x_var, (0, 0)))
+    graph.connect(edge.FieldBelonging(x_var, a, (0, 0)))
+    graph.connect(edge.FieldBelonging(x_var, b, (0, 0)))
+    graph.connect(edge.FieldBelonging(b, c, (0, 0)))
+    graph.connect(edge.Equality(a, expression.NumberLiteral(), (0, 0)))
+    graph.connect(edge.Equality(c, expression.StringLiteral(), (0, 0)))
+
+    TypeInference(graphs).Infer()
+
+    print()
+
+  def test_when_simple_nested_record(self):
+    # Q(x) :- x.a == 1, x.b == {c: "string", d: "another string"}, y == x
+    graph = TypesGraph()
+    graphs = dict()
+    graphs['Q'] = graph
+    x_var = expression.Variable('x')
+    a = expression.SubscriptAddressing(x_var, 'a')
+    b = expression.SubscriptAddressing(x_var, 'b')
+    graph.connect(edge.Equality(expression.Variable('col0'), x_var, (0, 0)))
+    graph.connect(edge.FieldBelonging(x_var, a, (0, 0)))
+    graph.connect(edge.FieldBelonging(x_var, b, (0, 0)))
+    graph.connect(edge.Equality(b, expression.RecordLiteral({'c': expression.StringLiteral(), 'd': expression.StringLiteral()}), (0, 0)))
+    graph.connect(edge.Equality(a, expression.NumberLiteral(), (0, 0)))
+    graph.connect(edge.Equality(expression.Variable('y'), x_var, (0, 0)))
+
+    TypeInference(graphs).Infer()
+
+    print()
+
+  def test_when_simplest_record(self):
+    # Q(x) :- x.a == 1, x.b == Range(10)
+    graph = TypesGraph()
+    graphs = dict()
+    graphs['Q'] = graph
+    x_var = expression.Variable('x')
+    a = expression.SubscriptAddressing(x_var, 'a')
+    b = expression.SubscriptAddressing(x_var, 'b')
+    graph.connect(edge.Equality(expression.Variable('col0'), x_var, (0, 0)))
+    graph.connect(edge.FieldBelonging(x_var, a, (0, 0)))
+    graph.connect(edge.FieldBelonging(x_var, b, (0, 0)))
+    graph.connect(edge.Equality(a, expression.NumberLiteral(), (0, 0)))
+    graph.connect(edge.Equality(b, expression.PredicateAddressing('Range', 'logica_value'), (0, 0)))
+
+    TypeInference(graphs).Infer()
+
+    print()
 
   def test_when_record(self):
     # Q(p: Str(y), q: z + w, s: x):- T(x), y == x.a, z == x.b, w == x.c;

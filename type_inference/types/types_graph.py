@@ -12,8 +12,10 @@ class TypesGraph:
   def __init__(self):
     self.expression_connections = defaultdict(lambda: defaultdict(list))
     self.expression_type = dict()
+    self.edges = []
 
   def connect(self, edge: Edge):
+    self.edges.append(edge)
     first_expression, second_expression = edge.vertices
     self.expression_connections[first_expression][second_expression].append(edge)
     self.expression_connections[second_expression][first_expression].append(edge)
