@@ -90,6 +90,8 @@ class QL(object):
       '!=': '%s != %s',
       '++': 'CONCAT(%s, %s)',
       'in': '%s IN UNNEST(%s)',
+      'is': '%s IS %s',
+      'is not': '%s IS NOT %s',
       '||': '%s OR %s',
       '&&': '%s AND %s',
       '%': 'MOD(%s, %s)'
