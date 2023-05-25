@@ -1,12 +1,18 @@
 from typing import Tuple
 
-from type_inference.types.expression import Expression, SubscriptAddressing
+from type_inference.types.expression import Expression, SubscriptAddressing, PredicateAddressing
 
 
 class Edge:
   def __init__(self, vertices: Tuple[Expression, Expression], bounds: Tuple[int, int]):
     self.vertices = vertices
     self.bounds = bounds
+
+  def __eq__(self, other):
+    return isinstance(other, type(self)) and set(self.vertices) == set(other.vertices) and self.bounds == other.bounds
+
+  def __hash__(self):
+    return hash((frozenset(self.vertices), self.bounds))
 
 
 class Equality(Edge):
@@ -22,8 +28,16 @@ class EqualityOfElement(Edge):
     self.list = list
     self.element = element
 
+
 class FieldBelonging(Edge):
   def __init__(self, parent: Expression, field: SubscriptAddressing, bounds: Tuple[int, int]):
-    super().__init__((parent, field), bounds)
+    super(FieldBelonging, self).__init__((parent, field), bounds)
     self.parent = parent
     self.field = field
+
+
+class PredicateArgument(Edge):
+  def __init__(self, logica_value: PredicateAddressing, argument: PredicateAddressing, bounds: Tuple[int, int]):
+    super(PredicateArgument, self).__init__((logica_value, argument), bounds)
+    self.logica_value = logica_value
+    self.argument = argument

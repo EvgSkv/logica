@@ -39,24 +39,19 @@ class Expression:
 
 
 class PredicateFieldAddressing(Expression):
-  _predicates_counter = 0
-
-  def __init__(self):
-    super().__init__()
-    self._id = PredicateFieldAddressing._predicates_counter
-    PredicateFieldAddressing._predicates_counter += 1
-
-  def __eq__(self, other):
-    return super().__eq__(other) and self._id == other._id
+  pass
 
 
 class PredicateAddressing(PredicateFieldAddressing):
   def __init__(self, predicate_name: str, field: str):
     super().__init__()
     self.predicate_name = predicate_name
-    self.field = field
+    if isinstance(field, int):
+      self.field = f"col{field}"
+    else:
+      self.field = field
     if predicate_name in inferred_rules:
-      self.type = inferred_rules[predicate_name][field]
+      self.type = inferred_rules[predicate_name][self.field]
 
   def __eq__(self, other):
     return super().__eq__(other) and self.predicate_name == other.predicate_name and self.field == other.field
@@ -86,8 +81,11 @@ class SubscriptAddressing(PredicateFieldAddressing):
 
 class Variable(Expression):
   def __init__(self, variable_name):
+    if isinstance(variable_name, int):
+      self.variable_name = f"col{variable_name}"
+    else:
+      self.variable_name = variable_name
     super().__init__()
-    self.variable_name = variable_name
 
   def __eq__(self, other):
     return super().__eq__(other) and self.variable_name == other.variable_name
@@ -126,6 +124,9 @@ class ListLiteral(Literal):
 
   def __eq__(self, other):
     return super().__eq__(other) and self.elements == self.elements
+
+  def __hash__(self):
+    return hash(tuple(self.elements))
 
 
 class NullLiteral(Literal):
