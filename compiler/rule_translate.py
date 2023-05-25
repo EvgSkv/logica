@@ -512,7 +512,7 @@ def ExtractPredicateStructure(c, s):
 
   if predicate in (
       '<=', '<', '>', '>=', '!=', '&&', '||', '!', 'IsNull', 'Like',
-      'Constraint'):
+      'Constraint', 'is', 'is not'):
     s.constraints.append({'call': c})
     return
 
