@@ -8,6 +8,12 @@ class Edge:
     self.vertices = vertices
     self.bounds = bounds
 
+  def __eq__(self, other):
+    return isinstance(other, type(self)) and set(self.vertices) == set(other.vertices) and self.bounds == other.bounds
+
+  def __hash__(self):
+    return hash((frozenset(self.vertices), self.bounds))
+
 
 class Equality(Edge):
   def __init__(self, left: Expression, right: Expression, bounds: Tuple[int, int]):
