@@ -20,7 +20,7 @@ function HighlightCodeElements(doc) {
       multiline_comment: /\/\*.*\*\//gs,
       end_of_line_comment: /#.*/g,
       operator: /&gt;|&lt;/g,
-      string: /["].*["]/g,
+      string: /["].*?["]/g,
       predicate: /[A-Z]\w*/g,
       field: /\w+:/g,
       agg_field: /\w+[?]/g,
