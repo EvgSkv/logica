@@ -106,4 +106,5 @@ class RecordType(Type):
 
 
   def __hash__(self):
-    pass
+    return hash(f"{{{', '.join(map(str, self.fields))}}}")
+    #todo used in __eq__

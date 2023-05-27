@@ -1,5 +1,8 @@
-from type_inference.types.variable_types import *
+from typing import cast
+
 from type_inference.type_inference_exception import TypeInferenceException
+from type_inference.types.variable_types import AnyType, NumberType, StringType, ListType, RecordType, Type
+
 
 def Rank(x):
   if isinstance(x, AnyType):
