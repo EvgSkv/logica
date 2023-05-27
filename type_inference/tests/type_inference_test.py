@@ -3,7 +3,7 @@ import unittest
 from type_inference.type_inference_service import TypeInference
 from type_inference.types import edge, expression
 from type_inference.types.types_graph import TypesGraph
-from type_inference.types.variable_types import NumberType, StringType, ListType, RecordType, Field
+from type_inference.types.variable_types import NumberType, StringType, ListType, RecordType
 
 number = NumberType()
 string = StringType()
@@ -55,8 +55,8 @@ class TestTypeInferenceSucceeded(unittest.TestCase):
 
     TypeInference(graphs).Infer()
 
-    self.assertEquals(q_col0.type, number)
-    self.assertEquals(x_var.type, number)
+    self.assertEqual(q_col0.type, number)
+    self.assertEqual(x_var.type, number)
 
   def test_when_list(self):
     # Q(Range(10));
@@ -88,8 +88,7 @@ class TestTypeInferenceSucceeded(unittest.TestCase):
 
     TypeInference(graphs).Infer()
 
-    self.assertEquals(q_col0.type, RecordType([Field('a', number), Field('b', string)], True))
-    self.assertEquals(x_var.type, RecordType([Field('a', number), Field('b', string)], True))
+    self.assertEquals(q_col0.type, RecordType({'a': number, 'b': string}, True))
 
   def test_when_opened_record_with_opened_record(self):
     # Q(x) :- x.a == 1, x.b.c == "string"
@@ -110,11 +109,7 @@ class TestTypeInferenceSucceeded(unittest.TestCase):
 
     TypeInference(graphs).Infer()
 
-    self.assertEquals(q_col0.type,
-                      RecordType(
-                        [Field('a', number),
-                         Field('b', RecordType([Field('c', string)], True))],
-                        True))
+    self.assertEquals(q_col0.type, RecordType({'a': number, 'b': RecordType({'c': string}, True)}, True))
 
   # todo fix it
   # def test_when_linked_with_known_predicate(self):

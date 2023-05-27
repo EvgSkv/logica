@@ -1,27 +1,27 @@
 from typing import Dict, List
-from type_inference.types.variable_types import AnyType, NumberType, StringType, ListType, RecordType, Field
+from type_inference.types.variable_types import AnyType, NumberType, StringType, ListType, RecordType
 from collections import defaultdict
 
 #region BUILT_IN
-inferred_rules = defaultdict(dict)
+built_in = defaultdict(dict)
 number_type = NumberType()
 string_type = StringType()
-inferred_rules['Range']['col0'] = number_type
-inferred_rules['Range']['logica_value'] = ListType(number_type)
+built_in['Range']['col0'] = number_type
+built_in['Range']['logica_value'] = ListType(number_type)
 
-inferred_rules['Num']['col0'] = number_type
-inferred_rules['Num']['logica_value'] = number_type
+built_in['Num']['col0'] = number_type
+built_in['Num']['logica_value'] = number_type
 
-inferred_rules['Str']['col0'] = string_type
-inferred_rules['Str']['logica_value'] = string_type
+built_in['Str']['col0'] = string_type
+built_in['Str']['logica_value'] = string_type
 
-inferred_rules['+']['left'] = number_type
-inferred_rules['+']['right'] = number_type
-inferred_rules['+']['logica_value'] = number_type
+built_in['+']['left'] = number_type
+built_in['+']['right'] = number_type
+built_in['+']['logica_value'] = number_type
 
-inferred_rules['++']['left'] = string_type
-inferred_rules['++']['right'] = string_type
-inferred_rules['++']['logica_value'] = string_type
+built_in['++']['left'] = string_type
+built_in['++']['right'] = string_type
+built_in['++']['logica_value'] = string_type
 #endregion
 
 class Expression:
@@ -50,8 +50,8 @@ class PredicateAddressing(PredicateFieldAddressing):
       self.field = f"col{field}"
     else:
       self.field = field
-    if predicate_name in inferred_rules:
-      self.type = inferred_rules[predicate_name][self.field]
+    if predicate_name in built_in:
+      self.type = built_in[predicate_name][self.field]
 
   def __eq__(self, other):
     return super().__eq__(other) and self.predicate_name == other.predicate_name and self.field == other.field
@@ -137,7 +137,7 @@ class RecordLiteral(Literal):
   def __init__(self, fields: Dict[str, Expression]):
     super().__init__()
     self.fields = fields
-    self.type = RecordType([Field(name, expr.type) for name, expr in fields.items()], False) # todo {a: f(x)}
+    self.type = RecordType({name: expr.type for name, expr in fields.items()}, False) # todo {a: f(x)}
 
   def __eq__(self, other):
     return super().__eq__(other) and self.fields == other.fields

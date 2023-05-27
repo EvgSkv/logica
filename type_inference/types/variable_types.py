@@ -1,4 +1,4 @@
-from typing import List, cast
+from typing import Dict, cast
 
 
 class Type:
@@ -60,49 +60,21 @@ class ListType(Type):
     return isinstance(other, ListType) and self.element == other.element
 
 
-class Field:
-  def __init__(self, name: str, type: Type):
-    self.name = name
-    self.type = type
-
-  def __hash__(self):
-    return hash((self.name, self.type))
-
-  def __eq__(self, other):
-    if not isinstance(other, Field):
-      return False
-    return self.name == other.name and self.type == other.type
-
-  def __str__(self):
-    return f"{self.name}: {self.type}"
-
-
 class RecordType(Type):
-  def __init__(self, fields: List[Field], is_opened: bool):
+  def __init__(self, fields: Dict[str, Type], is_opened: bool):
     self.fields = fields
-    self.fields_dict = {field.name: field.type for field in fields}
     self.is_opened = is_opened
 
-  @property
-  def fields_names(self):
-    return map(lambda x: x.name, self.fields)
-
-  def __eq__(self, other): # TODO TESTS !!! BITCHES
+  def __eq__(self, other):
     if not isinstance(other, RecordType):
       return False
 
     other = cast(RecordType, other)
 
     if self.is_opened and other.is_opened:
-      fields_set = set()
-      for field in self.fields:
-        fields_set.add(field.name)
-      other_fields_set = set()
-      for field in other.fields:
-        other_fields_set.add(field.name)
-      intersection = fields_set.intersection(other_fields_set)
-      for field in intersection:
-        if self.find_field_type(self.fields, field) != self.find_field_type(other.fields, field):
+      intersection = set(self.fields.keys()).intersection(set(other.fields.keys()))
+      for field_name in intersection:
+        if self.fields[field_name] != other.fields[field_name]:
           return False
       return True
 
@@ -114,26 +86,20 @@ class RecordType(Type):
 
     fields_set = set()
     for field in self.fields:
-      fields_set.add(field)
+      fields_set.add((field, self.fields[field]))
     other_fields_set = set()
     for field in other.fields:
-      other_fields_set.add(field)
+      other_fields_set.add((field, other.fields[field]))
     intersection = fields_set.intersection(other_fields_set)
 
     return len(intersection) == len(fields_set)
 
   @staticmethod
-  def equal_open_close(opened: List[Field], closed: List[Field]):
+  def equal_open_close(opened: Dict[str, Type], closed: Dict[str, Type]):
     for field in opened:
-      if field not in closed:  # check eq
+      if field not in closed or opened[field] != closed[field]:  # check eq
         return False
     return True
-
-  @staticmethod
-  def find_field_type(fields: List[Field], field_name):
-    for field in fields:
-      if field.name == field_name:
-        return field.type
 
   def __str__(self):
     return f"{{{', '.join(map(str, self.fields))}}}"

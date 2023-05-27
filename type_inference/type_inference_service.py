@@ -1,6 +1,8 @@
+from typing import cast
+
 from type_inference.intersection import Intersect, IntersectListElement
-from type_inference.types.edge import *
-from type_inference.types.variable_types import *
+from type_inference.types.edge import Equality, EqualityOfElement, FieldBelonging
+from type_inference.types.variable_types import AnyType, ListType, RecordType
 
 
 class TypeInference:
@@ -39,15 +41,14 @@ class TypeInference:
         elif isinstance(edge, FieldBelonging):
           edge = cast(FieldBelonging, edge)
           if isinstance(edge.parent.type, AnyType):
-            edge.parent.type = RecordType([], True)
+            edge.parent.type = RecordType({}, True)
           record = cast(RecordType, edge.parent.type)
-          new_field = Field(edge.field.subscript_field, edge.field.type)
-          if new_field.name in record.fields_dict:
-            result = Intersect(edge.field.type, record.fields_dict[new_field.name])
-            if result != record.fields_dict[new_field.name]:
+          field_name = edge.field.subscript_field
+          if field_name in record.fields:
+            result = Intersect(edge.field.type, record.fields[field_name])
+            if result != record.fields[field_name]:
               changed = True
-              record.fields_dict[new_field.name] = result
+              record.fields[field_name] = result
           else:
             changed = True
-            record.fields.append(new_field)
-            record.fields_dict[new_field.name] = new_field.type
+            record.fields[field_name] = edge.field.type

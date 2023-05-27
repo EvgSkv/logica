@@ -41,26 +41,23 @@ def Intersect(a: Type, b: Type) -> Type:
     if b.is_opened:
       return IntersectFriendlyRecords(a, b, True)
     else:
-      if set(a.fields_names) <= set(b.fields_names):
+      if set(a.fields.keys()) <= set(b.fields.keys()):
         return IntersectFriendlyRecords(a, b, False)
       raise TypeInferenceException()
   else:
-    if set(a.fields_names) == set(b.fields_names):
+    if set(a.fields.keys()) == set(b.fields.keys()):
       return IntersectFriendlyRecords(a, b, False)
     raise TypeInferenceException()
 
 
 def IntersectFriendlyRecords(a: RecordType, b: RecordType, is_opened: bool) -> RecordType:
-  result = RecordType([], is_opened)
-  for name, f_type in b.fields_dict.items():
-    if name in a.fields_dict:
-      intersection = Intersect(f_type, a.fields_dict[name])
-      new_field = Field(name, intersection)
-      result.fields.append(new_field)
-      result.fields_dict[new_field.name] = new_field.type
+  result = RecordType({}, is_opened)
+  for name, f_type in b.fields.items():
+    if name in a.fields:
+      intersection = Intersect(f_type, a.fields[name])
+      result.fields[name] = intersection
     else:
-      result.fields.append(Field(name, f_type))
-      result.fields_dict[name] = f_type
+      result.fields[name] = f_type
   return result
 
 
