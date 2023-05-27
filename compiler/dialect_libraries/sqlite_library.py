@@ -54,4 +54,7 @@ Intelligence(command) = SqlExpr("Intelligence({command})", {command:});
 AssembleRecord(field_values) = SqlExpr("AssembleRecord({field_values})", {field_values:});
 
 DisassembleRecord(record) = SqlExpr("DisassembleRecord({record})", {record:});
+
+Char(code) = SqlExpr("CHAR({code})", {code:});
+
 """

@@ -16,6 +16,7 @@ limitations under the License.
 
 <html>
 <head>
+  <meta charset="utf-8">
 </head>
 <link rel="stylesheet" href="logica_syntax.css" type="text/css"/>
 <script src="syntax_highlighting.js"></script>
@@ -142,7 +143,7 @@ body {
 }
 
 .animated_bump {
-  animation: bumpup-anime 0.5s;
+  animation: bumpup-anime 1s;
 }
 
 .animated_flip {
@@ -178,8 +179,10 @@ body {
   margin-left:auto
 }
 </style>
-<script defer src="https://pyscript.net/latest/pyscript.js"></script>
-
+<!-- # Uncomment to run predicates in sync.
+  
+  <script defer src="https://pyscript.net/latest/pyscript.js"></script>
+-->
 
 <body onkeydown="lastKeyPressedTime=performance.now()">
 
@@ -265,7 +268,41 @@ ExpensiveBook(book_name) :-
   </div>
 
   <script>
-    setInterval(executeHideError, 1000);
+    var worker = new Worker('logica.js');
+
+    // Prepare to handle responses from the engine.
+    worker.onmessage = function(event) {
+      console.log('Logical worker responded:', event);
+      worker_response = event.data;
+      let hide_error = worker_response.get('hide_error');
+      let status = worker_response.get('status');
+      let program = worker_response.get('program');
+      let predicate = worker_response.get('predicate');
+      lastProgramExecuted = program;
+      lastPredicateExecuted = predicate;
+      if (!hide_error || status == 'OK') {
+        outputResult(worker_response);
+      }
+    };
+
+    // Issue an execution request.
+    function requestExecution(gentle_execution) {
+      let program = document.getElementById('program').innerText;
+      let predicate = document.getElementById('main_predicate').value;
+      if (gentle_execution && lastProgramExecuted == program && lastPredicateExecuted == predicate) {
+        return;
+      }
+      worker.postMessage({
+        type: 'run_predicate', 
+        predicate: predicate, 
+        program: program,
+        hide_error: gentle_execution
+      });
+    }
+  </script>
+  <script>
+    setInterval(() => {requestExecution(true)}, 300);
+    //setInterval(executeHideError, 1000);
 
     document.addEventListener('keydown', function(event) {
       if (event.ctrlKey && event.key === 'Enter') {
@@ -336,11 +373,15 @@ ${execution_result.get('error_context')}
       }
       last_queried = now;
       bumpItUp();
-      let execution_result = execute();
-      let output = document.getElementById('output');
-      outputResult(execution_result);
+
+      // Old:
+      // let execution_result = execute();
+      // let output = document.getElementById('output');
+      // outputResult(execution_result);
+      requestExecution(false);
     }
     var lastProgramExecuted = "";
+    var lastPredicateExecuted = "";
     function executeHideError() {
       console.log('start');
       let program = document.getElementById('program').innerText + '->' + document.getElementById('main_predicate').value;

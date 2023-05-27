@@ -48,6 +48,8 @@ Test("ArrayConcatNull") = ArrayConcat([1,2,3], null);
 
 Test("ArrayConcatAggNull") = TestArrayConcatAggNull();
 
+Test("Char") = Char(66);
+
 TestArrayConcatAgg() ArrayConcatAgg= l :-
   l == Range(i + 1),
   i in Range(3);
