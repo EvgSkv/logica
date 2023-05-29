@@ -81,6 +81,10 @@ body {
       margin-right: auto;
       font-family: 'Nunito', sans-serif;
 }
+.wider_content {
+  max-width: 1400px;
+  padding: 5px;
+}
 .predicate_selector, .upper_bar {
   font-family: 'Roboto Mono', monospace;
   width:auto;
@@ -159,7 +163,9 @@ body {
   margin-bottom: 5px;
 }
 .plain_code {
-  margin-top: 7px;
+  margin-top: 10px;
+  outline-color: #222;
+  border: solid 3px black;
 }
 .code:focus {
   /* outline-color: #222;*/
@@ -177,6 +183,29 @@ body {
   border-radius: 10px;
   float:right;
   margin-left:auto
+}
+
+.two_screens_height {
+  height: 400px; /* 370px; */
+}
+
+.two_columns_content {
+  display: flex;
+  flex-direction: row;
+  width:100%;
+}
+
+.narrower_code {
+  width: 50%;
+  padding-right: 5px;
+}
+
+.upper_bar_adjusted {
+  height: 30px;
+}
+
+.default_code_height {
+  height: 370px;
 }
 </style>
 <!-- # Uncomment to run predicates in sync.
@@ -209,31 +238,36 @@ body {
 </div>
 
 
-<div class="content">
 
-  <div class="upper_bar">
-    <div class="code_title" style="display:inline">
-      Program:
-    </div>
-    <div class="button_pit">
-    <button class="logical_button" onclick="copyProgram()">
-      🔗 Copy Link
-    </button>
-    </div>
-    <script>
-      function copyProgram() {
-        let url = new URL(window.location.href);
-        url.searchParams.set('program', document.getElementById('program').innerText);
-        url.searchParams.set('main_predicate', document.getElementById('main_predicate').value);
-        navigator.clipboard.writeText(url.toString());
-        flipIt();
-        setTimeout(() => {window.history.replaceState(null, null, url.toString())}, 700);
-      }
-    </script>
+<div id="content" class="content"> <!--  wider_content -->
+
+<div id="screens" class="screens"> <!-- two_columns_content -->
+
+<div id="code_screen" class="code_screen"> <!-- narrower_code -->
+<div class="upper_bar">
+  <div class="code_title" style="display:inline">
+    Program:
   </div>
+  <div class="button_pit">
+  <button class="logical_button" onclick="copyProgram()">
+    🔗 Copy Link
+  </button>
+  </div>
+  <script>
+    function copyProgram() {
+      let url = new URL(window.location.href);
+      url.searchParams.set('program', document.getElementById('program').innerText);
+      url.searchParams.set('main_predicate', document.getElementById('main_predicate').value);
+      navigator.clipboard.writeText(url.toString());
+      flipIt();
+      setTimeout(() => {window.history.replaceState(null, null, url.toString())}, 700);
+    }
+  </script>
+</div>
 
-<div style="box-shadow: inset 0px 0px 6px rgba(0, 0, 0, 0.6);border-radius: 7px;">
-  <pre class="code" id="program" contenteditable="true" style="padding:10px; height: 370px;">
+<div style="box-shadow: inset 0px 0px 6px rgba(0, 0, 0, 0.6);border-radius: 7px;"> 
+   <!-- two_screens_height -->
+  <pre class="code default_code_height" id="program" contenteditable="true" style="padding:10px;">
 # Welcome to Logica Playground!
 # Go ahead and edit this program. Start with editing book names and prices.
 # You can write new predicates, specify which predicate you want to
@@ -252,21 +286,30 @@ ExpensiveBook(book_name) :-
   price > 100;
   </pre>
 </div>
-<div class="predicate_selector">
+
+</div>
+
+<div id="output_screen" class="output_screen"> <!-- narrower_code -->
+
+<div class="upper_bar">
+<div id="predicate_selector" class="predicate_selector">
   <div style="display: inline;">Predicate to run:</div>
   <input id="main_predicate" style="font-family: inherit; font-size: inherit; padding: 5px; border-radius: 10px; border: solid 1px gray; " value="ExpensiveBook"></input>
 
   <div class="button_pit">
   <button id="the_run_button" class="run_button" onclick="executeAndOutput()">RUN (Ctrl-Enter)</button>
   </div>
-
 </div>
 <div class="code_title" style="display: none">
   Output:
 </div>
-  <div class="plain_code" id="output">
-  </div>
+</div>
+<div class="plain_code" id="output"> <!-- two_screens_height -->
+  Loading Logical engine...</div>
+</div>
+</div>
 
+</div>
   <script>
     var worker = new Worker('logica.js');
 
@@ -303,7 +346,7 @@ ExpensiveBook(book_name) :-
   <script>
     setInterval(() => {requestExecution(true)}, 300);
     //setInterval(executeHideError, 1000);
-
+    var syntaxMode = 'off';
     document.addEventListener('keydown', function(event) {
       if (event.ctrlKey && event.key === 'Enter') {
         console.log('Ctrl+Enter was pressed');
@@ -319,7 +362,32 @@ ExpensiveBook(book_name) :-
       }
       if (event.ctrlKey && event.key == 'Escape') {
         console.log('Ctrl+Esc was pressed.');
-        HighlightCodeElements(document);
+        if (syntaxMode == 'off') {
+          HighlightCodeElements(document);
+          syntaxMode = 'on';
+        } else {
+          syntaxMode ='off';
+          document.getElementById('program').innerHTML = document.getElementById('program').innerText;
+        }
+      }
+      if (event.shiftKey && event.key == 'Escape') {
+        document.getElementById('content').classList.add('wider_content');
+        document.getElementById('screens').classList.add('two_columns_content');
+        document.getElementById('code_screen').classList.add('narrower_code');
+        document.getElementById('output_screen').classList.add('narrower_code');
+        document.querySelectorAll('.upper_bar').forEach((b) => {
+          b.classList.add('upper_bar_adjusted');
+        });
+        document.getElementById('program').classList.remove('default_code_height');
+
+        document.getElementById('program').classList.add('two_screens_height');
+        document.getElementById('output').classList.add('two_screens_height');
+
+        document.getElementById('predicate_selector').style['display'] = 'none';
+      }
+      console.log(event.shiftKey, event.key);
+      if (event.shiftKey && event.key == 'Enter') {
+        copyProgram();
       }
     });
     
@@ -470,6 +538,5 @@ def RunPredicate(program, predicate):
 
   return {"result": data, "error_message": "",  "error_context": "", "status": "OK", "predicate_name": predicate}
   </py-script>
-</div>
 </body>
 </html>
