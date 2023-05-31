@@ -352,8 +352,10 @@ class RuleStructure(object):
             if variables:
               violators = []
               for v in variables:
-                violators.extend(v.variable_name 
-                                 for v in self.synonym_log.get(v, []))
+                violators.extend(
+                  v.variable_name 
+                  for v in self.synonym_log.get(v, [])
+                  if v.predicate_name == self.this_predicate_name)
                 violators.append(v)
               violators = {v for v in violators if not v.startswith('x_')}
               # Remove disambiguation suffixes from variables not to confuse
@@ -363,8 +365,7 @@ class RuleStructure(object):
                 raise RuleCompileException(
                     color.Format(
                         'Found no way to assign variables: '
-                        '{warning}{violators}{end}. '
-                        'This error might also come from injected sub-rules.',
+                        '{warning}{violators}{end}.',
                         dict(violators=', '.join(sorted(violators)))),
                     self.full_rule_text)
               else:
@@ -390,7 +391,7 @@ class RuleStructure(object):
                                                         str(self.synonym_log)))
                 raise RuleCompileException(
                   'While compiling predicate ' + this_predicate + ' there was '
-                  'found no way to assign variables:' + unassigned_vars,
+                  'found no way to assign variables: ' + unassigned_vars + '.',
                   self.full_rule_text)
           else:
             assert not variables, (
