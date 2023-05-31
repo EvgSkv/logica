@@ -2,7 +2,9 @@ from typing import cast
 
 from type_inference.intersection import Intersect, IntersectListElement
 from type_inference.types.edge import Equality, EqualityOfElement, FieldBelonging
+from type_inference.types.types_graph import TypesGraph
 from type_inference.types.variable_types import AnyType, ListType, RecordType
+from type_inference.types.expression import PredicateAddressing, Variable
 
 
 class TypeInference:
@@ -10,6 +12,26 @@ class TypeInference:
     self.all_edges = []
     for graph in graphs.values():
       self.all_edges.extend(graph.ToEdgesSet())
+    self.MergeGraphs(graphs)
+
+
+  def FindField(self, field_name: str, graph: TypesGraph):
+    tmp_var = Variable(field_name)
+    edge = list(graph.expression_connections[tmp_var].values())[0][0]
+    if edge.vertices[0] == tmp_var:
+      return edge.vertices[0]
+    else:
+      return edge.vertices[1]
+
+
+  def MergeGraphs(self, graphs: dict):
+    edges_to_add = []
+    for g in graphs.values():
+      for p in g.expression_connections.keys():
+        if isinstance(p, PredicateAddressing) and p.type == AnyType():
+          to_link = self.FindField(p.field, graphs[p.predicate_name])
+          edges_to_add.append(Equality(p, to_link, (-1, -1)))
+    self.all_edges.extend(edges_to_add)
 
   def Infer(self):
     changed = True

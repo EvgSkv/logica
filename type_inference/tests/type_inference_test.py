@@ -111,6 +111,38 @@ class TestTypeInferenceSucceeded(unittest.TestCase):
 
     self.assertEquals(q_col0.type, RecordType({'a': number, 'b': RecordType({'c': string}, True)}, True))
 
+  def test_when_linked_with_known_predicate(self):
+    # Q(x, y) :- T(x), Num(x), y == F(x)
+    # T(x) :- x == 10
+    # F(x) :- x
+    graph = TypesGraph()
+    x_var = expression.Variable('x')
+    y_var = expression.Variable('y')
+    graph.connect(edge.Equality(expression.Variable('col0'), x_var, (0, 0)))
+    graph.connect(edge.Equality(expression.Variable('col1'), y_var, (0, 0)))
+    graph.connect(edge.Equality(x_var, expression.PredicateAddressing('T', 'col0'), (0, 0)))
+    graph.connect(edge.Equality(x_var, expression.PredicateAddressing('F', 'col0'), (0, 0)))
+    graph.connect(edge.Equality(x_var, y_var, (0, 0)))
+    graph.connect(edge.Equality(x_var, expression.PredicateAddressing('Num', 'col0'), (0, 0)))
+    graphs = dict()
+    graphs['Q'] = graph
+
+    graphT = TypesGraph()
+    x_var2 = expression.Variable('x')
+    graphT.connect(edge.Equality(expression.Variable('col0'), x_var2, (0, 0)))
+    graphT.connect(edge.Equality(x_var2, expression.NumberLiteral(), (0, 0)))
+    graphs['T'] = graphT
+
+    graphF = TypesGraph()
+    x_var3 = expression.Variable('x')
+    graphF.connect(edge.Equality(expression.Variable('col0'), x_var3, (0, 0)))
+    graphs['F'] = graphF
+
+    TypeInference(graphs).Infer()
+
+    self.assertEqual(x_var2.type, number)
+    self.assertEqual(y_var.type, number)
+
   # todo fix it
   # def test_when_linked_with_known_predicate(self):
   #   # Q(x) :- T(x), Num(x)
