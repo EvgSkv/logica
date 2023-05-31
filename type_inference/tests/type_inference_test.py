@@ -143,6 +143,32 @@ class TestTypeInferenceSucceeded(unittest.TestCase):
     self.assertEqual(x_var2.type, number)
     self.assertEqual(y_var.type, number)
 
+
+  def test_field_equals_predicat(self):
+    # Q(x) :- x.a == T(), x.b == "string"
+    # T() = 7
+    graph = TypesGraph()
+    q_col0 = expression.Variable('col0')
+    x_var = expression.Variable('x')
+    a = expression.SubscriptAddressing(x_var, 'a')
+    b = expression.SubscriptAddressing(x_var, 'b')
+    graph.connect(edge.Equality(q_col0, x_var, (0, 0)))
+    graph.connect(edge.FieldBelonging(x_var, a, (0, 0)))
+    graph.connect(edge.FieldBelonging(x_var, b, (0, 0)))
+    graph.connect(edge.Equality(a, expression.PredicateAddressing('T', 'logica_value'), (0, 0)))
+    graph.connect(edge.Equality(b, expression.StringLiteral(), (0, 0)))
+    graphs = dict()
+    graphs['Q'] = graph
+
+    graphT = TypesGraph()
+    l_var = expression.Variable('logica_value')
+    graphT.connect(edge.Equality(l_var, expression.NumberLiteral(), (0, 0)))
+    graphs['T'] = graphT
+
+    TypeInference(graphs).Infer()
+
+    self.assertEquals(q_col0.type, RecordType({'a': number, 'b': string}, True))
+
   # todo fix it
   # def test_when_linked_with_known_predicate(self):
   #   # Q(x) :- T(x), Num(x)
