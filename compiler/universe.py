@@ -1073,6 +1073,7 @@ def InjectStructure(target, source):
   target.vars_unification.extend(source.vars_unification)
   target.unnestings.extend(source.unnestings)
   target.constraints.extend(source.constraints)
+  target.synonym_log.update(source.synonym_log)
 
 
 def RecursionError():

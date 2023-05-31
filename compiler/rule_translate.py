@@ -34,6 +34,16 @@ def Indent2(s):
   return '\n'.join('  ' + l for l in s.split('\n'))
 
 
+LogicalVariable = collections.namedtuple(
+  'LogicalVariable',
+  [
+    'variable_name',    # Name of user or generated variable.
+    'predicate_name',   # Name of a predicate in rule for which the variable is
+                        # used.
+    'is_user_variable'  # Whether this is a user variable (vs generated one).
+  ])
+
+
 class RuleCompileException(Exception):
   """Exception thrown when user-error is detected at rule-compile time."""
 
@@ -193,7 +203,7 @@ class RuleStructure(object):
     self.allocator = names_allocator
     self.external_vocabulary = external_vocabulary
     self.synonym_log = {}
-    self.full_rull_text = None
+    self.full_rule_text = None
     self.distinct_denoted = None
 
   def OwnVarsVocabulary(self):
@@ -261,7 +271,12 @@ class RuleStructure(object):
   def ReplaceVariableEverywhere(self, u_left, u_right):
     if 'variable' in u_right:
       l = self.synonym_log.get(u_right['variable']['var_name'], [])
-      l.append(u_left)
+      l.append(LogicalVariable(variable_name=u_left,
+                               predicate_name=self.this_predicate_name,
+                               # TODO: sqlite_recursion somehow gets
+                               # u_left to be int. 
+                               is_user_variable=(isinstance(u_left, str) and
+                                                 not u_left.startswith('x_'))))
       l.extend(self.synonym_log.get(u_left, []))
       self.synonym_log[u_right['variable']['var_name']] = l
     ReplaceVariable(u_left, u_right, self.unnestings)
@@ -337,26 +352,46 @@ class RuleStructure(object):
             if variables:
               violators = []
               for v in variables:
-                violators.extend(self.synonym_log.get(v, []))
+                violators.extend(
+                  v.variable_name 
+                  for v in self.synonym_log.get(v, [])
+                  if v.predicate_name == self.this_predicate_name)
                 violators.append(v)
               violators = {v for v in violators if not v.startswith('x_')}
-              assert violators, (
-                  'Logica needs better error messages: purely internal '
-                  'variable was not eliminated. It looks like you have '
-                  'not passed a required argument to some called predicate. '
-                  'Use --add_debug_info_to_var_names flag to make this message '
-                  'a little more informatvie. '
-                  'Variables: %s, synonym_log: %s' % (str(variables),
-                                                      str(self.synonym_log)))
               # Remove disambiguation suffixes from variables not to confuse
               # the user.
-              violators = {v.split(' # disambiguated')[0] for v in violators}
-              raise RuleCompileException(
-                  color.Format(
-                      'Found no way to assign variables: '
-                      '{warning}{violators}{end}. '
-                      'This error might also come from injected sub-rules.',
-                      dict(violators=', '.join(sorted(violators)))),
+              if violators:
+                violators = {v.split(' # disambiguated')[0] for v in violators}
+                raise RuleCompileException(
+                    color.Format(
+                        'Found no way to assign variables: '
+                        '{warning}{violators}{end}.',
+                        dict(violators=', '.join(sorted(violators)))),
+                    self.full_rule_text)
+              else:
+                user_variables = [
+                  uv for v in variables 
+                  for uv in self.synonym_log.get(v, [])
+                  if uv.is_user_variable]
+                this_predicate = color.Format('{warning}{p}{end}',
+                                              dict(p=self.this_predicate_name))
+                unassigned_vars = ', '.join(
+                  color.Format('{warning}{var}{end} in rule for '
+                               '{warning}{p}{end}',
+                               dict(var=v.variable_name, p=v.predicate_name))
+                  for v in user_variables
+                )
+                assert user_variables, (
+                    'Logica needs better error messages: purely internal '
+                    'variable was not eliminated. It looks like you have '
+                    'not passed a required argument to some called predicate. '
+                    'Use --add_debug_info_to_var_names flag to make this message '
+                    'a little more informatvie. '
+                    'Variables: %s, synonym_log: %s' % (str(variables),
+                                                        str(self.synonym_log)))
+                raise RuleCompileException(
+                  'While compiling predicate ' + this_predicate + ' there was '
+                  'found no way to assign variables: ' + unassigned_vars + '.',
                   self.full_rule_text)
           else:
             assert not variables, (
