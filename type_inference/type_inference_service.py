@@ -9,7 +9,7 @@ class TypeInference:
   def __init__(self, graphs: dict):
     self.all_edges = []
     for graph in graphs.values():
-      self.all_edges.extend(graph.edges)
+      self.all_edges.extend(graph.ToEdgesSet())
 
   def Infer(self):
     changed = True

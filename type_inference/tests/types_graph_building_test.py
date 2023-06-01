@@ -9,7 +9,7 @@ class TestTypesGraphBuilding(unittest.TestCase):
     s = "Q(x) :- T(x), Num(x)"
 
     graph = ast_traverse.run(s)["Q"]
-    edges = graph.to_edges_list()
+    edges = graph.ToEdgesSet()
 
     expected = [edge.Equality(expression.Variable('col0'), expression.Variable('x'), (0, 0)),
                 edge.Equality(expression.Variable('x'), expression.PredicateAddressing('T', 'col0'), (0, 0)),
@@ -21,7 +21,7 @@ class TestTypesGraphBuilding(unittest.TestCase):
     s = "Q(x + y) :- T(x), T(y);"
 
     graph = ast_traverse.run(s)["Q"]
-    edges = graph.to_edges_list()
+    edges = graph.ToEdgesSet()
 
     x_var = expression.Variable('x')
     y_var = expression.Variable('y')
@@ -41,7 +41,7 @@ class TestTypesGraphBuilding(unittest.TestCase):
     s = "Q(x) :- T(x), T(y), Str(x), x == y;"
 
     graph = ast_traverse.run(s)["Q"]
-    edges = graph.to_edges_list()
+    edges = graph.ToEdgesSet()
 
     x_var = expression.Variable('x')
     y_var = expression.Variable('y')
@@ -57,7 +57,7 @@ class TestTypesGraphBuilding(unittest.TestCase):
     s = "Q(x ++ y) :- T(x), T(y);"
 
     graph = ast_traverse.run(s)["Q"]
-    edges = graph.to_edges_list()
+    edges = graph.ToEdgesSet()
 
     x_var = expression.Variable('x')
     y_var = expression.Variable('y')
@@ -78,7 +78,7 @@ class TestTypesGraphBuilding(unittest.TestCase):
     s = "Q(y) :- T(x), y in x, Num(y);"
 
     graph = ast_traverse.run(s)["Q"]
-    edges = graph.to_edges_list()
+    edges = graph.ToEdgesSet()
 
     x_var = expression.Variable('x')
     y_var = expression.Variable('y')
@@ -93,7 +93,7 @@ class TestTypesGraphBuilding(unittest.TestCase):
     s = "Q(p: Str(y), q: z + w, s: x) :- T(x), y == x.a, z == x.b, w == x.c.d;"
 
     graph = ast_traverse.run(s)["Q"]
-    edges = graph.to_edges_list()
+    edges = graph.ToEdgesSet()
 
     p_var = expression.Variable('p')
     q_var = expression.Variable('q')
@@ -133,7 +133,7 @@ class TestTypesGraphBuilding(unittest.TestCase):
     s = "Q(a:, b:) :- T(x), T(y), a == x + y, b == x + y;"
 
     graph = ast_traverse.run(s)["Q"]
-    edges = graph.to_edges_list()
+    edges = graph.ToEdgesSet()
 
     x_var = expression.Variable('x')
     y_var = expression.Variable('y')

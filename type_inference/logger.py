@@ -1,6 +1,7 @@
 from type_inference.types.edge import Edge
 from type_inference.types.variable_types import Type
 
+
 class Logger:
   def __init__(self):
     self._not_found_tables = []

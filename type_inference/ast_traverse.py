@@ -26,11 +26,16 @@ def get_literal_expression(types_graph: TypesGraph, literal: dict):
 def fill_fields(predicate_name: str, types_graph: TypesGraph, fields: dict, result: PredicateAddressing = None):
   for field in fields["record"]["field_value"]:
     value = convert_expression(types_graph, field["value"]["expression"])
-    predicate_field = PredicateAddressing(predicate_name, field["field"])
-    types_graph.connect(Equality(predicate_field, value, bounds))
+    field_name = field["field"]
+
+    if isinstance(field_name, int):
+      field_name = f'col{field_name}'
+
+    predicate_field = PredicateAddressing(predicate_name, field_name)
+    types_graph.Connect(Equality(predicate_field, value, bounds))
 
     if result:
-      types_graph.connect(PredicateArgument(result, predicate_field, bounds))
+      types_graph.Connect(PredicateArgument(result, predicate_field, bounds))
 
 
 def convert_expression(types_graph: TypesGraph, expression: dict):
@@ -52,7 +57,7 @@ def convert_expression(types_graph: TypesGraph, expression: dict):
     record = convert_expression(types_graph, subscript["record"])
     field = subscript["subscript"]["literal"]["the_symbol"]["symbol"]
     result = SubscriptAddressing(record, field)
-    types_graph.connect(FieldBelonging(record, result, bounds))
+    types_graph.Connect(FieldBelonging(record, result, bounds))
     return result
 
   if "record" in expression:
@@ -77,16 +82,21 @@ def process_predicate(types_graph: TypesGraph, value: dict):
 
 
 def fill_field(types_graph: TypesGraph, field: dict):
-  variable = Variable(field["field"])
+  field_name = field["field"]
+
+  if isinstance(field_name, int):
+    field_name = f'col{field_name}'
+
+  variable = Variable(field_name)
 
   if "aggregation" in field["value"]:
     value = convert_expression(types_graph, field["value"]["aggregation"]["expression"])
-    types_graph.connect(Equality(variable, value, bounds))
+    types_graph.Connect(Equality(variable, value, bounds))
     return
 
   if "expression" in field["value"]:
     value = convert_expression(types_graph, field["value"]["expression"])
-    types_graph.connect(Equality(variable, value, bounds))
+    types_graph.Connect(Equality(variable, value, bounds))
     return
 
   raise NotImplementedError(field)
@@ -97,12 +107,12 @@ def fill_conjunct(types_graph: TypesGraph, conjunct: dict):
     unification = conjunct["unification"]
     left_hand_side = convert_expression(types_graph, unification["left_hand_side"])
     right_hand_side = convert_expression(types_graph, unification["right_hand_side"])
-    types_graph.connect(Equality(left_hand_side, right_hand_side, bounds))
+    types_graph.Connect(Equality(left_hand_side, right_hand_side, bounds))
   elif "inclusion" in conjunct:
     inclusion = conjunct["inclusion"]
     list_of_elements = convert_expression(types_graph, inclusion["list"])
     element = convert_expression(types_graph, inclusion["element"])
-    types_graph.connect(EqualityOfElement(list_of_elements, element, bounds))
+    types_graph.Connect(EqualityOfElement(list_of_elements, element, bounds))
   elif "predicate" in conjunct:
     process_predicate(types_graph, conjunct["predicate"])
   else:
@@ -141,7 +151,7 @@ def build_graphs_for_rule_and_print(rule: str):
 
     for predicate_name, graph in graphs.items():
       print(predicate_name)
-      print(dumps(graph.to_serializable_edges_list(), indent=2))
+      print(dumps(graph.ToSerializableEdgesList(), indent=2))
       print()
   except NotImplementedError:
     print("Can't build graph of types for this rule yet :(")

@@ -17,8 +17,8 @@ opened_record_with_closed_record = RecordType({'num': number, 'closed_record': c
 closed_record_with_opened_record = RecordType({'num': number, 'opened_record': opened_record}, False)
 closed_record_with_closed_record = RecordType({'num': number, 'closed_record': closed_record}, False)
 
-class IntersectionTest(unittest.TestCase):
 
+class IntersectionTest(unittest.TestCase):
   def test_success_when_intersect_equal_types(self):
     types = [number, string, list_of_nums, empty_list,
              opened_record, closed_record,

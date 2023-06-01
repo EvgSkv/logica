@@ -8,15 +8,15 @@ from type_inference.types.variable_types import NumberType, StringType, ListType
 number = NumberType()
 string = StringType()
 
-class TestTypeInferenceSucceeded(unittest.TestCase):
 
+class TestTypeInferenceSucceeded(unittest.TestCase):
   def test_when_num(self):
     # 'Q(x) :- x == 1'
     graph = TypesGraph()
     q_col0 = expression.Variable('col0')
     x_var = expression.Variable('x')
-    graph.connect(edge.Equality(q_col0, x_var, (0, 0)))
-    graph.connect(edge.Equality(x_var, expression.NumberLiteral(), (0, 0)))
+    graph.Connect(edge.Equality(q_col0, x_var, (0, 0)))
+    graph.Connect(edge.Equality(x_var, expression.NumberLiteral(), (0, 0)))
     graphs = dict()
     graphs['Q'] = graph
 
@@ -31,9 +31,9 @@ class TestTypeInferenceSucceeded(unittest.TestCase):
     q_col0 = expression.Variable('col0')
     t_col0 = expression.PredicateAddressing('T', 'col0')
     x_var = expression.Variable('x')
-    graph.connect(edge.Equality(q_col0, x_var, (0, 0)))
-    graph.connect(edge.Equality(x_var, t_col0, (0, 0)))
-    graph.connect(edge.Equality(x_var, expression.PredicateAddressing('Num', 'col0'), (0, 0)))
+    graph.Connect(edge.Equality(q_col0, x_var, (0, 0)))
+    graph.Connect(edge.Equality(x_var, t_col0, (0, 0)))
+    graph.Connect(edge.Equality(x_var, expression.PredicateAddressing('Num', 'col0'), (0, 0)))
     graphs = dict()
     graphs['Q'] = graph
 
@@ -47,9 +47,9 @@ class TestTypeInferenceSucceeded(unittest.TestCase):
     graph = TypesGraph()
     q_col0 = expression.Variable('col0')
     x_var = expression.Variable('x')
-    graph.connect(edge.Equality(q_col0, x_var, (0, 0)))
-    graph.connect(edge.EqualityOfElement(expression.PredicateAddressing('Range', 'logica_value'), x_var, (0, 0)))
-    graph.connect(edge.Equality(expression.PredicateAddressing('Range', 'col0'), expression.NumberLiteral(), (0, 0)))
+    graph.Connect(edge.Equality(q_col0, x_var, (0, 0)))
+    graph.Connect(edge.EqualityOfElement(expression.PredicateAddressing('Range', 'logica_value'), x_var, (0, 0)))
+    graph.Connect(edge.Equality(expression.PredicateAddressing('Range', 'col0'), expression.NumberLiteral(), (0, 0)))
     graphs = dict()
     graphs['Q'] = graph
 
@@ -62,8 +62,8 @@ class TestTypeInferenceSucceeded(unittest.TestCase):
     # Q(Range(10));
     graph = TypesGraph()
     q_col0 = expression.Variable('col0')
-    graph.connect(edge.Equality(expression.PredicateAddressing('Range', 'logica_value'), q_col0, (0, 0)))
-    graph.connect(edge.Equality(expression.PredicateAddressing('Range', 'col0'), expression.NumberLiteral(), (0, 0)))
+    graph.Connect(edge.Equality(expression.PredicateAddressing('Range', 'logica_value'), q_col0, (0, 0)))
+    graph.Connect(edge.Equality(expression.PredicateAddressing('Range', 'col0'), expression.NumberLiteral(), (0, 0)))
     graphs = dict()
     graphs['Q'] = graph
 
@@ -78,11 +78,11 @@ class TestTypeInferenceSucceeded(unittest.TestCase):
     x_var = expression.Variable('x')
     a = expression.SubscriptAddressing(x_var, 'a')
     b = expression.SubscriptAddressing(x_var, 'b')
-    graph.connect(edge.Equality(q_col0, x_var, (0, 0)))
-    graph.connect(edge.FieldBelonging(x_var, a, (0, 0)))
-    graph.connect(edge.FieldBelonging(x_var, b, (0, 0)))
-    graph.connect(edge.Equality(a, expression.NumberLiteral(), (0, 0)))
-    graph.connect(edge.Equality(b, expression.StringLiteral(), (0, 0)))
+    graph.Connect(edge.Equality(q_col0, x_var, (0, 0)))
+    graph.Connect(edge.FieldBelonging(x_var, a, (0, 0)))
+    graph.Connect(edge.FieldBelonging(x_var, b, (0, 0)))
+    graph.Connect(edge.Equality(a, expression.NumberLiteral(), (0, 0)))
+    graph.Connect(edge.Equality(b, expression.StringLiteral(), (0, 0)))
     graphs = dict()
     graphs['Q'] = graph
 
@@ -98,12 +98,12 @@ class TestTypeInferenceSucceeded(unittest.TestCase):
     a = expression.SubscriptAddressing(x_var, 'a')
     b = expression.SubscriptAddressing(x_var, 'b')
     c = expression.SubscriptAddressing(b, 'c')
-    graph.connect(edge.Equality(q_col0, x_var, (0, 0)))
-    graph.connect(edge.FieldBelonging(x_var, a, (0, 0)))
-    graph.connect(edge.FieldBelonging(x_var, b, (0, 0)))
-    graph.connect(edge.FieldBelonging(b, c, (0, 0)))
-    graph.connect(edge.Equality(a, expression.NumberLiteral(), (0, 0)))
-    graph.connect(edge.Equality(c, expression.StringLiteral(), (0, 0)))
+    graph.Connect(edge.Equality(q_col0, x_var, (0, 0)))
+    graph.Connect(edge.FieldBelonging(x_var, a, (0, 0)))
+    graph.Connect(edge.FieldBelonging(x_var, b, (0, 0)))
+    graph.Connect(edge.FieldBelonging(b, c, (0, 0)))
+    graph.Connect(edge.Equality(a, expression.NumberLiteral(), (0, 0)))
+    graph.Connect(edge.Equality(c, expression.StringLiteral(), (0, 0)))
     graphs = dict()
     graphs['Q'] = graph
 
@@ -431,11 +431,11 @@ class TestTypeInferenceSucceeded(unittest.TestCase):
   #   self.assertIsInstance(inferred_rules['Q']['b'], variable_types.NumberType)
   #   self.assertIsInstance(inferred_rules['Q']['x'], variable_types.NumberType)
   #   self.assertIsInstance(inferred_rules['Q']['y'], variable_types.NumberType)
-    # self.assertIsInstance(inferred_rules['T']['col0'], variable_types.NumberType)
-    # self.assertIsInstance(inferred_rules['T']['col1'], variable_types.NumberType)
+  # self.assertIsInstance(inferred_rules['T']['col0'], variable_types.NumberType)
+  # self.assertIsInstance(inferred_rules['T']['col1'], variable_types.NumberType)
 
-    # for predicate_name, inferred_graph in inferred_rules.items():
-    #   vars_to_print = []
-    #   for var_name, var_type in inferred_graph.items():
-    #     vars_to_print.append(f"{var_name}: {var_type}")
-    #   print(f'{predicate_name}({", ".join(vars_to_print)})')
+  # for predicate_name, inferred_graph in inferred_rules.items():
+  #   vars_to_print = []
+  #   for var_name, var_type in inferred_graph.items():
+  #     vars_to_print.append(f"{var_name}: {var_type}")
+  #   print(f'{predicate_name}({", ".join(vars_to_print)})')
