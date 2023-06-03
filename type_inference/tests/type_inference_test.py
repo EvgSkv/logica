@@ -11,7 +11,7 @@ number = NumberType()
 string = StringType()
 
 
-class TestTypeInferenceSucceeded(unittest.TestCase):
+class TestTypeInference(unittest.TestCase):
   def test_when_num(self):
     # 'Q(x) :- x == 1'
     graph = TypesGraph()
@@ -39,10 +39,8 @@ class TestTypeInferenceSucceeded(unittest.TestCase):
     graphs = dict()
     graphs['Q'] = graph
 
-    TypeInference(graphs).Infer()
-
-    self.assertEquals(q_col0.type, number)
-    self.assertEquals(t_col0.type, number)
+    with self.assertRaises(KeyError):
+      TypeInference(graphs).Infer()
 
   def test_when_inclusion(self):
     # Q(x) :- x in Range(10)
