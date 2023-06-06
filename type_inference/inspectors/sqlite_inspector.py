@@ -1,27 +1,29 @@
 import sqlite3
-from typing import List
+from typing import Dict
 
-from type_inference.column_info import ColumnInfo
 from type_inference.inspectors.inspector_base import Inspector
 from type_inference.logger import Logger
+from type_inference.types.variable_types import AnyType, NumberType, StringType, Type
+
+def convert(sqlite_type: str) -> Type:
+  lower_sqlite_type = sqlite_type.lower()
+  if lower_sqlite_type == 'null':
+    return AnyType() # todo nulltype
+  if lower_sqlite_type == 'integer' or lower_sqlite_type == 'real':
+    return NumberType()
+  if lower_sqlite_type == 'text':
+    return StringType()
+  raise Exception(f'unknown type {lower_sqlite_type}')
 
 
 class SQLiteInspector(Inspector):
-  def __init__(self, db_file: str, logger: Logger):
+  def __init__(self, db_path: str, logger: Logger):
     self._logger = logger
-    self._conn = sqlite3.connect(db_file)
+    self.db_path = db_path
 
-  def try_get_columns_info(self, table_name: str) -> List[ColumnInfo]:
-    with self._conn.cursor() as cursor:
-      table_exists = cursor.execute(
-        f''' SELECT name FROM sqlite_master 
-        WHERE type='table' AND name="{table_name}" ''').fetchall()
-
-      if not table_exists:
-        self._logger.not_found_table(table_name)
-        return []
-
-      columns_info = cursor.execute(
-        f'PRAGMA table_info({table_name});').fetchall()
-      return [ColumnInfo(column_name=column[1], table_name=table_name, type_name=column[2])
-              for column in columns_info]
+  def try_get_columns_info(self, table_name: str) -> Dict[str, Type]:
+    conn = sqlite3.connect(self.db_path)
+    cursor = conn.cursor()
+    columns_info = cursor.execute(f'PRAGMA table_info({table_name});').fetchall()
+    conn.close()
+    return {column[1]: convert(column[2]) for column in columns_info}

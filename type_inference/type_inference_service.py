@@ -1,19 +1,20 @@
 from typing import cast
 
+from type_inference.inspectors.sqlite_inspector import SQLiteInspector
 from type_inference.intersection import Intersect, IntersectListElement
 from type_inference.types.edge import Equality, EqualityOfElement, FieldBelonging
+from type_inference.types.expression import PredicateAddressing, Variable
 from type_inference.types.types_graph import TypesGraph
 from type_inference.types.variable_types import AnyType, ListType, RecordType
-from type_inference.types.expression import PredicateAddressing, Variable
 
 
 class TypeInference:
-  def __init__(self, graphs: dict):
+  def __init__(self, graphs: dict, db_path: str = None):
+    self.db_path = db_path
     self.all_edges = []
     for graph in graphs.values():
       self.all_edges.extend(graph.ToEdgesSet())
     self.MergeGraphs(graphs)
-
 
   def FindField(self, field_name: str, graph: TypesGraph):
     tmp_var = Variable(field_name)
@@ -23,14 +24,18 @@ class TypeInference:
     else:
       return edge.vertices[1]
 
-
   def MergeGraphs(self, graphs: dict):
     edges_to_add = []
+    sqlite_inspector = SQLiteInspector(self.db_path, None)
     for g in graphs.values():
       for p in g.expression_connections.keys():
         if isinstance(p, PredicateAddressing) and p.type == AnyType():
-          to_link = self.FindField(p.field, graphs[p.predicate_name])
-          edges_to_add.append(Equality(p, to_link, (-1, -1)))
+          if p.predicate_name in graphs:
+            to_link = self.FindField(p.field, graphs[p.predicate_name])
+            edges_to_add.append(Equality(p, to_link, (-1, -1)))
+          else:
+            column_info = sqlite_inspector.try_get_columns_info(p.predicate_name)
+            p.type = column_info[p.field]
     self.all_edges.extend(edges_to_add)
 
   def Infer(self):
