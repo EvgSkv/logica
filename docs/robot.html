@@ -1,0 +1,373 @@
+<html>
+    <link rel="stylesheet" href="logica_syntax.css" type="text/css"/>
+
+    <style>
+        canvas {
+            border-width: 1px;
+            border: solid;
+            border-color: #000;
+            box-shadow: 0px 0px 10px rgba(0, 200, 0, 0.3);
+        }
+        .plain_code {
+            margin-top: 10px;
+            outline-color: #222;
+            border: solid 3px black;
+            width: 200px;
+            height: 200px;
+        }
+        body {
+            background-color: #010;
+        }
+        button {
+            border: solid;
+            background-color: 0;
+            color: #afa;
+            padding: 10px;
+            padding-top: 5px;
+            padding-bottom: 5px;
+            border-radius: 5px;;
+        }
+        button:hover {
+            background-color: #191;
+            color: black;
+        }
+        button:active{
+            background-color: #5f5;
+        }
+    </style>
+<body>
+    <div style="display: flex; flex-flow: row;">
+        <canvas id="canvas" width="500px" height="500px">
+        </canvas>
+        <div style="display: block; width: 800px; height: 300px; margin-left: 30px;">
+          <div id="robot_code" class="code"  contenteditable="true" style="height: 380px">
+RobotDesire(drive:, turn: 1, memory:, distance:) :-
+  RadarBeam(direction: 0, distance:),
+  drive = (
+    if distance > 250 then
+      1
+    else if distance < 150 then
+      -1
+    else 0
+  ),
+  Memory(memory);
+
+          </div>
+
+          <button onclick="digest()">FIRMWARE UPDATE</button>
+
+          <div id="robot_output" class="code"  contenteditable="false" style="height: 300px">
+Loading Logical program...
+          </div>
+
+          <script>
+            var worker = new Worker('logica.js');
+
+            var backlogCount = 0;
+            function requestDesire2() {
+                console.log('the SQL:', theSQL)
+                if (theSQL == 'BROKEN') {
+                    return;
+                }
+                let radarStatement = robot.radar_beams.map(
+                    (b) => {
+                        return `${b.dir}~${b.d}`;
+                    }
+                );
+                let radarData = radarStatement.join(';');
+                worker.postMessage({
+                    type: 'run_sql',
+                    sql: theSQL.replace(/\*\*\*/g, radarData).replace(/\+\+\+/g, robot.memory)
+                });
+            }
+            function requestDesire() {
+                let radarStatement = robot.radar_beams.map(
+                    (b) => {
+                        return `RadarBeam(direction: ${b.dir}, distance: ${b.d})`;
+                    }
+                );
+                let radarProgram = radarStatement.join(';\n');
+
+                let program =  radarProgram + ';\n' + theProgram;
+
+                console.log('program:', program);
+                worker.postMessage({
+                    type: 'run_predicate', 
+                    predicate: thePredicate, 
+                    program: program,
+                    hide_error: false
+                });            
+                backlogCount += 1;
+                console.log('Backlog:', backlogCount);
+            }
+            function digest() {
+                theProgram = 'RadarBeam(direction: dir, distance: d) :- x in Split(data, ";"), ab = Split(x, "~"), dir == ToFloat64(ab[0]), d = ToFloat64(ab[1]), RadarData(data); RadarData("***"); Memory("+++");\n' + document.getElementById("robot_code").innerText;
+                worker.postMessage({type: 'compile_predicate', predicate: thePredicate, program: theProgram})
+            };
+            var thePredicate = 'RobotDesire';
+            var theProgram = 'RobotDesire(drive: 0, turn: 1);'
+            var theSQL = 'BROKEN';
+            var theTime = 0;
+            worker.onmessage = function(event) {
+                backlogCount -= 1;
+
+                console.log('Logical worker responded:', event);
+                worker_response = event.data;
+                if (worker_response.get('type') == 'compile_predicate') {
+                    console.log('Compiled SQL result:', worker_response);
+                    if (worker_response.get('status') != 'OK') {
+                        outputResult(worker_response);
+                        theSQL = 'BROKEN';
+                        return;
+                    }
+                    theSQL = worker_response.get('result');
+                    console.log(theSQL);
+                    return;
+                }
+                console.log('data:', worker_response);
+                console.log('result:', worker_response.get('result'));
+                outputResult(worker_response);
+
+                let drive_turn_str = worker_response.get('result').split('\n')[3].split('|');
+                let drive_turn = {drive: parseFloat(drive_turn_str[1]), turn: parseFloat(drive_turn_str[2])};
+                robot.memory = drive_turn_str[3].substr(1, drive_turn_str[3].length - 2);
+
+                console.log('desire:', drive_turn);
+                robot.desire = drive_turn;
+                let hide_error = worker_response.get('hide_error');
+                let status = worker_response.get('status');
+                let program = worker_response.get('program');
+                let predicate = worker_response.get('predicate');
+                lastProgramExecuted = program;
+                lastPredicateExecuted = predicate;
+                // document.getElementById('robot_output').innerText = worker_response.get('result');
+                /*if (!hide_error || status == 'OK') {
+                    outputResult(worker_response);
+                }*/
+            };
+            function outputResult(execution_result) {
+                let output=document.getElementById('robot_output')
+                if (execution_result.get('status') == 'OK') {
+                    output.innerHTML = execution_result.get('result');
+                } else {
+                    output.innerHTML = `
+<u>Rule:</u><br/>
+${execution_result.get('error_context')}
+
+
+[ <div style="color:red;font-weight:bold;display:inline">Error</div> ] ${execution_result.get('error_message')}
+`;
+                    output.innerHTML = output.innerHTML.replaceAll('{logica error}-*', '<div style="color:yellow;font-weight:bold;display:inline">');
+                    output.innerHTML = output.innerHTML.replaceAll('*-{logica error}', '</div>');
+                
+                }
+            }
+
+          </script>
+        </div>
+    </div>
+    <script>
+
+        let w = 800;
+        let h = 800;
+        document.getElementById('canvas').width = w;
+        document.getElementById('canvas').height = w;
+
+        let c = document.getElementById('canvas');
+        let ctx = c.getContext('2d');
+
+        var robot = {
+            x: 100,
+            y: 200,
+            dir: 0,
+            size: 10,
+            speed: 1,
+            radar_beams: [
+                {dir: -0.4, d: 300, max_d: 300},
+                {dir: -0.3, d: 300, max_d: 300},
+                {dir: -0.2, d: 300, max_d: 300},
+                {dir: -0.1, d: 300, max_d: 300},
+                {dir: -0.0, d: 300, max_d: 300},
+                {dir: 0.1, d: 300, max_d: 300},
+                {dir: 0.2, d: 300, max_d: 300},
+                {dir: 0.3, d: 300, max_d: 300},
+                {dir: 0.4, d: 300, max_d: 300}
+            ],
+            forward: {x: 1, y: 0},
+            desire: {drive: 1, turn: 0},
+            memory: "Life is good!"
+        };
+
+        robot.radar_beams = [];
+        for(let i = 0; i <= 21; i++) {
+            robot.radar_beams.push({dir: (i - 10) / 20.0, d: 300, max_d: 300});
+        }
+
+        var trees = [
+            {x: 300, y: 200, r: 50},
+            {x: 250, y: 400, r: 30},
+            {x: 100, y: 250, r: 20}
+        ];
+        for(let i = 0; i < 5000; i++) {
+            trees.push({x: Math.random() * 8000 - 4000, y: Math.random() * 8000 - 4000, r: Math.random() * 50});
+        }
+
+        function drawTrees() {
+            trees.forEach((t) => {
+                ctx.beginPath();
+                ctx.arc(t.x, t.y, t.r, 0, 6.28);
+                ctx.fillStyle = '#373';
+                ctx.fill();
+            });
+        }
+
+        function blockedPoint(x, y) {
+            return trees.some((t) => {
+                if ((t.x - x) ** 2 + (t.y - y) ** 2 < t.r ** 2) {
+                    return true;
+                }
+                return false;
+            });
+        }
+        function drawRobot(robot) {
+            let dir = robot.dir;
+            let size = robot.size;
+            let forward = robot.forward;
+            let right = {x: Math.cos(dir + Math.PI / 2), y: Math.sin(dir + Math.PI / 2)};
+
+
+            ctx.beginPath();
+            ctx.moveTo(robot.x + forward.x * size / 2, robot.y + forward.y * size / 2);
+            ctx.lineTo(robot.x + right.x * size, robot.y + right.y * size);
+            ctx.lineTo(robot.x + right.x * size - 2 * forward.x * size, robot.y + right.y * size - 2 * forward.y * size);
+            ctx.lineTo(robot.x - right.x * size - 2 * forward.x * size, robot.y - right.y * size - 2 * forward.y * size);
+            ctx.lineTo(robot.x - right.x * size, robot.y - right.y * size);
+            ctx.lineTo(robot.x + forward.x * size / 2, robot.y + forward.y * size / 2);
+            ctx.fillStyle = '#500';
+            ctx.strokeStyle = '#ffe'
+            ctx.fill();
+            ctx.stroke();
+            robot.radar_beams.forEach((beam) => {
+                ctx.beginPath();
+                ctx.moveTo(robot.x, robot.y);
+                ctx.lineTo(robot.x + Math.cos(robot.dir + beam.dir) * beam.d,
+                           robot.y + Math.sin(robot.dir + beam.dir) * beam.d)
+                //ctx.strokeStyle = '#eee';
+                ctx.strokeStyle = '#666';
+                ctx.globalAlpha = 0.5;
+                //ctx.stroke();
+            });
+
+            ctx.beginPath();
+            ctx.moveTo(robot.x, robot.y);
+            robot.radar_beams.forEach((beam) => {
+                ctx.lineTo(robot.x + Math.cos(robot.dir + beam.dir) * beam.d,
+                           robot.y + Math.sin(robot.dir + beam.dir) * beam.d)
+            });
+            ctx.fillStyle= '#eee';
+            ctx.globalAlpha = 0.5;
+            ctx.fill();
+        }
+
+        ctx.save();
+        function drawWorld() {
+            ctx.restore();
+            ctx.save();
+            ctx.fillRect(0, 0, w, h); 
+            ctx.translate(w/2 - robot.x, h/2 - robot.y);
+            ctx.fillStyle='#000000';
+            // ctx.fillRect(0, 0, w, h); 
+            //ctx.fillRect(-10000, -10000, 10000, 10000);
+            drawRobot(robot);
+            drawTrees();
+        }
+        function robotDesire(robot) {
+            // robot.dir += Math.random() * 0.1 - 0.05;  //0.01;
+            // robot.forward = {x: Math.cos(robot.dir), y: Math.sin(robot.dir)};
+            if (isNaN(robot.desire.drive) || isNaN(robot.desire.turn)) {
+                return;
+            }
+            robot.speed = robot.desire.drive;
+            robot.dir += robot.desire.turn / 100;
+        }
+        
+        function nearestPoint(line_x, line_y, line_dir, t_x, t_y) {
+            let v_x = Math.cos(line_dir);
+            let v_y = Math.sin(line_dir);
+            let dx = t_x - line_x;
+            let dy = t_y - line_y;
+            let dl = (dx * dx + dy * dy) ** 0.5;
+            let cos = (dx * v_x + dy * v_y) / dl;
+            let np_x = line_x + v_x * dl * cos;
+            let np_y = line_y + v_y * dl * cos;
+            return {x: np_x, y: np_y, cos: cos};
+        }
+        function distance(x0, y0, x1, y1) {
+            return ((x1 - x0) ** 2 + (y1 - y0) ** 2) ** 0.5;
+        }
+        function touchingPoint(line_x, line_y, line_dir, c_x, c_y, r) {
+            let v_x = Math.cos(line_dir);
+            let v_y = Math.sin(line_dir);
+            let np = nearestPoint(line_x, line_y, line_dir, c_x, c_y);
+            let d = distance(np.x, np.y, c_x, c_y);
+            if (d > r || np.cos < 0) {
+                return null;
+            }
+            let g = (r * r - d * d) ** 0.5;
+            let tx = np.x - g * v_x;
+            let ty = np.y - g * v_y;
+            return {x: tx, y: ty};
+        }
+        function beamTouch(robot_dir, robot_x, robot_y, beam_dir, beam_max_d) {
+          let true_dir = robot_dir + beam_dir;
+          let v_x = Math.cos(true_dir);
+          let v_y = Math.sin(true_dir);
+
+          let t = {x: robot_x + v_x * beam_max_d, y: robot_y + v_y * beam_max_d};
+          let d = beam_max_d;
+
+          trees.forEach((t) => {
+            let tp = touchingPoint(robot_x, robot_y, true_dir, t.x, t.y, t.r);
+            if (tp === null) {
+            } else {
+              let this_d = distance(tp.x, tp.y, robot_x, robot_y);
+              if (this_d < d) {
+                t = tp;
+                d = this_d;
+              }
+            }
+          });
+          return d;
+        }
+
+        function beamsUpdate(robot) {
+            robot.radar_beams.forEach((b) => {
+                b.d = beamTouch(robot.dir, robot.x, robot.y, b.dir, b.max_d);
+            });
+        }
+        function robotPhysics(robot) {
+            let speed = robot.speed;
+            let new_x = robot.x + robot.forward.x * speed;
+            let new_y = robot.y + robot.forward.y * speed;
+            let blocked = blockedPoint(new_x, new_y);            
+            if (!blocked) {
+                robot.x = new_x;
+                robot.y = new_y;
+            }
+            beamsUpdate(robot);
+        }
+        function timeStep() {
+            theTime += 1;
+            robotPhysics(robot);
+            drawWorld();
+            robotDesire(robot);
+            // robot.dir += 0.001;
+            robot.forward = {x: Math.cos(robot.dir), y: Math.sin(robot.dir)};
+        }
+
+        setInterval(timeStep, 5);
+        setInterval(requestDesire2, 50);
+
+    </script>
+</body>    
+</html>
