@@ -33,6 +33,8 @@ loadPyodide().then((x) => {
 function Init() {
     self.pyodide.runPython(pythonScript);
     self.run_predicate = self.pyodide.globals.get('RunPredicate');
+    self.compile_predicate = self.pyodide.globals.get('CompilePredicate');
+    self.run_sql = self.pyodide.globals.get('RunSQL');
 }
 
 self.onmessage = function(event) {
@@ -43,12 +45,29 @@ self.onmessage = function(event) {
         let program = data.program;
         let predicate = data.predicate;
         let result = self.run_predicate(program, predicate).toJs(); //program, predicate)
+        result.set('type', 'run_predicate')
         result.set('hide_error', data.hide_error);
         result.set('program', program);
         result.set('predicate', predicate);
         // console.log('Result:', result);
         self.postMessage(result);
         console.log('Predicate execution is complete.');
+    } else if (data.type == 'compile_predicate') {
+        console.log('Compiling predicate...');
+        let program = data.program;
+        let predicate = data.predicate;
+        let result = self.compile_predicate(program, predicate).toJs();
+        result.set('type', 'compile_predicate');
+        console.log(result);
+        self.postMessage(result);
+        console.log('Compiling is complete.');
+    } else if (data.type == 'run_sql') {
+        console.log('Running SQL:', data);
+        let sql = data.sql;
+        let result = self.run_sql(sql).toJs();
+        console.log('Resulting data:', result);
+        result.set('type', 'run_sql');
+        self.postMessage(result);
     } else {
         console.log('Received an unrecognized message:', event.data);
     }
@@ -61,6 +80,7 @@ from logica.parser_py import parse
 from logica.compiler import universe
 from logica.compiler import rule_translate
 from logica.common import logica_lib
+from logica.common import sqlite3_logica
 from logica.common import color
 
 color.CHR_WARNING = '{logica error}-*'
@@ -85,6 +105,30 @@ def CreateBooksCsvFile():
 
 CreateBooksCsvFile()
 
+def CompilePredicate(program, predicate):
+  program = '@Engine("sqlite");' + program;
+
+  try:
+    rules = parse.ParseFile(program)['rule']
+  except parse.ParsingException as e:
+    before, error, after = e.location.Pieces()
+    error_context = before + "{logica error}-*" + error + "*-{logica error}" + after;
+    return {"result": "", "error_context": error_context, "error_message": str(e), "status": "error", "predicate_name": predicate}
+
+  try:
+    u = universe.LogicaProgram(rules)
+    sql = u.FormattedPredicateSql(predicate)
+  except rule_translate.RuleCompileException as e:
+    return {"result": "", "error_context": e.rule_str, "error_message": str(e), "status": "error", "predicate_name": predicate}
+
+  return {"result": sql, "status": "OK"}
+
+def RunSQL(sql):
+  try:
+    data = sqlite3_logica.RunSQL(sql)
+    return {"result": data, "status": "OK"}
+  except Exception as e:
+    return {"result": "", "error_context": sql, "error_message": "Error while executing SQL:" + str(e)}
 
 def RunPredicate(program, predicate):
     program = '@Engine("sqlite");' + program;
