@@ -7,6 +7,7 @@
             border: solid;
             border-color: #000;
             box-shadow: 0px 0px 10px rgba(0, 200, 0, 0.3);
+            border-radius: 10px;
         }
         .plain_code {
             margin-top: 10px;
@@ -18,21 +19,24 @@
         body {
             background-color: #010;
         }
-        button {
+        button, .buttony_href {
+            font-family: 'Roboto Mono', monospace;
             border: solid;
             background-color: 0;
             color: #afa;
             padding: 10px;
             padding-top: 5px;
             padding-bottom: 5px;
-            border-radius: 5px;;
+            border-radius: 5px;
+            text-decoration: none;
         }
-        button:hover {
+        button:hover, .buttony_href:hover {
             background-color: #191;
             color: black;
         }
-        button:active{
+        button:active, .firmware_update_quazy_active, .buttony_href:active {
             background-color: #5f5;
+            color: black;
         }
     </style>
 <body>
@@ -40,7 +44,16 @@
         <canvas id="canvas" width="500px" height="500px">
         </canvas>
         <div style="display: block; width: 800px; height: 300px; margin-left: 30px;">
-          <div id="robot_code" class="code"  contenteditable="true" style="height: 380px">
+          <div id="robot_code" class="code"  contenteditable="true" style="height: 430px">
+# Control Good Robot with predicate RobotDesire.
+# First columns must be:
+# drive - seed of driving,
+# turn - speed of turning and
+# memory - what to overwrite memory with.
+# You can have extra arguments as a dashboard for yourself.
+# Use predicates RadarBeam for radar data and Memory for memory data.
+# Ctrl-Enter to update robot firmware with your current program state.
+# Escape the forest! Good luck!
 RobotDesire(drive:, turn: 1, memory:, distance:) :-
   RadarBeam(direction: 0, distance:),
   drive = (
@@ -51,12 +64,43 @@ RobotDesire(drive:, turn: 1, memory:, distance:) :-
     else 0
   ),
   Memory(memory);
-
           </div>
 
-          <button onclick="digest()">FIRMWARE UPDATE</button>
+          <div style="display: flex; flex-flow:row;">
+             <button id="firmware_update" onclick="digest()">FIRMWARE UPDATE</button>
+             <button id="reset_game" onclick="restartGame()" style="margin-left:10px">RESTART GAME</button>
+             <a href="https://twitter.com/intent/tweet?via=LogicaLang&hashtags=LogicalRobot,Logica&text=I used Logica to help Good Robot escape Dark Forest in 1000 seconds! Level 1 complete!%0Alogica.dev/robot.html%0A" style="margin-left: 10px; display: none" class="buttony_href" target="_blank" id="victory_href">VICTORY! TWEET ABOUT VICTORY!</a>
+          </div>
 
-          <div id="robot_output" class="code"  contenteditable="false" style="height: 300px">
+          <script>
+            var victoryHappened = false;
+            var gameTime = 0;
+            function monitorVictory() {
+                if (victoryHappened) {
+                    return false;
+                }
+                gameTime += 1;
+                let d = distance(robot.x, robot.y, 0, 0);
+                if (d > 4000 * 1.5) {
+                    victoryHappened = true;
+                    let a = document.getElementById('victory_href');
+                    a.href = a.href.replace(/in%20\d*%20seconds/, 'in%20' + gameTime + '%20seconds');
+                    a.style['display'] = 'inline';
+                }
+            }
+            function restartGame() {
+                robot.x = 0;
+                robot.y = 0;
+                victoryHappened = false;
+                gameTime = 0;
+                let a = document.getElementById('victory_href');
+                a.style['display'] = 'none';
+            }
+            setInterval(monitorVictory, 1000);
+           
+          </script>
+
+          <div id="robot_output" class="code"  contenteditable="false" style="height: 250px">
 Loading Logical program...
           </div>
 
@@ -64,8 +108,20 @@ Loading Logical program...
             var worker = new Worker('logica.js');
 
             var backlogCount = 0;
+
+            document.addEventListener('keydown', function(event) {
+                if (event.ctrlKey && event.key === 'Enter') {
+                    console.log('Ctrl+Enter was pressed');
+                    let button = document.getElementById('firmware_update');
+                    button.classList.add('firmware_update_quazy_active');
+                    digest();
+                    setTimeout(() => {
+                        button.classList.remove('firmware_update_quazy_active');
+                    }, 500);
+                }
+            });
+
             function requestDesire2() {
-                console.log('the SQL:', theSQL)
                 if (theSQL == 'BROKEN') {
                     return;
                 }
@@ -111,12 +167,13 @@ Loading Logical program...
             worker.onmessage = function(event) {
                 backlogCount -= 1;
 
-                console.log('Logical worker responded:', event);
-                worker_response = event.data;
+                let worker_response = event.data;
                 if (worker_response.get('type') == 'compile_predicate') {
                     console.log('Compiled SQL result:', worker_response);
                     if (worker_response.get('status') != 'OK') {
-                        outputResult(worker_response);
+                        console.log('Calling output:', worker_response)
+                        setTimeout(() => {console.log('Called here!'); outputResult(worker_response)}, 100);
+                        //outputResult(worker_response);
                         theSQL = 'BROKEN';
                         return;
                     }
@@ -124,15 +181,12 @@ Loading Logical program...
                     console.log(theSQL);
                     return;
                 }
-                console.log('data:', worker_response);
-                console.log('result:', worker_response.get('result'));
                 outputResult(worker_response);
 
                 let drive_turn_str = worker_response.get('result').split('\n')[3].split('|');
                 let drive_turn = {drive: parseFloat(drive_turn_str[1]), turn: parseFloat(drive_turn_str[2])};
                 robot.memory = drive_turn_str[3].substr(1, drive_turn_str[3].length - 2);
 
-                console.log('desire:', drive_turn);
                 robot.desire = drive_turn;
                 let hide_error = worker_response.get('hide_error');
                 let status = worker_response.get('status');
@@ -177,8 +231,8 @@ ${execution_result.get('error_context')}
         let ctx = c.getContext('2d');
 
         var robot = {
-            x: 100,
-            y: 200,
+            x: 0,
+            y: 0,
             dir: 0,
             size: 10,
             speed: 1,
@@ -204,12 +258,17 @@ ${execution_result.get('error_context')}
         }
 
         var trees = [
-            {x: 300, y: 200, r: 50},
+            /* {x: 300, y: 200, r: 50},
             {x: 250, y: 400, r: 30},
-            {x: 100, y: 250, r: 20}
+            {x: 100, y: 250, r: 20} */
         ];
-        for(let i = 0; i < 5000; i++) {
-            trees.push({x: Math.random() * 8000 - 4000, y: Math.random() * 8000 - 4000, r: Math.random() * 50});
+        for(let i = 0; i < 6000; i++) {
+            let tx = Math.random() * 8000 - 4000;
+            let ty = Math.random() * 8000 - 4000;
+            if (distance(tx, ty, robot.x, robot.y) < 300) {
+                continue;
+            }
+            trees.push({x: tx, y: ty, r: Math.random() * 50});
         }
 
         function drawTrees() {
