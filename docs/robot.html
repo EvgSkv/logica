@@ -340,14 +340,15 @@ ${execution_result.get('error_context')}
             drawRobot(robot);
             drawTrees();
         }
+        clip = (x, l, h) => (Math.min(Math.max(x, l), h));
         function robotDesire(robot) {
             // robot.dir += Math.random() * 0.1 - 0.05;  //0.01;
             // robot.forward = {x: Math.cos(robot.dir), y: Math.sin(robot.dir)};
             if (isNaN(robot.desire.drive) || isNaN(robot.desire.turn)) {
                 return;
             }
-            robot.speed = robot.desire.drive;
-            robot.dir += robot.desire.turn / 100;
+            robot.speed = clip(robot.desire.drive, -5, 5);
+            robot.dir += clip(robot.desire.turn, -5, 5) / 100;
         }
         
         function nearestPoint(line_x, line_y, line_dir, t_x, t_y) {
