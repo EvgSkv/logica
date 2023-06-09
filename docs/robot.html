@@ -484,7 +484,7 @@ ${execution_result.get('error_context')}
         }
         function GetProgramFromURL() {
             let program_from_url = new URLSearchParams(window.location.search).get('program');
-            if (program_from_url.length > 0) {
+            if (program_from_url !== null && program_from_url.length > 0) {
                 document.getElementById('robot_code').innerHTML = program_from_url;
             }
         }
