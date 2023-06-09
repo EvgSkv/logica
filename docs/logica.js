@@ -38,7 +38,6 @@ function Init() {
 }
 
 self.onmessage = function(event) {
-    console.log('Logical worker got event:', event);
     let data = event.data;
     if (data.type == 'run_predicate') {
         console.log('Running predicate...');
@@ -62,10 +61,8 @@ self.onmessage = function(event) {
         self.postMessage(result);
         console.log('Compiling is complete.');
     } else if (data.type == 'run_sql') {
-        console.log('Running SQL:', data);
         let sql = data.sql;
         let result = self.run_sql(sql).toJs();
-        console.log('Resulting data:', result);
         result.set('type', 'run_sql');
         self.postMessage(result);
     } else {
