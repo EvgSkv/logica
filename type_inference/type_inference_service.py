@@ -29,7 +29,7 @@ class TypeInference:
       for p in graph.expression_connections:
         if isinstance(p, PredicateAddressing) and p.type == AnyType() and p.predicate_name != predicate_name:
           if p.predicate_name in graphs:
-            to_link = self.FindField(p.field, graphs[p.predicate_name])
+            to_link = self.FindField(p, graphs[p.predicate_name])
             edges_to_add.append(Equality(p, to_link, (-1, -1)))
           else:
             column_info = self.inspector.TryGetColumnsInfo(p.predicate_name)

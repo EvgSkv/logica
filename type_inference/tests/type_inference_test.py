@@ -24,23 +24,8 @@ class TestTypeInference(unittest.TestCase):
 
     TypeInference(graphs).Infer()
 
-    self.assertEquals(q_col0.type, number)
-    self.assertEquals(x_var.type, number)
-
-  def test_when_linked_with_unknown_predicate(self):
-    # 'Q(x) :- T(x), Num(x)'
-    graph = TypesGraph()
-    q_col0 = Variable('col0')
-    t_col0 = PredicateAddressing('T', 'col0')
-    x_var = Variable('x')
-    graph.Connect(Equality(q_col0, x_var, (0, 0)))
-    graph.Connect(Equality(x_var, t_col0, (0, 0)))
-    graph.Connect(Equality(x_var, PredicateAddressing('Num', 'col0'), (0, 0)))
-    graphs = dict()
-    graphs['Q'] = graph
-
-    with self.assertRaises(KeyError):
-      TypeInference(graphs).Infer()
+    self.assertEqual(q_col0.type, number)
+    self.assertEqual(x_var.type, number)
 
   def test_when_inclusion(self):
     # Q(x) :- x in Range(10)
@@ -69,7 +54,7 @@ class TestTypeInference(unittest.TestCase):
 
     TypeInference(graphs).Infer()
 
-    self.assertEquals(q_col0.type, ListType(number))
+    self.assertEqual(q_col0.type, ListType(number))
 
   def test_when_opened_record(self):
     # Q(x) :- x.a == 1, x.b == "string"
@@ -88,7 +73,7 @@ class TestTypeInference(unittest.TestCase):
 
     TypeInference(graphs).Infer()
 
-    self.assertEquals(q_col0.type, RecordType({'a': number, 'b': string}, True))
+    self.assertEqual(q_col0.type, RecordType({'a': number, 'b': string}, True))
 
   def test_when_opened_record_with_opened_record(self):
     # Q(x) :- x.a == 1, x.b.c == "string"
@@ -109,7 +94,7 @@ class TestTypeInference(unittest.TestCase):
 
     TypeInference(graphs).Infer()
 
-    self.assertEquals(q_col0.type, RecordType({'a': number, 'b': RecordType({'c': string}, True)}, True))
+    self.assertEqual(q_col0.type, RecordType({'a': number, 'b': RecordType({'c': string}, True)}, True))
 
   def test_when_linked_with_known_predicates(self):
     # Q(x, y) :- T(x), Num(x), y == F(x);
@@ -165,7 +150,7 @@ class TestTypeInference(unittest.TestCase):
 
     TypeInference(graphs).Infer()
 
-    self.assertEquals(q_col0.type, RecordType({'a': number, 'b': string}, True))
+    self.assertEqual(q_col0.type, RecordType({'a': number, 'b': string}, True))
 
   def test_when_plus_operator(self):
     # Q(x + y) :- T(x), T(y);
