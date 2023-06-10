@@ -22,20 +22,20 @@ class TypesGraph:
       if isinstance(obj, Literal):
         return type(obj).__name__
 
-      if not hasattr(obj, "__dict__"):
+      if not hasattr(obj, '__dict__'):
         return obj
 
       result = obj.__dict__
       return {k: ToDict(v, ignore_keys) for k, v in result.items() if not ignore_keys or k not in ignore_keys}
 
-    return [ToDict(e, ("vertices",)) for e in self.ToEdgesSet()]
+    return [ToDict(e, ('vertices',)) for e in self.ToEdgesSet()]
 
   def ToEdgesSet(self):
     return {edge for d in self.expression_connections.values() for edges in d.values() for edge in edges}
 
   def __or__(self, other):
     if not isinstance(other, TypesGraph):
-      raise TypeError("unsupported operation - both must be of type TypesGraph")
+      raise TypeError('unsupported operation - both must be of type TypesGraph')
 
     result = TypesGraph()
     result.expression_connections = self.expression_connections
