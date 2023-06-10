@@ -1,19 +1,20 @@
 from typing import cast
 
+from type_inference.inspectors.inspector_base import Inspector
 from type_inference.intersection import Intersect, IntersectListElement
 from type_inference.types.edge import Equality, EqualityOfElement, FieldBelonging
+from type_inference.types.expression import PredicateAddressing, Variable
 from type_inference.types.types_graph import TypesGraph
 from type_inference.types.variable_types import AnyType, ListType, RecordType
-from type_inference.types.expression import PredicateAddressing, Variable
 
 
 class TypeInference:
-  def __init__(self, graphs: dict):
+  def __init__(self, graphs: dict, inspector: Inspector = None):
+    self.inspector = inspector
     self.all_edges = []
     for graph in graphs.values():
       self.all_edges.extend(graph.ToEdgesSet())
     self.MergeGraphs(graphs)
-
 
   def FindField(self, predicate_addressing: PredicateAddressing, graph: TypesGraph):
     edge = list(graph.expression_connections[predicate_addressing].values())[0][0]
@@ -22,14 +23,17 @@ class TypeInference:
     else:
       return edge.vertices[1]
 
-
   def MergeGraphs(self, graphs: dict):
     edges_to_add = []
     for predicate_name, graph in graphs.items():
       for p in graph.expression_connections:
         if isinstance(p, PredicateAddressing) and p.type == AnyType() and p.predicate_name != predicate_name:
-          to_link = self.FindField(p, graphs[p.predicate_name])
-          edges_to_add.append(Equality(p, to_link, (-1, -1)))
+          if p.predicate_name in graphs:
+            to_link = self.FindField(p.field, graphs[p.predicate_name])
+            edges_to_add.append(Equality(p, to_link, (-1, -1)))
+          else:
+            column_info = self.inspector.TryGetColumnsInfo(p.predicate_name)
+            p.type = column_info[p.field]
     self.all_edges.extend(edges_to_add)
 
   def Infer(self):

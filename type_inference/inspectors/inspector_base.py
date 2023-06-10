@@ -1,8 +1,8 @@
-from typing import List
+from typing import Dict
 
-from type_inference.column_info import ColumnInfo
+from type_inference.types.variable_types import Type
 
 
 class Inspector:
-  def try_get_columns_info(self, table_name: str) -> List[ColumnInfo]:
+  def TryGetColumnsInfo(self, table_name: str) -> Dict[str, Type]:
     pass

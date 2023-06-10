@@ -61,7 +61,7 @@ def run(raw_program: str):
   inspector = SQLiteInspector('type_inference/logica.db', logger)
 
   for predicate in unknown_predicates:
-    columns_info = inspector.try_get_columns_info(predicate)
+    columns_info = inspector.TryGetColumnsInfo(predicate)
     for column in columns_info:
       print(str(column))
 
