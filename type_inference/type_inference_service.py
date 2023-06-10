@@ -33,7 +33,7 @@ class TypeInference:
             to_link = self.FindField(p.field, graphs[p.predicate_name])
             edges_to_add.append(Equality(p, to_link, (-1, -1)))
           else:
-            column_info = self.inspector.try_get_columns_info(p.predicate_name)
+            column_info = self.inspector.TryGetColumnsInfo(p.predicate_name)
             p.type = column_info[p.field]
     self.all_edges.extend(edges_to_add)
 

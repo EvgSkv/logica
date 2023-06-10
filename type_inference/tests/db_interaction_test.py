@@ -1,10 +1,9 @@
 import sqlite3
 import unittest
 from typing import Dict
-import os
 
-from type_inference.type_inference_service import TypeInference
 from type_inference.inspectors.sqlite_inspector import SQLiteInspector
+from type_inference.type_inference_service import TypeInference
 from type_inference.types.edge import Equality
 from type_inference.types.expression import Variable, PredicateAddressing
 from type_inference.types.types_graph import TypesGraph
@@ -14,19 +13,15 @@ number = NumberType()
 
 
 def create_table(table_name: str, columns: Dict[str, str]):
-  conn = sqlite3.connect('logica.db')
-  columns_to_create = ', '.join([f'{column[0]} {column[1]}' for column in columns.items()])
-  conn.cursor().execute(f'create table if not exists {table_name} (id integer, {columns_to_create})').fetchall()
-  conn.close()
+  with sqlite3.connect('logica.db') as conn:
+    columns_to_create = ', '.join([f'{column[0]} {column[1]}' for column in columns.items()])
+    cursor = conn.cursor()
+    cursor.execute(f'create table if not exists {table_name} (id integer, {columns_to_create})').fetchall()
 
 
 def safe_drop_table(table_name: str):
-  conn = sqlite3.connect('logica.db')
-  conn.cursor().execute(f'drop table if exists {table_name}').fetchall()
-  conn.close()
-
-def drop_db(path: str):
-  os.remove(path)
+  with sqlite3.connect('logica.db') as conn:
+    conn.cursor().execute(f'drop table if exists {table_name}').fetchall()
 
 
 class TestTypeInferenceWithDb(unittest.TestCase):
