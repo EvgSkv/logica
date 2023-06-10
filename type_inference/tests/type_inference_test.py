@@ -118,8 +118,8 @@ class TestTypeInference(unittest.TestCase):
     graph_q = TypesGraph()
     x_var_q = Variable('x')
     y_var_q = Variable('y')
-    graph_q.Connect(Equality(Variable('col0'), x_var_q, (0, 0)))
-    graph_q.Connect(Equality(Variable('col1'), y_var_q, (0, 0)))
+    graph_q.Connect(Equality(PredicateAddressing('Q', 'col0'), x_var_q, (0, 0)))
+    graph_q.Connect(Equality(PredicateAddressing('Q', 'col1'), y_var_q, (0, 0)))
     graph_q.Connect(Equality(x_var_q, PredicateAddressing('T', 'col0'), (0, 0)))
     graph_q.Connect(Equality(x_var_q, PredicateAddressing('F', 'col0'), (0, 0)))
     graph_q.Connect(Equality(x_var_q, y_var_q, (0, 0)))
@@ -129,13 +129,13 @@ class TestTypeInference(unittest.TestCase):
 
     graph_t = TypesGraph()
     x_var_t = Variable('x')
-    graph_t.Connect(Equality(Variable('col0'), x_var_t, (0, 0)))
+    graph_t.Connect(Equality(PredicateAddressing('T', 'col0'), x_var_t, (0, 0)))
     graph_t.Connect(Equality(x_var_t, NumberLiteral(), (0, 0)))
     graphs['T'] = graph_t
 
     graph_f = TypesGraph()
     x_var_f = Variable('x')
-    graph_f.Connect(Equality(Variable('col0'), x_var_f, (0, 0)))
+    graph_f.Connect(Equality(PredicateAddressing('F', 'col0'), x_var_f, (0, 0)))
     graphs['F'] = graph_f
 
     TypeInference(graphs).Infer()
@@ -147,7 +147,7 @@ class TestTypeInference(unittest.TestCase):
     # Q(x) :- x.a == T(), x.b == "string"
     # T() = 7
     graph_q = TypesGraph()
-    q_col0 = Variable('col0')
+    q_col0 = PredicateAddressing('Q', 'col0')
     x_var = Variable('x')
     a = SubscriptAddressing(x_var, 'a')
     b = SubscriptAddressing(x_var, 'b')
@@ -160,7 +160,7 @@ class TestTypeInference(unittest.TestCase):
     graphs['Q'] = graph_q
 
     graph_t = TypesGraph()
-    graph_t.Connect(Equality(Variable('logica_value'), NumberLiteral(), (0, 0)))
+    graph_t.Connect(Equality(PredicateAddressing('T', 'logica_value'), NumberLiteral(), (0, 0)))
     graphs['T'] = graph_t
 
     TypeInference(graphs).Infer()
@@ -170,7 +170,7 @@ class TestTypeInference(unittest.TestCase):
   def test_when_plus_operator(self):
     # Q(x + y) :- T(x), T(y);
     graph_q = TypesGraph()
-    q_col0 = Variable('col0')
+    q_col0 = PredicateAddressing('Q', 'col0')
     x_var_q = Variable('x')
     y_var_q = Variable('y')
     t_col0 = PredicateAddressing('T', 'col0')
@@ -184,7 +184,7 @@ class TestTypeInference(unittest.TestCase):
 
     graph_t = TypesGraph()
     x_var_t = Variable('x')
-    graph_t.Connect(Equality(Variable('col0'), x_var_t, (0, 0)))
+    graph_t.Connect(Equality(PredicateAddressing('T', 'col0'), x_var_t, (0, 0)))
     graph_t.Connect(Equality(x_var_t, NumberLiteral(), (0, 0)))
     graphs['T'] = graph_t
 

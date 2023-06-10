@@ -81,13 +81,13 @@ def process_predicate(types_graph: TypesGraph, value: dict):
   fill_fields(predicate_name, types_graph, value)
 
 
-def fill_field(types_graph: TypesGraph, field: dict):
+def fill_field(types_graph: TypesGraph, predicate_name: str, field: dict):
   field_name = field["field"]
 
   if isinstance(field_name, int):
     field_name = f'col{field_name}'
 
-  variable = Variable(field_name)
+  variable = PredicateAddressing(predicate_name, field_name)
 
   if "aggregation" in field["value"]:
     value = convert_expression(types_graph, field["value"]["aggregation"]["expression"])
@@ -119,11 +119,11 @@ def fill_conjunct(types_graph: TypesGraph, conjunct: dict):
     raise NotImplementedError(conjunct)
 
 
-def traverse_tree(rule: dict):
+def traverse_tree(predicate_name: str, rule: dict):
   types_graph = TypesGraph()
 
   for field in rule["head"]["record"]["field_value"]:
-    fill_field(types_graph, field)
+    fill_field(types_graph, predicate_name, field)
 
   if "body" in rule:
     for conjunct in rule["body"]["conjunction"]["conjunct"]:
@@ -138,7 +138,7 @@ def run(raw_program: str):
 
   for rule in parsed["rule"]:
     predicate_name = rule["head"]["predicate_name"]
-    graphs[predicate_name] |= traverse_tree(rule)
+    graphs[predicate_name] |= traverse_tree(predicate_name, rule)
 
   return graphs
 

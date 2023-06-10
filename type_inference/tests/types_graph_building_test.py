@@ -11,7 +11,7 @@ class TestTypesGraphBuilding(unittest.TestCase):
     graph = ast_traverse.run(s)["Q"]
     edges = graph.ToEdgesSet()
 
-    expected = [edge.Equality(expression.Variable('col0'), expression.Variable('x'), (0, 0)),
+    expected = [edge.Equality(expression.PredicateAddressing('Q', 'col0'), expression.Variable('x'), (0, 0)),
                 edge.Equality(expression.Variable('x'), expression.PredicateAddressing('T', 'col0'), (0, 0)),
                 edge.Equality(expression.Variable('x'), expression.PredicateAddressing('Num', 'col0'), (0, 0))]
 
@@ -25,7 +25,8 @@ class TestTypesGraphBuilding(unittest.TestCase):
 
     x_var = expression.Variable('x')
     y_var = expression.Variable('y')
-    expected = [edge.Equality(expression.Variable('col0'), expression.PredicateAddressing('+', 'logica_value'), (0, 0)),
+    expected = [edge.Equality(expression.PredicateAddressing('Q', 'col0'),
+                              expression.PredicateAddressing('+', 'logica_value'), (0, 0)),
                 edge.PredicateArgument(expression.PredicateAddressing('+', 'logica_value'),
                                        expression.PredicateAddressing('+', 'left'), (0, 0)),
                 edge.PredicateArgument(expression.PredicateAddressing('+', 'logica_value'),
@@ -45,7 +46,7 @@ class TestTypesGraphBuilding(unittest.TestCase):
 
     x_var = expression.Variable('x')
     y_var = expression.Variable('y')
-    expected = [edge.Equality(expression.Variable('col0'), expression.Variable('x'), (0, 0)),
+    expected = [edge.Equality(expression.PredicateAddressing('Q', 'col0'), expression.Variable('x'), (0, 0)),
                 edge.Equality(x_var, expression.PredicateAddressing('T', 'col0'), (0, 0)),
                 edge.Equality(y_var, expression.PredicateAddressing('T', 'col0'), (0, 0)),
                 edge.Equality(x_var, expression.PredicateAddressing('Str', 'col0'), (0, 0)),
@@ -61,16 +62,16 @@ class TestTypesGraphBuilding(unittest.TestCase):
 
     x_var = expression.Variable('x')
     y_var = expression.Variable('y')
-    expected = [
-      edge.Equality(expression.Variable('col0'), expression.PredicateAddressing('++', 'logica_value'), (0, 0)),
-      edge.PredicateArgument(expression.PredicateAddressing('++', 'logica_value'),
-                             expression.PredicateAddressing('++', 'left'), (0, 0)),
-      edge.PredicateArgument(expression.PredicateAddressing('++', 'logica_value'),
-                             expression.PredicateAddressing('++', 'right'), (0, 0)),
-      edge.Equality(x_var, expression.PredicateAddressing('++', 'left'), (0, 0)),
-      edge.Equality(y_var, expression.PredicateAddressing('++', 'right'), (0, 0)),
-      edge.Equality(x_var, expression.PredicateAddressing('T', 'col0'), (0, 0)),
-      edge.Equality(y_var, expression.PredicateAddressing('T', 'col0'), (0, 0))]
+    expected = [edge.Equality(expression.PredicateAddressing('Q', 'col0'),
+                              expression.PredicateAddressing('++', 'logica_value'), (0, 0)),
+                edge.PredicateArgument(expression.PredicateAddressing('++', 'logica_value'),
+                                       expression.PredicateAddressing('++', 'left'), (0, 0)),
+                edge.PredicateArgument(expression.PredicateAddressing('++', 'logica_value'),
+                                       expression.PredicateAddressing('++', 'right'), (0, 0)),
+                edge.Equality(x_var, expression.PredicateAddressing('++', 'left'), (0, 0)),
+                edge.Equality(y_var, expression.PredicateAddressing('++', 'right'), (0, 0)),
+                edge.Equality(x_var, expression.PredicateAddressing('T', 'col0'), (0, 0)),
+                edge.Equality(y_var, expression.PredicateAddressing('T', 'col0'), (0, 0))]
 
     self.assertCountEqual(edges, expected)
 
@@ -82,7 +83,7 @@ class TestTypesGraphBuilding(unittest.TestCase):
 
     x_var = expression.Variable('x')
     y_var = expression.Variable('y')
-    expected = [edge.Equality(expression.Variable('col0'), y_var, (0, 0)),
+    expected = [edge.Equality(expression.PredicateAddressing('Q', 'col0'), y_var, (0, 0)),
                 edge.Equality(x_var, expression.PredicateAddressing('T', 'col0'), (0, 0)),
                 edge.Equality(y_var, expression.PredicateAddressing('Num', 'col0'), (0, 0)),
                 edge.EqualityOfElement(x_var, y_var, (0, 0))]
@@ -95,9 +96,9 @@ class TestTypesGraphBuilding(unittest.TestCase):
     graph = ast_traverse.run(s)["Q"]
     edges = graph.ToEdgesSet()
 
-    p_var = expression.Variable('p')
-    q_var = expression.Variable('q')
-    s_var = expression.Variable('s')
+    p_var = expression.PredicateAddressing('Q', 'p')
+    q_var = expression.PredicateAddressing('Q', 'q')
+    s_var = expression.PredicateAddressing('Q', 's')
     y_var = expression.Variable('y')
     z_var = expression.Variable('z')
     w_var = expression.Variable('w')
@@ -139,8 +140,8 @@ class TestTypesGraphBuilding(unittest.TestCase):
     y_var = expression.Variable('y')
     a_var = expression.Variable('a')
     b_var = expression.Variable('b')
-    expected = [edge.Equality(a_var, a_var, (0, 0)),
-                edge.Equality(b_var, b_var, (0, 0)),
+    expected = [edge.Equality(expression.PredicateAddressing('Q', 'a'), a_var, (0, 0)),
+                edge.Equality(expression.PredicateAddressing('Q', 'b'), b_var, (0, 0)),
                 edge.Equality(x_var, expression.PredicateAddressing('T', 'col0'), (0, 0)),
                 edge.Equality(y_var, expression.PredicateAddressing('T', 'col0'), (0, 0)),
                 edge.Equality(a_var, expression.PredicateAddressing('+', 'logica_value'), (0, 0)),
