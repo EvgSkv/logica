@@ -16,19 +16,18 @@ class TypeInference:
       self.all_edges.extend(graph.ToEdgesSet())
     self.MergeGraphs(graphs)
 
-  def FindField(self, field_name: str, graph: TypesGraph):
-    tmp_var = Variable(field_name)
-    edge = list(graph.expression_connections[tmp_var].values())[0][0]
-    if edge.vertices[0] == tmp_var:
+  def FindField(self, predicate_addressing: PredicateAddressing, graph: TypesGraph):
+    edge = list(graph.expression_connections[predicate_addressing].values())[0][0]
+    if edge.vertices[0] == predicate_addressing:
       return edge.vertices[0]
     else:
       return edge.vertices[1]
 
   def MergeGraphs(self, graphs: dict):
     edges_to_add = []
-    for g in graphs.values():
-      for p in g.expression_connections.keys():
-        if isinstance(p, PredicateAddressing) and p.type == AnyType():
+    for predicate_name, graph in graphs.items():
+      for p in graph.expression_connections:
+        if isinstance(p, PredicateAddressing) and p.type == AnyType() and p.predicate_name != predicate_name:
           if p.predicate_name in graphs:
             to_link = self.FindField(p.field, graphs[p.predicate_name])
             edges_to_add.append(Equality(p, to_link, (-1, -1)))

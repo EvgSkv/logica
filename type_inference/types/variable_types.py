@@ -6,7 +6,7 @@ class Type:
     self.__class__.__hash__ = Type.__hash__
 
   def __str__(self):
-    return "type"
+    return 'type'
 
   def __hash__(self):
     return hash(str(self))
@@ -17,22 +17,22 @@ class Type:
 
 class AtomicType(Type):
   def __str__(self):
-    return "atomic"
+    return 'atomic'
 
 
 class NumberType(AtomicType):
   def __str__(self):
-    return "number"
+    return 'number'
 
 
 class StringType(AtomicType):
   def __str__(self):
-    return "string"
+    return 'string'
 
 
 class AnyType(Type):
   def __str__(self):
-    return "any"
+    return 'any'
 
 
 class ListType(Type):
@@ -41,7 +41,7 @@ class ListType(Type):
     self.element = element
 
   def __str__(self):
-    return f"[{self.element}]"
+    return f'[{self.element}]'
 
   def __eq__(self, other):
     return super().__eq__(other) and self.element == other.element
@@ -77,5 +77,4 @@ class RecordType(Type):
     return len(intersection) == len(fields_set)
 
   def __str__(self):
-    fields_string = ", ".join(map(str, self.fields))
-    return f"{{{fields_string}}}"
+    return f'{{{", ".join(map(str, self.fields))}}}'
