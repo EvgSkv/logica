@@ -1,3 +1,19 @@
+#!/usr/bin/python
+#
+# Copyright 2023 Logica
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 import unittest
 
 from type_inference import ast_traverse
@@ -8,7 +24,7 @@ class TestTypesGraphBuilding(unittest.TestCase):
   def test_when_connection_with_other_predicates(self):
     s = 'Q(x) :- T(x), Num(x)'
 
-    graph = ast_traverse.run(s)['Q']
+    graph = ast_traverse.Run(s)['Q']
     edges = graph.ToEdgesSet()
 
     expected = [edge.Equality(expression.PredicateAddressing('Q', 'col0'), expression.Variable('x'), (0, 0)),
@@ -20,7 +36,7 @@ class TestTypesGraphBuilding(unittest.TestCase):
   def test_when_plus_operator(self):
     s = 'Q(x + y) :- T(x), T(y);'
 
-    graph = ast_traverse.run(s)['Q']
+    graph = ast_traverse.Run(s)['Q']
     edges = graph.ToEdgesSet()
 
     x_var = expression.Variable('x')
@@ -41,7 +57,7 @@ class TestTypesGraphBuilding(unittest.TestCase):
   def test_when_str(self):
     s = 'Q(x) :- T(x), T(y), Str(x), x == y;'
 
-    graph = ast_traverse.run(s)['Q']
+    graph = ast_traverse.Run(s)['Q']
     edges = graph.ToEdgesSet()
 
     x_var = expression.Variable('x')
@@ -57,7 +73,7 @@ class TestTypesGraphBuilding(unittest.TestCase):
   def test_when_concat_operator(self):
     s = 'Q(x ++ y) :- T(x), T(y);'
 
-    graph = ast_traverse.run(s)['Q']
+    graph = ast_traverse.Run(s)['Q']
     edges = graph.ToEdgesSet()
 
     x_var = expression.Variable('x')
@@ -78,7 +94,7 @@ class TestTypesGraphBuilding(unittest.TestCase):
   def test_when_in_operator(self):
     s = 'Q(y) :- T(x), y in x, Num(y);'
 
-    graph = ast_traverse.run(s)['Q']
+    graph = ast_traverse.Run(s)['Q']
     edges = graph.ToEdgesSet()
 
     x_var = expression.Variable('x')
@@ -93,7 +109,7 @@ class TestTypesGraphBuilding(unittest.TestCase):
   def test_when_record(self):
     s = 'Q(p: Str(y), q: z + w, s: x) :- T(x), y == x.a, z == x.b, w == x.c.d;'
 
-    graph = ast_traverse.run(s)['Q']
+    graph = ast_traverse.Run(s)['Q']
     edges = graph.ToEdgesSet()
 
     p_var = expression.PredicateAddressing('Q', 'p')
@@ -133,7 +149,7 @@ class TestTypesGraphBuilding(unittest.TestCase):
   def test_when_named_columns(self):
     s = 'Q(a:, b:) :- T(x), T(y), a == x + y, b == x + y;'
 
-    graph = ast_traverse.run(s)['Q']
+    graph = ast_traverse.Run(s)['Q']
     edges = graph.ToEdgesSet()
 
     x_var = expression.Variable('x')
