@@ -3,9 +3,9 @@ import unittest
 from type_inference.type_inference_service import TypeInference
 from type_inference.types.edge import Equality, EqualityOfElement, FieldBelonging
 from type_inference.types.expression import Variable, PredicateAddressing, NumberLiteral, SubscriptAddressing, \
-  StringLiteral
+  StringLiteral, RecordLiteral, ListLiteral
 from type_inference.types.types_graph import TypesGraph
-from type_inference.types.variable_types import NumberType, StringType, ListType, RecordType
+from type_inference.types.variable_types import NumberType, StringType, ListType, RecordType, AnyType
 
 number = NumberType()
 string = StringType()
@@ -199,3 +199,30 @@ class TestTypeInference(unittest.TestCase):
 
     self.assertEqual(x_var.type, RecordType({'a': string, 'b': ListType(number)}, True))
     self.assertEqual(i_var.type, number)
+
+  def test_when_closed_record(self):
+    # Q({a: 1, b: "string"})
+    graph = TypesGraph()
+    q_col0 = Variable('col0')
+    graph.Connect(Equality(q_col0, RecordLiteral({'a': NumberLiteral(), 'b': StringLiteral()}), (0, 0)))
+    graphs = dict()
+    graphs['Q'] = graph
+
+    TypeInference(graphs).Infer()
+
+    self.assertEqual(q_col0.type, RecordType({'a': number, 'b': string}, False))
+    self.assertEqual(q_col0.type.is_opened, False)
+
+  def test_when_closed_record_with_closed_record_with_list(self):
+    # Q({a: 1, b: {c: []}})
+    graph = TypesGraph()
+    q_col0 = Variable('col0')
+    inner_record = RecordLiteral({'c': ListLiteral([])})
+    graph.Connect(Equality(q_col0, RecordLiteral({'a': NumberLiteral(), 'b': inner_record}), (0, 0)))
+    graphs = dict()
+    graphs['Q'] = graph
+
+    TypeInference(graphs).Infer()
+
+    expected = RecordType({'a': number, 'b': RecordType({'c': ListType(AnyType())}, False)}, False)
+    self.assertEqual(q_col0.type, expected)

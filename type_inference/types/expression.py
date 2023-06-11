@@ -1,7 +1,7 @@
 from typing import Dict, List
 
 from type_inference.built_in_functions_types import built_in
-from type_inference.types.variable_types import AnyType, NumberType, StringType, RecordType
+from type_inference.types.variable_types import AnyType, NumberType, StringType, RecordType, ListType
 
 
 class Expression:
@@ -84,6 +84,7 @@ class ListLiteral(Literal):
   def __init__(self, elements: List[Expression]):
     super().__init__()
     self.elements = elements
+    self.type = ListType(AnyType())
 
   def __eq__(self, other):
     return super().__eq__(other) and self.elements == self.elements

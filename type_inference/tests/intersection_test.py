@@ -59,3 +59,13 @@ class IntersectionTest(unittest.TestCase):
   def test_get_list_with_type_when_list_with_any(self):
     result = Intersect(list_of_nums, empty_list)
     self.assertEqual(result, ListType(number))
+
+  def test_enrich_type_when_opened_records_with_extra(self):
+    result = Intersect(opened_record, opened_record_with_opened_record)
+    self.assertEqual(result, RecordType({'num': number,  'str': string, 'opened_record': opened_record}, True))
+
+  def test_fail_when_record_fields_are_different(self):
+    record1 = RecordType({'a': NumberType(), 'b': StringType()}, True)
+    record2 = RecordType({'a': NumberType(), 'b': NumberType()}, True)
+    with self.assertRaises(TypeInferenceException):
+      Intersect(record1, record2)
