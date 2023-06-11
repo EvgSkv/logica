@@ -1,9 +1,25 @@
+#!/usr/bin/python
+#
+# Copyright 2020 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 from typing import cast
 
 from type_inference.inspectors.inspector_base import Inspector
 from type_inference.intersection import Intersect, IntersectListElement
 from type_inference.types.edge import Equality, EqualityOfElement, FieldBelonging
-from type_inference.types.expression import PredicateAddressing, Variable
+from type_inference.types.expression import PredicateAddressing
 from type_inference.types.types_graph import TypesGraph
 from type_inference.types.variable_types import AnyType, ListType, RecordType
 
@@ -16,7 +32,8 @@ class TypeInference:
       self.all_edges.extend(graph.ToEdgesSet())
     self.MergeGraphs(graphs)
 
-  def FindField(self, predicate_addressing: PredicateAddressing, graph: TypesGraph):
+  @staticmethod
+  def FindField(predicate_addressing: PredicateAddressing, graph: TypesGraph):
     edge = list(graph.expression_connections[predicate_addressing].values())[0][0]
     if edge.vertices[0] == predicate_addressing:
       return edge.vertices[0]

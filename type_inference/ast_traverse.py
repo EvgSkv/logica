@@ -1,3 +1,19 @@
+#!/usr/bin/python
+#
+# Copyright 2020 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 from collections import defaultdict
 
 from parser_py import parse
@@ -9,7 +25,7 @@ from type_inference.types.types_graph import TypesGraph
 bounds = (0, 0)  # todo calculate bounds
 
 
-def get_literal_expression(types_graph: TypesGraph, literal: dict):
+def GetLiteralExpression(types_graph: TypesGraph, literal: dict):
   if 'the_string' in literal:
     return StringLiteral()
   elif 'the_number' in literal:
@@ -19,12 +35,12 @@ def get_literal_expression(types_graph: TypesGraph, literal: dict):
   elif 'the_null' in literal:
     return NullLiteral()
   elif 'the_list' in literal:
-    return ListLiteral([convert_expression(types_graph, expression) for expression in literal['the_list']['element']])
+    return ListLiteral([ConvertExpression(types_graph, expression) for expression in literal['the_list']['element']])
 
 
-def fill_fields(predicate_name: str, types_graph: TypesGraph, fields: dict, result: PredicateAddressing = None):
+def FillFields(predicate_name: str, types_graph: TypesGraph, fields: dict, result: PredicateAddressing = None):
   for field in fields['record']['field_value']:
-    value = convert_expression(types_graph, field['value']['expression'])
+    value = ConvertExpression(types_graph, field['value']['expression'])
     field_name = field['field']
 
     if isinstance(field_name, int):
@@ -37,9 +53,9 @@ def fill_fields(predicate_name: str, types_graph: TypesGraph, fields: dict, resu
       types_graph.Connect(PredicateArgument(result, predicate_field, bounds))
 
 
-def convert_expression(types_graph: TypesGraph, expression: dict):
+def ConvertExpression(types_graph: TypesGraph, expression: dict):
   if 'literal' in expression:
-    return get_literal_expression(types_graph, expression['literal'])
+    return GetLiteralExpression(types_graph, expression['literal'])
 
   if 'variable' in expression:
     return Variable(expression['variable']['var_name'])
@@ -48,12 +64,12 @@ def convert_expression(types_graph: TypesGraph, expression: dict):
     call = expression['call']
     predicate_name = call['predicate_name']
     result = PredicateAddressing(predicate_name, 'logica_value')
-    fill_fields(predicate_name, types_graph, call, result)
+    FillFields(predicate_name, types_graph, call, result)
     return result
 
   if 'subscript' in expression:
     subscript = expression['subscript']
-    record = convert_expression(types_graph, subscript['record'])
+    record = ConvertExpression(types_graph, subscript['record'])
     field = subscript['subscript']['literal']['the_symbol']['symbol']
     result = SubscriptAddressing(record, field)
     types_graph.Connect(FieldBelonging(record, result, bounds))
@@ -63,7 +79,7 @@ def convert_expression(types_graph: TypesGraph, expression: dict):
     record = expression['record']
     field_value = record['field_value']
     return RecordLiteral(
-      {field['field']: convert_expression(types_graph, field['value']['expression']) for field in field_value})
+      {field['field']: ConvertExpression(types_graph, field['value']['expression']) for field in field_value})
 
   if 'implication' in expression:
     implication = expression['implication']
@@ -72,15 +88,15 @@ def convert_expression(types_graph: TypesGraph, expression: dict):
     #        [convert_expression(types_graph, implication['otherwise'])]
 
     # todo handle conditions
-    return convert_expression(types_graph, implication['otherwise'])
+    return ConvertExpression(types_graph, implication['otherwise'])
 
 
-def process_predicate(types_graph: TypesGraph, value: dict):
+def ProcessPredicate(types_graph: TypesGraph, value: dict):
   predicate_name = value['predicate_name']
-  fill_fields(predicate_name, types_graph, value)
+  FillFields(predicate_name, types_graph, value)
 
 
-def fill_field(types_graph: TypesGraph, predicate_name: str, field: dict):
+def FillField(types_graph: TypesGraph, predicate_name: str, field: dict):
   field_name = field['field']
 
   if isinstance(field_name, int):
@@ -89,54 +105,54 @@ def fill_field(types_graph: TypesGraph, predicate_name: str, field: dict):
   variable = PredicateAddressing(predicate_name, field_name)
 
   if 'aggregation' in field['value']:
-    value = convert_expression(types_graph, field['value']['aggregation']['expression'])
+    value = ConvertExpression(types_graph, field['value']['aggregation']['expression'])
     types_graph.Connect(Equality(variable, value, bounds))
     return
 
   if 'expression' in field['value']:
-    value = convert_expression(types_graph, field['value']['expression'])
+    value = ConvertExpression(types_graph, field['value']['expression'])
     types_graph.Connect(Equality(variable, value, bounds))
     return
 
   raise NotImplementedError(field)
 
 
-def fill_conjunct(types_graph: TypesGraph, conjunct: dict):
+def FillConjunct(types_graph: TypesGraph, conjunct: dict):
   if 'unification' in conjunct:
     unification = conjunct['unification']
-    left_hand_side = convert_expression(types_graph, unification['left_hand_side'])
-    right_hand_side = convert_expression(types_graph, unification['right_hand_side'])
+    left_hand_side = ConvertExpression(types_graph, unification['left_hand_side'])
+    right_hand_side = ConvertExpression(types_graph, unification['right_hand_side'])
     types_graph.Connect(Equality(left_hand_side, right_hand_side, bounds))
   elif 'inclusion' in conjunct:
     inclusion = conjunct['inclusion']
-    list_of_elements = convert_expression(types_graph, inclusion['list'])
-    element = convert_expression(types_graph, inclusion['element'])
+    list_of_elements = ConvertExpression(types_graph, inclusion['list'])
+    element = ConvertExpression(types_graph, inclusion['element'])
     types_graph.Connect(EqualityOfElement(list_of_elements, element, bounds))
   elif 'predicate' in conjunct:
-    process_predicate(types_graph, conjunct['predicate'])
+    ProcessPredicate(types_graph, conjunct['predicate'])
   else:
     raise NotImplementedError(conjunct)
 
 
-def traverse_tree(predicate_name: str, rule: dict):
+def TraverseTree(predicate_name: str, rule: dict):
   types_graph = TypesGraph()
 
   for field in rule['head']['record']['field_value']:
-    fill_field(types_graph, predicate_name, field)
+    FillField(types_graph, predicate_name, field)
 
   if 'body' in rule:
     for conjunct in rule['body']['conjunction']['conjunct']:
-      fill_conjunct(types_graph, conjunct)
+      FillConjunct(types_graph, conjunct)
 
   return types_graph
 
 
-def run(raw_program: str):
+def Run(raw_program: str):
   parsed = parse.ParseFile(raw_program)
   graphs = defaultdict(lambda: TypesGraph())
 
   for rule in parsed['rule']:
     predicate_name = rule['head']['predicate_name']
-    graphs[predicate_name] |= traverse_tree(predicate_name, rule)
+    graphs[predicate_name] |= TraverseTree(predicate_name, rule)
 
   return graphs
