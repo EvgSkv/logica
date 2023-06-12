@@ -17,10 +17,9 @@
 import unittest
 
 from parser_py import parse
-from type_inference.types.expression import Variable, PredicateAddressing, SubscriptAddressing, RecordLiteral
+from type_inference.types.expression import Variable, PredicateAddressing, SubscriptAddressing
 from type_inference.types_graph_builder import TypesGraphBuilder
 from type_inference.type_inference_service import TypeInference
-from type_inference.types import edge, expression
 from type_inference.types.variable_types import NumberType, StringType, ListType, RecordType, AnyType
 
 class IntegrationTypeInferenceTest(unittest.TestCase):
