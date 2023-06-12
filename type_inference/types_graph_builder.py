@@ -91,12 +91,14 @@ class TypesGraphBuilder:
       types_graph.Connect(Equality(left_hand_side, right_hand_side, (left, right)))
     elif 'inclusion' in conjunct:
       inclusion = conjunct['inclusion']
-      list_of_elements, (left, _) = self.ConvertExpression(types_graph, inclusion['list'])
-      element, (_, right) = self.ConvertExpression(types_graph, inclusion['element'])
+      list_of_elements, (_, right) = self.ConvertExpression(types_graph, inclusion['list'])
+      element, (left, _) = self.ConvertExpression(types_graph, inclusion['element'])
       types_graph.Connect(EqualityOfElement(list_of_elements, element, (left, right)))
     elif 'predicate' in conjunct:
       value = conjunct['predicate']
-      self.FillFields(value['predicate_name'], types_graph, value)
+      predicate_name = value['predicate_name']
+      self.FillFields(predicate_name, types_graph, value)
+      self._predicate_usages[predicate_name] += 1
     else:
       raise NotImplementedError(conjunct)
 
