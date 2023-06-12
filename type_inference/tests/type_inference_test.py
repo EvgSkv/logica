@@ -17,11 +17,11 @@
 import unittest
 
 from type_inference.type_inference_service import TypeInference
-from type_inference.types.edge import Equality, EqualityOfElement, FieldBelonging
+from type_inference.types.edge import Equality, EqualityOfElement, FieldBelonging, PredicateArgument
 from type_inference.types.expression import Variable, PredicateAddressing, NumberLiteral, SubscriptAddressing, \
   StringLiteral, RecordLiteral, ListLiteral
 from type_inference.types.types_graph import TypesGraph
-from type_inference.types.variable_types import NumberType, StringType, ListType, RecordType, AnyType
+from type_inference.types.variable_types import NumberType, StringType, ListType, RecordType, AnyType, BoolType
 
 number = NumberType()
 string = StringType()
@@ -242,3 +242,61 @@ class TestTypeInference(unittest.TestCase):
 
     expected = RecordType({'a': number, 'b': RecordType({'c': ListType(AnyType())}, False)}, False)
     self.assertEqual(q_col0.type, expected)
+
+  def test_when_single_compare_operator(self):
+    # Q(x < 2) :- x == 1;
+    graph = TypesGraph()
+    q_col0 = PredicateAddressing('Q', 'col0')
+    x_var = Variable('x')
+    graph.Connect(Equality(q_col0, PredicateAddressing('<', 'logica_value'), (0, 0)))
+    graph.Connect(Equality(PredicateAddressing('<', 'left'), x_var, (0, 0)))
+    graph.Connect(Equality(PredicateAddressing('<', 'right'), NumberLiteral(), (0, 0)))
+    graph.Connect(Equality(x_var, NumberLiteral(), (0, 0)))
+    graphs = dict()
+    graphs['Q'] = graph
+
+    TypeInference(graphs).Infer()
+
+    self.assertEqual(q_col0.type, BoolType())
+
+  def test_when_two_compare_operators_with_different_types(self):
+    # Q("h" < "a", 1 < 2);
+    graph = TypesGraph()
+    q_col0 = PredicateAddressing('Q', 'col0')
+    q_col1 = PredicateAddressing('Q', 'col1')
+    graph.Connect(Equality(q_col0, PredicateAddressing('<', 'logica_value'), (0, 0)))
+    graph.Connect(Equality(PredicateAddressing('<', 'left'), StringLiteral(), (0, 0)))
+    graph.Connect(Equality(PredicateAddressing('<', 'right'), StringLiteral(), (0, 0)))
+    graph.Connect(Equality(q_col1, PredicateAddressing('<', 'logica_value', 1), (0, 0)))
+    graph.Connect(Equality(PredicateAddressing('<', 'left', 1), NumberLiteral(), (0, 0)))
+    graph.Connect(Equality(PredicateAddressing('<', 'right', 1), NumberLiteral(), (0, 0)))
+    graphs = dict()
+    graphs['Q'] = graph
+
+    TypeInference(graphs).Infer()
+
+    self.assertEqual(q_col0.type, BoolType())
+    self.assertEqual(q_col1.type, BoolType())
+
+  def test_when_compare_records_fields(self):
+    # Q(y) :- x == {b: 5}, y in Range(10), y < x.b;
+    graph = TypesGraph()
+    q_col0 = PredicateAddressing('Q', 'col0')
+    y_var = Variable('y')
+    x_var = Variable('x')
+    b = SubscriptAddressing(x_var, 'b')
+    range_lv = PredicateAddressing('Range', 'logica_value')
+    range_col0 = PredicateAddressing('Range', 'col0')
+    graph.Connect(Equality(q_col0, y_var, (0, 0)))
+    graph.Connect(FieldBelonging(x_var, b, (0, 0)))
+    graph.Connect(Equality(x_var, RecordLiteral({'b': NumberLiteral()}), (0, 0)))
+    graph.Connect(Equality(PredicateAddressing('<', 'left'), y_var, (0, 0)))
+    graph.Connect(Equality(PredicateAddressing('<', 'right'), b, (0, 0)))
+    graph.Connect(EqualityOfElement(range_lv, y_var, (0, 0)))
+    graph.Connect(PredicateArgument(range_lv, range_col0, (0, 0)))
+    graphs = dict()
+    graphs['Q'] = graph
+
+    TypeInference(graphs).Infer()
+
+    self.assertEqual(q_col0.type, number)

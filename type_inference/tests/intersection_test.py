@@ -18,10 +18,13 @@ import unittest
 
 from type_inference.intersection import Intersect, IntersectListElement
 from type_inference.type_inference_exception import TypeInferenceException
-from type_inference.types.variable_types import NumberType, StringType, ListType, AnyType, RecordType
+from type_inference.types.variable_types import NumberType, StringType, ListType, AnyType, RecordType, AtomicType, \
+  BoolType
 
 number = NumberType()
 string = StringType()
+boolean = BoolType()
+atomic = AtomicType()
 list_of_nums = ListType(number)
 list_of_strings = ListType(string)
 any_type = AnyType()
@@ -40,7 +43,7 @@ class IntersectionTest(unittest.TestCase):
     return intersect_func(type1, type2, (0, 0))
 
   def test_success_when_intersect_equal_types(self):
-    types = [number, string, list_of_nums, empty_list,
+    types = [number, string, boolean, list_of_nums, empty_list,
              opened_record, closed_record,
              opened_record_with_opened_record, opened_record_with_closed_record,
              closed_record_with_opened_record, closed_record_with_closed_record]
@@ -50,7 +53,7 @@ class IntersectionTest(unittest.TestCase):
         self.assertEquals(result, type)
 
   def test_fail_when_intersect_not_equal_types(self):
-    types = [number, string, list_of_nums,
+    types = [number, string, boolean, list_of_nums,
              opened_record, closed_record,
              opened_record_with_opened_record, opened_record_with_closed_record,
              closed_record_with_opened_record, closed_record_with_closed_record]
@@ -82,10 +85,17 @@ class IntersectionTest(unittest.TestCase):
 
   def test_enrich_type_when_opened_records_with_extra(self):
     result = self.intersect_with_zero_bounds(Intersect, opened_record, opened_record_with_opened_record)
-    self.assertEqual(result, RecordType({'num': number,  'str': string, 'opened_record': opened_record}, True))
+    self.assertEqual(result, RecordType({'num': number, 'str': string, 'opened_record': opened_record}, True))
 
   def test_fail_when_record_fields_are_different(self):
     record1 = RecordType({'a': NumberType(), 'b': StringType()}, True)
     record2 = RecordType({'a': NumberType(), 'b': NumberType()}, True)
     with self.assertRaises(TypeInferenceException):
       self.intersect_with_zero_bounds(Intersect, record1, record2)
+
+  def test_success_when_atomic_types(self):
+    cases = [number, string, atomic]
+    for case in cases:
+      with self.subTest(case=case):
+        result = self.intersect_with_zero_bounds(Intersect, case, atomic)
+        self.assertEqual(result, case)
