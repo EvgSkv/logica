@@ -18,7 +18,6 @@ import sqlite3
 from typing import Dict
 
 from type_inference.inspectors.inspector_base import Inspector
-from type_inference.logger import Logger
 from type_inference.types.variable_types import NumberType, StringType, Type
 
 
@@ -34,8 +33,7 @@ def Convert(sqlite_type: str) -> Type:
 
 
 class SQLiteInspector(Inspector):
-  def __init__(self, db_path: str, logger: Logger):
-    self._logger = logger
+  def __init__(self, db_path: str):
     self.db_path = db_path
 
   def TryGetColumnsInfo(self, table_name: str) -> Dict[str, Type]:
