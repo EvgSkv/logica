@@ -33,8 +33,14 @@ class TypeInference:
     self.MergeGraphs(graphs)
 
   @staticmethod
+  def GetEdgeContainingSameExpression(predicate_addressing: PredicateAddressing, graph: TypesGraph):
+    for key, value in graph.expression_connections.items():
+      if str(key) == str(predicate_addressing):
+        return list(value.values())[0][0]
+
+  @staticmethod
   def FindField(predicate_addressing: PredicateAddressing, graph: TypesGraph):
-    edge = list(graph.expression_connections[predicate_addressing].values())[0][0]
+    edge = TypeInference.GetEdgeContainingSameExpression(predicate_addressing, graph)
     if edge.vertices[0] == predicate_addressing:
       return edge.vertices[0]
     else:
