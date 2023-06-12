@@ -88,8 +88,8 @@ class TypesGraphBuilder:
     elif 'predicate' in conjunct:
       value = conjunct['predicate']
       self.FillFields(value['predicate_name'], types_graph, value)
-
-    raise NotImplementedError(conjunct)
+    else:
+      raise NotImplementedError(conjunct)
 
   def FillFields(self, predicate_name: str, types_graph: TypesGraph, fields: dict,
                  result: PredicateAddressing = None) -> Tuple[int, int]:
@@ -198,8 +198,10 @@ class TypesGraphBuilder:
 
   def MoveBoundsAccordingToPredicateNameType(self, bounds: Tuple[int, int],
                                              predicate_name: Union[str, HeritageAwareString]) -> Tuple[int, int]:
-    return bounds if isinstance(predicate_name, str) else \
-             MinIgnoringNone(bounds[0], predicate_name.start), MaxIgnoringNone(bounds[1], predicate_name.stop)
+    if isinstance(predicate_name, HeritageAwareString):
+      return MinIgnoringNone(bounds[0], predicate_name.start), MaxIgnoringNone(bounds[1], predicate_name.stop)
+
+    return bounds
 
 
 def MinIgnoringNone(left: Union[int, None], right: int) -> int:
