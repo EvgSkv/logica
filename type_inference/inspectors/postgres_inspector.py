@@ -44,7 +44,7 @@ class PostgresInspector(Inspector):
     self._inspector = inspect(engine)
 
   def TryGetColumnsInfo(self, table_name: str) -> Dict[str, Type]:
-    columns_info = self._inspector.get_columns(table_name)
-    if len(columns_info) == 0:
+    if not self._inspector.has_table(table_name):
       raise TableNotExistException(table_name)
+    columns_info = self._inspector.get_columns(table_name)
     return {column['name']: Convert(column['type']) for column in columns_info}

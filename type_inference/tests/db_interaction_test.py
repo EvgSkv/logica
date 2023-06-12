@@ -105,7 +105,7 @@ class TestTypeInferenceWithPsql(unittest.TestCase):
     graph.Connect(Equality(x_var, t_col0, (0, 0)))
     graphs = dict()
     graphs['Q'] = graph
-    postgres_inspector = PostgresInspector('logica', 'logica', None)
+    postgres_inspector = PostgresInspector('logica', 'logica')
 
     TypeInference(graphs, postgres_inspector).Infer()
 
@@ -114,17 +114,17 @@ class TestTypeInferenceWithPsql(unittest.TestCase):
 
     self.safe_drop_table(metadata, table)
 
-  def test_when_linked_with_unknown_predicate_psql(self):
-    # 'Q(x) :- T(x)'
+  def test_when_linked_with_unknown_predicate(self):
+    # 'Q(x) :- F(x)'
     graph = TypesGraph()
     q_col0 = Variable('col0')
-    t_col0 = PredicateAddressing('T', 'col0')
+    f_col0 = PredicateAddressing('F', 'col0')
     x_var = Variable('x')
     graph.Connect(Equality(q_col0, x_var, (0, 0)))
-    graph.Connect(Equality(x_var, t_col0, (0, 0)))
+    graph.Connect(Equality(x_var, f_col0, (0, 0)))
     graphs = dict()
     graphs['Q'] = graph
-    sqlite_inspector = SQLiteInspector('../tests/logica.db', None)
+    postgres_inspector = PostgresInspector('logica', 'logica')
 
-    with self.assertRaises(KeyError):
-      TypeInference(graphs, sqlite_inspector).Infer()
+    with self.assertRaises(TableNotExistException):
+      TypeInference(graphs, postgres_inspector).Infer()
