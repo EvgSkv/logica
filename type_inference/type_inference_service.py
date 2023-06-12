@@ -61,7 +61,7 @@ class TypeInference:
         if isinstance(edge, Equality):
           edge = cast(Equality, edge)
           left, right = edge.left.type, edge.right.type
-          result = Intersect(left, right)
+          result = Intersect(left, right, edge.bounds)
           if result != edge.left.type:
             edge.left.type = result
             changed = True
@@ -71,7 +71,7 @@ class TypeInference:
         elif isinstance(edge, EqualityOfElement):
           edge = cast(EqualityOfElement, edge)
           left, right = edge.element.type, cast(ListType, edge.list.type)
-          result = IntersectListElement(right, left)
+          result = IntersectListElement(right, left, edge.bounds)
           if result != edge.element.type:
             edge.element.type = result
             changed = True
@@ -85,7 +85,7 @@ class TypeInference:
           record = cast(RecordType, edge.parent.type)
           field_name = edge.field.subscript_field
           if field_name in record.fields:
-            result = Intersect(edge.field.type, record.fields[field_name])
+            result = Intersect(edge.field.type, record.fields[field_name], edge.bounds)
             if result != record.fields[field_name]:
               changed = True
               record.fields[field_name] = result

@@ -42,7 +42,7 @@ class IntersectionTest(unittest.TestCase):
              closed_record_with_opened_record, closed_record_with_closed_record]
     for type in types:
       with self.subTest(type=type):
-        result = Intersect(type, type)
+        result = Intersect(type, type, (0, 0))
         self.assertEquals(result, type)
 
   def test_fail_when_intersect_not_equal_types(self):
@@ -55,33 +55,33 @@ class IntersectionTest(unittest.TestCase):
         if first_type != second_type:
           with self.subTest(first_type=first_type, second_type=second_type):
             with self.assertRaises(TypeInferenceException):
-              Intersect(first_type, second_type)
+              Intersect(first_type, second_type, (0, 0))
 
   def test_success_when_intersect_list_element(self):
-    result = IntersectListElement(list_of_nums, number)
+    result = IntersectListElement(list_of_nums, number, (0, 0))
     self.assertEqual(result, number)
 
   def test_fail_when_intersect_list_element(self):
     with self.assertRaises(TypeInferenceException):
-      IntersectListElement(list_of_nums, string)
+      IntersectListElement(list_of_nums, string, (0, 0))
 
   def test_get_type_when_with_any(self):
     types = [number, string, list_of_nums, list_of_strings, empty_list]
     for t in types:
       with self.subTest(t=t):
-        result = Intersect(t, any_type)
+        result = Intersect(t, any_type, (0, 0))
         self.assertEqual(result, t)
 
   def test_get_list_with_type_when_list_with_any(self):
-    result = Intersect(list_of_nums, empty_list)
+    result = Intersect(list_of_nums, empty_list, (0, 0))
     self.assertEqual(result, ListType(number))
 
   def test_enrich_type_when_opened_records_with_extra(self):
-    result = Intersect(opened_record, opened_record_with_opened_record)
+    result = Intersect(opened_record, opened_record_with_opened_record, (0, 0))
     self.assertEqual(result, RecordType({'num': number,  'str': string, 'opened_record': opened_record}, True))
 
   def test_fail_when_record_fields_are_different(self):
     record1 = RecordType({'a': NumberType(), 'b': StringType()}, True)
     record2 = RecordType({'a': NumberType(), 'b': NumberType()}, True)
     with self.assertRaises(TypeInferenceException):
-      Intersect(record1, record2)
+      Intersect(record1, record2, (0, 0))
