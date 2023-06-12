@@ -19,6 +19,7 @@ import unittest
 from typing import Dict
 
 from type_inference.inspectors.sqlite_inspector import SQLiteInspector
+from type_inference.inspectors.table_not_exist_exception import TableNotExistException
 from type_inference.type_inference_service import TypeInference
 from type_inference.types.edge import Equality
 from type_inference.types.expression import Variable, PredicateAddressing
@@ -52,7 +53,7 @@ class TestTypeInferenceWithDb(unittest.TestCase):
     graph.Connect(Equality(x_var, t_col0, (0, 0)))
     graphs = dict()
     graphs['Q'] = graph
-    sqlite_inspector = SQLiteInspector('../tests/logica.db', None)
+    sqlite_inspector = SQLiteInspector('../tests/logica.db')
 
     TypeInference(graphs, sqlite_inspector).Infer()
 
@@ -71,9 +72,9 @@ class TestTypeInferenceWithDb(unittest.TestCase):
     graph.Connect(Equality(x_var, t_col0, (0, 0)))
     graphs = dict()
     graphs['Q'] = graph
-    sqlite_inspector = SQLiteInspector('../tests/logica.db', None)
+    sqlite_inspector = SQLiteInspector('../tests/logica.db')
 
-    with self.assertRaises(KeyError):
+    with self.assertRaises(TableNotExistException):
       TypeInference(graphs, sqlite_inspector).Infer()
 
     safe_drop_table('T')
