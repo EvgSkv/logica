@@ -76,6 +76,8 @@ class TypeInference:
             changed = True
         elif isinstance(edge, EqualityOfElement):
           edge = cast(EqualityOfElement, edge)
+          if isinstance(edge.list.type, AnyType):
+            edge.list.type = ListType(AnyType())
           left, right = edge.element.type, cast(ListType, edge.list.type)
           result = IntersectListElement(right, left, edge.bounds)
           if result != edge.element.type:

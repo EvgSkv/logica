@@ -16,11 +16,13 @@
 
 from logging import error
 from typing import Tuple
+
 from common import color
+from type_inference.types.variable_types import Type
 
 
 class TypeInferenceException(Exception):
-  def __init__(self, message, bounds: Tuple[int, int]):
+  def __init__(self, left: Type, right: Type, bounds: Tuple[int, int]):
     self.bounds = bounds
     error(color.Format('{underline}Infering types{end}:'))
-    error(f'{color.Format("[ {error}Error{end} ]")} {message} at ({bounds[0]};{bounds[1]})\n')
+    error(f'{color.Format("[ {error}Error{end} ]")} can\'t match {left} with {right} at ({bounds[0]};{bounds[1]})\n')
