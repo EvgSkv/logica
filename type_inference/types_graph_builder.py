@@ -27,10 +27,18 @@ from type_inference.types.types_graph import TypesGraph
 class TypesGraphBuilder:
   _predicate_usages: defaultdict
   _if_statements_counter: int
+  _expressions_cache: dict
 
   def ResetInternalState(self):
     self._predicate_usages = defaultdict(lambda: 0)
     self._if_statements_counter = 0
+    self._expressions_cache = {}
+
+  def GetFromCacheOrAdd(self, expression: Expression):
+    if expression not in self._expressions_cache:
+      self._expressions_cache[expression] = expression
+
+    return self._expressions_cache[expression]
 
   def Run(self, parsed_program: dict) -> Dict[str, TypesGraph]:
     self.ResetInternalState()
@@ -60,7 +68,8 @@ class TypesGraphBuilder:
     if isinstance(field_name, int):
       field_name = f'col{field_name}'
 
-    variable = PredicateAddressing(predicate_name, field_name, self._predicate_usages[predicate_name])
+    variable = self.GetFromCacheOrAdd(
+      PredicateAddressing(predicate_name, field_name, self._predicate_usages[predicate_name]))
 
     if 'aggregation' in field['value']:
       value, bounds = self.ConvertExpression(types_graph, field['value']['aggregation']['expression'])
@@ -115,18 +124,22 @@ class TypesGraphBuilder:
 
   def ConvertExpression(self, types_graph: TypesGraph, expression: dict) -> Tuple[Expression, Tuple[int, int]]:
     if 'literal' in expression:
-      return self.ConvertLiteralExpression(types_graph, expression['literal'])
+      result, bounds = self.ConvertLiteralExpression(types_graph, expression['literal'])
     elif 'variable' in expression:
       value = expression['variable']['var_name']
-      return Variable(value), (value.start, value.stop)
+      result, bounds = Variable(value), (value.start, value.stop)
     elif 'call' in expression:
-      return self.ConvertCallExpression(types_graph, expression['call'])
+      result, bounds = self.ConvertCallExpression(types_graph, expression['call'])
     elif 'subscript' in expression:
-      return self.ConvertSubscriptExpression(types_graph, expression['subscript'])
+      result, bounds = self.ConvertSubscriptExpression(types_graph, expression['subscript'])
     elif 'record' in expression:
-      return self.ConvertRecordExpression(types_graph, expression['record']['field_value'])
+      result, bounds = self.ConvertRecordExpression(types_graph, expression['record']['field_value'])
     elif 'implication' in expression:
-      return self.ConvertImplicationExpression(types_graph, expression['implication'])
+      result, bounds = self.ConvertImplicationExpression(types_graph, expression['implication'])
+    else:
+      raise NotImplementedError(expression)
+
+    return self.GetFromCacheOrAdd(result), bounds
 
   def ConvertLiteralExpression(self, types_graph: TypesGraph, literal: dict) -> Tuple[Literal, Tuple[int, int]]:
     if 'the_string' in literal:
@@ -156,7 +169,8 @@ class TypesGraphBuilder:
 
   def ConvertCallExpression(self, types_graph: TypesGraph, call: dict):
     predicate_name = call['predicate_name']
-    result = PredicateAddressing(predicate_name, 'logica_value', self._predicate_usages[predicate_name])
+    result = self.GetFromCacheOrAdd(
+      PredicateAddressing(predicate_name, 'logica_value', self._predicate_usages[predicate_name]))
     bounds = self.FillFields(predicate_name, types_graph, call, result)
     self._predicate_usages[predicate_name] += 1
     return result, self.MoveBoundsAccordingToPredicateNameType(bounds, predicate_name)
@@ -164,7 +178,7 @@ class TypesGraphBuilder:
   def ConvertSubscriptExpression(self, types_graph: TypesGraph, subscript: dict):
     record, (left, _) = self.ConvertExpression(types_graph, subscript['record'])
     field = subscript['subscript']['literal']['the_symbol']['symbol']
-    result = SubscriptAddressing(record, field)
+    result = self.GetFromCacheOrAdd(SubscriptAddressing(record, field))
     bounds = (left, field.stop)
     types_graph.Connect(FieldBelonging(record, result, bounds))
     return result, bounds
