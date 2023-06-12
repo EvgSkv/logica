@@ -98,4 +98,5 @@ class RecordType(Type):
     return len(intersection) == len(fields_set)
 
   def __str__(self):
-    return f'{{{", ".join(map(str, self.fields))}}}'
+    fields = ', '.join(map(lambda t: f'{t[0]}: {t[1]}', sorted(self.fields.items(), key=lambda t: t[0])))
+    return f'{{{fields}}}'
