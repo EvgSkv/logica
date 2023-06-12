@@ -19,6 +19,7 @@ from typing import Dict
 from sqlalchemy import create_engine, inspect, types
 
 from type_inference.inspectors.inspector_base import Inspector
+from type_inference.inspectors.table_not_exist_exception import TableNotExistException
 from type_inference.types.variable_types import Type, NumberType, ListType, StringType, RecordType
 
 
@@ -44,4 +45,6 @@ class PostgresInspector(Inspector):
 
   def TryGetColumnsInfo(self, table_name: str) -> Dict[str, Type]:
     columns_info = self._inspector.get_columns(table_name)
+    if len(columns_info) == 0:
+      raise TableNotExistException(table_name)
     return {column['name']: Convert(column['type']) for column in columns_info}
