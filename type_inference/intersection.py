@@ -14,7 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import cast
+from typing import Tuple, cast
 
 from type_inference.type_inference_exception import TypeInferenceException
 from type_inference.types.variable_types import AnyType, NumberType, StringType, ListType, RecordType, Type
@@ -36,7 +36,7 @@ def Rank(x):
       return 5
 
 
-def Intersect(a: Type, b: Type) -> Type:
+def Intersect(a: Type, b: Type, bounds: Tuple[int, int]) -> Type:
   if Rank(a) > Rank(b):
     a, b = b, a
 
@@ -46,39 +46,39 @@ def Intersect(a: Type, b: Type) -> Type:
   if isinstance(a, NumberType) or isinstance(a, StringType):
     if a == b:
       return b
-    raise TypeInferenceException()
+    raise TypeInferenceException(f'cannot match {str(a)} and {str(b)} at ({bounds[0]};{bounds[1]})')
 
   if isinstance(a, ListType):
     if isinstance(b, ListType):
-      new_element = Intersect(a.element, b.element)
+      new_element = Intersect(a.element, b.element, bounds)
       return ListType(new_element)
-    raise TypeInferenceException()
+    raise TypeInferenceException(f'cannot match {str(b)} and list at ({bounds[0]};{bounds[1]})')
 
   a = cast(RecordType, a)
   b = cast(RecordType, b)
   if a.is_opened:
     if b.is_opened:
-      return IntersectFriendlyRecords(a, b, True)
+      return IntersectFriendlyRecords(a, b, True, bounds)
     else:
       if set(a.fields.keys()) <= set(b.fields.keys()):
-        return IntersectFriendlyRecords(a, b, False)
-      raise TypeInferenceException()
+        return IntersectFriendlyRecords(a, b, False, bounds)
+      raise TypeInferenceException(f'cannot match types of records keys at ({bounds[0]};{bounds[1]})')
   else:
     if set(a.fields.keys()) == set(b.fields.keys()):
-      return IntersectFriendlyRecords(a, b, False)
-    raise TypeInferenceException()
+      return IntersectFriendlyRecords(a, b, False, bounds)
+    raise TypeInferenceException(f'cannot match types of records keys at ({bounds[0]};{bounds[1]})')
 
 
-def IntersectFriendlyRecords(a: RecordType, b: RecordType, is_opened: bool) -> RecordType:
+def IntersectFriendlyRecords(a: RecordType, b: RecordType, is_opened: bool, bounds: Tuple[int, int]) -> RecordType:
   result = RecordType({}, is_opened)
   for name, f_type in b.fields.items():
     if name in a.fields:
-      intersection = Intersect(f_type, a.fields[name])
+      intersection = Intersect(f_type, a.fields[name], bounds)
       result.fields[name] = intersection
     else:
       result.fields[name] = f_type
   return result
 
 
-def IntersectListElement(a_list: ListType, b_element: Type) -> Type:
-  return Intersect(a_list.element, b_element)
+def IntersectListElement(a_list: ListType, b_element: Type, bounds: Tuple[int, int]) -> Type:
+  return Intersect(a_list.element, b_element, bounds)

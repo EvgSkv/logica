@@ -22,26 +22,28 @@ from sqlalchemy import MetaData, Table, Column, Integer, create_engine
 
 from type_inference.inspectors.postgres_inspector import PostgresInspector
 from type_inference.inspectors.sqlite_inspector import SQLiteInspector
+from type_inference.inspectors.table_not_exist_exception import TableNotExistException
 from type_inference.type_inference_service import TypeInference
 from type_inference.types.edge import Equality
 from type_inference.types.expression import Variable, PredicateAddressing
 from type_inference.types.types_graph import TypesGraph
 from type_inference.types.variable_types import NumberType
 
+sqlite_db_file_name = 'logica.db'
 number = NumberType()
 
 
 class TestTypeInferenceWithSqlite(unittest.TestCase):
   @staticmethod
   def create_table(table_name: str, columns: Dict[str, str]):
-    with sqlite3.connect('logica.db') as conn:
+    with sqlite3.connect(sqlite_db_file_name) as conn:
       columns_to_create = ', '.join([f'{column[0]} {column[1]}' for column in columns.items()])
       cursor = conn.cursor()
       cursor.execute(f'create table if not exists {table_name} (id integer, {columns_to_create})').fetchall()
 
   @staticmethod
   def safe_drop_table(table_name: str):
-    with sqlite3.connect('logica.db') as conn:
+    with sqlite3.connect(sqlite_db_file_name) as conn:
       conn.cursor().execute(f'drop table if exists {table_name}').fetchall()
 
   def test_when_linked_with_predicate_from_db(self):
@@ -55,7 +57,7 @@ class TestTypeInferenceWithSqlite(unittest.TestCase):
     graph.Connect(Equality(x_var, t_col0, (0, 0)))
     graphs = dict()
     graphs['Q'] = graph
-    sqlite_inspector = SQLiteInspector('../tests/logica.db', None)
+    sqlite_inspector = SQLiteInspector('../tests/logica.db')
 
     TypeInference(graphs, sqlite_inspector).Infer()
 
@@ -74,9 +76,9 @@ class TestTypeInferenceWithSqlite(unittest.TestCase):
     graph.Connect(Equality(x_var, t_col0, (0, 0)))
     graphs = dict()
     graphs['Q'] = graph
-    sqlite_inspector = SQLiteInspector('../tests/logica.db', None)
+    sqlite_inspector = SQLiteInspector('../tests/logica.db')
 
-    with self.assertRaises(KeyError):
+    with self.assertRaises(TableNotExistException):
       TypeInference(graphs, sqlite_inspector).Infer()
 
 
@@ -104,7 +106,7 @@ class TestTypeInferenceWithPsql(unittest.TestCase):
     graph.Connect(Equality(x_var, t_col0, (0, 0)))
     graphs = dict()
     graphs['Q'] = graph
-    postgres_inspector = PostgresInspector('logica', 'logica', None)
+    postgres_inspector = PostgresInspector('logica', 'logica')
 
     TypeInference(graphs, postgres_inspector).Infer()
 
@@ -123,7 +125,7 @@ class TestTypeInferenceWithPsql(unittest.TestCase):
     graph.Connect(Equality(x_var, t_col0, (0, 0)))
     graphs = dict()
     graphs['Q'] = graph
-    sqlite_inspector = SQLiteInspector('../tests/logica.db', None)
+    postgres_inspector = PostgresInspector('logica', 'logica')
 
-    with self.assertRaises(KeyError):
-      TypeInference(graphs, sqlite_inspector).Infer()
+    with self.assertRaises(TableNotExistException):
+      TypeInference(graphs, postgres_inspector).Infer()

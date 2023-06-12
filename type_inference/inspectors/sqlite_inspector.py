@@ -18,7 +18,7 @@ import sqlite3
 from typing import Dict
 
 from type_inference.inspectors.inspector_base import Inspector
-from type_inference.logger import Logger
+from type_inference.inspectors.table_not_exist_exception import TableNotExistException
 from type_inference.types.variable_types import NumberType, StringType, Type
 
 
@@ -34,12 +34,13 @@ def Convert(sqlite_type: str) -> Type:
 
 
 class SQLiteInspector(Inspector):
-  def __init__(self, db_path: str, logger: Logger):
-    self._logger = logger
+  def __init__(self, db_path: str):
     self.db_path = db_path
 
   def TryGetColumnsInfo(self, table_name: str) -> Dict[str, Type]:
     with sqlite3.connect(self.db_path) as conn:
       cursor = conn.cursor()
       columns_info = cursor.execute(f'PRAGMA table_info({table_name});').fetchall()
+      if len(columns_info) == 0:
+        raise TableNotExistException(table_name)
     return {column[1]: Convert(column[2]) for column in columns_info}
