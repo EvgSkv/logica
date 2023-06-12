@@ -46,13 +46,13 @@ def Intersect(a: Type, b: Type) -> Type:
   if isinstance(a, NumberType) or isinstance(a, StringType):
     if a == b:
       return b
-    raise TypeInferenceException(f"cannot intersect {str(a)} type and {str(b)} type")
+    raise TypeInferenceException(f'cannot match {str(a)} type and {str(b)} type')
 
   if isinstance(a, ListType):
     if isinstance(b, ListType):
       new_element = Intersect(a.element, b.element)
       return ListType(new_element)
-    raise TypeInferenceException(f"list type cannot intersect with {str(b)} type")
+    raise TypeInferenceException(f'cannot match {str(b)} type and list type')
 
   a = cast(RecordType, a)
   b = cast(RecordType, b)
@@ -62,14 +62,11 @@ def Intersect(a: Type, b: Type) -> Type:
     else:
       if set(a.fields.keys()) <= set(b.fields.keys()):
         return IntersectFriendlyRecords(a, b, False)
-      raise TypeInferenceException(
-        "cannot intersect an open record with a closed one if the keys of the open one are not "
-        "a subset of the closed one")
+      raise TypeInferenceException('cannot match types of records keys')
   else:
     if set(a.fields.keys()) == set(b.fields.keys()):
       return IntersectFriendlyRecords(a, b, False)
-    raise TypeInferenceException("cannot intersect a closed record with another if their sets of their keys "
-                                 "are not equal")
+    raise TypeInferenceException('cannot match types of records keys')
 
 
 def IntersectFriendlyRecords(a: RecordType, b: RecordType, is_opened: bool) -> RecordType:

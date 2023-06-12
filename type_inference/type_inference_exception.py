@@ -20,6 +20,6 @@ from common import color
 
 
 class TypeInferenceException(Exception):
-  def __init__(self, message='cannot inference type'):
+  def __init__(self, message):
     error(color.Format('{underline}Infering types{end}:'))
     error(f'{color.Format("[ {error}Error{end} ]")} {message}')
