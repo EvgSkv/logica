@@ -126,5 +126,5 @@ class RecordLiteral(Literal):
     return super().__eq__(other) and self.fields == other.fields
 
   def __str__(self):
-    fields = ', '.join(map(str, sorted(self.fields.items())))
+    fields = ', '.join(map(lambda t: f'{t[0]}: {t[1]}', sorted(self.fields.items(), key=lambda t: t[0])))
     return super().__str__() + f'({fields})'
