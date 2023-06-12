@@ -16,15 +16,17 @@
 
 import unittest
 
-from type_inference.types_graph_builder import TypesGraphBuilder
+from parser_py import parse
 from type_inference.types import edge, expression
+from type_inference.types_graph_builder import TypesGraphBuilder
 
 
 class TestTypesGraphBuilding(unittest.TestCase):
   def test_when_connection_with_other_predicates(self):
     s = 'Q(x) :- T(x), Num(x)'
+    parsed = parse.ParseFile(s)
 
-    graph = TypesGraphBuilder().Run(s)['Q']
+    graph = TypesGraphBuilder().Run(parsed)['Q']
     edges = graph.ToEdgesSet()
 
     expected = [edge.Equality(expression.PredicateAddressing('Q', 'col0'), expression.Variable('x'), (0, 0)),
@@ -35,8 +37,9 @@ class TestTypesGraphBuilding(unittest.TestCase):
 
   def test_when_plus_operator(self):
     s = 'Q(x + y) :- T(x), T(y);'
+    parsed = parse.ParseFile(s)
 
-    graph = TypesGraphBuilder().Run(s)['Q']
+    graph = TypesGraphBuilder().Run(parsed)['Q']
     edges = graph.ToEdgesSet()
 
     x_var = expression.Variable('x')
@@ -56,8 +59,9 @@ class TestTypesGraphBuilding(unittest.TestCase):
 
   def test_when_str(self):
     s = 'Q(x) :- T(x), T(y), Str(x), x == y;'
+    parsed = parse.ParseFile(s)
 
-    graph = TypesGraphBuilder().Run(s)['Q']
+    graph = TypesGraphBuilder().Run(parsed)['Q']
     edges = graph.ToEdgesSet()
 
     x_var = expression.Variable('x')
@@ -72,8 +76,9 @@ class TestTypesGraphBuilding(unittest.TestCase):
 
   def test_when_concat_operator(self):
     s = 'Q(x ++ y) :- T(x), T(y);'
+    parsed = parse.ParseFile(s)
 
-    graph = TypesGraphBuilder().Run(s)['Q']
+    graph = TypesGraphBuilder().Run(parsed)['Q']
     edges = graph.ToEdgesSet()
 
     x_var = expression.Variable('x')
@@ -93,8 +98,9 @@ class TestTypesGraphBuilding(unittest.TestCase):
 
   def test_when_in_operator(self):
     s = 'Q(y) :- T(x), y in x, Num(y);'
+    parsed = parse.ParseFile(s)
 
-    graph = TypesGraphBuilder().Run(s)['Q']
+    graph = TypesGraphBuilder().Run(parsed)['Q']
     edges = graph.ToEdgesSet()
 
     x_var = expression.Variable('x')
@@ -108,8 +114,9 @@ class TestTypesGraphBuilding(unittest.TestCase):
 
   def test_when_record(self):
     s = 'Q(p: Str(y), q: z + w, s: x) :- T(x), y == x.a, z == x.b, w == x.c.d;'
+    parsed = parse.ParseFile(s)
 
-    graph = TypesGraphBuilder().Run(s)['Q']
+    graph = TypesGraphBuilder().Run(parsed)['Q']
     edges = graph.ToEdgesSet()
 
     p_var = expression.PredicateAddressing('Q', 'p')
@@ -148,8 +155,9 @@ class TestTypesGraphBuilding(unittest.TestCase):
 
   def test_when_named_columns(self):
     s = 'Q(a:, b:) :- T(x), T(y), a == x + y, b == x + y;'
+    parsed = parse.ParseFile(s)
 
-    graph = TypesGraphBuilder().Run(s)['Q']
+    graph = TypesGraphBuilder().Run(parsed)['Q']
     edges = graph.ToEdgesSet()
 
     x_var = expression.Variable('x')
