@@ -16,100 +16,107 @@
 
 import unittest
 
-from type_inference import ast_traverse
+from parser_py import parse
 from type_inference.types import edge, expression
+from type_inference.types_graph_builder import TypesGraphBuilder
 
 
 class TestTypesGraphBuilding(unittest.TestCase):
   def test_when_connection_with_other_predicates(self):
     s = 'Q(x) :- T(x), Num(x)'
+    parsed = parse.ParseFile(s)
 
-    graph = ast_traverse.Run(s)['Q']
+    graph = TypesGraphBuilder().Run(parsed)['Q']
     edges = graph.ToEdgesSet()
 
-    expected = [edge.Equality(expression.PredicateAddressing('Q', 'col0'), expression.Variable('x'), (0, 0)),
-                edge.Equality(expression.Variable('x'), expression.PredicateAddressing('T', 'col0'), (0, 0)),
-                edge.Equality(expression.Variable('x'), expression.PredicateAddressing('Num', 'col0'), (0, 0))]
+    expected = [edge.Equality(expression.PredicateAddressing('Q', 'col0'), expression.Variable('x'), (2, 3)),
+                edge.Equality(expression.Variable('x'), expression.PredicateAddressing('T', 'col0'), (10, 11)),
+                edge.Equality(expression.Variable('x'), expression.PredicateAddressing('Num', 'col0'), (18, 19))]
 
     self.assertCountEqual(edges, expected)
 
   def test_when_plus_operator(self):
     s = 'Q(x + y) :- T(x), T(y);'
+    parsed = parse.ParseFile(s)
 
-    graph = ast_traverse.Run(s)['Q']
+    graph = TypesGraphBuilder().Run(parsed)['Q']
     edges = graph.ToEdgesSet()
 
     x_var = expression.Variable('x')
     y_var = expression.Variable('y')
     expected = [edge.Equality(expression.PredicateAddressing('Q', 'col0'),
-                              expression.PredicateAddressing('+', 'logica_value'), (0, 0)),
+                              expression.PredicateAddressing('+', 'logica_value'), (2, 7)),
                 edge.PredicateArgument(expression.PredicateAddressing('+', 'logica_value'),
-                                       expression.PredicateAddressing('+', 'left'), (0, 0)),
+                                       expression.PredicateAddressing('+', 'left'), (2, 3)),
                 edge.PredicateArgument(expression.PredicateAddressing('+', 'logica_value'),
-                                       expression.PredicateAddressing('+', 'right'), (0, 0)),
-                edge.Equality(x_var, expression.PredicateAddressing('+', 'left'), (0, 0)),
-                edge.Equality(y_var, expression.PredicateAddressing('+', 'right'), (0, 0)),
-                edge.Equality(x_var, expression.PredicateAddressing('T', 'col0'), (0, 0)),
-                edge.Equality(y_var, expression.PredicateAddressing('T', 'col0'), (0, 0))]
+                                       expression.PredicateAddressing('+', 'right'), (6, 7)),
+                edge.Equality(x_var, expression.PredicateAddressing('+', 'left'), (2, 3)),
+                edge.Equality(y_var, expression.PredicateAddressing('+', 'right'), (6, 7)),
+                edge.Equality(x_var, expression.PredicateAddressing('T', 'col0'), (14, 15)),
+                edge.Equality(y_var, expression.PredicateAddressing('T', 'col0', 1), (20, 21))]
 
     self.assertCountEqual(edges, expected)
 
   def test_when_str(self):
     s = 'Q(x) :- T(x), T(y), Str(x), x == y;'
+    parsed = parse.ParseFile(s)
 
-    graph = ast_traverse.Run(s)['Q']
+    graph = TypesGraphBuilder().Run(parsed)['Q']
     edges = graph.ToEdgesSet()
 
     x_var = expression.Variable('x')
     y_var = expression.Variable('y')
-    expected = [edge.Equality(expression.PredicateAddressing('Q', 'col0'), expression.Variable('x'), (0, 0)),
-                edge.Equality(x_var, expression.PredicateAddressing('T', 'col0'), (0, 0)),
-                edge.Equality(y_var, expression.PredicateAddressing('T', 'col0'), (0, 0)),
-                edge.Equality(x_var, expression.PredicateAddressing('Str', 'col0'), (0, 0)),
-                edge.Equality(x_var, y_var, (0, 0))]
+    expected = [edge.Equality(expression.PredicateAddressing('Q', 'col0'), expression.Variable('x'), (2, 3)),
+                edge.Equality(x_var, expression.PredicateAddressing('T', 'col0'), (10, 11)),
+                edge.Equality(y_var, expression.PredicateAddressing('T', 'col0', 1), (16, 17)),
+                edge.Equality(x_var, expression.PredicateAddressing('Str', 'col0'), (24, 25)),
+                edge.Equality(x_var, y_var, (28, 34))]
 
     self.assertCountEqual(edges, expected)
 
   def test_when_concat_operator(self):
     s = 'Q(x ++ y) :- T(x), T(y);'
+    parsed = parse.ParseFile(s)
 
-    graph = ast_traverse.Run(s)['Q']
+    graph = TypesGraphBuilder().Run(parsed)['Q']
     edges = graph.ToEdgesSet()
 
     x_var = expression.Variable('x')
     y_var = expression.Variable('y')
     expected = [edge.Equality(expression.PredicateAddressing('Q', 'col0'),
-                              expression.PredicateAddressing('++', 'logica_value'), (0, 0)),
+                              expression.PredicateAddressing('++', 'logica_value'), (2, 8)),
                 edge.PredicateArgument(expression.PredicateAddressing('++', 'logica_value'),
-                                       expression.PredicateAddressing('++', 'left'), (0, 0)),
+                                       expression.PredicateAddressing('++', 'left'), (2, 3)),
                 edge.PredicateArgument(expression.PredicateAddressing('++', 'logica_value'),
-                                       expression.PredicateAddressing('++', 'right'), (0, 0)),
-                edge.Equality(x_var, expression.PredicateAddressing('++', 'left'), (0, 0)),
-                edge.Equality(y_var, expression.PredicateAddressing('++', 'right'), (0, 0)),
-                edge.Equality(x_var, expression.PredicateAddressing('T', 'col0'), (0, 0)),
-                edge.Equality(y_var, expression.PredicateAddressing('T', 'col0'), (0, 0))]
+                                       expression.PredicateAddressing('++', 'right'), (7, 8)),
+                edge.Equality(x_var, expression.PredicateAddressing('++', 'left'), (2, 3)),
+                edge.Equality(y_var, expression.PredicateAddressing('++', 'right'), (7, 8)),
+                edge.Equality(x_var, expression.PredicateAddressing('T', 'col0'), (15, 16)),
+                edge.Equality(y_var, expression.PredicateAddressing('T', 'col0', 1), (21, 22))]
 
     self.assertCountEqual(edges, expected)
 
   def test_when_in_operator(self):
     s = 'Q(y) :- T(x), y in x, Num(y);'
+    parsed = parse.ParseFile(s)
 
-    graph = ast_traverse.Run(s)['Q']
+    graph = TypesGraphBuilder().Run(parsed)['Q']
     edges = graph.ToEdgesSet()
 
     x_var = expression.Variable('x')
     y_var = expression.Variable('y')
-    expected = [edge.Equality(expression.PredicateAddressing('Q', 'col0'), y_var, (0, 0)),
-                edge.Equality(x_var, expression.PredicateAddressing('T', 'col0'), (0, 0)),
-                edge.Equality(y_var, expression.PredicateAddressing('Num', 'col0'), (0, 0)),
-                edge.EqualityOfElement(x_var, y_var, (0, 0))]
+    expected = [edge.Equality(expression.PredicateAddressing('Q', 'col0'), y_var, (2, 3)),
+                edge.Equality(x_var, expression.PredicateAddressing('T', 'col0'), (10, 11)),
+                edge.Equality(y_var, expression.PredicateAddressing('Num', 'col0'), (26, 27)),
+                edge.EqualityOfElement(x_var, y_var, (14, 20))]
 
     self.assertCountEqual(edges, expected)
 
   def test_when_record(self):
     s = 'Q(p: Str(y), q: z + w, s: x) :- T(x), y == x.a, z == x.b, w == x.c.d;'
+    parsed = parse.ParseFile(s)
 
-    graph = ast_traverse.Run(s)['Q']
+    graph = TypesGraphBuilder().Run(parsed)['Q']
     edges = graph.ToEdgesSet()
 
     p_var = expression.PredicateAddressing('Q', 'p')
@@ -120,53 +127,60 @@ class TestTypesGraphBuilding(unittest.TestCase):
     w_var = expression.Variable('w')
     x_var = expression.Variable('x')
 
-    expected = [edge.Equality(p_var, expression.PredicateAddressing('Str', 'logica_value'), (0, 0)),
+    expected = [edge.Equality(p_var, expression.PredicateAddressing('Str', 'logica_value'), (5, 10)),
                 edge.PredicateArgument(expression.PredicateAddressing('Str', 'logica_value'),
-                                       expression.PredicateAddressing('Str', 'col0'), (0, 0)),
-                edge.Equality(y_var, expression.PredicateAddressing('Str', 'col0'), (0, 0)),
-                edge.Equality(q_var, expression.PredicateAddressing('+', 'logica_value'), (0, 0)),
+                                       expression.PredicateAddressing('Str', 'col0'), (9, 10)),
+                edge.Equality(y_var, expression.PredicateAddressing('Str', 'col0'), (9, 10)),
+                edge.Equality(q_var, expression.PredicateAddressing('+', 'logica_value'), (16, 21)),
                 edge.PredicateArgument(expression.PredicateAddressing('+', 'logica_value'),
-                                       expression.PredicateAddressing('+', 'left'), (0, 0)),
+                                       expression.PredicateAddressing('+', 'left'), (16, 17)),
                 edge.PredicateArgument(expression.PredicateAddressing('+', 'logica_value'),
-                                       expression.PredicateAddressing('+', 'right'), (0, 0)),
-                edge.Equality(z_var, expression.PredicateAddressing('+', 'left'), (0, 0)),
-                edge.Equality(w_var, expression.PredicateAddressing('+', 'right'), (0, 0)),
-                edge.Equality(s_var, x_var, (0, 0)),
-                edge.Equality(x_var, expression.PredicateAddressing('T', 'col0'), (0, 0)),
-                edge.Equality(expression.SubscriptAddressing(x_var, 'a'), y_var, (0, 0)),
-                edge.Equality(expression.SubscriptAddressing(x_var, 'b'), z_var, (0, 0)),
+                                       expression.PredicateAddressing('+', 'right'), (20, 21)),
+                edge.Equality(z_var, expression.PredicateAddressing('+', 'left'), (16, 17)),
+                edge.Equality(w_var, expression.PredicateAddressing('+', 'right'), (20, 21)),
+                edge.Equality(s_var, x_var, (26, 27)),
+                edge.Equality(x_var, expression.PredicateAddressing('T', 'col0'), (34, 35)),
+                edge.Equality(expression.SubscriptAddressing(x_var, 'a'), y_var, (38, 46)),
+                edge.Equality(expression.SubscriptAddressing(x_var, 'b'), z_var, (48, 56)),
                 edge.Equality(expression.SubscriptAddressing(expression.SubscriptAddressing(x_var, 'c'), 'd'), w_var,
-                              (0, 0)),
-                edge.FieldBelonging(x_var, expression.SubscriptAddressing(x_var, 'a'), (0, 0)),
-                edge.FieldBelonging(x_var, expression.SubscriptAddressing(x_var, 'b'), (0, 0)),
-                edge.FieldBelonging(x_var, expression.SubscriptAddressing(x_var, 'c'), (0, 0)),
+                              (58, 68)),
+                edge.FieldBelonging(x_var, expression.SubscriptAddressing(x_var, 'a'), (43, 46)),
+                edge.FieldBelonging(x_var, expression.SubscriptAddressing(x_var, 'b'), (53, 56)),
+                edge.FieldBelonging(x_var, expression.SubscriptAddressing(x_var, 'c'), (63, 66)),
                 edge.FieldBelonging(expression.SubscriptAddressing(x_var, 'c'),
                                     expression.SubscriptAddressing(expression.SubscriptAddressing(x_var, 'c'), 'd'),
-                                    (0, 0))]
+                                    (63, 68))]
 
     self.assertCountEqual(edges, expected)
 
   def test_when_named_columns(self):
     s = 'Q(a:, b:) :- T(x), T(y), a == x + y, b == x + y;'
+    parsed = parse.ParseFile(s)
 
-    graph = ast_traverse.Run(s)['Q']
+    graph = TypesGraphBuilder().Run(parsed)['Q']
     edges = graph.ToEdgesSet()
 
     x_var = expression.Variable('x')
     y_var = expression.Variable('y')
     a_var = expression.Variable('a')
     b_var = expression.Variable('b')
-    expected = [edge.Equality(expression.PredicateAddressing('Q', 'a'), a_var, (0, 0)),
-                edge.Equality(expression.PredicateAddressing('Q', 'b'), b_var, (0, 0)),
-                edge.Equality(x_var, expression.PredicateAddressing('T', 'col0'), (0, 0)),
-                edge.Equality(y_var, expression.PredicateAddressing('T', 'col0'), (0, 0)),
-                edge.Equality(a_var, expression.PredicateAddressing('+', 'logica_value'), (0, 0)),
-                edge.Equality(b_var, expression.PredicateAddressing('+', 'logica_value'), (0, 0)),
+    expected = [edge.Equality(expression.PredicateAddressing('Q', 'a'), a_var, (2, 3)),
+                edge.Equality(expression.PredicateAddressing('Q', 'b'), b_var, (6, 7)),
+                edge.Equality(x_var, expression.PredicateAddressing('T', 'col0'), (15, 16)),
+                edge.Equality(y_var, expression.PredicateAddressing('T', 'col0', 1), (21, 22)),
+                edge.Equality(a_var, expression.PredicateAddressing('+', 'logica_value'), (25, 35)),
+                edge.Equality(b_var, expression.PredicateAddressing('+', 'logica_value', 1), (37, 47)),
                 edge.PredicateArgument(expression.PredicateAddressing('+', 'logica_value'),
-                                       expression.PredicateAddressing('+', 'left'), (0, 0)),
+                                       expression.PredicateAddressing('+', 'left'), (30, 31)),
                 edge.PredicateArgument(expression.PredicateAddressing('+', 'logica_value'),
-                                       expression.PredicateAddressing('+', 'right'), (0, 0)),
-                edge.Equality(x_var, expression.PredicateAddressing('+', 'left'), (0, 0)),
-                edge.Equality(y_var, expression.PredicateAddressing('+', 'right'), (0, 0))]
+                                       expression.PredicateAddressing('+', 'right'), (34, 35)),
+                edge.PredicateArgument(expression.PredicateAddressing('+', 'logica_value', 1),
+                                       expression.PredicateAddressing('+', 'left', 1), (42, 43)),
+                edge.PredicateArgument(expression.PredicateAddressing('+', 'logica_value', 1),
+                                       expression.PredicateAddressing('+', 'right', 1), (46, 47)),
+                edge.Equality(x_var, expression.PredicateAddressing('+', 'left'), (30, 31)),
+                edge.Equality(y_var, expression.PredicateAddressing('+', 'right'), (34, 35)),
+                edge.Equality(x_var, expression.PredicateAddressing('+', 'left', 1), (42, 43)),
+                edge.Equality(y_var, expression.PredicateAddressing('+', 'right', 1), (46, 47))]
 
     self.assertCountEqual(edges, expected)

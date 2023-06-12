@@ -36,16 +36,19 @@ class Expression:
 
 
 class PredicateAddressing(Expression):
-  def __init__(self, predicate_name: str, field: str):
+  def __init__(self, predicate_name: str, field: str, predicate_id: int = 0):
     super().__init__()
     self.predicate_name = predicate_name
     self.field = field
+    self.predicate_id = predicate_id
 
     if predicate_name in built_in:
       self.type = built_in[predicate_name][self.field]
 
   def __eq__(self, other):
-    return super().__eq__(other) and (self.predicate_name, self.field) == (other.predicate_name, other.field)
+    return super().__eq__(other) and \
+           (self.predicate_name, self.field, self.predicate_id) == \
+           (other.predicate_name, other.field, other.predicate_id)
 
   def __str__(self):
     return super().__str__() + f'({self.predicate_name}.{self.field})'
