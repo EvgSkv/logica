@@ -165,5 +165,5 @@ class IntegrationTypeInferenceTest(unittest.TestCase):
     res = TypesGraphBuilder().Run(parsed)
     TypeInference(res).Infer()
     var = Variable('x')
-    var.type = RecordType({'a': ListType(AnyType()), 'b': NumberType()}, False) #ToDo should be number
+    var.type = RecordType({'a': ListType(NumberType()), 'b': NumberType()}, False)
     self.find_val(var, res['F'], self.check_var)

@@ -103,7 +103,10 @@ class ListLiteral(Literal):
   def __init__(self, elements: List[Expression]):
     super().__init__()
     self.elements = elements
-    self.type = ListType(AnyType())
+    if len(elements) > 0:
+      self.type = ListType(elements[0].type)
+    else:
+      self.type = ListType(AnyType())
 
   def __eq__(self, other):
     return super().__eq__(other) and self.elements == self.elements
