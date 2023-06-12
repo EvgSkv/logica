@@ -97,13 +97,14 @@ class TypesGraphBuilder:
     elif 'predicate' in conjunct:
       value = conjunct['predicate']
       predicate_name = value['predicate_name']
-      self.FillFields(predicate_name, types_graph, value)
+      logica_value = PredicateAddressing(predicate_name, 'logica_value', self._predicate_usages[predicate_name])
+      self.FillFields(predicate_name, types_graph, value, logica_value)
       self._predicate_usages[predicate_name] += 1
     else:
       raise NotImplementedError(conjunct)
 
-  def FillFields(self, predicate_name: str, types_graph: TypesGraph, fields: dict,
-                 result: PredicateAddressing = None) -> Tuple[int, int]:
+  def FillFields(self, predicate_name: str, types_graph: TypesGraph, fields: dict, result: PredicateAddressing) -> \
+          Tuple[int, int]:
     total_min = None
     total_max = None
 
@@ -118,9 +119,7 @@ class TypesGraphBuilder:
 
       predicate_field = PredicateAddressing(predicate_name, field_name, self._predicate_usages[predicate_name])
       types_graph.Connect(Equality(predicate_field, value, bounds))
-
-      if result:
-        types_graph.Connect(PredicateArgument(result, predicate_field, bounds))
+      types_graph.Connect(PredicateArgument(result, predicate_field, bounds))
 
     return total_min, total_max
 

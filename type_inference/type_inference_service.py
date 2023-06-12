@@ -16,9 +16,10 @@
 
 from typing import cast
 
+from type_inference.built_in_functions_types import built_in_concrete_types
 from type_inference.inspectors.inspector_base import Inspector
 from type_inference.intersection import Intersect, IntersectListElement
-from type_inference.types.edge import Equality, EqualityOfElement, FieldBelonging
+from type_inference.types.edge import Equality, EqualityOfElement, FieldBelonging, PredicateArgument
 from type_inference.types.expression import PredicateAddressing
 from type_inference.types.types_graph import TypesGraph
 from type_inference.types.variable_types import AnyType, ListType, RecordType
@@ -28,9 +29,12 @@ class TypeInference:
   def __init__(self, graphs: dict, inspector: Inspector = None):
     self.inspector = inspector
     self.all_edges = []
-    for graph in graphs.values():
-      self.all_edges.extend(graph.ToEdgesSet())
-    self.MergeGraphs(graphs)
+    self.graphs = graphs
+
+    for name, graph in graphs.items():
+      self.all_edges.extend(map(lambda t: (name, t), graph.ToEdgesSet()))
+
+    self.MergeGraphs()
 
   @staticmethod
   def GetEdgeContainingSameExpression(predicate_addressing: PredicateAddressing, graph: TypesGraph):
@@ -46,14 +50,14 @@ class TypeInference:
     else:
       return edge.vertices[1]
 
-  def MergeGraphs(self, graphs: dict):
+  def MergeGraphs(self):
     edges_to_add = []
-    for predicate_name, graph in graphs.items():
+    for predicate_name, graph in self.graphs.items():
       for p in graph.expression_connections:
         if isinstance(p, PredicateAddressing) and p.type == AnyType() and p.predicate_name != predicate_name:
-          if p.predicate_name in graphs:
-            to_link = self.FindField(p, graphs[p.predicate_name])
-            edges_to_add.append(Equality(p, to_link, (-1, -1)))
+          if p.predicate_name in self.graphs:
+            to_link = self.FindField(p, self.graphs[p.predicate_name])
+            edges_to_add.append(('no_graph', Equality(p, to_link, (-1, -1))))
           else:
             column_info = self.inspector.TryGetColumnsInfo(p.predicate_name)
             p.type = column_info[p.field]
@@ -63,7 +67,8 @@ class TypeInference:
     changed = True
     while changed:
       changed = False
-      for edge in self.all_edges:
+
+      for graph_name, edge in self.all_edges:
         if isinstance(edge, Equality):
           edge = cast(Equality, edge)
           left, right = edge.left.type, edge.right.type
@@ -100,3 +105,23 @@ class TypeInference:
           else:
             changed = True
             record.fields[field_name] = edge.field.type
+        elif isinstance(edge, PredicateArgument):
+          predicate_name = edge.logica_value.predicate_name
+
+          if predicate_name in built_in_concrete_types:
+            arg_types, args = self.get_arguments(edge.logica_value, graph_name)
+            correct_types = built_in_concrete_types[predicate_name](arg_types, edge.bounds)
+
+            for field, type in correct_types.items():
+              args[field].type = type
+
+  def get_arguments(self, logica_value: PredicateAddressing, graph_name: str):
+    arg_types = {}
+    args = {}
+
+    for arg, edges in self.graphs[graph_name].expression_connections[logica_value].items():
+      if any(isinstance(e, PredicateArgument) for e in edges):
+        arg_types[arg.field] = arg.type
+        args[arg.field] = arg
+
+    return arg_types, args

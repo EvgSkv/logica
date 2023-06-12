@@ -16,7 +16,7 @@
 
 from typing import Dict, List
 
-from type_inference.built_in_functions_types import built_in
+from type_inference.built_in_functions_types import built_in_restrictions
 from type_inference.types.variable_types import AnyType, NumberType, StringType, RecordType, ListType
 
 
@@ -42,8 +42,8 @@ class PredicateAddressing(Expression):
     self.field = field
     self.predicate_id = predicate_id
 
-    if predicate_name in built_in:
-      self.type = built_in[predicate_name][self.field]
+    if predicate_name in built_in_restrictions:
+      self.type = built_in_restrictions[predicate_name][self.field]
 
   def __eq__(self, other):
     return super().__eq__(other) and \
