@@ -15,11 +15,12 @@
 # limitations under the License.
 
 from logging import error
-
+from typing import Tuple
 from common import color
 
 
 class TypeInferenceException(Exception):
-  def __init__(self, message):
+  def __init__(self, message, bounds: Tuple[int, int]):
+    self.bounds = bounds
     error(color.Format('{underline}Infering types{end}:'))
-    error(f'{color.Format("[ {error}Error{end} ]")} {message}')
+    error(f'{color.Format("[ {error}Error{end} ]")} {message} at ({bounds[0]};{bounds[1]})\n')

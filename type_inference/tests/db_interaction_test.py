@@ -29,20 +29,21 @@ from type_inference.types.expression import Variable, PredicateAddressing
 from type_inference.types.types_graph import TypesGraph
 from type_inference.types.variable_types import NumberType
 
+sqlite_db_file_name = 'logica.db'
 number = NumberType()
 
 
 class TestTypeInferenceWithSqlite(unittest.TestCase):
   @staticmethod
   def create_table(table_name: str, columns: Dict[str, str]):
-    with sqlite3.connect('logica.db') as conn:
+    with sqlite3.connect(sqlite_db_file_name) as conn:
       columns_to_create = ', '.join([f'{column[0]} {column[1]}' for column in columns.items()])
       cursor = conn.cursor()
       cursor.execute(f'create table if not exists {table_name} (id integer, {columns_to_create})').fetchall()
 
   @staticmethod
   def safe_drop_table(table_name: str):
-    with sqlite3.connect('logica.db') as conn:
+    with sqlite3.connect(sqlite_db_file_name) as conn:
       conn.cursor().execute(f'drop table if exists {table_name}').fetchall()
 
   def test_when_linked_with_predicate_from_db(self):
@@ -114,14 +115,14 @@ class TestTypeInferenceWithPsql(unittest.TestCase):
 
     self.safe_drop_table(metadata, table)
 
-  def test_when_linked_with_unknown_predicate(self):
-    # 'Q(x) :- F(x)'
+  def test_when_linked_with_unknown_predicate_psql(self):
+    # 'Q(x) :- T(x)'
     graph = TypesGraph()
     q_col0 = Variable('col0')
-    f_col0 = PredicateAddressing('F', 'col0')
+    t_col0 = PredicateAddressing('T', 'col0')
     x_var = Variable('x')
     graph.Connect(Equality(q_col0, x_var, (0, 0)))
-    graph.Connect(Equality(x_var, f_col0, (0, 0)))
+    graph.Connect(Equality(x_var, t_col0, (0, 0)))
     graphs = dict()
     graphs['Q'] = graph
     postgres_inspector = PostgresInspector('logica', 'logica')
