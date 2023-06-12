@@ -14,8 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import cast
-from typing import Tuple
+from typing import Tuple, cast
 
 from type_inference.type_inference_exception import TypeInferenceException
 from type_inference.types.variable_types import AnyType, NumberType, StringType, ListType, RecordType, Type
