@@ -46,6 +46,11 @@ class StringType(AtomicType):
     return 'string'
 
 
+class BoolType(Type):
+  def __str__(self):
+    return 'bool'
+
+
 class AnyType(Type):
   def __str__(self):
     return 'any'

@@ -16,11 +16,13 @@
 
 from collections import defaultdict
 
-from type_inference.types.variable_types import ListType, NumberType, StringType
+from type_inference.types.variable_types import ListType, NumberType, StringType, AtomicType, BoolType
 
 built_in = defaultdict(dict)
 number_type = NumberType()
 string_type = StringType()
+atomic_type = AtomicType()
+bool_type = BoolType()
 
 built_in['Range']['col0'] = number_type
 built_in['Range']['logica_value'] = ListType(number_type)
@@ -38,3 +40,19 @@ built_in['+']['logica_value'] = number_type
 built_in['++']['left'] = string_type
 built_in['++']['right'] = string_type
 built_in['++']['logica_value'] = string_type
+
+built_in['<']['left'] = atomic_type
+built_in['<']['right'] = atomic_type
+built_in['<']['logica_value'] = bool_type
+
+built_in['>']['left'] = atomic_type
+built_in['>']['right'] = atomic_type
+built_in['>']['logica_value'] = bool_type
+
+built_in['<=']['left'] = atomic_type
+built_in['<=']['right'] = atomic_type
+built_in['<=']['logica_value'] = bool_type
+
+built_in['>=']['left'] = atomic_type
+built_in['>=']['right'] = atomic_type
+built_in['>=']['logica_value'] = bool_type

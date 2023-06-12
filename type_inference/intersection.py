@@ -17,23 +17,27 @@
 from typing import Tuple, cast
 
 from type_inference.type_inference_exception import TypeInferenceException
-from type_inference.types.variable_types import AnyType, NumberType, StringType, ListType, RecordType, Type
+from type_inference.types.variable_types import AnyType, NumberType, StringType, ListType, RecordType, Type, AtomicType, \
+  BoolType
 
 
 def Rank(x):
   if isinstance(x, AnyType):
     return 0
-  if isinstance(x, NumberType):
+  if isinstance(x, BoolType):
     return 1
-  if isinstance(x, StringType):
+  if isinstance(x, NumberType):
     return 2
-  if isinstance(x, ListType):
+  if isinstance(x, StringType):
     return 3
+  if isinstance(x, AtomicType):
+    return 4
+  if isinstance(x, ListType):
+    return 5
   if isinstance(x, RecordType):
     if x.is_opened:
-      return 4
-    else:
-      return 5
+      return 6
+    return 7
 
 
 def Intersect(a: Type, b: Type, bounds: Tuple[int, int]) -> Type:
@@ -43,9 +47,14 @@ def Intersect(a: Type, b: Type, bounds: Tuple[int, int]) -> Type:
   if isinstance(a, AnyType):
     return b
 
-  if isinstance(a, NumberType) or isinstance(a, StringType):
+  if isinstance(a, BoolType):
     if a == b:
-      return b
+      return a
+    raise TypeInferenceException(f'cannot match {str(a)} and {str(b)} at ({bounds[0]};{bounds[1]})')
+
+  if isinstance(a, AtomicType):
+    if a == b or type(b) == AtomicType:
+      return a
     raise TypeInferenceException(f'cannot match {str(a)} and {str(b)} at ({bounds[0]};{bounds[1]})')
 
   if isinstance(a, ListType):
