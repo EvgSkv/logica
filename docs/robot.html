@@ -170,9 +170,28 @@ Loading Logical program...
                     }
                 );
                 let radarData = radarStatement.join(';');
+
+                let close_stars = stars.sort((a,b) => distance(a.x, a.y, robot.x, robot.y) - distance(b.x, b.y, robot.x, robot.y));
+                close_stars = close_stars.slice(0, 100);
+                let spell = close_stars.filter(star => (star.death < 1)).map(star => {
+                    let dx = star.x - robot.x;
+                    let dy = star.y - robot.y;
+                    let l = (dx * dx + dy * dy) ** 0.5;
+                    dx /= l;
+                    dy /= l;
+                    let vx = Math.cos(robot.dir);
+                    let vy = Math.sin(robot.dir);
+                    let a = Math.acos(dx * vx + dy * vy);
+                    if (dx * (-vy) + dy * vx < 0) {
+                        a = -a;
+                    }
+                    return `${a}~${l}`;
+                });
+
+                let spellData = spell.join(',');
                 worker.postMessage({
                     type: 'run_sql',
-                    sql: theSQL.replace(/\*\*\*/g, radarData).replace(/\+\+\+/g, robot.memory)
+                    sql: theSQL.replace(/\*\*\*/g, radarData).replace(/\+\+\+/g, robot.memory).replace(/@@@/g, spellData)
                 });
             }
             function requestDesire() {
@@ -196,7 +215,7 @@ Loading Logical program...
                 console.log('Backlog:', backlogCount);
             }
             function digest() {
-                theProgram = 'RadarBeam(direction: dir, distance: d) :- x in Split(data, ";"), ab = Split(x, "~"), dir == ToFloat64(ab[0]), d = ToFloat64(ab[1]), RadarData(data); RadarData("***"); Memory("+++");\n' + document.getElementById("robot_code").innerText;
+                theProgram = 'SpellBearing(bearing: ToFloat64(ab[0]), distance:ToFloat64(ab[1])) :- x in Split(data, ","), ab = Split(x, "~"), SpellData(data); RadarBeam(direction: dir, distance: d) :- x in Split(data, ";"), ab = Split(x, "~"), dir == ToFloat64(ab[0]), d = ToFloat64(ab[1]), RadarData(data); RadarData("***"); Memory("+++"); SpellData("@@@");\n' + document.getElementById("robot_code").innerText;
                 worker.postMessage({type: 'compile_predicate', predicate: thePredicate, program: theProgram})
             };
             var thePredicate = 'RobotDesire';
@@ -272,6 +291,8 @@ ${execution_result.get('error_context')}
         var robot = {
             x: 0,
             y: 0,
+            view_x: 0,
+            view_y: 0,
             dir: 0,
             size: 10,
             speed: 1,
@@ -310,6 +331,97 @@ ${execution_result.get('error_context')}
             trees.push({x: tx, y: ty, r: Math.random() * 50});
         }
 
+        var timeTicks = 0;
+        var stars = [{x: 0, y: 0, death: 0, nature: {rotations: [{period: 15.0, speed: 2.0},
+                                                             {period: 31.0, speed: 2.3}]}}];
+        stars = [];
+        function distanceToTree(x, y) {
+            let d = 1000;
+            trees.forEach(t => {
+                d = Math.min(d, distance(t.x, t.y, x, y) - t.r);
+            });
+            return d;
+        }
+        function makeStars() {
+            while(stars.length < 100) {
+            // for(let i = 0; i < 200; i++) {
+                let star = {
+                    x: Math.random() * 8000 - 4000,
+                    y: Math.random() * 8000 - 4000,
+                    death: 0,
+                    nature: {
+                        rotations: [
+                            {
+                                period: 2 * Math.floor(Math.random() * 10),
+                                speed: Math.random() * 5 - 2.5
+                            },
+                            {
+                                period: 2 * Math.floor(Math.random() * 10),
+                                speed: Math.random() * 5 - 2.5
+                            },
+                            {
+                                period: 2 * Math.floor(Math.random() * 10),
+                                speed: Math.random() * 5 - 2.5
+                            }
+                        ]
+                    }
+                }
+                if (distanceToTree(star.x, star.y) > 20) {
+                  stars.push(star);
+                }
+            }
+        }
+
+        function starPhysics() {
+            stars.forEach((star) => {
+                if (star.death > 0) {
+                    star.death += 0.1;
+                    star.x = robot.x;
+                    star.y = robot.y;
+                }
+                if (star.death == 0 && distance(star.x, star.y, robot.x, robot.y) < 15) {
+                    star.death = 1;
+                }
+            });
+            stars = stars.filter((star) => (star.death < 60));
+        }
+
+        makeStars();
+        function drawStars() {
+            function starPoint(star, i) {
+                let tau = 2 * 3.14;
+                let angle = tau * i / 100.0;
+                let radius = 10;
+                star.nature.rotations.forEach((r) => {
+                    radius += Math.sin(r.period * angle + timeTicks / 50.0 * r.speed) * 5;
+                });
+                if (star.death > 0) {
+                    let death_phase = star.death / 10;
+                    radius += Math.sin(death_phase) * 40;
+                    if (radius < 0 || death_phase > 6.28 * 3/4.) {
+                        radius = 0;
+                    }
+                }
+                // radius *= 5;
+                return {x: star.x + Math.cos(angle) * radius, y: star.y + Math.sin(angle) * radius};
+            }
+            stars.filter(s => (distance(s.x, s.y, robot.view_x, robot.view_y) < 1000)).forEach((s) => {
+              ctx.beginPath();
+              let p = starPoint(s, 0);
+              ctx.moveTo(p.x, p.y);
+              for(let i = 0; i <= 100; i++) {
+                let p = starPoint(s, i);
+                // console.log(p);
+                ctx.lineTo(p.x, p.y);
+              }
+              ctx.strokeStyle = '#fff';
+              ctx.fillStyle = '#ff0';
+              ctx.globalAlpha = 0.8;
+              ctx.strokeWidth = 2;
+              ctx.stroke();
+              ctx.fill();
+            });
+        }
         function drawTrees() {
             trees.forEach((t) => {
                 ctx.beginPath();
@@ -369,15 +481,17 @@ ${execution_result.get('error_context')}
 
         ctx.save();
         function drawWorld() {
+            timeTicks += 1;
             ctx.restore();
             ctx.save();
             ctx.fillRect(0, 0, w, h); 
-            ctx.translate(w/2 - robot.x, h/2 - robot.y);
+            ctx.translate(w/2 - robot.view_x, h/2 - robot.view_y);
             ctx.fillStyle='#000000';
             // ctx.fillRect(0, 0, w, h); 
             //ctx.fillRect(-10000, -10000, 10000, 10000);
             drawRobot(robot);
             drawTrees();
+            drawStars();
         }
         clip = (x, l, h) => (Math.min(Math.max(x, l), h));
         function robotDesire(robot) {
@@ -464,6 +578,18 @@ ${execution_result.get('error_context')}
                 robot.x = new_x;
                 robot.y = new_y;
             }
+            if (distance(robot.x, robot.y, robot.view_x, robot.view_y) > 5) {
+                let tx = robot.x + 10 * robot.forward.x * robot.speed;
+                let ty = robot.y + 10 * robot.forward.y * robot.speed;
+                let dx = (tx - robot.view_x);
+                let dy = (ty - robot.view_y);
+                let l = distance(tx, ty, robot.view_x, robot.view_y);
+                dx /= l;
+                dy /= l;
+                let s = l / 30.;
+                robot.view_x += s * dx;
+                robot.view_y += s * dy;
+            }
             beamsUpdate(robot);
         }
         function timeStep() {
@@ -471,6 +597,7 @@ ${execution_result.get('error_context')}
             robotPhysics(robot);
             drawWorld();
             robotDesire(robot);
+            starPhysics();
             // robot.dir += 0.001;
             robot.forward = {x: Math.cos(robot.dir), y: Math.sin(robot.dir)};
         }
