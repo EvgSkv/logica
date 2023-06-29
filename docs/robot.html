@@ -90,18 +90,50 @@ limitations under the License.
 # memory - what to overwrite memory with.
 # You can have extra arguments as a dashboard for yourself.
 # Use predicates RadarBeam for radar data and Memory for memory data.
+# Use predicate SpellBearing to orient towards spells.
 # Ctrl-Enter to update robot firmware with your current program state.
-# Escape the forest! Good luck!
-RobotDesire(drive:, turn: 1, memory:, distance:) :-
+# Collect the spells and escape the forest! Good luck!
+SafeMemory(safe_memory) :-
+  Memory(memory),
+  safe_memory = (
+    if Length(memory) > 0 && Substr(memory, 1, 1) == "{" then
+      memory
+    else
+      {time: 1, annoyance: 0}
+  );
+
+RobotDesire(
+    drive: Format("%.3f", drive), 
+    turn: Format("%.3f", turn), memory:, num_bearings:, bearing: bd) :-
   RadarBeam(direction: 0, distance:),
   drive = (
-    if distance > 250 then
-      1
-    else if distance < 150 then
-      -1
-    else 0
+    if smell < 1 then
+      2 * (distance - 80) / 100.0
+    else
+      (distance - 20) / 200.0
   ),
-  Memory(memory);
+  x Avg= (d * dir / 10 :- RadarBeam(distance: d, direction: dir)),
+  smell = (
+    if bearing_distance < 200 then
+      3
+    else if bearing_distance < 600 then
+      1
+    else 0.2
+  ),
+  turn = x + wander + smell * bearing,
+  horizon Max= (d :- RadarBeam(distance: d)),
+  wander = Sin(time / 10) * annoyance,
+  SafeMemory({time:, annoyance:}),
+  new_annoyance = (
+    if Abs(drive) < 0.1 then
+      annoyance + 0.4
+    else
+      Greatest(0, annoyance - 1.0)
+  ),
+  memory = {time: time + 1, annoyance: new_annoyance},
+  bd ArgMin= ((b -> d) -> d :- SpellBearing(bearing: b, distance: d)),
+  (bearing -> bearing_distance) = bd,
+  num_bearings += (1 :- SpellBearing());
           </div>
 
           <div style="display: flex; flex-flow:row;">
@@ -308,7 +340,7 @@ ${execution_result.get('error_context')}
                 {dir: 0.4, d: 300, max_d: 300}
             ],
             forward: {x: 1, y: 0},
-            desire: {drive: 1, turn: 0},
+            desire: {drive: 0, turn: 1},
             memory: "Life is good!"
         };
 
