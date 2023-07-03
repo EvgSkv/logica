@@ -172,7 +172,7 @@ def main(argv):
     return 0
 
   if command == 'infer_types':
-    typing_engine = infer.TypesInferenceEngine()
+    typing_engine = infer.TypesInferenceEngine(parsed_rules)
     typing_engine.InferTypes(parsed_rules)
     print(json.dumps(parsed_rules, sort_keys=True, indent=' '))
     return 0
