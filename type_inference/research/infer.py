@@ -16,8 +16,11 @@
 
 if '.' not in __package__:
   from type_inference.research import algebra
+  from type_inference.research import types_of_builtins
 else:
   from ..research import algebra
+  from ..research import types_of_builtins
+
 
 def ExpressionFields():
   return ['expression', 'left_hand_side', 'right_hand_side']
@@ -50,6 +53,7 @@ class TypesInferenceEngine:
     self.predicate_argumets_types = {}
     self.variable_type = {}
     self.type_id_counter = 0
+    self.types_of_builtins = types_of_builtins.TypesOfBultins()
   
   def GetTypeId(self):
     result = self.type_id_counter
@@ -78,9 +82,24 @@ class TypesInferenceEngine:
     for rule in self.parsed_rules:
       Walk(rule, ActMindingPodLiterals)
 
+  def ActMindingBuiltinFieldTypes(self):
+    for f in ExpressionFields():
+      if f in node:
+        e = node[f]
+        if 'call' in e:
+          p = e['call']['predicate_name']
+          t = e['type']['the_type']
+          if p in self.types_of_builtins:
+            e['type']['the_type'] = algebra.Intersect(t, self.types_of_builtins[p])
+
+  def MindBuiltinFieldTypes(self):
+    for rule in self.parsed_rules:
+      Walk(rule, ActMindingBuiltinFieldTypes)
+
   def InferTypes(self):
     self.InitTypes()
     self.MindPodLiterals()
+    self.MindBuiltinFieldTypes()
     for rule in self.parsed_rules:
       TypeInferenceForRule(rule)
 
