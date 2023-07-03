@@ -82,7 +82,7 @@ class TypesInferenceEngine:
     for rule in self.parsed_rules:
       Walk(rule, ActMindingPodLiterals)
 
-  def ActMindingBuiltinFieldTypes(self):
+  def ActMindingBuiltinFieldTypes(self, node):
     for f in ExpressionFields():
       if f in node:
         e = node[f]
