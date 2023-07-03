@@ -132,7 +132,7 @@ def main(argv):
           'GoodIdea(snack: "carrots")\'')
     return 1
 
-  if len(argv) == 3 and argv[2] == 'parse':
+  if len(argv) == 3 and argv[2] in ['parse', 'infer_types']:
     pass  # compile needs just 2 actual arguments.
   else:
     if len(argv) < 4:
