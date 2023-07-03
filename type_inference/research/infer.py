@@ -94,7 +94,7 @@ class TypesInferenceEngine:
 
   def MindBuiltinFieldTypes(self):
     for rule in self.parsed_rules:
-      Walk(rule, ActMindingBuiltinFieldTypes)
+      Walk(rule, self.ActMindingBuiltinFieldTypes)
 
   def InferTypes(self):
     self.InitTypes()
