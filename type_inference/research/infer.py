@@ -43,13 +43,12 @@ def Walk(node, act):
 
 
 def ActMindingPodLiterals(node):
-  for f in ExpressionFields():
-    if f in node:
-      if 'literal' in node[f]:
-        if 'the_number' in node[f]['literal']:
-          node[f]['type']['the_type'] = algebra.Intersect(node[f]['type']['the_type'], 'Num')
-        if 'the_string' in node[f]['literal']:
-          node[f]['type']['the_type'] = algebra.Intersect(node[f]['type']['the_type'], 'Str')
+  for e in ExpressionsIterator(node):
+    if 'literal' in e:
+      if 'the_number' in e['literal']:
+        e['type']['the_type'] = algebra.Intersect(e['type']['the_type'], 'Num')
+      if 'the_string' in e['literal']:
+        e['type']['the_type'] = algebra.Intersect(e['type']['the_type'], 'Str')
 
 
 class TypesInferenceEngine:
@@ -87,20 +86,18 @@ class TypesInferenceEngine:
       Walk(rule, ActMindingPodLiterals)
 
   def ActMindingBuiltinFieldTypes(self, node):
-    for f in ExpressionFields():
-      if f in node:
-        e = node[f]
-        if 'call' in e:
-          p = e['call']['predicate_name']
-          if p in self.types_of_builtins:
-            e['type']['the_type'] = algebra.Intersect(
-              e['type']['the_type'],
-              self.types_of_builtins[p]['logica_value'])
-            for fv in e['call']['record']['field_value']:
-              if fv['field'] in self.types_of_builtins[p]:
-                fv['value']['expression']['type']['the_type'] = algebra.Intersect(
-                  fv['value']['expression']['type']['the_type'],
-                  self.types_of_builtins[p][fv['field']])
+    for e in ExpressionsIterator(node):
+      if 'call' in e:
+        p = e['call']['predicate_name']
+        if p in self.types_of_builtins:
+          e['type']['the_type'] = algebra.Intersect(
+            e['type']['the_type'],
+            self.types_of_builtins[p]['logica_value'])
+          for fv in e['call']['record']['field_value']:
+            if fv['field'] in self.types_of_builtins[p]:
+              fv['value']['expression']['type']['the_type'] = algebra.Intersect(
+                fv['value']['expression']['type']['the_type'],
+                self.types_of_builtins[p][fv['field']])
 
   def MindBuiltinFieldTypes(self):
     for rule in self.parsed_rules:
