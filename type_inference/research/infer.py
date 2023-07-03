@@ -146,9 +146,24 @@ class TypeInferenceForRule:
         self.inference_complete = False
         node['type']['the_type'] = new_field_type
 
+  def ActMindingRecordLiterals(self, node):
+    if 'type' in node and 'record' in node:
+      for fv in node['record']['field_value']:
+        record_type = node['type']['the_type']
+        field_type = fv['value']['expression']['type']['the_type']
+        field_name = fv['field']
+        new_record_type, new_field_type = algebra.IntersectRecordField(
+          record_type, field_name, field_type)
+        if new_record_type != record_type:
+          self.inference_complete = False
+          node['type']['the_type'] = new_record_type
+        if new_field_type != field_type:
+          self.inference_complete = False
+          fv['value']['expression']['type']['the_type'] = new_field_type
 
   def IterateInference(self):
     while not self.inference_complete:
       self.inference_complete = True
       Walk(self.rule, self.ActUnifying)
       Walk(self.rule, self.ActUnderstandingSubscription)
+      Walk(self.rule, self.ActMindingRecordLiterals)
