@@ -70,4 +70,29 @@ class TypesInferenceEngine:
   def InferTypes(self):
     self.InitTypes()
     self.MindPodLiterals()
-    
+    for rule in self.parsed_rules:
+      TypeInferenceForRule(rule)
+
+
+class TypeInferenceForRule:
+  def __init__(self, rule):
+    self.rule = rule
+    self.inference_complete = False
+    self.IterateInference(self)
+
+  def ActUnifying(self, node):
+    if 'unification' in node:
+      left_type = node['unification']['left_hand_side']['type']['the_type']
+      right_type = node['unification']['right_hand_side']['type']['the_type']
+      new_type = algebra.Intersect(left_type, right_type)
+      if new_type != left_type:
+        self.inference_complete = False
+        node['unification']['left_hand_side']['type']['the_type'] = new_type
+      if new_type != right_type:
+        self.inference_complete = False
+        node['unification']['right_hand_side']['type']['the_type'] = new_type
+      
+  def IterateInference(self):
+    while not self.inference_complete:
+      self.inference_complete = True
+      Walk(self.rule, self.ActUnifying)
