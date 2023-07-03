@@ -41,7 +41,8 @@ def Walk(node, act):
   if isinstance(node, dict):
     act(node)
     for k in node:
-      Walk(node[k], act)
+      if k != 'type':
+        Walk(node[k], act)
 
 
 def ActMindingPodLiterals(node):
