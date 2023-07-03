@@ -25,6 +25,11 @@ else:
 def ExpressionFields():
   return ['expression', 'left_hand_side', 'right_hand_side']
 
+def ExpressionsIterator(node):
+  for f in ExpressionFields():
+    if f in node:
+      yield node[f]
+
 
 def Walk(node, act):
   """Walking over a dictionary of lists, acting on each element."""
@@ -61,18 +66,17 @@ class TypesInferenceEngine:
     return result
 
   def ActInitializingTypes(self, node):
-    for f in ExpressionFields():
-      if f in node:
-        i = self.GetTypeId()
-        if 'variable' in node[f]:
-          var_name = node[f]['variable']['var_name']
-          use_type = self.variable_type.get(
-            var_name,
-            {'the_type': 'Any', 'type_id': i})
-          self.variable_type[var_name] = use_type
-        else:
-          use_type = {'the_type': 'Any', 'type_id': i}
-        node[f]['type'] = use_type
+    for e in ExpressionsIterator(node):
+      i = self.GetTypeId()
+      if 'variable' in e:
+        var_name = e['variable']['var_name']
+        use_type = self.variable_type.get(
+          var_name,
+          {'the_type': 'Any', 'type_id': i})
+        self.variable_type[var_name] = use_type
+      else:
+        use_type = {'the_type': 'Any', 'type_id': i}
+      e['type'] = use_type
 
   def InitTypes(self):
     for rule in self.parsed_rules:
