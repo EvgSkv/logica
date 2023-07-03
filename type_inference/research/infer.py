@@ -43,11 +43,12 @@ def ActInitializingTypes(node):
 def ActMindingPodLiterals(node):
   for f in ExpressionFields():
     if f in node:
-      if 'literal' in node['f']:
-        if 'the_number' in node['f']['literal']:
+      if 'literal' in node[f]:
+        if 'the_number' in node[f]['literal']:
           node[f]['type'] = algebra.Intersect(node[f]['type'], 'Num')
-        if 'the_string' in node['f']['literal']:
+        if 'the_string' in node[f]['literal']:
           node[f]['type'] = algebra.Intersect(node[f]['type'], 'Str')
+
 
 class TypesInferenceEngine:
   def __init__(self, parsed_rules):
