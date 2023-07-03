@@ -14,6 +14,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+print('>>', __package__)
+
 if '.' not in __package__:
   from type_inference.research import algebra
 else:
