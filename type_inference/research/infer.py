@@ -19,7 +19,7 @@ def Walk(node, act):
   if isinstance(node, list):
     for v in node:
       Walk(v, act)
-  if isinstance(x, dict):
+  if isinstance(node, dict):
     act(node)
     for k in node:
       Walk(node[k], act)
