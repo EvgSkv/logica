@@ -14,6 +14,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+if '.' not in __package__:
+  from type_inference.research import algebra
+else:
+  from ..type_inference.research import algebra
+
+def ExpressionFields():
+  return ['expression', 'left_hand_side', 'right_hand_side']
+
+
 def Walk(node, act):
   """Walking over a dictionary of lists, acting on each element."""
   if isinstance(node, list):
@@ -26,11 +35,19 @@ def Walk(node, act):
 
 
 def ActInitializingTypes(node):
-  expression_fields = ['expression', 'left_hand_side', 'right_hand_side']
-  for f in expression_fields:
+  for f in ExpressionFields():
     if f in node:
-      node['expression']['type'] = 'Any'
+      node[f]['type'] = 'Any'
 
+
+def ActMindingPodLiterals(node):
+  for f in ExpressionFields():
+    if f in node:
+      if 'literal' in node['f']:
+        if 'the_number' in node['f']['literal']:
+          node[f]['type'] = algebra.Intersect(node[f]['type'], 'Num')
+        if 'the_string' in node['f']['literal']:
+          node[f]['type'] = algebra.Intersect(node[f]['type'], 'Str')
 
 class TypesInferenceEngine:
   def __init__(self, parsed_rules):
@@ -41,5 +58,10 @@ class TypesInferenceEngine:
     for rule in self.parsed_rules:
       Walk(rule, ActInitializingTypes)
 
+  def MindPodLiterals(self):
+    for rule in self.parsed_rules:
+      Walk(rule, ActMindingPodLiterals)
+
   def InferTypes(self):
     self.InitTypes()
+    
