@@ -51,12 +51,16 @@ class TypesInferenceEngine:
     self.variable_type = {}
 
   def ActInitializingTypes(self, node):
+    i = 0
     for f in ExpressionFields():
       if f in node:
+        i += 1
         if 'variable' in node[f]:
-          use_type = self.variable_type.get(node[f]['variable']['var_name'], {'the_type': 'Any'})
+          use_type = self.variable_type.get(
+            node[f]['variable']['var_name'],
+            {'the_type': 'Any', 'type_id': i})
         else:
-          use_type = {'the_type': 'Any'}
+          use_type = {'the_type': 'Any', 'type_id': i}
         node[f]['type'] = use_type
 
   def InitTypes(self):
