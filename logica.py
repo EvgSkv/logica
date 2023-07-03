@@ -47,6 +47,7 @@ if __name__ == '__main__' and not __package__:
   from compiler import rule_translate
   from compiler import universe
   from parser_py import parse
+  from type_inference.research import infer
 else:
   from .common import color
   from .common import sqlite3_logica
@@ -54,6 +55,7 @@ else:
   from .compiler import rule_translate
   from .compiler import universe
   from .parser_py import parse
+  from .type_inference.research import infer
 
 
 def ReadUserFlags(rules, argv):
@@ -145,7 +147,7 @@ def main(argv):
 
   command = argv[2]
 
-  commands = ['parse', 'print', 'run', 'run_to_csv', 'run_in_terminal']
+  commands = ['parse', 'print', 'run', 'run_to_csv', 'run_in_terminal', 'infer_types']
 
   if command not in commands:
     print(color.Format('Unknown command {warning}{command}{end}. '
@@ -165,8 +167,14 @@ def main(argv):
     sys.exit(1)
 
   if command == 'parse':
-    # No indentation to avoid file size inflation.
-    print(json.dumps(parsed_rules, sort_keys=True, indent=''))
+    # Minimal indentation for better readability of deep objects.
+    print(json.dumps(parsed_rules, sort_keys=True, indent=' '))
+    return 0
+
+  if command == 'infer_types':
+    typing_engine = infer.TypesInferenceEngine()
+    typing_engine.InferTypes()
+    print(json.dumps(parsed_rules, sort_keys=True, indent=' '))
     return 0
 
   predicates = argv[3]
