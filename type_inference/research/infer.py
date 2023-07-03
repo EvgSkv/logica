@@ -19,7 +19,7 @@ print('>>', __package__)
 if '.' not in __package__:
   from type_inference.research import algebra
 else:
-  import algebra
+  from ..research import algebra
 
 def ExpressionFields():
   return ['expression', 'left_hand_side', 'right_hand_side']
