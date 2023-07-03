@@ -17,7 +17,7 @@
 def Walk(node, act):
   """Walking over a dictionary of lists, acting on each element."""
   if isinstance(node, list):
-    for v in x:
+    for v in node:
       Walk(v, act)
   if isinstance(x, dict):
     act(node)
