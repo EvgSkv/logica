@@ -78,7 +78,7 @@ class TypeInferenceForRule:
   def __init__(self, rule):
     self.rule = rule
     self.inference_complete = False
-    self.IterateInference(self)
+    self.IterateInference()
 
   def ActUnifying(self, node):
     if 'unification' in node:
