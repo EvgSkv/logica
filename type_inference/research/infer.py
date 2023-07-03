@@ -29,6 +29,8 @@ def ExpressionsIterator(node):
   for f in ExpressionFields():
     if f in node:
       yield node[f]
+  if 'record' in node and 'field_value' not in node['record']:
+    yield node['record']
 
 
 def Walk(node, act):
