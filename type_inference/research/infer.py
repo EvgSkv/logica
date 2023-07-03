@@ -37,7 +37,7 @@ def Walk(node, act):
 def ActInitializingTypes(node):
   for f in ExpressionFields():
     if f in node:
-      node[f]['type'] = 'Any'
+      node[f]['type'] = {'the_type': 'Any'}
 
 
 def ActMindingPodLiterals(node):
@@ -45,9 +45,9 @@ def ActMindingPodLiterals(node):
     if f in node:
       if 'literal' in node[f]:
         if 'the_number' in node[f]['literal']:
-          node[f]['type'] = algebra.Intersect(node[f]['type'], 'Num')
+          node[f]['type']['the_type'] = algebra.Intersect(node[f]['type']['the_type'], 'Num')
         if 'the_string' in node[f]['literal']:
-          node[f]['type'] = algebra.Intersect(node[f]['type'], 'Str')
+          node[f]['type']['the_type'] = algebra.Intersect(node[f]['type']['the_type'], 'Str')
 
 
 class TypesInferenceEngine:
