@@ -57,10 +57,27 @@ class TypesInferenceEngine:
   def __init__(self, parsed_rules):
     self.parsed_rules = parsed_rules
     self.predicate_argumets_types = {}
+  
+  def InferTypes(self):
+    for rule in self.parsed_rules:
+      t = TypeInferenceForRule(rule)
+      t.PerformInference()
+
+
+class TypeInferenceForRule:
+  def __init__(self, rule):
+    self.rule = rule
+    self.inference_complete = False
     self.variable_type = {}
     self.type_id_counter = 0
     self.types_of_builtins = types_of_builtins.TypesOfBultins()
-  
+
+  def PerformInference(self):
+    self.InitTypes()
+    self.MindPodLiterals()
+    self.MindBuiltinFieldTypes()
+    self.IterateInference()
+
   def GetTypeId(self):
     result = self.type_id_counter
     self.type_id_counter += 1
@@ -80,12 +97,10 @@ class TypesInferenceEngine:
       e['type'] = use_type
 
   def InitTypes(self):
-    for rule in self.parsed_rules:
-      Walk(rule, self.ActInitializingTypes)
+    Walk(self.rule, self.ActInitializingTypes)
 
   def MindPodLiterals(self):
-    for rule in self.parsed_rules:
-      Walk(rule, ActMindingPodLiterals)
+    Walk(self.rule, ActMindingPodLiterals)
 
   def ActMindingBuiltinFieldTypes(self, node):
     for e in ExpressionsIterator(node):
@@ -102,22 +117,7 @@ class TypesInferenceEngine:
                 self.types_of_builtins[p][fv['field']])
 
   def MindBuiltinFieldTypes(self):
-    for rule in self.parsed_rules:
-      Walk(rule, self.ActMindingBuiltinFieldTypes)
-
-  def InferTypes(self):
-    self.InitTypes()
-    self.MindPodLiterals()
-    self.MindBuiltinFieldTypes()
-    for rule in self.parsed_rules:
-      TypeInferenceForRule(rule)
-
-
-class TypeInferenceForRule:
-  def __init__(self, rule):
-    self.rule = rule
-    self.inference_complete = False
-    self.IterateInference()
+    Walk(self.rule, self.ActMindingBuiltinFieldTypes)
 
   def ActUnifying(self, node):
     if 'unification' in node:
