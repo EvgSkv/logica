@@ -34,12 +34,6 @@ def Walk(node, act):
       Walk(node[k], act)
 
 
-def ActInitializingTypes(node):
-  for f in ExpressionFields():
-    if f in node:
-      node[f]['type'] = {'the_type': 'Any'}
-
-
 def ActMindingPodLiterals(node):
   for f in ExpressionFields():
     if f in node:
@@ -54,10 +48,20 @@ class TypesInferenceEngine:
   def __init__(self, parsed_rules):
     self.parsed_rules = parsed_rules
     self.predicate_argumets_types = {}
+    self.variable_type = {}
+
+  def ActInitializingTypes(self, node):
+    for f in ExpressionFields():
+      if f in node:
+        if 'variable' in node[f]:
+          use_type = self.variable_type.get(node[f]['variable']['var_name'], {'the_type': 'Any'})
+        else:
+          use_type = {'the_type': 'Any'}
+        node[f]['type'] = use_type
 
   def InitTypes(self):
     for rule in self.parsed_rules:
-      Walk(rule, ActInitializingTypes)
+      Walk(rule, self.ActInitializingTypes)
 
   def MindPodLiterals(self):
     for rule in self.parsed_rules:
