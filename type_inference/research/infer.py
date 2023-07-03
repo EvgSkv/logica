@@ -33,12 +33,13 @@ def ActInitializingTypes(node):
 
 
 class TypesInferenceEngine:
-  def __init__(self):
+  def __init__(self, parsed_rules):
+    self.parsed_rules = parsed_rules
     self.predicate_argumets_types = {}
 
-  def InitTypes(self, parsed_rules):
-    for rule in parsed_rules:
+  def InitTypes(self):
+    for rule in self.parsed_rules:
       Walk(rule, ActInitializingTypes)
 
-  def InferTypes(self, parsed_rules):
+  def InferTypes(self):
     self.InitTypes()
