@@ -88,9 +88,15 @@ class TypesInferenceEngine:
         e = node[f]
         if 'call' in e:
           p = e['call']['predicate_name']
-          t = e['type']['the_type']
           if p in self.types_of_builtins:
-            e['type']['the_type'] = algebra.Intersect(t, self.types_of_builtins[p]['logica_value'])
+            e['type']['the_type'] = algebra.Intersect(
+              e['type']['the_type'],
+              self.types_of_builtins[p]['logica_value'])
+            for fv in e['call']['record']['field_value']:
+              if fv['field'] in self.types_of_builtins[p]:
+                fv['value']['expression']['type']['the_type'] = algebra.Intersect(
+                  fv['value']['expression']['type']['the_type'],
+                  self.types_of_builtins[p][fv['field']])
 
   def MindBuiltinFieldTypes(self):
     for rule in self.parsed_rules:
