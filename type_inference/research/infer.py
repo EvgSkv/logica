@@ -49,12 +49,17 @@ class TypesInferenceEngine:
     self.parsed_rules = parsed_rules
     self.predicate_argumets_types = {}
     self.variable_type = {}
+    self.type_id_counter = 0
+  
+  def GetTypeId(self):
+    result = self.type_id_counter
+    self.type_id_counter += 1
+    return result
 
   def ActInitializingTypes(self, node):
-    i = 0
     for f in ExpressionFields():
       if f in node:
-        i += 1
+        i = self.GetTypeId()
         if 'variable' in node[f]:
           use_type = self.variable_type.get(
             node[f]['variable']['var_name'],
