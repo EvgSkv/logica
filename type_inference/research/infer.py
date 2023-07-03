@@ -61,9 +61,11 @@ class TypesInferenceEngine:
       if f in node:
         i = self.GetTypeId()
         if 'variable' in node[f]:
+          var_name = node[f]['variable']['var_name']
           use_type = self.variable_type.get(
-            node[f]['variable']['var_name'],
+            var_name,
             {'the_type': 'Any', 'type_id': i})
+          self.variable_type[var_name] = use_type
         else:
           use_type = {'the_type': 'Any', 'type_id': i}
         node[f]['type'] = use_type
