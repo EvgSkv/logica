@@ -1,6 +1,6 @@
 #!/usr/bin/python
 #
-# Copyright 2023 Google LLC
+# Copyright 2020 Google LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -14,23 +14,4 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-def TypesOfBultins():
-    return {
-        '+': {
-            'left': 'Num',
-            'right': 'Num',
-            'logica_value': 'Num'
-        },
-        'Num': {
-            0: 'Num',
-            'logica_value': 'Num'
-        },
-        'Str': {
-            0: 'Str',
-            'logica_value': 'Str'
-        },
-        'Agg+': {
-            0: 'Num',
-            'logica_value': 'Num'
-        }
-    }
+Test(a:, b? += t) distinct :- T(a, t), Str(a);

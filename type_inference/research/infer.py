@@ -116,6 +116,14 @@ class TypeInferenceForRule:
               fv['value']['expression']['type']['the_type'] = algebra.Intersect(
                 fv['value']['expression']['type']['the_type'],
                 self.types_of_builtins[p][fv['field']])
+    if 'predicate' in node:
+      p = node['predicate']['predicate_name']
+      if p in self.types_of_builtins:
+        for fv in node['predicate']['record']['field_value']:
+          if fv['field'] in self.types_of_builtins[p]:
+            fv['value']['expression']['type']['the_type'] = algebra.Intersect(
+              fv['value']['expression']['type']['the_type'],
+              self.types_of_builtins[p][fv['field']])
 
   def MindBuiltinFieldTypes(self):
     Walk(self.rule, self.ActMindingBuiltinFieldTypes)

@@ -27,6 +27,7 @@ def RunTypesTest(name, src=None, golden=None):
 
 def RunAll():
   RunTypesTest('typing_basic_test')
+  RunTypesTest('typing_aggregation_test')
 
 if __name__ == '__main__':
   RunAll()

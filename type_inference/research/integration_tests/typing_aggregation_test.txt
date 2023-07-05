@@ -1,0 +1,127 @@
+[
+ {
+  "body": {
+   "conjunction": {
+    "conjunct": [
+     {
+      "predicate": {
+       "predicate_name": "T",
+       "record": {
+        "field_value": [
+         {
+          "field": 0,
+          "value": {
+           "expression": {
+            "type": {
+             "the_type": "Str",
+             "type_id": 0
+            },
+            "variable": {
+             "var_name": "a"
+            }
+           }
+          }
+         },
+         {
+          "field": 1,
+          "value": {
+           "expression": {
+            "type": {
+             "the_type": "Num",
+             "type_id": 2
+            },
+            "variable": {
+             "var_name": "t"
+            }
+           }
+          }
+         }
+        ]
+       }
+      }
+     },
+     {
+      "predicate": {
+       "predicate_name": "Str",
+       "record": {
+        "field_value": [
+         {
+          "field": 0,
+          "value": {
+           "expression": {
+            "type": {
+             "the_type": "Str",
+             "type_id": 0
+            },
+            "variable": {
+             "var_name": "a"
+            }
+           }
+          }
+         }
+        ]
+       }
+      }
+     }
+    ]
+   }
+  },
+  "distinct_denoted": true,
+  "full_text": "Test(a:, b? += t) distinct :- T(a, t), Str(a)",
+  "head": {
+   "predicate_name": "Test",
+   "record": {
+    "field_value": [
+     {
+      "field": "a",
+      "value": {
+       "expression": {
+        "type": {
+         "the_type": "Str",
+         "type_id": 0
+        },
+        "variable": {
+         "var_name": "a"
+        }
+       }
+      }
+     },
+     {
+      "field": "b",
+      "value": {
+       "aggregation": {
+        "expression": {
+         "call": {
+          "predicate_name": "Agg+",
+          "record": {
+           "field_value": [
+            {
+             "field": 0,
+             "value": {
+              "expression": {
+               "type": {
+                "the_type": "Num",
+                "type_id": 2
+               },
+               "variable": {
+                "var_name": "t"
+               }
+              }
+             }
+            }
+           ]
+          }
+         },
+         "type": {
+          "the_type": "Num",
+          "type_id": 1
+         }
+        }
+       }
+      }
+     }
+    ]
+   }
+  }
+ }
+]
