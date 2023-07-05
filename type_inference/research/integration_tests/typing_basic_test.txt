@@ -1,0 +1,384 @@
+[
+ {
+  "body": {
+   "conjunction": {
+    "conjunct": [
+     {
+      "unification": {
+       "left_hand_side": {
+        "type": {
+         "the_type": "Num",
+         "type_id": 2
+        },
+        "variable": {
+         "var_name": "x"
+        }
+       },
+       "right_hand_side": {
+        "call": {
+         "predicate_name": "+",
+         "record": {
+          "field_value": [
+           {
+            "field": "left",
+            "value": {
+             "expression": {
+              "literal": {
+               "the_number": {
+                "number": "1"
+               }
+              },
+              "type": {
+               "the_type": "Num",
+               "type_id": 13
+              }
+             }
+            }
+           },
+           {
+            "field": "right",
+            "value": {
+             "expression": {
+              "type": {
+               "the_type": "Num",
+               "type_id": 3
+              },
+              "variable": {
+               "var_name": "z"
+              }
+             }
+            }
+           }
+          ]
+         }
+        },
+        "type": {
+         "the_type": "Num",
+         "type_id": 12
+        }
+       }
+      }
+     },
+     {
+      "predicate": {
+       "predicate_name": "T",
+       "record": {
+        "field_value": [
+         {
+          "field": 0,
+          "value": {
+           "expression": {
+            "type": {
+             "the_type": "Num",
+             "type_id": 3
+            },
+            "variable": {
+             "var_name": "z"
+            }
+           }
+          }
+         },
+         {
+          "field": 1,
+          "value": {
+           "expression": {
+            "type": {
+             "the_type": {
+              "a": {
+               "b": "Num"
+              }
+             },
+             "type_id": 5
+            },
+            "variable": {
+             "var_name": "w"
+            }
+           }
+          }
+         },
+         {
+          "field": 2,
+          "value": {
+           "expression": {
+            "type": {
+             "the_type": "Any",
+             "type_id": 17
+            },
+            "variable": {
+             "var_name": "l"
+            }
+           }
+          }
+         }
+        ]
+       }
+      }
+     },
+     {
+      "inclusion": {
+       "element": {
+        "variable": {
+         "var_name": "e"
+        }
+       },
+       "list": {
+        "variable": {
+         "var_name": "l"
+        }
+       }
+      }
+     },
+     {
+      "unification": {
+       "left_hand_side": {
+        "subscript": {
+         "record": {
+          "subscript": {
+           "record": {
+            "type": {
+             "the_type": {
+              "a": {
+               "b": "Num"
+              }
+             },
+             "type_id": 5
+            },
+            "variable": {
+             "var_name": "w"
+            }
+           },
+           "subscript": {
+            "literal": {
+             "the_symbol": {
+              "symbol": "a"
+             }
+            }
+           }
+          },
+          "type": {
+           "the_type": {
+            "b": "Num"
+           },
+           "type_id": 20
+          }
+         },
+         "subscript": {
+          "literal": {
+           "the_symbol": {
+            "symbol": "b"
+           }
+          }
+         }
+        },
+        "type": {
+         "the_type": "Num",
+         "type_id": 18
+        }
+       },
+       "right_hand_side": {
+        "literal": {
+         "the_number": {
+          "number": "7"
+         }
+        },
+        "type": {
+         "the_type": "Num",
+         "type_id": 19
+        }
+       }
+      }
+     }
+    ]
+   }
+  },
+  "full_text": "Q(1, \"a\", x, z, w.a, {t: 1, z: \"a\", r: {z: 1}}) :-\n  x == 1 + z, T(z, w, l), e in l, w.a.b == 7",
+  "head": {
+   "predicate_name": "Q",
+   "record": {
+    "field_value": [
+     {
+      "field": 0,
+      "value": {
+       "expression": {
+        "literal": {
+         "the_number": {
+          "number": "1"
+         }
+        },
+        "type": {
+         "the_type": "Num",
+         "type_id": 0
+        }
+       }
+      }
+     },
+     {
+      "field": 1,
+      "value": {
+       "expression": {
+        "literal": {
+         "the_string": {
+          "the_string": "a"
+         }
+        },
+        "type": {
+         "the_type": "Str",
+         "type_id": 1
+        }
+       }
+      }
+     },
+     {
+      "field": 2,
+      "value": {
+       "expression": {
+        "type": {
+         "the_type": "Num",
+         "type_id": 2
+        },
+        "variable": {
+         "var_name": "x"
+        }
+       }
+      }
+     },
+     {
+      "field": 3,
+      "value": {
+       "expression": {
+        "type": {
+         "the_type": "Num",
+         "type_id": 3
+        },
+        "variable": {
+         "var_name": "z"
+        }
+       }
+      }
+     },
+     {
+      "field": 4,
+      "value": {
+       "expression": {
+        "subscript": {
+         "record": {
+          "type": {
+           "the_type": {
+            "a": {
+             "b": "Num"
+            }
+           },
+           "type_id": 5
+          },
+          "variable": {
+           "var_name": "w"
+          }
+         },
+         "subscript": {
+          "literal": {
+           "the_symbol": {
+            "symbol": "a"
+           }
+          }
+         }
+        },
+        "type": {
+         "the_type": {
+          "b": "Num"
+         },
+         "type_id": 4
+        }
+       }
+      }
+     },
+     {
+      "field": 5,
+      "value": {
+       "expression": {
+        "record": {
+         "field_value": [
+          {
+           "field": "t",
+           "value": {
+            "expression": {
+             "literal": {
+              "the_number": {
+               "number": "1"
+              }
+             },
+             "type": {
+              "the_type": "Num",
+              "type_id": 7
+             }
+            }
+           }
+          },
+          {
+           "field": "z",
+           "value": {
+            "expression": {
+             "literal": {
+              "the_string": {
+               "the_string": "a"
+              }
+             },
+             "type": {
+              "the_type": "Str",
+              "type_id": 8
+             }
+            }
+           }
+          },
+          {
+           "field": "r",
+           "value": {
+            "expression": {
+             "record": {
+              "field_value": [
+               {
+                "field": "z",
+                "value": {
+                 "expression": {
+                  "literal": {
+                   "the_number": {
+                    "number": "1"
+                   }
+                  },
+                  "type": {
+                   "the_type": "Num",
+                   "type_id": 10
+                  }
+                 }
+                }
+               }
+              ]
+             },
+             "type": {
+              "the_type": {
+               "z": "Num"
+              },
+              "type_id": 9
+             }
+            }
+           }
+          }
+         ]
+        },
+        "type": {
+         "the_type": {
+          "r": {
+           "z": "Num"
+          },
+          "t": "Num",
+          "z": "Str"
+         },
+         "type_id": 6
+        }
+       }
+      }
+     }
+    ]
+   }
+  }
+ }
+]
