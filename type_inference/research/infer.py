@@ -31,6 +31,12 @@ def ExpressionsIterator(node):
       yield node[f]
   if 'record' in node and 'field_value' not in node['record']:
     yield node['record']
+  if 'the_list' in node:
+    for e in node['the_list']['element']:
+      yield e
+  if 'inclusion' in node:
+    yield node['inclusion']['element']
+    yield node['inclusion']['list']
 
 
 def Walk(node, act):
@@ -169,9 +175,39 @@ class TypeInferenceForRule:
           self.inference_complete = False
           fv['value']['expression']['type']['the_type'] = new_field_type
 
+  def ActMindingListLiterals(self, node):
+    if 'type' in node and 'literal' in node and 'the_list' in node['literal']:
+      list_type = node['type']['the_type']
+      for e in node['literal']['the_list']['element']:
+        list_type, e_type = algebra.IntersectListElement(
+          list_type, e['type']['the_type'])
+        if e_type != e['type']['the_type']:
+          self.inference_complete = False
+          e['type']['the_type'] = e_type
+
+      if list_type != node['type']['the_type']:
+        self.inference_complete = False
+        node['type']['the_type'] = list_type
+
+  def ActMindingInclusion(self, node):
+    if 'inclusion' in node:
+      list_type = node['inclusion']['list']['type']['the_type']
+      element_type = node['inclusion']['element']['type']['the_type']
+      new_list_type, new_element_type = algebra.IntersectListElement(
+        list_type, element_type
+      )
+      if list_type != new_list_type:
+        self.inference_complete = False
+        node['inclusion']['list']['type']['the_type'] = new_list_type
+      if element_type != new_element_type:
+        self.inference_complete = False
+        node['inclusion']['element']['type']['the_type'] = new_element_type
+
   def IterateInference(self):
     while not self.inference_complete:
       self.inference_complete = True
       Walk(self.rule, self.ActUnifying)
       Walk(self.rule, self.ActUnderstandingSubscription)
       Walk(self.rule, self.ActMindingRecordLiterals)
+      Walk(self.rule, self.ActMindingListLiterals)
+      Walk(self.rule, self.ActMindingInclusion)

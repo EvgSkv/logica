@@ -1,0 +1,232 @@
+[
+ {
+  "body": {
+   "conjunction": {
+    "conjunct": [
+     {
+      "inclusion": {
+       "element": {
+        "type": {
+         "the_type": "Num",
+         "type_id": 2
+        },
+        "variable": {
+         "var_name": "a"
+        }
+       },
+       "list": {
+        "literal": {
+         "the_list": {
+          "element": [
+           {
+            "literal": {
+             "the_number": {
+              "number": "1"
+             }
+            },
+            "type": {
+             "the_type": "Num",
+             "type_id": 7
+            }
+           },
+           {
+            "literal": {
+             "the_number": {
+              "number": "2"
+             }
+            },
+            "type": {
+             "the_type": "Num",
+             "type_id": 8
+            }
+           }
+          ]
+         }
+        },
+        "type": {
+         "the_type": [
+          "Num"
+         ],
+         "type_id": 6
+        }
+       }
+      }
+     },
+     {
+      "predicate": {
+       "predicate_name": "T",
+       "record": {
+        "field_value": [
+         {
+          "field": 0,
+          "value": {
+           "expression": {
+            "type": {
+             "the_type": [
+              "Num"
+             ],
+             "type_id": 3
+            },
+            "variable": {
+             "var_name": "b"
+            }
+           }
+          }
+         }
+        ]
+       }
+      }
+     },
+     {
+      "inclusion": {
+       "element": {
+        "type": {
+         "the_type": "Num",
+         "type_id": 2
+        },
+        "variable": {
+         "var_name": "a"
+        }
+       },
+       "list": {
+        "type": {
+         "the_type": [
+          "Num"
+         ],
+         "type_id": 3
+        },
+        "variable": {
+         "var_name": "b"
+        }
+       }
+      }
+     },
+     {
+      "unification": {
+       "left_hand_side": {
+        "type": {
+         "the_type": [
+          "Str"
+         ],
+         "type_id": 4
+        },
+        "variable": {
+         "var_name": "c"
+        }
+       },
+       "right_hand_side": {
+        "literal": {
+         "the_list": {
+          "element": [
+           {
+            "literal": {
+             "the_string": {
+              "the_string": "hello"
+             }
+            },
+            "type": {
+             "the_type": "Str",
+             "type_id": 14
+            }
+           }
+          ]
+         }
+        },
+        "type": {
+         "the_type": [
+          "Str"
+         ],
+         "type_id": 13
+        }
+       }
+      }
+     }
+    ]
+   }
+  },
+  "full_text": "Test([1], a, b, c) :- a in [1, 2], T(b), a in b, c == [\"hello\"]",
+  "head": {
+   "predicate_name": "Test",
+   "record": {
+    "field_value": [
+     {
+      "field": 0,
+      "value": {
+       "expression": {
+        "literal": {
+         "the_list": {
+          "element": [
+           {
+            "literal": {
+             "the_number": {
+              "number": "1"
+             }
+            },
+            "type": {
+             "the_type": "Num",
+             "type_id": 1
+            }
+           }
+          ]
+         }
+        },
+        "type": {
+         "the_type": [
+          "Num"
+         ],
+         "type_id": 0
+        }
+       }
+      }
+     },
+     {
+      "field": 1,
+      "value": {
+       "expression": {
+        "type": {
+         "the_type": "Num",
+         "type_id": 2
+        },
+        "variable": {
+         "var_name": "a"
+        }
+       }
+      }
+     },
+     {
+      "field": 2,
+      "value": {
+       "expression": {
+        "type": {
+         "the_type": [
+          "Num"
+         ],
+         "type_id": 3
+        },
+        "variable": {
+         "var_name": "b"
+        }
+       }
+      }
+     },
+     {
+      "field": 3,
+      "value": {
+       "expression": {
+        "type": {
+         "the_type": [
+          "Str"
+         ],
+         "type_id": 4
+        },
+        "variable": {
+         "var_name": "c"
+        }
+       }
+      }
+     }
+    ]
+   }
+  }
+ }
+]
