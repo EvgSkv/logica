@@ -32,5 +32,9 @@ def TypesOfBultins():
         'Agg+': {
             0: 'Num',
             'logica_value': 'Num'
+        },
+        'List': {
+            0: 'Any',
+            'logica_value': ['Any']
         }
     }

@@ -101,7 +101,9 @@
           "value": {
            "expression": {
             "type": {
-             "the_type": "Any",
+             "the_type": [
+              "Any"
+             ],
              "type_id": 17
             },
             "variable": {
@@ -117,11 +119,21 @@
      {
       "inclusion": {
        "element": {
+        "type": {
+         "the_type": "Any",
+         "type_id": 18
+        },
         "variable": {
          "var_name": "e"
         }
        },
        "list": {
+        "type": {
+         "the_type": [
+          "Any"
+         ],
+         "type_id": 17
+        },
         "variable": {
          "var_name": "l"
         }
@@ -159,7 +171,7 @@
            "the_type": {
             "b": "Num"
            },
-           "type_id": 20
+           "type_id": 22
           }
          },
          "subscript": {
@@ -172,7 +184,7 @@
         },
         "type": {
          "the_type": "Num",
-         "type_id": 18
+         "type_id": 20
         }
        },
        "right_hand_side": {
@@ -183,7 +195,7 @@
         },
         "type": {
          "the_type": "Num",
-         "type_id": 19
+         "type_id": 21
         }
        }
       }
