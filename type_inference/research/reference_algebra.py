@@ -14,7 +14,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# Type algebra working off of type references.
 
 class OpenRecord(dict):
   def __str__(self):
@@ -36,16 +35,18 @@ class BadType(tuple):
   def __repr__(self):
     return str(self)
 
-
 class TypeReference:
   def __init__(self, target):
     self.target = target
   
+  def WeMustGoDeeper(self):
+    return isinstance(self.target, TypeReference)
+
   def Target(self):
     result = self
-    while isinstance(result, TypeReference):
+    while result.WeMustGoDeeper():
       result = result.target
-    return result
+    return result.target
 
   def TargetTypeClassName(self):
     target = self.Target()
@@ -59,6 +60,12 @@ class TypeReference:
   
   def IsBadType(self):
     return isinstance(self.Target(), BadType)
+  
+  def __str__(self):
+    return str(self.target) + '@' + hex(id(self))
+
+  def __repr__(self):
+    return str(self)
 
 
 def ConcreteType(t):
@@ -69,6 +76,19 @@ def ConcreteType(t):
           isinstance(t, dict) or
           isinstance(t, str))
   return t
+
+def VeryConcreteType(t):
+  c = ConcreteType(t)
+  if isinstance(c, BadType) or isinstance(c, str):
+    return c
+  
+  if isinstance(c, list):
+    return [VeryConcreteType(e) for e in c]
+  
+  if isinstance(c, dict):
+    return type(c)({f: VeryConcreteType(v) for f, v in c.items()})
+  
+  assert False
 
 
 def Rank(x):
@@ -97,6 +117,18 @@ def Incompatible(a, b):
 
 def Unify(a, b):
   """Unifies type reference a with type reference b."""
+  original_a = a
+  original_b = b
+  while a.WeMustGoDeeper():
+    a = a.target
+  while b.WeMustGoDeeper():
+    b = b.target
+  if original_a != a:
+    original_a.target = a
+  if original_b != b:
+    original_b.target = b
+  if id(a) == id(b):
+    return
   assert isinstance(a, TypeReference)
   assert isinstance(b, TypeReference)
   concrete_a = ConcreteType(a)
@@ -113,15 +145,18 @@ def Unify(a, b):
     a.target = b
     return
 
-  if a in ('Num', 'Str'):
-    if a == b:
+  if concrete_a in ('Num', 'Str'):
+    if concrete_a == concrete_b:
       return  # It's all fine.
-    a.target = Incompatible(a, b)  # Type error: a is incompatible with b.
-    b.target = Incompatible(a, b)
+    # Type error: a is incompatible with b.
+    a.target, b.target = (
+        Incompatible(a.target, b.target),
+        Incompatible(b.target, a.target))
+    return
 
-  if isinstance(a, list):
-    if isinstance(b, list):
-      a_element, b_element = a + b
+  if isinstance(concrete_a, list):
+    if isinstance(concrete_b, list):
+      a_element, b_element = concrete_a + concrete_b
       a_element = TypeReference.To(a_element)
       b_element = TypeReference.To(b_element)
       Unify(a_element, b_element)
@@ -152,9 +187,11 @@ def Unify(a, b):
   if isinstance(a, ClosedRecord):
     if isinstance(b, ClosedRecord):
       if set(a) == set(b):
-        return UnifyFriendlyRecords(a, b, ClosedRecord)
+        UnifyFriendlyRecords(a, b, ClosedRecord)
+        return
       a.target = Incompatible(a, b)
       b.target = Incompatible(b, a)
+      return
     assert False
   assert False
 
@@ -174,8 +211,8 @@ def UnifyFriendlyRecords(a, b, record_type):
       a.target = Incompatible(a, b)
       b.target = Incompatible(b, a)
     result[f] = x
-  a.target = record_type(result)
-  b.target = record_type(result)
+  a.target = TypeReference(record_type(result))
+  b.target = a.target
 
 
 def UnifyListElement(a_list, b_element):
@@ -186,9 +223,33 @@ def UnifyListElement(a_list, b_element):
   # TODO: Prohibit lists of lists.
 
 
-def IntersectRecordField(a_record, field_name, b_field_value):
+def UnifyRecordField(a_record, field_name, b_field_value):
   """Analysis of expresson `a.f = b`."""
   b = TypeReference(OpenRecord({field_name: b_field_value}))
   Unify(a_record, b)
 
+class TypeStructureCopier:
+  def __init__(self):
+    self.id_to_reference = {}
+  
+  def CopyConcreteOrReferenceType(self, t):
+    if isinstance(t, TypeReference):
+      return self.CopyTypeReference(t)
+    return self.CopyConcreteType(t)
 
+  def CopyConcreteType(self, t):
+    if isinstance(t, str):
+      return t
+    if isinstance(t, list):
+      return [self.CopyConcreteOrReferenceType(e) for e in t]
+    if isinstance(t, dict):
+      c = type(t)
+      return c({k: self.CopyConcreteOrReferenceType(v) for k, v in t.items()})
+    assert False, (t, type(t))
+
+  def CopyTypeReference(self, t):
+    if id(t) not in self.id_to_reference:
+      target = self.CopyConcreteOrReferenceType(t.target)
+      n = TypeReference(target)
+      self.id_to_reference[id(t)] = n
+    return self.id_to_reference[id(t)]
