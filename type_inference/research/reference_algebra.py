@@ -14,6 +14,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+if '.' not in __package__:
+  from common import color
+else:
+  try:
+    from ...common import color
+  except:
+    from common import color
+
 
 class OpenRecord(dict):
   def __str__(self):
@@ -31,7 +39,12 @@ class ClosedRecord(dict):
 
 class BadType(tuple):
   def __str__(self):
-    return f'({self[0]} is incompatible with {self[1]})'
+    colored_t1 = color.Format('{warning}{t}{end}', args_dict={'t': RenderType(self[0])})
+    colored_t2 = color.Format('{warning}{t}{end}', args_dict={'t': RenderType(self[1])})
+
+    return (
+      f'is implied to be {colored_t1} and ' +
+      f'simultaneously {colored_t2}, which is impossible.')
   def __repr__(self):
     return str(self)
 
@@ -66,7 +79,22 @@ class TypeReference:
 
   def __repr__(self):
     return str(self)
+  
+  def CloseRecord(self):
+    a = self
+    while a.WeMustGoDeeper():
+      a = a.target
+    assert isinstance(a.target, dict)
+    a.target = ClosedRecord(a.target)
 
+def RenderType(t):
+  if isinstance(t, str):
+    return t
+  if isinstance(t, list):
+    return '[%s]' % RenderType(t[0])
+  if isinstance(t, dict):
+    return '{%s}' % ', '.join('%s: %s' % (k, RenderType(v))
+                              for k, v in t.items())
 
 def ConcreteType(t):
   if isinstance(t, TypeReference):
@@ -79,7 +107,9 @@ def ConcreteType(t):
 
 def VeryConcreteType(t):
   c = ConcreteType(t)
-  if isinstance(c, BadType) or isinstance(c, str):
+  if isinstance(c, BadType):
+    return BadType(VeryConcreteType(e) for e in c)
+  if isinstance(c, str):
     return c
   
   if isinstance(c, list):
@@ -162,14 +192,17 @@ def Unify(a, b):
       Unify(a_element, b_element)
       # TODO: Make this correct.
       if a_element.TargetTypeClassName() == 'BadType':
-        a.target = BadType(a, b)
-        b.target = BadType(a, b)
+        a.target, b.target = (
+          Incompatible(a.target, b.target),
+          Incompatible(b.target, a.target))
         return
       a.target = [a_element]
       b.target = [b_element]
       return
-    a.target = BadType(a, b)
-    b.target = BadType(b, a)
+    a.target, b.target = (
+        Incompatible(a.target, b.target),
+        Incompatible(b.target, a.target))
+    
     return
 
   if isinstance(concrete_a, OpenRecord):
@@ -180,20 +213,22 @@ def Unify(a, b):
       if set(concrete_a) <= set(concrete_b):
         UnifyFriendlyRecords(a, b, ClosedRecord)
         return
-      a.target = Incompatible(a, b)
-      b.target = Incompatible(b, a)
+      a.target, b.target = (
+        Incompatible(a.target, b.target),
+        Incompatible(b.target, a.target))
+      return
     assert False
 
-  if isinstance(a, ClosedRecord):
-    if isinstance(b, ClosedRecord):
-      if set(a) == set(b):
+  if isinstance(concrete_a, ClosedRecord):
+    if isinstance(concrete_b, ClosedRecord):
+      if set(concrete_a) == set(concrete_b):
         UnifyFriendlyRecords(a, b, ClosedRecord)
         return
       a.target = Incompatible(a, b)
       b.target = Incompatible(b, a)
       return
     assert False
-  assert False
+  assert False, (a, type(a))
 
 
 def UnifyFriendlyRecords(a, b, record_type):
