@@ -15,11 +15,77 @@
 # limitations under the License.
 
 if '.' not in __package__:
-  from type_inference.research import algebra
+  from type_inference.research import reference_algebra
   from type_inference.research import types_of_builtins
+  from common import color
 else:
-  from ..research import algebra
+  from ..research import reference_algebra
   from ..research import types_of_builtins
+  try:
+    from ...common import color
+  except:
+    from common import color
+
+
+class ContextualizedError:
+  def __init__(self):
+    self.type_error = None
+    self.context_string = None
+    self.refers_to_variable = None
+    self.refers_to_expression = None
+  
+  def Replace(self, type_error, context_string, refers_to_variable, refers_to_expression):
+    self.type_error = type_error
+    self.context_string = context_string
+    self.refers_to_variable = refers_to_variable
+    self.refers_to_expression = refers_to_expression
+
+  def ReplaceIfMoreUseful(self, type_error, context_string, refers_to_variable, refers_to_expression):
+    if self.type_error is None:
+      self.Replace(type_error, context_string, refers_to_variable, refers_to_expression)
+    elif self.refers_to_variable is None and refers_to_variable:
+      self.Replace(type_error, context_string, refers_to_variable, refers_to_expression)
+    elif 'literal' in self.refers_to_expression:
+      self.Replace(type_error, context_string, refers_to_variable, refers_to_expression)
+
+    else:
+      pass
+
+  def NiceMessage(self):
+    result_lines = [
+      color.Format('{underline}Type analysis:{end}'),
+      self.context_string, '',
+      color.Format('[ {error}Error{end} ] ') + self.HelpfulErrorMessage()]
+    
+    return '\n'.join(result_lines)
+
+  def HelpfulErrorMessage(self):
+    result = str(self.type_error)
+
+    if (isinstance(self.type_error[0], dict) and
+        isinstance(self.type_error[1], dict)):
+      if isinstance(self.type_error[0],
+                    reference_algebra.ClosedRecord):
+        a, b = self.type_error
+      else:
+        b, a = self.type_error
+      if (isinstance(a, reference_algebra.ClosedRecord) and
+          isinstance(b, reference_algebra.OpenRecord) and
+          list(b)[0] not in a.keys() ):
+        result = (
+          'record ' + str(a) + ' does not have field ' + list(b)[0] + '.'
+        )
+
+    if self.refers_to_variable:
+      result = color.Format(
+        'Variable {warning}%s{end} ' %
+        self.refers_to_variable) + result
+    else:
+      result = color.Format(
+        'Expression {warning}%s{end} ' %
+        str(self.refers_to_expression['expression_heritage']) + result
+      )
+    return result
 
 
 def ExpressionFields():
@@ -55,9 +121,9 @@ def ActMindingPodLiterals(node):
   for e in ExpressionsIterator(node):
     if 'literal' in e:
       if 'the_number' in e['literal']:
-        e['type']['the_type'] = algebra.Intersect(e['type']['the_type'], 'Num')
+        reference_algebra.Unify(e['type']['the_type'], reference_algebra.TypeReference('Num'))
       if 'the_string' in e['literal']:
-        e['type']['the_type'] = algebra.Intersect(e['type']['the_type'], 'Str')
+        reference_algebra.Unify(e['type']['the_type'], reference_algebra.TypeReference('Str'))
 
 
 class TypesInferenceEngine:
@@ -69,15 +135,23 @@ class TypesInferenceEngine:
     for rule in self.parsed_rules:
       t = TypeInferenceForRule(rule)
       t.PerformInference()
+    
+    def Concretize(node):
+      if isinstance(node, dict):
+        if 'type' in node:
+          node['type']['the_type'] = reference_algebra.VeryConcreteType(
+            node['type']['the_type'])
+    for rule in self.parsed_rules:
+      Walk(rule, Concretize)
 
 
 class TypeInferenceForRule:
   def __init__(self, rule):
     self.rule = rule
-    self.inference_complete = False
     self.variable_type = {}
     self.type_id_counter = 0
     self.types_of_builtins = types_of_builtins.TypesOfBultins()
+    self.found_error = None
 
   def PerformInference(self):
     self.InitTypes()
@@ -97,10 +171,10 @@ class TypeInferenceForRule:
         var_name = e['variable']['var_name']
         use_type = self.variable_type.get(
           var_name,
-          {'the_type': 'Any', 'type_id': i})
+          {'the_type': reference_algebra.TypeReference('Any'), 'type_id': i})
         self.variable_type[var_name] = use_type
       else:
-        use_type = {'the_type': 'Any', 'type_id': i}
+        use_type = {'the_type': reference_algebra.TypeReference('Any'), 'type_id': i}
       e['type'] = use_type
 
   def InitTypes(self):
@@ -114,22 +188,27 @@ class TypeInferenceForRule:
       if 'call' in e:
         p = e['call']['predicate_name']
         if p in self.types_of_builtins:
-          e['type']['the_type'] = algebra.Intersect(
+          copier = reference_algebra.TypeStructureCopier()
+          copy = copier.CopyConcreteOrReferenceType
+
+          reference_algebra.Unify(
             e['type']['the_type'],
-            self.types_of_builtins[p]['logica_value'])
+            copy(self.types_of_builtins[p]['logica_value']))
           for fv in e['call']['record']['field_value']:
             if fv['field'] in self.types_of_builtins[p]:
-              fv['value']['expression']['type']['the_type'] = algebra.Intersect(
+              reference_algebra.Unify(
                 fv['value']['expression']['type']['the_type'],
-                self.types_of_builtins[p][fv['field']])
+                copy(self.types_of_builtins[p][fv['field']]))
     if 'predicate' in node:
       p = node['predicate']['predicate_name']
       if p in self.types_of_builtins:
+        copier = reference_algebra.TypeStructureCopier()
+        copy = copier.CopyConcreteOrReferenceType
         for fv in node['predicate']['record']['field_value']:
           if fv['field'] in self.types_of_builtins[p]:
-            fv['value']['expression']['type']['the_type'] = algebra.Intersect(
+            reference_algebra.Unify(
               fv['value']['expression']['type']['the_type'],
-              self.types_of_builtins[p][fv['field']])
+              copy(self.types_of_builtins[p][fv['field']]))
 
   def MindBuiltinFieldTypes(self):
     Walk(self.rule, self.ActMindingBuiltinFieldTypes)
@@ -138,27 +217,15 @@ class TypeInferenceForRule:
     if 'unification' in node:
       left_type = node['unification']['left_hand_side']['type']['the_type']
       right_type = node['unification']['right_hand_side']['type']['the_type']
-      new_type = algebra.Intersect(left_type, right_type)
-      if new_type != left_type:
-        self.inference_complete = False
-        node['unification']['left_hand_side']['type']['the_type'] = new_type
-      if new_type != right_type:
-        self.inference_complete = False
-        node['unification']['right_hand_side']['type']['the_type'] = new_type
+      reference_algebra.Unify(left_type, right_type)
 
   def ActUnderstandingSubscription(self, node):
     if 'subscript' in node and 'record' in node['subscript']:
       record_type = node['subscript']['record']['type']['the_type']
       field_type = node['type']['the_type']
       field_name = node['subscript']['subscript']['literal']['the_symbol']['symbol']
-      new_record_type, new_field_type = algebra.IntersectRecordField(
+      reference_algebra.UnifyRecordField(
         record_type, field_name, field_type)
-      if new_record_type != record_type:
-        self.inference_complete = False
-        node['subscript']['record']['type']['the_type'] = new_record_type
-      if new_field_type != field_type:
-        self.inference_complete = False
-        node['type']['the_type'] = new_field_type
 
   def ActMindingRecordLiterals(self, node):
     if 'type' in node and 'record' in node:
@@ -166,48 +233,49 @@ class TypeInferenceForRule:
         record_type = node['type']['the_type']
         field_type = fv['value']['expression']['type']['the_type']
         field_name = fv['field']
-        new_record_type, new_field_type = algebra.IntersectRecordField(
+        reference_algebra.UnifyRecordField(
           record_type, field_name, field_type)
-        if new_record_type != record_type:
-          self.inference_complete = False
-          node['type']['the_type'] = new_record_type
-        if new_field_type != field_type:
-          self.inference_complete = False
-          fv['value']['expression']['type']['the_type'] = new_field_type
+      node['type']['the_type'].CloseRecord()
 
   def ActMindingListLiterals(self, node):
     if 'type' in node and 'literal' in node and 'the_list' in node['literal']:
       list_type = node['type']['the_type']
       for e in node['literal']['the_list']['element']:
-        list_type, e_type = algebra.IntersectListElement(
+        reference_algebra.UnifyListElement(
           list_type, e['type']['the_type'])
-        if e_type != e['type']['the_type']:
-          self.inference_complete = False
-          e['type']['the_type'] = e_type
-
-      if list_type != node['type']['the_type']:
-        self.inference_complete = False
-        node['type']['the_type'] = list_type
 
   def ActMindingInclusion(self, node):
     if 'inclusion' in node:
       list_type = node['inclusion']['list']['type']['the_type']
       element_type = node['inclusion']['element']['type']['the_type']
-      new_list_type, new_element_type = algebra.IntersectListElement(
+      reference_algebra.UnifyListElement(
         list_type, element_type
       )
-      if list_type != new_list_type:
-        self.inference_complete = False
-        node['inclusion']['list']['type']['the_type'] = new_list_type
-      if element_type != new_element_type:
-        self.inference_complete = False
-        node['inclusion']['element']['type']['the_type'] = new_element_type
 
   def IterateInference(self):
-    while not self.inference_complete:
-      self.inference_complete = True
-      Walk(self.rule, self.ActUnifying)
-      Walk(self.rule, self.ActUnderstandingSubscription)
-      Walk(self.rule, self.ActMindingRecordLiterals)
-      Walk(self.rule, self.ActMindingListLiterals)
-      Walk(self.rule, self.ActMindingInclusion)
+    Walk(self.rule, self.ActMindingRecordLiterals)
+    Walk(self.rule, self.ActUnifying)
+    Walk(self.rule, self.ActUnderstandingSubscription)
+    Walk(self.rule, self.ActMindingListLiterals)
+    Walk(self.rule, self.ActMindingInclusion)
+    
+    self.found_error = self.SearchTypeErrors()
+    if self.found_error.type_error:
+      print(self.found_error.NiceMessage())
+
+  def SearchTypeErrors(self):
+    found_error = ContextualizedError()
+    def LookForError(node):
+      nonlocal found_error
+      if 'type' in node:
+        t = reference_algebra.VeryConcreteType(node['type']['the_type'])
+        if isinstance(t, reference_algebra.BadType):
+          if 'variable' in node:
+            v = node['variable']['var_name']
+          else:
+            v = None
+          found_error.ReplaceIfMoreUseful(
+            t, node['expression_heritage'].Display(), v,
+            node)
+    Walk(self.rule, LookForError)
+    return found_error

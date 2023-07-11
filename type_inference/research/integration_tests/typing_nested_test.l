@@ -14,22 +14,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""A suite of tests for type inference."""
-
-from common import logica_test
-
-def RunTypesTest(name, src=None, golden=None):
-  src = src or (
-    'type_inference/research/integration_tests/' + name + '.l')
-  golden = golden or (
-    'type_inference/research/integration_tests/' + name + '.txt')
-  logica_test.TestManager.RunTypesTest(name, src, golden)
-
-def RunAll():
-  RunTypesTest('typing_basic_test')
-  RunTypesTest('typing_aggregation_test')
-  RunTypesTest('typing_lists_test')
-  RunTypesTest('typing_nested_test')
-
-if __name__ == '__main__':
-  RunAll()
+Test(y) :-
+  l = [{a: {b: {c: [1]}}}],
+  x in l,
+  c = x.a.b.c,
+  y in c;

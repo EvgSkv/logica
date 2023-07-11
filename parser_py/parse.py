@@ -83,6 +83,14 @@ class HeritageAwareString(str):
             self.heritage[self.start:self.stop],
             self.heritage[self.stop:])
 
+  def Display(self):
+    a, b, c = self.Pieces()
+    if not b:
+      b = '<EMPTY>'
+    return color.Format(
+      '{before}{warning}{error_text}{end}{after}',
+      dict(before=a, error_text=b, after=c))
+
 
 class ParsingException(Exception):
   """Exception thrown by parsing."""
@@ -716,6 +724,11 @@ def ParseImplication(s):
 
 
 def ParseExpression(s):
+  e = ActuallyParseExpression(s)
+  e['expression_heritage'] = s
+  return e
+
+def ActuallyParseExpression(s):
   """Parsing logica.Expression."""
   v = ParseCombine(s)
   if v:

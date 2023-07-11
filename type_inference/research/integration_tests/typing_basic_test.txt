@@ -6,6 +6,7 @@
      {
       "unification": {
        "left_hand_side": {
+        "expression_heritage": "x",
         "type": {
          "the_type": "Num",
          "type_id": 2
@@ -23,6 +24,7 @@
             "field": "left",
             "value": {
              "expression": {
+              "expression_heritage": "1",
               "literal": {
                "the_number": {
                 "number": "1"
@@ -39,6 +41,7 @@
             "field": "right",
             "value": {
              "expression": {
+              "expression_heritage": "z",
               "type": {
                "the_type": "Num",
                "type_id": 3
@@ -52,6 +55,7 @@
           ]
          }
         },
+        "expression_heritage": "1 + z",
         "type": {
          "the_type": "Num",
          "type_id": 12
@@ -68,6 +72,7 @@
           "field": 0,
           "value": {
            "expression": {
+            "expression_heritage": "z",
             "type": {
              "the_type": "Num",
              "type_id": 3
@@ -82,6 +87,7 @@
           "field": 1,
           "value": {
            "expression": {
+            "expression_heritage": "w",
             "type": {
              "the_type": {
               "a": {
@@ -100,6 +106,7 @@
           "field": 2,
           "value": {
            "expression": {
+            "expression_heritage": "l",
             "type": {
              "the_type": [
               "Any"
@@ -119,6 +126,7 @@
      {
       "inclusion": {
        "element": {
+        "expression_heritage": "e",
         "type": {
          "the_type": "Any",
          "type_id": 18
@@ -128,6 +136,7 @@
         }
        },
        "list": {
+        "expression_heritage": "l",
         "type": {
          "the_type": [
           "Any"
@@ -143,10 +152,13 @@
      {
       "unification": {
        "left_hand_side": {
+        "expression_heritage": "w.a.b",
         "subscript": {
          "record": {
+          "expression_heritage": "w.a",
           "subscript": {
            "record": {
+            "expression_heritage": "w",
             "type": {
              "the_type": {
               "a": {
@@ -188,6 +200,7 @@
         }
        },
        "right_hand_side": {
+        "expression_heritage": "7",
         "literal": {
          "the_number": {
           "number": "7"
@@ -212,6 +225,7 @@
       "field": 0,
       "value": {
        "expression": {
+        "expression_heritage": "1",
         "literal": {
          "the_number": {
           "number": "1"
@@ -228,6 +242,7 @@
       "field": 1,
       "value": {
        "expression": {
+        "expression_heritage": "\"a\"",
         "literal": {
          "the_string": {
           "the_string": "a"
@@ -244,6 +259,7 @@
       "field": 2,
       "value": {
        "expression": {
+        "expression_heritage": "x",
         "type": {
          "the_type": "Num",
          "type_id": 2
@@ -258,6 +274,7 @@
       "field": 3,
       "value": {
        "expression": {
+        "expression_heritage": "z",
         "type": {
          "the_type": "Num",
          "type_id": 3
@@ -272,8 +289,10 @@
       "field": 4,
       "value": {
        "expression": {
+        "expression_heritage": "w.a",
         "subscript": {
          "record": {
+          "expression_heritage": "w",
           "type": {
            "the_type": {
             "a": {
@@ -307,12 +326,14 @@
       "field": 5,
       "value": {
        "expression": {
+        "expression_heritage": "{t: 1, z: \"a\", r: {z: 1}}",
         "record": {
          "field_value": [
           {
            "field": "t",
            "value": {
             "expression": {
+             "expression_heritage": "1",
              "literal": {
               "the_number": {
                "number": "1"
@@ -329,6 +350,7 @@
            "field": "z",
            "value": {
             "expression": {
+             "expression_heritage": "\"a\"",
              "literal": {
               "the_string": {
                "the_string": "a"
@@ -345,12 +367,14 @@
            "field": "r",
            "value": {
             "expression": {
+             "expression_heritage": "{z: 1}",
              "record": {
               "field_value": [
                {
                 "field": "z",
                 "value": {
                  "expression": {
+                  "expression_heritage": "1",
                   "literal": {
                    "the_number": {
                     "number": "1"

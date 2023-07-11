@@ -12,6 +12,7 @@
           "field": 0,
           "value": {
            "expression": {
+            "expression_heritage": "a",
             "type": {
              "the_type": "Str",
              "type_id": 0
@@ -26,6 +27,7 @@
           "field": 1,
           "value": {
            "expression": {
+            "expression_heritage": "t",
             "type": {
              "the_type": "Num",
              "type_id": 2
@@ -49,6 +51,7 @@
           "field": 0,
           "value": {
            "expression": {
+            "expression_heritage": "a",
             "type": {
              "the_type": "Str",
              "type_id": 0
@@ -76,6 +79,7 @@
       "field": "a",
       "value": {
        "expression": {
+        "expression_heritage": "a",
         "type": {
          "the_type": "Str",
          "type_id": 0
@@ -99,6 +103,7 @@
              "field": 0,
              "value": {
               "expression": {
+               "expression_heritage": "t",
                "type": {
                 "the_type": "Num",
                 "type_id": 2

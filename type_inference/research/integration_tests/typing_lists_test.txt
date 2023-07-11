@@ -6,6 +6,7 @@
      {
       "inclusion": {
        "element": {
+        "expression_heritage": "a",
         "type": {
          "the_type": "Num",
          "type_id": 2
@@ -15,10 +16,12 @@
         }
        },
        "list": {
+        "expression_heritage": "[1, 2]",
         "literal": {
          "the_list": {
           "element": [
            {
+            "expression_heritage": "1",
             "literal": {
              "the_number": {
               "number": "1"
@@ -30,6 +33,7 @@
             }
            },
            {
+            "expression_heritage": "2",
             "literal": {
              "the_number": {
               "number": "2"
@@ -61,6 +65,7 @@
           "field": 0,
           "value": {
            "expression": {
+            "expression_heritage": "b",
             "type": {
              "the_type": [
               "Num"
@@ -80,6 +85,7 @@
      {
       "inclusion": {
        "element": {
+        "expression_heritage": "a",
         "type": {
          "the_type": "Num",
          "type_id": 2
@@ -89,6 +95,7 @@
         }
        },
        "list": {
+        "expression_heritage": "b",
         "type": {
          "the_type": [
           "Num"
@@ -104,6 +111,7 @@
      {
       "unification": {
        "left_hand_side": {
+        "expression_heritage": "c",
         "type": {
          "the_type": [
           "Str"
@@ -115,10 +123,12 @@
         }
        },
        "right_hand_side": {
+        "expression_heritage": "[\"hello\"]",
         "literal": {
          "the_list": {
           "element": [
            {
+            "expression_heritage": "\"hello\"",
             "literal": {
              "the_string": {
               "the_string": "hello"
@@ -153,10 +163,12 @@
       "field": 0,
       "value": {
        "expression": {
+        "expression_heritage": "[1]",
         "literal": {
          "the_list": {
           "element": [
            {
+            "expression_heritage": "1",
             "literal": {
              "the_number": {
               "number": "1"
@@ -183,6 +195,7 @@
       "field": 1,
       "value": {
        "expression": {
+        "expression_heritage": "a",
         "type": {
          "the_type": "Num",
          "type_id": 2
@@ -197,6 +210,7 @@
       "field": 2,
       "value": {
        "expression": {
+        "expression_heritage": "b",
         "type": {
          "the_type": [
           "Num"
@@ -213,6 +227,7 @@
       "field": 3,
       "value": {
        "expression": {
+        "expression_heritage": "c",
         "type": {
          "the_type": [
           "Str"
