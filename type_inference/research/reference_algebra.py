@@ -95,6 +95,8 @@ def RenderType(t):
   if isinstance(t, dict):
     return '{%s}' % ', '.join('%s: %s' % (k, RenderType(v))
                               for k, v in t.items())
+  if isinstance(t, tuple):
+    return '(%s != %s)' % (RenderType(t[0]), RenderType(t[1]))
 
 def ConcreteType(t):
   if isinstance(t, TypeReference):

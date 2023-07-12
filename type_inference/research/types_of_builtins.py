@@ -75,6 +75,10 @@ def TypesOfBultins():
         'ArgMin': {
            0: reference_algebra.ClosedRecord({'arg': x, 'value': y}),
            'logica_value': x
+        },
+        'Range': {
+           0: 'Num',
+           'logica_value': ['Num']    
         }
     }
     return {

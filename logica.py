@@ -132,7 +132,7 @@ def main(argv):
           'GoodIdea(snack: "carrots")\'')
     return 1
 
-  if len(argv) == 3 and argv[2] in ['parse', 'infer_types']:
+  if len(argv) == 3 and argv[2] in ['parse', 'infer_types', 'show_signatures']:
     pass  # compile needs just 2 actual arguments.
   else:
     if len(argv) < 4:
@@ -147,7 +147,8 @@ def main(argv):
 
   command = argv[2]
 
-  commands = ['parse', 'print', 'run', 'run_to_csv', 'run_in_terminal', 'infer_types']
+  commands = ['parse', 'print', 'run', 'run_to_csv', 'run_in_terminal',
+              'infer_types', 'show_signatures']
 
   if command not in commands:
     print(color.Format('Unknown command {warning}{command}{end}. '
@@ -176,6 +177,16 @@ def main(argv):
     typing_engine.InferTypes()
     # print(parsed_rules)
     print(json.dumps(parsed_rules, sort_keys=True, indent=' '))
+    return 0
+
+  if command == 'show_signatures':
+    typing_engine = infer.TypesInferenceEngine(parsed_rules)
+    typing_engine.InferTypes()
+    print(typing_engine.ShowPredicateTypes())
+    type_error_checker = infer.TypeErrorChecker(parsed_rules)
+    type_error_checker.CheckForError()
+    # print(json.dumps(parsed_rules, sort_keys=True, indent=' '))
+
     return 0
 
   predicates = argv[3]

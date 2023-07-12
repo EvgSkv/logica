@@ -130,12 +130,41 @@ class TypesInferenceEngine:
   def __init__(self, parsed_rules):
     self.parsed_rules = parsed_rules
     self.predicate_argumets_types = {}
-  
+    self.dependencies = BuildDependencies(self.parsed_rules)
+    self.complexities = BuildComplexities(self.dependencies)
+    self.parsed_rules = list(sorted(self.parsed_rules, key=lambda x: self.complexities[x['head']['predicate_name']]))
+    self.types_of_builtins = types_of_builtins.TypesOfBultins()
+
+  def UpdateTypes(self, rule):
+    predicate_name = rule['head']['predicate_name']
+    if predicate_name in self.types_of_builtins:
+       predicate_signature = self.types_of_builtins[predicate_name]
+    else:
+      predicate_signature = {}
+      for fv in rule['head']['record']['field_value']:
+        field_name = fv['field']
+        predicate_signature[field_name] = reference_algebra.TypeReference('Any')
+      self.types_of_builtins[predicate_name] = predicate_signature
+
+    for fv in rule['head']['record']['field_value']:
+      field_name = fv['field']
+      v = fv['value']
+      if 'expression' in v:
+        value = v['expression']
+      else:
+        value = v['aggregation']['expression']
+      value_type = value['type']['the_type']
+      reference_algebra.Unify(
+        predicate_signature[field_name],
+        value_type)
+
+
   def InferTypes(self):
     for rule in self.parsed_rules:
-      t = TypeInferenceForRule(rule)
+      t = TypeInferenceForRule(rule, self.types_of_builtins)
       t.PerformInference()
-    
+      self.UpdateTypes(rule)
+
     def Concretize(node):
       if isinstance(node, dict):
         if 'type' in node:
@@ -143,15 +172,49 @@ class TypesInferenceEngine:
             node['type']['the_type'])
     for rule in self.parsed_rules:
       Walk(rule, Concretize)
+    
+  def ShowPredicateTypes(self):
+    result_lines = []
+    for predicate_name, signature in self.types_of_builtins.items():
+      result_lines.append(RenderPredicateSignature(predicate_name, signature))
+    return '\n'.join(result_lines)
+
+
+def BuildDependencies(rules):
+  def ExtractDendencies(rule):
+    p = rule['head']['predicate_name']
+    dependencies = []
+    def ExtractPredicateName(node):
+      if 'predicate_name' in node:
+        dependencies.append(node['predicate_name'])
+    Walk(rule, ExtractPredicateName)
+    return p, dependencies
+  result = {}
+  for rule in rules:
+    p, ds = ExtractDendencies(rule)
+    result[p] = list(sorted(set(ds) - set([p])))
+  return result
+
+def BuildComplexities(dependencies):
+  result = {}
+  def GetComplexity(p):
+    if p not in dependencies:
+      return 0
+    if p not in result:
+      result[p] = 1 + sum(GetComplexity(x) for x in dependencies[p]) 
+    return result[p]
+  for p in dependencies:
+    GetComplexity(p)
+  return result
 
 
 class TypeInferenceForRule:
-  def __init__(self, rule):
+  def __init__(self, rule, types_of_builtins):
     self.rule = rule
     self.variable_type = {}
     self.type_id_counter = 0
-    self.types_of_builtins = types_of_builtins.TypesOfBultins()
     self.found_error = None
+    self.types_of_builtins = types_of_builtins
 
   def PerformInference(self):
     self.InitTypes()
@@ -184,31 +247,39 @@ class TypeInferenceForRule:
     Walk(self.rule, ActMindingPodLiterals)
 
   def ActMindingBuiltinFieldTypes(self, node):
+    def InstillTypes(field_value, signature, output_value_type):
+      copier = reference_algebra.TypeStructureCopier()
+      copy = copier.CopyConcreteOrReferenceType
+      if output_value_type:
+        reference_algebra.Unify(
+          output_value_type,
+          copy(signature['logica_value']))
+      for fv in field_value:
+        if fv['field'] in signature:
+          reference_algebra.Unify(
+            fv['value']['expression']['type']['the_type'],
+            copy(signature[fv['field']]))
+
     for e in ExpressionsIterator(node):
       if 'call' in e:
         p = e['call']['predicate_name']
         if p in self.types_of_builtins:
-          copier = reference_algebra.TypeStructureCopier()
-          copy = copier.CopyConcreteOrReferenceType
+          InstillTypes(e['call']['record']['field_value'],
+                       self.types_of_builtins[p],
+                       e['type']['the_type'])
 
-          reference_algebra.Unify(
-            e['type']['the_type'],
-            copy(self.types_of_builtins[p]['logica_value']))
-          for fv in e['call']['record']['field_value']:
-            if fv['field'] in self.types_of_builtins[p]:
-              reference_algebra.Unify(
-                fv['value']['expression']['type']['the_type'],
-                copy(self.types_of_builtins[p][fv['field']]))
     if 'predicate' in node:
       p = node['predicate']['predicate_name']
       if p in self.types_of_builtins:
-        copier = reference_algebra.TypeStructureCopier()
-        copy = copier.CopyConcreteOrReferenceType
-        for fv in node['predicate']['record']['field_value']:
-          if fv['field'] in self.types_of_builtins[p]:
-            reference_algebra.Unify(
-              fv['value']['expression']['type']['the_type'],
-              copy(self.types_of_builtins[p][fv['field']]))
+        InstillTypes(node['predicate']['record']['field_value'],
+                     self.types_of_builtins[p], None)
+
+    if 'head' in node:
+      p = node['head']['predicate_name']
+      if p in self.types_of_builtins:
+        InstillTypes(node['head']['record']['field_value'],
+                     self.types_of_builtins[p], None)
+
 
   def MindBuiltinFieldTypes(self):
     Walk(self.rule, self.ActMindingBuiltinFieldTypes)
@@ -252,17 +323,55 @@ class TypeInferenceForRule:
         list_type, element_type
       )
 
+  def ActMindingCombine(self, node):
+    if 'combine' in node:
+      field_value = node['combine']['head']['record']['field_value']
+      [logica_value] = [fv['value']
+                        for fv in field_value
+                        if fv['field'] == 'logica_value']
+      reference_algebra.Unify(
+        node['type']['the_type'],
+        logica_value['aggregation']['expression']['type']['the_type']
+      )
+
+
   def IterateInference(self):
     Walk(self.rule, self.ActMindingRecordLiterals)
     Walk(self.rule, self.ActUnifying)
     Walk(self.rule, self.ActUnderstandingSubscription)
     Walk(self.rule, self.ActMindingListLiterals)
     Walk(self.rule, self.ActMindingInclusion)
-    
+    Walk(self.rule, self.ActMindingCombine)
+
+def RenderPredicateSignature(predicate_name, signature):
+  def FieldValue(f, v):
+    if isinstance(f, int):
+      field = ''
+    else:
+      field = f + ': '
+    value = reference_algebra.RenderType(reference_algebra.VeryConcreteType(v))
+    return field + value
+  field_values = [FieldValue(f, v) for f, v in signature.items()
+                  if f != 'logica_value']
+  signature_str = ', '.join(field_values)
+  maybe_value = [
+    ' = ' + reference_algebra.RenderType(
+      reference_algebra.VeryConcreteType(v))
+    for f, v in signature.items() if f == 'logica_value']
+  value_or_nothing = maybe_value[0] if maybe_value else ''
+  result = f'type {predicate_name}({signature_str}){value_or_nothing};'
+  return result
+
+
+class TypeErrorChecker:
+  def __init__(self, typed_rules):
+    self.typed_rules = typed_rules
+
+  def CheckForError(self):    
     self.found_error = self.SearchTypeErrors()
     if self.found_error.type_error:
       print(self.found_error.NiceMessage())
-
+      
   def SearchTypeErrors(self):
     found_error = ContextualizedError()
     def LookForError(node):
@@ -277,5 +386,8 @@ class TypeInferenceForRule:
           found_error.ReplaceIfMoreUseful(
             t, node['expression_heritage'].Display(), v,
             node)
-    Walk(self.rule, LookForError)
+    for rule in self.typed_rules:
+      Walk(rule, LookForError)
+      if found_error.type_error:
+        return found_error
     return found_error
