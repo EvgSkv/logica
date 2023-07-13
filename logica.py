@@ -185,8 +185,6 @@ def main(argv):
     print(typing_engine.ShowPredicateTypes())
     type_error_checker = infer.TypeErrorChecker(parsed_rules)
     type_error_checker.CheckForError()
-    # print(json.dumps(parsed_rules, sort_keys=True, indent=' '))
-
     return 0
 
   predicates = argv[3]
@@ -208,6 +206,10 @@ def main(argv):
     except functors.FunctorError as functor_exception:
       functor_exception.ShowMessage()
       sys.exit(1)
+    except infer.TypeErrorCaughtException as type_error_exception:
+      type_error_exception.ShowMessage()
+      sys.exit(1)
+      
 
     if command == 'print':
       print(formatted_sql)
