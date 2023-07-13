@@ -14,6 +14,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import sys
+
 if '.' not in __package__:
   from type_inference.research import reference_algebra
   from type_inference.research import types_of_builtins
@@ -358,14 +360,29 @@ def RenderPredicateSignature(predicate_name, signature):
   return result
 
 
+class TypeErrorCaughtException(Exception):
+  """Exception thrown when user-error is detected at rule-compile time."""
+
+  def __init__(self, message):
+    super(TypeErrorCaughtException, self).__init__(message)
+
+  def ShowMessage(self, stream=sys.stderr):
+    print(str(self), file=stream)
+
+
 class TypeErrorChecker:
   def __init__(self, typed_rules):
     self.typed_rules = typed_rules
 
-  def CheckForError(self):    
+  def CheckForError(self, mode='print'):    
     self.found_error = self.SearchTypeErrors()
     if self.found_error.type_error:
-      print(self.found_error.NiceMessage())
+      if mode == 'print':
+        print(self.found_error.NiceMessage())
+      elif mode == 'raise':
+        raise TypeErrorCaughtException(self.found_error.NiceMessage())
+      else:
+        assert False
       
   def SearchTypeErrors(self):
     found_error = ContextualizedError()

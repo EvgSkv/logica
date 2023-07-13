@@ -34,6 +34,7 @@ if '.' not in __package__:
   from compiler import functors
   from compiler import rule_translate
   from parser_py import parse
+  from type_inference.research import infer
 else:
   from ..common import color
   from ..compiler import dialects
@@ -253,6 +254,14 @@ class Annotations(object):
       AnnotationError('Unrecognized engine: %s' % engine,
                       self.annotations['@Engine'][engine])
     return engine
+ 
+  def ShouldTypecheck(self):
+    if '@Engine' not in self.annotations:
+      return False
+    engine_annotation = list(self.annotations['@Engine'].values())[0]
+    if 'type_checking' not in engine_annotation:
+      return False
+    return engine_annotation['type_checking']
 
   def ExtractSingleton(self, annotation_name, default_value):
     if not self.annotations[annotation_name]:
@@ -495,7 +504,7 @@ class LogicaProgram(object):
     # Function compilation may have added irrelevant defines:
     self.execution = None
 
-    if False:
+    if self.annotations.ShouldTypecheck():
       self.RunTypechecker()
 
   def UnfoldRecursion(self, rules):
@@ -530,7 +539,10 @@ class LogicaProgram(object):
     Raises:
       TypeInferenceError if there are any type errors.
     """
-    inference.CheckTypes(self.rules)
+    typing_engine = infer.TypesInferenceEngine(self.preparsed_rules)
+    typing_engine.InferTypes()
+    type_error_checker = infer.TypeErrorChecker(self.preparsed_rules)
+    type_error_checker.CheckForError(mode='raise')
 
   def RunMakes(self, rules):
     """Runs @Make instructions."""
