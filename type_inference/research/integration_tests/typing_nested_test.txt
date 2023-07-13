@@ -76,7 +76,7 @@
                                    },
                                    "type": {
                                     "the_type": "Num",
-                                    "type_id": 7
+                                    "type_id": 9
                                    }
                                   }
                                  ]
@@ -86,7 +86,7 @@
                                 "the_type": [
                                  "Num"
                                 ],
-                                "type_id": 6
+                                "type_id": 8
                                }
                               }
                              }
@@ -99,7 +99,7 @@
                              "Num"
                             ]
                            },
-                           "type_id": 5
+                           "type_id": 7
                           }
                          }
                         }
@@ -114,7 +114,7 @@
                         ]
                        }
                       },
-                      "type_id": 4
+                      "type_id": 6
                      }
                     }
                    }
@@ -131,7 +131,7 @@
                    }
                   }
                  },
-                 "type_id": 3
+                 "type_id": 5
                 }
                }
               ]
@@ -149,7 +149,7 @@
                }
               }
              ],
-             "type_id": 2
+             "type_id": 4
             }
            }
           }
@@ -172,7 +172,7 @@
            }
           }
          },
-         "type_id": 8
+         "type_id": 2
         },
         "variable": {
          "var_name": "x"
@@ -214,7 +214,7 @@
              "the_type": [
               "Num"
              ],
-             "type_id": 10
+             "type_id": 3
             },
             "variable": {
              "var_name": "c"
@@ -246,7 +246,7 @@
                      }
                     }
                    },
-                   "type_id": 8
+                   "type_id": 2
                   },
                   "variable": {
                    "var_name": "x"
@@ -268,7 +268,7 @@
                    ]
                   }
                  },
-                 "type_id": 13
+                 "type_id": 12
                 }
                },
                "subscript": {
@@ -285,7 +285,7 @@
                  "Num"
                 ]
                },
-               "type_id": 12
+               "type_id": 11
               }
              },
              "subscript": {
@@ -300,7 +300,7 @@
              "the_type": [
               "Num"
              ],
-             "type_id": 11
+             "type_id": 10
             }
            }
           }
@@ -327,7 +327,7 @@
          "the_type": [
           "Num"
          ],
-         "type_id": 10
+         "type_id": 3
         },
         "variable": {
          "var_name": "c"

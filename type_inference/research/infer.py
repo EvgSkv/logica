@@ -229,18 +229,13 @@ class TypeInferenceForRule:
 
   def ActInitializingTypes(self, node):
     for e in ExpressionsIterator(node):
-      i = self.GetTypeId()
-      if 'variable' in e:
-        var_name = e['variable']['var_name']
-        use_type = self.variable_type.get(
-          var_name,
-          {'the_type': reference_algebra.TypeReference('Any'), 'type_id': i})
-        self.variable_type[var_name] = use_type
-      else:
-        use_type = {'the_type': reference_algebra.TypeReference('Any'), 'type_id': i}
-      e['type'] = use_type
+      if 'variable' not in e:  # Variables are convered separately.
+        e['type'] = {
+          'the_type': reference_algebra.TypeReference('Any'), 
+          'type_id': self.GetTypeId()}
 
   def InitTypes(self):
+    WalkInitializingVariables(self.rule, self.GetTypeId)
     Walk(self.rule, self.ActInitializingTypes)
 
   def MindPodLiterals(self):
@@ -391,3 +386,30 @@ class TypeErrorChecker:
       if found_error.type_error:
         return found_error
     return found_error
+
+
+def WalkInitializingVariables(node, get_type):
+  """Initialize variables minding combines contexts."""
+  type_of_variable = {}
+  def Jog(node):
+    nonlocal type_of_variable
+    if isinstance(node, list):
+      for v in node:
+        Jog(v)
+    if isinstance(node, dict):
+      if 'variable' in node:
+        var_name = node['variable']['var_name']
+        if var_name not in type_of_variable:
+          type_of_variable[var_name] = {
+            'the_type': reference_algebra.TypeReference('Any'),
+            'type_id': get_type()}
+        node['type'] = type_of_variable[var_name]
+      for k in node:
+        if k != 'type':
+          if k != 'combine':
+            Jog(node[k])
+          else:
+            backed_up_types = {k: v for k, v in type_of_variable.items()}
+            Jog(node[k])
+            type_of_variable = backed_up_types
+  Jog(node)

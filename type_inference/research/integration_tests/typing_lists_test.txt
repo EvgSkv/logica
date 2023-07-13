@@ -9,7 +9,7 @@
         "expression_heritage": "a",
         "type": {
          "the_type": "Num",
-         "type_id": 2
+         "type_id": 0
         },
         "variable": {
          "var_name": "a"
@@ -29,7 +29,7 @@
             },
             "type": {
              "the_type": "Num",
-             "type_id": 7
+             "type_id": 6
             }
            },
            {
@@ -41,7 +41,7 @@
             },
             "type": {
              "the_type": "Num",
-             "type_id": 8
+             "type_id": 7
             }
            }
           ]
@@ -51,7 +51,7 @@
          "the_type": [
           "Num"
          ],
-         "type_id": 6
+         "type_id": 5
         }
        }
       }
@@ -70,7 +70,7 @@
              "the_type": [
               "Num"
              ],
-             "type_id": 3
+             "type_id": 1
             },
             "variable": {
              "var_name": "b"
@@ -88,7 +88,7 @@
         "expression_heritage": "a",
         "type": {
          "the_type": "Num",
-         "type_id": 2
+         "type_id": 0
         },
         "variable": {
          "var_name": "a"
@@ -100,7 +100,7 @@
          "the_type": [
           "Num"
          ],
-         "type_id": 3
+         "type_id": 1
         },
         "variable": {
          "var_name": "b"
@@ -116,7 +116,7 @@
          "the_type": [
           "Str"
          ],
-         "type_id": 4
+         "type_id": 2
         },
         "variable": {
          "var_name": "c"
@@ -136,7 +136,7 @@
             },
             "type": {
              "the_type": "Str",
-             "type_id": 14
+             "type_id": 9
             }
            }
           ]
@@ -146,7 +146,7 @@
          "the_type": [
           "Str"
          ],
-         "type_id": 13
+         "type_id": 8
         }
        }
       }
@@ -176,7 +176,7 @@
             },
             "type": {
              "the_type": "Num",
-             "type_id": 1
+             "type_id": 4
             }
            }
           ]
@@ -186,7 +186,7 @@
          "the_type": [
           "Num"
          ],
-         "type_id": 0
+         "type_id": 3
         }
        }
       }
@@ -198,7 +198,7 @@
         "expression_heritage": "a",
         "type": {
          "the_type": "Num",
-         "type_id": 2
+         "type_id": 0
         },
         "variable": {
          "var_name": "a"
@@ -215,7 +215,7 @@
          "the_type": [
           "Num"
          ],
-         "type_id": 3
+         "type_id": 1
         },
         "variable": {
          "var_name": "b"
@@ -232,7 +232,7 @@
          "the_type": [
           "Str"
          ],
-         "type_id": 4
+         "type_id": 2
         },
         "variable": {
          "var_name": "c"

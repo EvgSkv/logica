@@ -1,0 +1,318 @@
+[
+ {
+  "body": {
+   "conjunction": {
+    "conjunct": [
+     {
+      "unification": {
+       "left_hand_side": {
+        "expression_heritage": "x",
+        "type": {
+         "the_type": "Num",
+         "type_id": 0
+        },
+        "variable": {
+         "var_name": "x"
+        }
+       },
+       "right_hand_side": {
+        "combine": {
+         "body": {
+          "conjunction": {
+           "conjunct": [
+            {
+             "inclusion": {
+              "element": {
+               "expression_heritage": "a",
+               "type": {
+                "the_type": "Num",
+                "type_id": 2
+               },
+               "variable": {
+                "var_name": "a"
+               }
+              },
+              "list": {
+               "expression_heritage": "[1,2,3]",
+               "literal": {
+                "the_list": {
+                 "element": [
+                  {
+                   "expression_heritage": "1",
+                   "literal": {
+                    "the_number": {
+                     "number": "1"
+                    }
+                   },
+                   "type": {
+                    "the_type": "Num",
+                    "type_id": 7
+                   }
+                  },
+                  {
+                   "expression_heritage": "2",
+                   "literal": {
+                    "the_number": {
+                     "number": "2"
+                    }
+                   },
+                   "type": {
+                    "the_type": "Num",
+                    "type_id": 8
+                   }
+                  },
+                  {
+                   "expression_heritage": "3",
+                   "literal": {
+                    "the_number": {
+                     "number": "3"
+                    }
+                   },
+                   "type": {
+                    "the_type": "Num",
+                    "type_id": 9
+                   }
+                  }
+                 ]
+                }
+               },
+               "type": {
+                "the_type": [
+                 "Num"
+                ],
+                "type_id": 6
+               }
+              }
+             }
+            }
+           ]
+          }
+         },
+         "distinct_denoted": true,
+         "full_text": "x += (a :- a in [1,2,3])",
+         "head": {
+          "predicate_name": "Combine",
+          "record": {
+           "field_value": [
+            {
+             "field": "logica_value",
+             "value": {
+              "aggregation": {
+               "expression": {
+                "call": {
+                 "predicate_name": "Agg+",
+                 "record": {
+                  "field_value": [
+                   {
+                    "field": 0,
+                    "value": {
+                     "expression": {
+                      "expression_heritage": "a",
+                      "type": {
+                       "the_type": "Num",
+                       "type_id": 2
+                      },
+                      "variable": {
+                       "var_name": "a"
+                      }
+                     }
+                    }
+                   }
+                  ]
+                 }
+                },
+                "type": {
+                 "the_type": "Num",
+                 "type_id": 5
+                }
+               }
+              }
+             }
+            }
+           ]
+          }
+         }
+        },
+        "type": {
+         "the_type": "Num",
+         "type_id": 4
+        }
+       }
+      }
+     },
+     {
+      "unification": {
+       "left_hand_side": {
+        "expression_heritage": "y",
+        "type": {
+         "the_type": [
+          "Str"
+         ],
+         "type_id": 1
+        },
+        "variable": {
+         "var_name": "y"
+        }
+       },
+       "right_hand_side": {
+        "combine": {
+         "body": {
+          "conjunction": {
+           "conjunct": [
+            {
+             "inclusion": {
+              "element": {
+               "expression_heritage": "a",
+               "type": {
+                "the_type": "Str",
+                "type_id": 3
+               },
+               "variable": {
+                "var_name": "a"
+               }
+              },
+              "list": {
+               "expression_heritage": "[\"a\", \"b\"]",
+               "literal": {
+                "the_list": {
+                 "element": [
+                  {
+                   "expression_heritage": "\"a\"",
+                   "literal": {
+                    "the_string": {
+                     "the_string": "a"
+                    }
+                   },
+                   "type": {
+                    "the_type": "Str",
+                    "type_id": 13
+                   }
+                  },
+                  {
+                   "expression_heritage": "\"b\"",
+                   "literal": {
+                    "the_string": {
+                     "the_string": "b"
+                    }
+                   },
+                   "type": {
+                    "the_type": "Str",
+                    "type_id": 14
+                   }
+                  }
+                 ]
+                }
+               },
+               "type": {
+                "the_type": [
+                 "Str"
+                ],
+                "type_id": 12
+               }
+              }
+             }
+            }
+           ]
+          }
+         },
+         "distinct_denoted": true,
+         "full_text": "y List= (a :- a in [\"a\", \"b\"])",
+         "head": {
+          "predicate_name": "Combine",
+          "record": {
+           "field_value": [
+            {
+             "field": "logica_value",
+             "value": {
+              "aggregation": {
+               "expression": {
+                "call": {
+                 "predicate_name": "List",
+                 "record": {
+                  "field_value": [
+                   {
+                    "field": 0,
+                    "value": {
+                     "expression": {
+                      "expression_heritage": "a",
+                      "type": {
+                       "the_type": "Str",
+                       "type_id": 3
+                      },
+                      "variable": {
+                       "var_name": "a"
+                      }
+                     }
+                    }
+                   }
+                  ]
+                 }
+                },
+                "type": {
+                 "the_type": [
+                  "Str"
+                 ],
+                 "type_id": 11
+                }
+               }
+              }
+             }
+            }
+           ]
+          }
+         }
+        },
+        "type": {
+         "the_type": [
+          "Str"
+         ],
+         "type_id": 10
+        }
+       }
+      }
+     }
+    ]
+   }
+  },
+  "full_text": "Test(x, y) :-\n  x += (a :- a in [1,2,3]),\n  y List= (a :- a in [\"a\", \"b\"])",
+  "head": {
+   "predicate_name": "Test",
+   "record": {
+    "field_value": [
+     {
+      "field": 0,
+      "value": {
+       "expression": {
+        "expression_heritage": "x",
+        "type": {
+         "the_type": "Num",
+         "type_id": 0
+        },
+        "variable": {
+         "var_name": "x"
+        }
+       }
+      }
+     },
+     {
+      "field": 1,
+      "value": {
+       "expression": {
+        "expression_heritage": "y",
+        "type": {
+         "the_type": [
+          "Str"
+         ],
+         "type_id": 1
+        },
+        "variable": {
+         "var_name": "y"
+        }
+       }
+      }
+     }
+    ]
+   }
+  }
+ }
+]

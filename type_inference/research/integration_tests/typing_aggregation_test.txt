@@ -30,7 +30,7 @@
             "expression_heritage": "t",
             "type": {
              "the_type": "Num",
-             "type_id": 2
+             "type_id": 1
             },
             "variable": {
              "var_name": "t"
@@ -106,7 +106,7 @@
                "expression_heritage": "t",
                "type": {
                 "the_type": "Num",
-                "type_id": 2
+                "type_id": 1
                },
                "variable": {
                 "var_name": "t"
@@ -119,7 +119,7 @@
          },
          "type": {
           "the_type": "Num",
-          "type_id": 1
+          "type_id": 2
          }
         }
        }
