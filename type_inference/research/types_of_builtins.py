@@ -76,9 +76,53 @@ def TypesOfBultins():
            0: reference_algebra.ClosedRecord({'arg': x, 'value': y}),
            'logica_value': x
         },
+        'ArgMax': {
+           0: reference_algebra.ClosedRecord({'arg': x, 'value': y}),
+           'logica_value': x
+        },
+        'ArgMinK': {
+           0: reference_algebra.ClosedRecord({'arg': x, 'value': y}),
+           1: 'Num',
+           'logica_value': [x]
+        },
+        'ArgMaxK': {
+           0: reference_algebra.ClosedRecord({'arg': x, 'value': y}),
+           1: 'Num',
+           'logica_value': [x]
+        },        
         'Range': {
            0: 'Num',
            'logica_value': ['Num']    
+        },
+        'Length': {
+           0: 'Str',
+           'logica_value': 'Num'
+        },
+        'Size': {
+           0: ['Any'],
+           'logica_value': 'Num'
+        },
+        '-': {
+           0: 'Num',
+           'left': 'Num',
+           'right': 'Num',
+           'logica_value': 'Num'
+        },
+        'Min': {
+           0: x,
+           'logica_value': x
+        },
+        'Max': {
+           0: x,
+           'logica_value': y
+        },
+        'Array': {
+           0: reference_algebra.ClosedRecord({'arg': x, 'value': y}),
+           'logica_value': y
+        },
+        'ValueOfUnnested': {
+           0: x,
+           'logica_value': x
         }
     }
     return {

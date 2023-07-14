@@ -193,7 +193,6 @@ class Annotations(object):
     result = {}
     for k, v in self.annotations['@AttachDatabase'].items():
       if '1' not in v:
-        print('>>', v)
         AnnotationError('@AttachDatabase must have a single argument.',
                         v)
       result[k] = v['1']
@@ -258,9 +257,16 @@ class Annotations(object):
   def ShouldTypecheck(self):
     if '@Engine' not in self.annotations:
       return False
+    if len(self.annotations['@Engine'].values()) == 0:
+      return False
+    
+    engine = self.Engine()
     engine_annotation = list(self.annotations['@Engine'].values())[0]
     if 'type_checking' not in engine_annotation:
-      return False
+      if engine == 'psql':
+        return True
+      else:
+        return False
     return engine_annotation['type_checking']
 
   def ExtractSingleton(self, annotation_name, default_value):
@@ -499,13 +505,17 @@ class LogicaProgram(object):
     # We need to recompute annotations, because 'Make' created more rules and
     # annotations.
     self.annotations = Annotations(extended_rules, self.user_flags)
+
+    # Infering types if requested.
+    self.typing_preamble = ''
+    self.predicate_signatures = {}
+    if self.annotations.ShouldTypecheck():
+      self.typing_preamble = self.RunTypechecker()
+
     # Build udfs, populating custom_udfs and custom_udf_definitions.
     self.BuildUdfs()
     # Function compilation may have added irrelevant defines:
     self.execution = None
-
-    if self.annotations.ShouldTypecheck():
-      self.RunTypechecker()
 
   def UnfoldRecursion(self, rules):
     annotations = Annotations(rules, {})
@@ -539,10 +549,13 @@ class LogicaProgram(object):
     Raises:
       TypeInferenceError if there are any type errors.
     """
-    typing_engine = infer.TypesInferenceEngine(self.preparsed_rules)
+    rules = [r for _, r in self.rules]
+    typing_engine = infer.TypesInferenceEngine(rules)
     typing_engine.InferTypes()
-    type_error_checker = infer.TypeErrorChecker(self.preparsed_rules)
+    type_error_checker = infer.TypeErrorChecker(rules)
     type_error_checker.CheckForError(mode='raise')
+    self.predicate_signatures = typing_engine.types_of_builtins
+    return typing_engine.typing_preamble
 
   def RunMakes(self, rules):
     """Runs @Make instructions."""
@@ -763,6 +776,8 @@ class LogicaProgram(object):
                                                                [])
     self.execution.dependencies_of = self.functors.args_of
     self.execution.dialect = dialects.Get(self.annotations.Engine())
+    if self.execution.dialect.Name() == 'PostgreSQL':
+      self.execution.preamble += '\n' + self.typing_preamble
 
   def FormattedPredicateSql(self, name, allocator=None):
     """Printing top-level formatted SQL statement with defines and exports."""
@@ -932,6 +947,9 @@ class LogicaProgram(object):
     self.RunInjections(s, allocator)
     s.ElliminateInternalVariables(assert_full_ellimination=True)
     s.UnificationsToConstraints()
+    type_inference = infer.TypeInferenceForStructure(s, self.predicate_signatures)
+    type_inference.PerformInference()
+
     try:
       sql = s.AsSql(self.MakeSubqueryTranslator(allocator), self.flag_values)
     except RuntimeError as runtime_error:

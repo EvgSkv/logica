@@ -99,7 +99,8 @@
                              "Num"
                             ]
                            },
-                           "type_id": 7
+                           "type_id": 7,
+                           "type_name": "logicarecord137760342"
                           }
                          }
                         }
@@ -114,7 +115,8 @@
                         ]
                        }
                       },
-                      "type_id": 6
+                      "type_id": 6,
+                      "type_name": "logicarecord261470720"
                      }
                     }
                    }
@@ -131,7 +133,8 @@
                    }
                   }
                  },
-                 "type_id": 5
+                 "type_id": 5,
+                 "type_name": "logicarecord762067541"
                 }
                }
               ]
@@ -172,7 +175,8 @@
            }
           }
          },
-         "type_id": 2
+         "type_id": 2,
+         "type_name": "logicarecord762067541"
         },
         "variable": {
          "var_name": "x"
@@ -246,7 +250,8 @@
                      }
                     }
                    },
-                   "type_id": 2
+                   "type_id": 2,
+                   "type_name": "logicarecord762067541"
                   },
                   "variable": {
                    "var_name": "x"
@@ -268,7 +273,8 @@
                    ]
                   }
                  },
-                 "type_id": 12
+                 "type_id": 12,
+                 "type_name": "logicarecord261470720"
                 }
                },
                "subscript": {
@@ -285,7 +291,8 @@
                  "Num"
                 ]
                },
-               "type_id": 11
+               "type_id": 11,
+               "type_name": "logicarecord137760342"
               }
              },
              "subscript": {

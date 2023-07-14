@@ -94,7 +94,8 @@
                "b": "Num"
               }
              },
-             "type_id": 2
+             "type_id": 2,
+             "type_name": "logicarecord715995786"
             },
             "variable": {
              "var_name": "w"
@@ -165,7 +166,8 @@
                "b": "Num"
               }
              },
-             "type_id": 2
+             "type_id": 2,
+             "type_name": "logicarecord715995786"
             },
             "variable": {
              "var_name": "w"
@@ -183,7 +185,8 @@
            "the_type": {
             "b": "Num"
            },
-           "type_id": 17
+           "type_id": 17,
+           "type_name": "logicarecord958681958"
           }
          },
          "subscript": {
@@ -299,7 +302,8 @@
              "b": "Num"
             }
            },
-           "type_id": 2
+           "type_id": 2,
+           "type_name": "logicarecord715995786"
           },
           "variable": {
            "var_name": "w"
@@ -317,7 +321,8 @@
          "the_type": {
           "b": "Num"
          },
-         "type_id": 7
+         "type_id": 7,
+         "type_name": "logicarecord958681958"
         }
        }
       }
@@ -393,7 +398,8 @@
               "the_type": {
                "z": "Num"
               },
-              "type_id": 11
+              "type_id": 11,
+              "type_name": "logicarecord574638620"
              }
             }
            }
@@ -408,7 +414,8 @@
           "t": "Num",
           "z": "Str"
          },
-         "type_id": 8
+         "type_id": 8,
+         "type_name": "logicarecord412758286"
         }
        }
       }

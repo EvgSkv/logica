@@ -294,7 +294,7 @@ class QL(object):
           value=self.ConvertToSql(f_v['value']['expression'])))
     return '{%s}' % ', '.join(json_field_values)
 
-  def Record(self, record):
+  def Record(self, record, record_type=None):
     if self.convert_to_json:
       return self.RecordAsJson(record)
     # TODO: Move this to dialects.py.
@@ -310,6 +310,11 @@ class QL(object):
         for f_v in record['field_value'])
     if self.dialect.Name() == 'Trino':
       return '(SELECT %s)' % arguments_str
+    if self.dialect.Name() == 'PostgreSQL':
+      assert record_type, json.dumps(record, indent=' ')
+      args = ', '.join(self.ConvertToSql(f_v['value']['expression'])
+                       for f_v in record['field_value'])
+      return 'ROW(%s)::%s' % (args, record_type)
     return 'STRUCT(%s)' % arguments_str
 
   def GenericSqlExpression(self, record):
@@ -544,7 +549,16 @@ class QL(object):
 
     if 'record' in expression:
       record = expression['record']
-      return self.Record(record)
+      record_type = expression.get('type', {}).get('type_name', None)
+      if self.dialect.Name() == 'PostgreSQL' and record_type is None:
+        raise self.exception_maker(color.Format(
+            'Record needs type in PostgreSQL: '
+            '{warning}{record}{end}.', dict(
+                record=expression['expression_heritage'])))
+    
+      return self.Record(
+        record,
+        record_type=record_type)
 
     if 'combine' in expression:
       return '(%s)' % (

@@ -84,7 +84,9 @@ class TypeReference:
     a = self
     while a.WeMustGoDeeper():
       a = a.target
-    assert isinstance(a.target, dict)
+    if isinstance(a.target, BadType):
+      return
+    assert isinstance(a.target, dict), a.target
     a.target = ClosedRecord(a.target)
 
 def RenderType(t):
@@ -94,7 +96,7 @@ def RenderType(t):
     return '[%s]' % RenderType(t[0])
   if isinstance(t, dict):
     return '{%s}' % ', '.join('%s: %s' % (k, RenderType(v))
-                              for k, v in t.items())
+                              for k, v in sorted(t.items()))
   if isinstance(t, tuple):
     return '(%s != %s)' % (RenderType(t[0]), RenderType(t[1]))
 
@@ -120,6 +122,21 @@ def VeryConcreteType(t):
   if isinstance(c, dict):
     return type(c)({f: VeryConcreteType(v) for f, v in c.items()})
   
+  assert False
+
+
+def IsFullyDefined(t):
+  if t == 'Any':
+    return False
+  if isinstance(t, str):
+    return True
+  if isinstance(t, BadType):
+    return False
+  if isinstance(t, list):
+    [e] = t
+    return IsFullyDefined(e)
+  if isinstance(t, dict):
+    return all(IsFullyDefined(v) for v in t.values())
   assert False
 
 
