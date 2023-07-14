@@ -142,10 +142,12 @@ def RunSQL(sql, engine, connection=None, is_final=False):
     client = bigquery.Client(project=PROJECT)
     return client.query(sql).to_dataframe()
   elif engine == 'psql':
+    # Sorry, this is not looking good.
+    from sqlalchemy import text
     if is_final:
-      return pandas.read_sql(sql, connection)
+      return pandas.read_sql(text(sql), connection)
     else:
-      return connection.execute(sql)
+      return connection.execute(text(sql))
   elif engine == 'sqlite':
     try:
       if is_final:
