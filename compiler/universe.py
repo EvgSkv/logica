@@ -42,7 +42,7 @@ else:
   from ..compiler import functors
   from ..compiler import rule_translate
   from ..parser_py import parse
-  from type_inference.research import infer
+  from ...type_inference.research import infer
 
 PredicateInfo = collections.namedtuple('PredicateInfo',
                                        ['embeddable'])
