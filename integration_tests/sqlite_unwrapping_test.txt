@@ -1,0 +1,15 @@
++---------------------------------+------------------------------------------------+
+| col0                            | col1                                           |
++---------------------------------+------------------------------------------------+
+| simple_assignment               | {"a":"va","b":"vb"}                            |
+| arrow_assignment                | {"a":"va","b":"vb"}                            |
+| assignment_from_list            | {"a":"va1","b":"vb1"}                          |
+| assignment_from_list            | {"a":"va2","b":"vb2"}                          |
+| assignment_from_list_with_arrow | {"a":"va1","b":"vb1"}                          |
+| assignment_from_list_with_arrow | {"a":"va2","b":"vb2"}                          |
+| value_lookup                    | c                                              |
+| assignment_to_one_of            | vb                                             |
+| assignment_aggr_lookup          | {"a":0,"b":null}                               |
+| assignment_aggr_lookup          | {"a":1,"b":"a"}                                |
+| nested_assignment               | {"arg":{"arg":"va","value":"vb"},"value":"vc"} |
++---------------------------------+------------------------------------------------+

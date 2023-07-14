@@ -69,6 +69,10 @@ def RunAll(test_presto=False, test_trino=False):
   RunTest("rec_small_cycle_test")
   RunTest("rec_cycle_test")
 
+  RunTest("sqlite_is_test")
+  RunTest("sqlite_record_assembler")
+  RunTest("sqlite_assignment_test")
+  RunTest("sqlite_unwrapping_test")
   RunTest("sqlite_array_sub_test")
   RunTest("sqlite_combine_test")
   RunTest("sqlite_funcs_test")

@@ -1,5 +1,6 @@
+#!/usr/bin/python
 #
-# Copyright 2021 Google LLC
+# Copyright 2023 Google LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -13,14 +14,20 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# Testing SQLite file read, write and string join.
-
 @Engine("sqlite");
 
-Test(result) :-
-  filename = "/tmp/sqlite_file_test_data.txt",
-  WriteFile(filename, content: input_array) == "OK",
-  input_array List= (x * 2 :- x in Range(10)),
-  read_data = ReadJson(filename),
-  result_array List= (x :- x in read_data, x > 10),
-  result = Join(result_array, "/");
+FoodToCalories() = [
+    "apple" -> 60,
+    "banana" -> 100,
+    "orange" -> 80,
+    "bread" -> 200
+];
+
+Purchase(person: "John", food: ["apple", "bread"]);
+Purchase(person: "Mary", food: ["orange", "banana", "apple"]);
+
+CaloriesPurchased(person) += calories :-
+  Purchase(person:, food:),
+  item in food,
+  item -> calories in FoodToCalories();
+

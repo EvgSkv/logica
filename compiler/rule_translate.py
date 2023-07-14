@@ -34,6 +34,16 @@ def Indent2(s):
   return '\n'.join('  ' + l for l in s.split('\n'))
 
 
+LogicalVariable = collections.namedtuple(
+  'LogicalVariable',
+  [
+    'variable_name',    # Name of user or generated variable.
+    'predicate_name',   # Name of a predicate in rule for which the variable is
+                        # used.
+    'is_user_variable'  # Whether this is a user variable (vs generated one).
+  ])
+
+
 class RuleCompileException(Exception):
   """Exception thrown when user-error is detected at rule-compile time."""
 
@@ -193,7 +203,7 @@ class RuleStructure(object):
     self.allocator = names_allocator
     self.external_vocabulary = external_vocabulary
     self.synonym_log = {}
-    self.full_rull_text = None
+    self.full_rule_text = None
     self.distinct_denoted = None
 
   def OwnVarsVocabulary(self):
@@ -258,12 +268,29 @@ class RuleStructure(object):
             self.full_rule_text)
     self.unnestings = ordered_unnestings
 
+  def ReplaceVariableEverywhere(self, u_left, u_right):
+    if 'variable' in u_right:
+      l = self.synonym_log.get(u_right['variable']['var_name'], [])
+      l.append(LogicalVariable(variable_name=u_left,
+                               predicate_name=self.this_predicate_name,
+                               # TODO: sqlite_recursion somehow gets
+                               # u_left to be int. 
+                               is_user_variable=(isinstance(u_left, str) and
+                                                 not u_left.startswith('x_'))))
+      l.extend(self.synonym_log.get(u_left, []))
+      self.synonym_log[u_right['variable']['var_name']] = l
+    ReplaceVariable(u_left, u_right, self.unnestings)
+    ReplaceVariable(u_left, u_right, self.select)
+    ReplaceVariable(u_left, u_right, self.vars_unification)
+    ReplaceVariable(u_left, u_right, self.constraints)
+    
   def ElliminateInternalVariables(self, assert_full_ellimination=False):
     """Elliminates internal variables via substitution."""
     variables = self.InternalVariables()
     while True:
       done = True
       for u in self.vars_unification:
+        # Direct variable assignments.
         for k, r in [['left', 'right'], ['right', 'left']]:
           if u[k] == u[r]:
             continue
@@ -279,16 +306,45 @@ class RuleStructure(object):
                   not str(u[k]['variable']['var_name']).startswith('x_'))):
             u_left = u[k]['variable']['var_name']
             u_right = u[r]
-            if 'variable' in u_right:
-              l = self.synonym_log.get(u_right['variable']['var_name'], [])
-              l.append(u_left)
-              l.extend(self.synonym_log.get(u_left, []))
-              self.synonym_log[u_right['variable']['var_name']] = l
-            ReplaceVariable(u_left, u_right, self.unnestings)
-            ReplaceVariable(u_left, u_right, self.select)
-            ReplaceVariable(u_left, u_right, self.vars_unification)
-            ReplaceVariable(u_left, u_right, self.constraints)
+            self.ReplaceVariableEverywhere(u_left, u_right)
             done = False
+        # Assignments to variables in record fields.
+        if True:  # Confirm that unwraping works and make this unconditional.
+          for k, r in [['left', 'right'], ['right', 'left']]:
+            if u[k] == u[r]:
+              continue
+            ur_variables = AllMentionedVariables(u[r])
+            ur_variables_incl_combines = AllMentionedVariables(
+                u[r], dive_in_combines=True)
+            if (isinstance(u[k], dict) and
+                'record' in u[k] and
+                ur_variables <= self.ExtractedVariables()):
+              def AssignToRecord(target, source):
+                global done
+                for fv in target['record']['field_value']:
+                  def MakeNewSource():
+                    return {
+                      'subscript': {
+                        'record': source,
+                        'subscript': {'literal': {'the_symbol': {'symbol': fv['field']}}}
+                      }
+                    }
+                  if ('variable' in fv['value']['expression'] and
+                      fv['value']['expression']['variable']['var_name']
+                        in variables and
+                      fv['value']['expression']['variable']['var_name']
+                        not in ur_variables_incl_combines):
+                    u_left = fv['value']['expression']['variable']['var_name']
+                    u_right = MakeNewSource()
+                    self.ReplaceVariableEverywhere(u_left, u_right)
+                    done = False
+                  if 'record' in fv['value']['expression']:
+                    new_target = fv['value']['expression']
+                    new_source = MakeNewSource()
+                    AssignToRecord(new_target, new_source)
+
+              AssignToRecord(u[k], u[r])
+      
       if done:
         variables = self.InternalVariables()
         if assert_full_ellimination:
@@ -296,26 +352,46 @@ class RuleStructure(object):
             if variables:
               violators = []
               for v in variables:
-                violators.extend(self.synonym_log.get(v, []))
+                violators.extend(
+                  v.variable_name 
+                  for v in self.synonym_log.get(v, [])
+                  if v.predicate_name == self.this_predicate_name)
                 violators.append(v)
               violators = {v for v in violators if not v.startswith('x_')}
-              assert violators, (
-                  'Logica needs better error messages: purely internal '
-                  'variable was not eliminated. It looks like you have '
-                  'not passed a required argument to some called predicate. '
-                  'Use --add_debug_info_to_var_names flag to make this message '
-                  'a little more informatvie. '
-                  'Variables: %s, synonym_log: %s' % (str(variables),
-                                                      str(self.synonym_log)))
               # Remove disambiguation suffixes from variables not to confuse
               # the user.
-              violators = {v.split(' # disambiguated')[0] for v in violators}
-              raise RuleCompileException(
-                  color.Format(
-                      'Found no way to assign variables: '
-                      '{warning}{violators}{end}. '
-                      'This error might also come from injected sub-rules.',
-                      dict(violators=', '.join(sorted(violators)))),
+              if violators:
+                violators = {v.split(' # disambiguated')[0] for v in violators}
+                raise RuleCompileException(
+                    color.Format(
+                        'Found no way to assign variables: '
+                        '{warning}{violators}{end}.',
+                        dict(violators=', '.join(sorted(violators)))),
+                    self.full_rule_text)
+              else:
+                user_variables = [
+                  uv for v in variables 
+                  for uv in self.synonym_log.get(v, [])
+                  if uv.is_user_variable]
+                this_predicate = color.Format('{warning}{p}{end}',
+                                              dict(p=self.this_predicate_name))
+                unassigned_vars = ', '.join(
+                  color.Format('{warning}{var}{end} in rule for '
+                               '{warning}{p}{end}',
+                               dict(var=v.variable_name, p=v.predicate_name))
+                  for v in user_variables
+                )
+                assert user_variables, (
+                    'Logica needs better error messages: purely internal '
+                    'variable was not eliminated. It looks like you have '
+                    'not passed a required argument to some called predicate. '
+                    'Use --add_debug_info_to_var_names flag to make this message '
+                    'a little more informatvie. '
+                    'Variables: %s, synonym_log: %s' % (str(variables),
+                                                        str(self.synonym_log)))
+                raise RuleCompileException(
+                  'While compiling predicate ' + this_predicate + ' there was '
+                  'found no way to assign variables: ' + unassigned_vars + '.',
                   self.full_rule_text)
           else:
             assert not variables, (
@@ -471,7 +547,7 @@ def ExtractPredicateStructure(c, s):
 
   if predicate in (
       '<=', '<', '>', '>=', '!=', '&&', '||', '!', 'IsNull', 'Like',
-      'Constraint'):
+      'Constraint', 'is', 'is not'):
     s.constraints.append({'call': c})
     return
 
@@ -551,7 +627,9 @@ def ExtractConjunctiveStructure(conjuncts, s):
       ExtractPredicateStructure(c['predicate'], s)
     elif 'unification' in c:
       if ('variable' in c['unification']['right_hand_side'] or
-          'variable' in c['unification']['left_hand_side']):
+          'variable' in c['unification']['left_hand_side'] or
+          'record' in c['unification']['left_hand_side'] or
+          'record' in c['unification']['right_hand_side']):
         s.vars_unification.append({
             'left': c['unification']['left_hand_side'],
             'right': c['unification']['right_hand_side']})

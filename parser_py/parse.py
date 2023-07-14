@@ -571,8 +571,9 @@ def ParseLiteral(s):
 def ParseInfix(s, operators=None):
   """Parses an infix operator expression."""
   operators = operators or [
-      '||', '&&', '->', '==', '<=', '>=', '<', '>', '!=',
-      ' in ', '++?', '++', '+', '-', '*', '/', '%', '^', '!']
+      '||', '&&', '->', '==', '<=', '>=', '<', '>', '!=', '=',
+      ' in ', ' is not ', ' is ', '++?', '++', '+', '-', '*', '/', '%',
+      '^', '!']
   unary_operators = ['-', '!']
   for op in operators:
     parts = SplitRaw(s, op)
@@ -670,6 +671,10 @@ def ParseConciseCombine(s: HeritageAwareString):
       # them here, we should bail out.
       prohibited_operators = ['!', '<', '>']
       if operator in prohibited_operators:
+        return None
+      # Lowercase operators are not allowed and it would most likely mean
+      # that user forgot comma before assignment.
+      if operator[0].islower():
         return None
       left_expr = ParseExpression(lhs)
       _, expression_body = SplitInOneOrTwo(combine, ':-')
@@ -786,6 +791,9 @@ def ParseGenericCall(s, opening, closing):
   if (s[idx] == opening and
       s[-1] == closing and
       IsWhole(s[idx + 1:-1])):
+    # Specialcasing `=` assignment operator for definition.
+    if predicate == '`=`':
+      predicate = '='
     return predicate, s[idx + 1: -1]
 
 
