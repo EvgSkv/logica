@@ -20,5 +20,5 @@ Test(x -> y,
      {a: x, b: {c: x, d: y}, some_field: x + y}) :-
   x in [1, 2],
   y in [3, 4],
-  z in [{a: "abc"}, {b: "def"}];
+  z in [{a: "abc"}, {a: "def"}];
 
