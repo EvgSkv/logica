@@ -408,6 +408,7 @@ class TypeInferenceForStructure:
     result['quazy_body'] = self.BuildQuazyBody()
     result['select'] = self.BuildSelect()
     result['unnestings'] = self.BuildUnnestings()
+    result['constraints'] = self.structure.constraints
     return result
   
   def BuildUnnestings(self):
