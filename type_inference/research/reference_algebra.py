@@ -99,6 +99,7 @@ def RenderType(t):
                               for k, v in sorted(t.items()))
   if isinstance(t, tuple):
     return '(%s != %s)' % (RenderType(t[0]), RenderType(t[1]))
+  assert False, type(t)
 
 def ConcreteType(t):
   if isinstance(t, TypeReference):
@@ -109,18 +110,24 @@ def ConcreteType(t):
           isinstance(t, str))
   return t
 
-def VeryConcreteType(t):
+def VeryConcreteType(t, upward=None):
+  upward = upward or set()
+  if id(t) in upward:
+    return BadType(('...', '...'))
+  else:
+    upward = upward | set([id(t)])
+
   c = ConcreteType(t)
   if isinstance(c, BadType):
-    return BadType(VeryConcreteType(e) for e in c)
+    return BadType(VeryConcreteType(e, upward) for e in c)
   if isinstance(c, str):
     return c
   
   if isinstance(c, list):
-    return [VeryConcreteType(e) for e in c]
+    return [VeryConcreteType(e, upward) for e in c]
   
   if isinstance(c, dict):
-    return type(c)({f: VeryConcreteType(v) for f, v in c.items()})
+    return type(c)({f: VeryConcreteType(v, upward) for f, v in c.items()})
   
   assert False
 
@@ -243,8 +250,8 @@ def Unify(a, b):
       if set(concrete_a) == set(concrete_b):
         UnifyFriendlyRecords(a, b, ClosedRecord)
         return
-      a.target = Incompatible(a, b)
-      b.target = Incompatible(b, a)
+      a.target = Incompatible(a.target, b.target)
+      b.target = Incompatible(b.target, a.target)
       return
     assert False
   assert False, (a, type(a))

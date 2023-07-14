@@ -85,9 +85,8 @@ class ContextualizedError:
         self.refers_to_variable) + result
     else:
       result = color.Format(
-        'Expression {warning}%s{end} ' %
-        str(self.refers_to_expression['expression_heritage']) + result
-      )
+        'Expression {warning}{e}{end} ',
+        args_dict=dict(e=str(self.refers_to_expression['expression_heritage']))) + result
     return result
 
 
@@ -193,6 +192,7 @@ class TypesInferenceEngine:
 
 
 def ConcretizeTypes(node):
+  # print('>> concretizing', node)
   if isinstance(node, dict):
     if 'type' in node:
       node['type']['the_type'] = reference_algebra.VeryConcreteType(
