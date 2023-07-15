@@ -356,6 +356,17 @@ class TypeInferenceForRule:
         logica_value['aggregation']['expression']['type']['the_type']
       )
 
+  def ActMindingImplications(self, node):
+    if 'implication' in node:
+      for if_then in node['implication']['if_then']:
+        reference_algebra.Unify(
+          node['type']['the_type'],
+          if_then['consequence']['type']['the_type']
+        )
+      reference_algebra.Unify(
+        node['type']['the_type'],
+        node['implication']['otherwise']['type']['the_type']
+      )
 
   def IterateInference(self):
     Walk(self.rule, self.ActMindingRecordLiterals)
@@ -364,6 +375,7 @@ class TypeInferenceForRule:
     Walk(self.rule, self.ActMindingListLiterals)
     Walk(self.rule, self.ActMindingInclusion)
     Walk(self.rule, self.ActMindingCombine)
+    Walk(self.rule, self.ActMindingImplications)
 
 def RenderPredicateSignature(predicate_name, signature):
   def FieldValue(f, v):
