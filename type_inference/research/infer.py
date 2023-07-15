@@ -91,7 +91,8 @@ class ContextualizedError:
 
 
 def ExpressionFields():
-  return ['expression', 'left_hand_side', 'right_hand_side']
+  return ['expression', 'left_hand_side', 'right_hand_side',
+          'condition', 'consequence', 'otherwise']
 
 def ExpressionsIterator(node):
   for f in ExpressionFields():
