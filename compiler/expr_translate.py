@@ -312,8 +312,9 @@ class QL(object):
       return '(SELECT %s)' % arguments_str
     if self.dialect.Name() == 'PostgreSQL':
       assert record_type, json.dumps(record, indent=' ')
-      args = ', '.join(self.ConvertToSql(f_v['value']['expression'])
-                       for f_v in record['field_value'])
+      args = ', '.join(
+        self.ConvertToSql(f_v['value']['expression'])
+        for f_v in sorted(record['field_value'], key=lambda x: x['field']))
       return 'ROW(%s)::%s' % (args, record_type)
     return 'STRUCT(%s)' % arguments_str
 
