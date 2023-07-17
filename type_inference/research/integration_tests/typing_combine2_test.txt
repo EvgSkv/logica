@@ -58,6 +58,7 @@
        "left_hand_side": {
         "expression_heritage": "x",
         "type": {
+         "element_type_name": "logicarecord350574256",
          "the_type": [
           {
            "a": {
@@ -129,6 +130,7 @@
                 }
                },
                "type": {
+                "element_type_name": "logicarecord574638620",
                 "the_type": [
                  {
                   "z": "Num"
@@ -200,6 +202,7 @@
                  }
                 },
                 "type": {
+                 "element_type_name": "logicarecord350574256",
                  "the_type": [
                   {
                    "a": {
@@ -218,6 +221,7 @@
          }
         },
         "type": {
+         "element_type_name": "logicarecord350574256",
          "the_type": [
           {
            "a": {
@@ -268,6 +272,7 @@
        "expression": {
         "expression_heritage": "x",
         "type": {
+         "element_type_name": "logicarecord350574256",
          "the_type": [
           {
            "a": {

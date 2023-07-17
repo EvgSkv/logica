@@ -14,6 +14,7 @@
            "expression": {
             "expression_heritage": "l",
             "type": {
+             "element_type_name": "logicarecord762067541",
              "the_type": [
               {
                "a": {
@@ -83,6 +84,7 @@
                                 }
                                },
                                "type": {
+                                "element_type_name": "numeric",
                                 "the_type": [
                                  "Num"
                                 ],
@@ -141,6 +143,7 @@
              }
             },
             "type": {
+             "element_type_name": "logicarecord762067541",
              "the_type": [
               {
                "a": {
@@ -185,6 +188,7 @@
        "list": {
         "expression_heritage": "l",
         "type": {
+         "element_type_name": "logicarecord762067541",
          "the_type": [
           {
            "a": {
@@ -215,6 +219,7 @@
            "expression": {
             "expression_heritage": "c",
             "type": {
+             "element_type_name": "numeric",
              "the_type": [
               "Num"
              ],
@@ -304,6 +309,7 @@
              }
             },
             "type": {
+             "element_type_name": "numeric",
              "the_type": [
               "Num"
              ],
@@ -331,6 +337,7 @@
        "list": {
         "expression_heritage": "c",
         "type": {
+         "element_type_name": "numeric",
          "the_type": [
           "Num"
          ],

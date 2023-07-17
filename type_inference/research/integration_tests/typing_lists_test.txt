@@ -48,6 +48,7 @@
          }
         },
         "type": {
+         "element_type_name": "numeric",
          "the_type": [
           "Num"
          ],
@@ -67,6 +68,7 @@
            "expression": {
             "expression_heritage": "b",
             "type": {
+             "element_type_name": "numeric",
              "the_type": [
               "Num"
              ],
@@ -97,6 +99,7 @@
        "list": {
         "expression_heritage": "b",
         "type": {
+         "element_type_name": "numeric",
          "the_type": [
           "Num"
          ],
@@ -113,6 +116,7 @@
        "left_hand_side": {
         "expression_heritage": "c",
         "type": {
+         "element_type_name": "text",
          "the_type": [
           "Str"
          ],
@@ -143,6 +147,7 @@
          }
         },
         "type": {
+         "element_type_name": "text",
          "the_type": [
           "Str"
          ],
@@ -183,6 +188,7 @@
          }
         },
         "type": {
+         "element_type_name": "numeric",
          "the_type": [
           "Num"
          ],
@@ -212,6 +218,7 @@
        "expression": {
         "expression_heritage": "b",
         "type": {
+         "element_type_name": "numeric",
          "the_type": [
           "Num"
          ],
@@ -229,6 +236,7 @@
        "expression": {
         "expression_heritage": "c",
         "type": {
+         "element_type_name": "text",
          "the_type": [
           "Str"
          ],

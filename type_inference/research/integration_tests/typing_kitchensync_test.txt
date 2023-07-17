@@ -155,6 +155,7 @@
          }
         },
         "type": {
+         "element_type_name": "logicarecord454966611",
          "the_type": [
           {
            "item": "Str",
@@ -303,6 +304,7 @@
          }
         },
         "type": {
+         "element_type_name": "logicarecord454966611",
          "the_type": [
           {
            "item": "Str",
@@ -451,6 +453,7 @@
          }
         },
         "type": {
+         "element_type_name": "logicarecord454966611",
          "the_type": [
           {
            "item": "Str",
@@ -496,6 +499,7 @@
            "expression": {
             "expression_heritage": "items",
             "type": {
+             "element_type_name": "logicarecord454966611",
              "the_type": [
               {
                "item": "Str",
@@ -540,6 +544,7 @@
            "expression": {
             "expression_heritage": "items",
             "type": {
+             "element_type_name": "logicarecord454966611",
              "the_type": [
               {
                "item": "Str",
@@ -563,6 +568,7 @@
        "left_hand_side": {
         "expression_heritage": "overview",
         "type": {
+         "element_type_name": "logicarecord980116590",
          "the_type": [
           {
            "item": "Str",
@@ -783,6 +789,7 @@
               "list": {
                "expression_heritage": "items",
                "type": {
+                "element_type_name": "logicarecord454966611",
                 "the_type": [
                  {
                   "item": "Str",
@@ -869,6 +876,7 @@
                  }
                 },
                 "type": {
+                 "element_type_name": "logicarecord980116590",
                  "the_type": [
                   {
                    "item": "Str",
@@ -886,6 +894,7 @@
          }
         },
         "type": {
+         "element_type_name": "logicarecord980116590",
          "the_type": [
           {
            "item": "Str",
@@ -926,6 +935,7 @@
        "expression": {
         "expression_heritage": "overview",
         "type": {
+         "element_type_name": "logicarecord980116590",
          "the_type": [
           {
            "item": "Str",

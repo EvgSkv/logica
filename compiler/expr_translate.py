@@ -254,8 +254,13 @@ class QL(object):
     return ', '.join([self.ConvertToSql(e)
                       for e in literal['element']])
 
-  def ListLiteral(self, literal):
-    return self.dialect.ArrayPhrase() % self.ListLiteralInternals(literal)
+  def ListLiteral(self, literal, element_type_name):
+    suffix = ('::' + element_type_name + '[]'
+              if self.dialect.Name() == 'PostgreSQL'
+              else '')
+    return (
+      self.dialect.ArrayPhrase() %
+      self.ListLiteralInternals(literal)) + suffix
 
   def BoolLiteral(self, literal):
     return literal['the_bool']
@@ -439,7 +444,14 @@ class QL(object):
       if 'the_string' in literal:
         return self.StrLiteral(literal['the_string'])
       if 'the_list' in literal:
-        return self.ListLiteral(literal['the_list'])
+        the_list = literal['the_list']
+        element_type = expression.get('type', {}).get('element_type_name', None)
+        if self.dialect.Name() == 'PostgreSQL' and element_type is None:
+          raise self.exception_maker(color.Format(
+              'Array needs type in PostgreSQL: '
+              '{warning}{the_list}{end}.', dict(
+                  the_list=expression['expression_heritage'])))  
+        return self.ListLiteral(the_list, element_type)
       if 'the_bool' in literal:
         return self.BoolLiteral(literal['the_bool'])
       if 'the_null' in literal:

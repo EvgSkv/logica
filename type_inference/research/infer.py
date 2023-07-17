@@ -592,6 +592,9 @@ class TypeCollector:
       self.type_map[t_rendering] = t
       if isinstance(t, dict) and reference_algebra.IsFullyDefined(t):
         node['type']['type_name'] = RecordTypeName(t_rendering)
+      if isinstance(t, list) and reference_algebra.IsFullyDefined(t):
+        [e] = t
+        node['type']['element_type_name'] = self.PsqlType(e)
   
   def CollectTypes(self):
     Walk(self.parsed_rules, self.ActPopulatingTypeMap)
@@ -609,7 +612,7 @@ class TypeCollector:
     if t == 'Num':
       return 'numeric'
     if isinstance(t, dict):
-      return self.psql_struct_type_name[reference_algebra.RenderType(t)]
+      return RecordTypeName(reference_algebra.RenderType(t))
     if isinstance(t, list):
       [e] = t
       return self.PsqlType(e) + '[]'
