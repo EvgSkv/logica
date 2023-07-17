@@ -26,6 +26,10 @@ def TypesOfBultins():
     reference_algebra.UnifyListElement(list_of_x, x)
 
     types_of_predicate = {
+        'Aggr': {
+            0: x,
+            'logica_value': x
+        },
         '=': {
           'left': x,
           'right': x,
