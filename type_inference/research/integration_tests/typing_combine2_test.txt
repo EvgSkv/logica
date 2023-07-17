@@ -1,0 +1,326 @@
+[
+ {
+  "full_text": "@Engine(\"psql\")",
+  "head": {
+   "predicate_name": "@Engine",
+   "record": {
+    "field_value": [
+     {
+      "field": 0,
+      "value": {
+       "expression": {
+        "expression_heritage": "\"psql\"",
+        "literal": {
+         "the_string": {
+          "the_string": "psql"
+         }
+        }
+       }
+      }
+     }
+    ]
+   }
+  }
+ },
+ {
+  "full_text": "T(1)",
+  "head": {
+   "predicate_name": "T",
+   "record": {
+    "field_value": [
+     {
+      "field": 0,
+      "value": {
+       "expression": {
+        "expression_heritage": "1",
+        "literal": {
+         "the_number": {
+          "number": "1"
+         }
+        },
+        "type": {
+         "the_type": "Num",
+         "type_id": 0
+        }
+       }
+      }
+     }
+    ]
+   }
+  }
+ },
+ {
+  "body": {
+   "conjunction": {
+    "conjunct": [
+     {
+      "unification": {
+       "left_hand_side": {
+        "expression_heritage": "x",
+        "type": {
+         "the_type": [
+          {
+           "a": {
+            "z": "Num"
+           }
+          }
+         ],
+         "type_id": 0
+        },
+        "variable": {
+         "var_name": "x"
+        }
+       },
+       "right_hand_side": {
+        "combine": {
+         "body": {
+          "conjunction": {
+           "conjunct": [
+            {
+             "inclusion": {
+              "element": {
+               "expression_heritage": "a",
+               "type": {
+                "the_type": {
+                 "z": "Num"
+                },
+                "type_id": 2,
+                "type_name": "logicarecord574638620"
+               },
+               "variable": {
+                "var_name": "a"
+               }
+              },
+              "list": {
+               "expression_heritage": "[{z:}]",
+               "literal": {
+                "the_list": {
+                 "element": [
+                  {
+                   "expression_heritage": "{z:}",
+                   "record": {
+                    "field_value": [
+                     {
+                      "field": "z",
+                      "value": {
+                       "expression": {
+                        "expression_heritage": "z",
+                        "type": {
+                         "the_type": "Num",
+                         "type_id": 1
+                        },
+                        "variable": {
+                         "var_name": "z"
+                        }
+                       }
+                      }
+                     }
+                    ]
+                   },
+                   "type": {
+                    "the_type": {
+                     "z": "Num"
+                    },
+                    "type_id": 9,
+                    "type_name": "logicarecord574638620"
+                   }
+                  }
+                 ]
+                }
+               },
+               "type": {
+                "the_type": [
+                 {
+                  "z": "Num"
+                 }
+                ],
+                "type_id": 8
+               }
+              }
+             }
+            }
+           ]
+          }
+         },
+         "distinct_denoted": true,
+         "full_text": "x List= ({a:} :- a in [{z:}])",
+         "head": {
+          "predicate_name": "Combine",
+          "record": {
+           "field_value": [
+            {
+             "field": "logica_value",
+             "value": {
+              "aggregation": {
+               "expression": {
+                "call": {
+                 "predicate_name": "List",
+                 "record": {
+                  "field_value": [
+                   {
+                    "field": 0,
+                    "value": {
+                     "expression": {
+                      "expression_heritage": "{a:}",
+                      "record": {
+                       "field_value": [
+                        {
+                         "field": "a",
+                         "value": {
+                          "expression": {
+                           "expression_heritage": "a",
+                           "type": {
+                            "the_type": {
+                             "z": "Num"
+                            },
+                            "type_id": 2,
+                            "type_name": "logicarecord574638620"
+                           },
+                           "variable": {
+                            "var_name": "a"
+                           }
+                          }
+                         }
+                        }
+                       ]
+                      },
+                      "type": {
+                       "the_type": {
+                        "a": {
+                         "z": "Num"
+                        }
+                       },
+                       "type_id": 7,
+                       "type_name": "logicarecord350574256"
+                      }
+                     }
+                    }
+                   }
+                  ]
+                 }
+                },
+                "type": {
+                 "the_type": [
+                  {
+                   "a": {
+                    "z": "Num"
+                   }
+                  }
+                 ],
+                 "type_id": 6
+                }
+               }
+              }
+             }
+            }
+           ]
+          }
+         }
+        },
+        "type": {
+         "the_type": [
+          {
+           "a": {
+            "z": "Num"
+           }
+          }
+         ],
+         "type_id": 5
+        }
+       }
+      }
+     },
+     {
+      "predicate": {
+       "predicate_name": "T",
+       "record": {
+        "field_value": [
+         {
+          "field": 0,
+          "value": {
+           "expression": {
+            "expression_heritage": "z",
+            "type": {
+             "the_type": "Num",
+             "type_id": 1
+            },
+            "variable": {
+             "var_name": "z"
+            }
+           }
+          }
+         }
+        ]
+       }
+      }
+     }
+    ]
+   }
+  },
+  "full_text": "Test(x,{o:1}) :- x List= ({a:} :- a in [{z:}]), T(z)",
+  "head": {
+   "predicate_name": "Test",
+   "record": {
+    "field_value": [
+     {
+      "field": 0,
+      "value": {
+       "expression": {
+        "expression_heritage": "x",
+        "type": {
+         "the_type": [
+          {
+           "a": {
+            "z": "Num"
+           }
+          }
+         ],
+         "type_id": 0
+        },
+        "variable": {
+         "var_name": "x"
+        }
+       }
+      }
+     },
+     {
+      "field": 1,
+      "value": {
+       "expression": {
+        "expression_heritage": "{o:1}",
+        "record": {
+         "field_value": [
+          {
+           "field": "o",
+           "value": {
+            "expression": {
+             "expression_heritage": "1",
+             "literal": {
+              "the_number": {
+               "number": "1"
+              }
+             },
+             "type": {
+              "the_type": "Num",
+              "type_id": 4
+             }
+            }
+           }
+          }
+         ]
+        },
+        "type": {
+         "the_type": {
+          "o": "Num"
+         },
+         "type_id": 3,
+         "type_name": "logicarecord944799139"
+        }
+       }
+      }
+     }
+    ]
+   }
+  }
+ }
+]

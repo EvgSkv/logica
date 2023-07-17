@@ -15,6 +15,7 @@
 # limitations under the License.
 
 import hashlib
+import json
 import sys
 
 if '.' not in __package__:
@@ -45,6 +46,8 @@ class ContextualizedError:
 
   def ReplaceIfMoreUseful(self, type_error, context_string, refers_to_variable, refers_to_expression):
     if self.type_error is None:
+      self.Replace(type_error, context_string, refers_to_variable, refers_to_expression)
+    if self.context_string == 'UNKNOWN LOCATION':
       self.Replace(type_error, context_string, refers_to_variable, refers_to_expression)
     elif self.refers_to_variable is None and refers_to_variable:
       self.Replace(type_error, context_string, refers_to_variable, refers_to_expression)
@@ -133,6 +136,19 @@ def ActMindingPodLiterals(node):
 def ActClearingTypes(node):
   if 'type' in node:
     del node['type']
+
+def ActRememberingTypes(node):
+  if 'type' in node:
+    node['remembered_type'] = json.dumps(node['type']['the_type'])
+
+def ActRecallingTypes(node):
+  if 'remembered_type' in node:
+    remembered_type = reference_algebra.Revive(
+      json.loads(node['remembered_type']))
+    reference_algebra.Unify(
+      node['type']['the_type'],
+      remembered_type
+    )
 
 class TypesInferenceEngine:
   def __init__(self, parsed_rules):
@@ -404,9 +420,11 @@ class TypeInferenceForStructure:
 
   def PerformInference(self):
     quazy_rule = self.BuildQuazyRule()
+    Walk(quazy_rule, ActRememberingTypes)
     Walk(quazy_rule, ActClearingTypes)
     inferencer = TypeInferenceForRule(quazy_rule, self.signatures)
     inferencer.PerformInference()
+    Walk(quazy_rule, ActRecallingTypes)
           
     Walk(quazy_rule, ConcretizeTypes)
     collector = TypeCollector([quazy_rule])
@@ -503,10 +521,16 @@ class TypeErrorChecker:
             v = node['variable']['var_name']
           else:
             v = None
-          assert 'expression_heritage' in node, node
-          found_error.ReplaceIfMoreUseful(
-            t, node['expression_heritage'].Display(), v,
-            node)
+          # Combines don't have expression_heritage.
+          # assert 'expression_heritage' in node, (node, t)
+          if 'expression_heritage' not in node:
+            found_error.ReplaceIfMoreUseful(
+              t, 'UNKNOWN LOCATION', v,
+              node)
+          else:
+            found_error.ReplaceIfMoreUseful(
+              t, node['expression_heritage'].Display(), v,
+              node)
     for rule in self.typed_rules:
       Walk(rule, LookForError)
       if found_error.type_error:
@@ -517,11 +541,11 @@ class TypeErrorChecker:
 def WalkInitializingVariables(node, get_type):
   """Initialize variables minding combines contexts."""
   type_of_variable = {}
-  def Jog(node):
+  def Jog(node, found_combines):
     nonlocal type_of_variable
     if isinstance(node, list):
       for v in node:
-        Jog(v)
+        Jog(v, found_combines)
     if isinstance(node, dict):
       if 'variable' in node:
         var_name = node['variable']['var_name']
@@ -533,12 +557,18 @@ def WalkInitializingVariables(node, get_type):
       for k in node:
         if k != 'type':
           if k != 'combine':
-            Jog(node[k])
+            Jog(node[k], found_combines)
           else:
-            backed_up_types = {k: v for k, v in type_of_variable.items()}
-            Jog(node[k])
-            type_of_variable = backed_up_types
-  Jog(node)
+            found_combines.append(node[k])
+  def JogPredicate(node):
+    nonlocal type_of_variable
+    found_combines = []
+    Jog(node, found_combines)
+    backed_up_types = {k: v for k, v in type_of_variable.items()}
+    for n in found_combines:
+      JogPredicate(n)
+      type_of_variable = backed_up_types
+  JogPredicate(node)
 
 def Fingerprint(s):
   return int(hashlib.md5(str(s).encode()).hexdigest()[:16], 16)

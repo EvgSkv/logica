@@ -1,5 +1,6 @@
+#!/usr/bin/python
 #
-# Copyright 2021 Google LLC
+# Copyright 2023 Google LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -13,14 +14,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# Testing subtle functor application order.
+@Engine("psql");
 
-@Engine("sqlite");
-T1() = "t1";
-F() = T1();
-D := F();
-B() = D();
-T2() = "t2";
-A := B(T1: T2);
+T(1); 
 
-Test() = A();
+Test(x,{o:1}) :- x List= ({a:} :- a in [{z:}]), T(z); 

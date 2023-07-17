@@ -314,3 +314,14 @@ class TypeStructureCopier:
       n = TypeReference(target)
       self.id_to_reference[id(t)] = n
     return self.id_to_reference[id(t)]
+
+def Revive(t):
+  if isinstance(t, str):
+    return TypeReference(t)
+  if isinstance(t, dict):
+    return TypeReference(OpenRecord({k: Revive(v) for k, v in t.items()}))
+  if isinstance(t, list):
+    return TypeReference(list(map(Revive, t)))
+  if isinstance(t, BadType):
+    return TypeReference(BadType(map(Revive, t)))
+  assert False, [type(t), t]

@@ -26,11 +26,13 @@ def RunTypesTest(name, src=None, golden=None):
   logica_test.TestManager.RunTypesTest(name, src, golden)
 
 def RunAll():
+  RunTypesTest('typing_kitchensync_test')
   RunTypesTest('typing_basic_test')
   RunTypesTest('typing_aggregation_test')
   RunTypesTest('typing_lists_test')
   RunTypesTest('typing_nested_test')
   RunTypesTest('typing_combines_test')
+  RunTypesTest('typing_combine2_test')
 
 if __name__ == '__main__':
   RunAll()
