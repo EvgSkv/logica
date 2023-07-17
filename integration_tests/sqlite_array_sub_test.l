@@ -17,7 +17,7 @@
 # Please never use it this way.
 # This feature is provided for Spanner indexes specification.
 
-@Engine("sqlite");
+@Engine("sqlite", type_checking: false);
 
 Books() = [
     {
