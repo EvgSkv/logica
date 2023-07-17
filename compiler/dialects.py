@@ -224,7 +224,7 @@ class PostgreSQL(Dialect):
     return 'ARRAY[%s]'
 
   def GroupBySpecBy(self):
-    return 'name'
+    return 'expr'
 
   def DecorateCombineRule(self, rule, var):
     return rule

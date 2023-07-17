@@ -27,7 +27,5 @@ R(x, l) :- T(x), l == (if x == 2 || x == 3 then [x] else []);
 P1(x, y) :- T(x), y += x;
 P2(x, col1? List= y) distinct :- T(x), y in [1,2,3,4], R(x, l), ~(y in l);
 
-# Test("1", x, y) :- P1(x, y);
-# Test("2", x, y) :- P2(x, y);
-
-Test() = (if true then [1] else []);
+Test("1", x, y) :- P1(x, y);
+Test("2", x, y) :- P2(x, y);

@@ -508,7 +508,7 @@ class RuleStructure(object):
             subquery_encoder.execution.dialect.UnnestPhrase().format(
                 ql.ConvertToSql(the_list), ql.ConvertToSql(element)))
       if not tables:
-        tables.append('(SELECT "singleton" as s) as unused_singleton')
+        tables.append("(SELECT 'singleton' as s) as unused_singleton")
       from_str = ', '.join(tables)
       # Indent the from_str.
       from_str = '\n'.join('  ' + l for l in from_str.split('\n'))
