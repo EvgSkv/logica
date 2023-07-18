@@ -93,6 +93,7 @@ def RunAll(test_presto=False, test_trino=False):
   RunTest("psql_purchase2_test")
   RunTest("psql_purchase3_test")
   RunTest("psql_combine_test")
+  RunTest("psql_combine2_test")
   RunTest("psql_record_combine_test")
   RunTest("psql_structs_ground_test")
   RunTest("psql_simple_structs_test")
