@@ -137,7 +137,8 @@ class PostgreSQL(Dialect):
         'Element': '({0})[{1} + 1]',
         'Size': 'ARRAY_LENGTH(%s, 1)',
         'Count': 'COUNT(DISTINCT {0})',
-        'MagicalEntangle': '(CASE WHEN {1} = 0 THEN {0} ELSE NULL END)'
+        'MagicalEntangle': '(CASE WHEN {1} = 0 THEN {0} ELSE NULL END)',
+        'ArrayConcat': '{0} || {1}'
       }
 
   def InfixOperators(self):
