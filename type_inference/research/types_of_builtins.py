@@ -30,6 +30,11 @@ def TypesOfBultins():
             0: x,
             'logica_value': x
         },
+        '==': {
+           'left': x,
+           'right': x,
+           'logica_value': 'Any'  # TODO: Add Boolean.
+        },
         '=': {
           'left': x,
           'right': x,
