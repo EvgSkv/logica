@@ -37,4 +37,6 @@ Array(a) = SqlExpr(
   "ARRAY_AGG({value} order by {arg})",
   {arg: a.arg, value: a.value});
 
+RecordAsJson(r) = SqlExpr(
+  "ROW_TO_JSON({r})", {r:});
 """

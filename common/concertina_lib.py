@@ -4,10 +4,15 @@ import datetime
 
 try:
   import graphviz
+except:
+  print('Could not import graphviz tools in Concertina.')
+
+try:
+  from IPython.display import HTML
   from IPython.display import display
   from IPython.display import update_display
 except:
-  print('Could not import CoLab tools in Concertina.')
+  print('Could not import IPython in Concertina.')
 
 if '.' not in __package__:
   from common import graph_art
@@ -75,7 +80,7 @@ class Concertina(object):
     self.all_actions = {a["name"] for a in self.config}
     self.complete_actions = set()
     self.running_actions = set()
-    assert display_mode in ('colab', 'terminal'), (
+    assert display_mode in ('colab', 'terminal', 'colab-text'), (
       'Unrecognized display mode: %s' % display_mode)
     self.display_mode = display_mode
     self.display_id = self.GetDisplayId()
@@ -137,7 +142,14 @@ class Concertina(object):
     """Nodes and edges to display in terminal."""
     def ColoredNode(node):
       if node in self.running_actions:
-        return '\033[1m\033[93m' + node + '\033[0m'
+        if self.display_mode == 'terminal':
+          return '\033[1m\033[93m' + node + '\033[0m'
+        elif self.display_mode == 'colab-text':
+          return (
+            '<b>' + node + '</b>'
+          )
+        else:
+          assert False, self.display_mode
       else:
         return node
     nodes = []
@@ -150,11 +162,24 @@ class Concertina(object):
         edges.append([prerequisite_node, a_node])
     return nodes, edges
 
+  def StateAsSimpleHTML(self):      
+    style = ';'.join([
+      'border: 1px solid rgba(0, 0, 0, 0.3)',
+      'width: fit-content;',
+      'padding: 20px',
+      'border-radius: 5px',
+      'box-shadow: 1px 1px 3px rgba(0, 0, 0, 0.2)'])
+    return HTML('<div style="%s"><pre>%s</pre></div>' % (
+        style, self.AsTextPicture(updating=False)))
+
   def Display(self):
     if self.display_mode == 'colab':
       display(self.AsGraphViz(), display_id=self.display_id)
     elif self.display_mode == 'terminal':
       print(self.AsTextPicture(updating=False))
+    elif self.display_mode == 'colab-text':
+      display(self.StateAsSimpleHTML(),
+              display_id=self.display_id)
     else:
       assert 'Unexpected mode:', self.display_mode
 
@@ -163,6 +188,10 @@ class Concertina(object):
       update_display(self.AsGraphViz(), display_id=self.display_id)
     elif self.display_mode == 'terminal':
       print(self.AsTextPicture(updating=True))
+    elif self.display_mode == 'colab-text':
+      update_display(
+        self.StateAsSimpleHTML(),
+        display_id=self.display_id)
     else:
       assert 'Unexpected mode:', self.display_mode
 

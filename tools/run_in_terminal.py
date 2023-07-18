@@ -16,6 +16,9 @@
 
 # Utility to run pipeline in terminal with ASCII art showing progress.
 
+import json
+import os
+
 if not __package__ or '.' not in __package__:
   from common import concertina_lib
   from compiler import universe
@@ -31,7 +34,7 @@ else:
 class SqlRunner(object):
   def __init__(self, engine):
     self.engine = engine
-    assert engine in ['sqlite', 'bigquery']
+    assert engine in ['sqlite', 'bigquery', 'psql']
     if engine == 'sqlite':
       self.connection = sqlite3_logica.SqliteConnect()
     else:
@@ -45,6 +48,16 @@ class SqlRunner(object):
       credentials, project = auth.default()
     else:
       credentials, project = None, None
+    if engine == 'psql':
+      import psycopg2
+      if os.environ.get('LOGICA_PSQL_CONNECTION'):
+        connection_json = json.loads(os.environ.get('LOGICA_PSQL_CONNECTION'))
+      else:
+        assert False, (
+          'Please provide PSQL connection parameters '
+          'in LOGICA_PSQL_CONNECTION')
+      self.connection = psycopg2.connect(**connection_json)
+
     self.bq_credentials = credentials
     self.bq_project = project
   
@@ -68,10 +81,17 @@ def RunSQL(sql, engine, connection=None, is_final=False,
   elif engine == 'psql':
     import pandas
     if is_final:
-      df = pandas.read_sql(sql, connection)
+      cursor = connection.cursor()
+      cursor.execute(sql)
+      rows = cursor.fetchall()
+      df = pandas.DataFrame(
+        rows, columns=[d[0] for d in cursor.description])
+      connection.close()
       return list(df.columns), [list(r) for _, r in df.iterrows()]
     else:
-      return connection.execute(sql)
+      cursor = connection.cursor()
+      cursor.execute(sql)
+      connection.commit()
   elif engine == 'sqlite':
     try:
       if is_final:

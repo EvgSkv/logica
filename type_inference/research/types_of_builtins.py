@@ -127,6 +127,10 @@ def TypesOfBultins():
         'ValueOfUnnested': {
            0: x,
            'logica_value': x
+        },
+        'RecordAsJson': {
+           0: reference_algebra.OpenRecord({}),
+           'logica_value': 'Str'
         }
     }
     return {

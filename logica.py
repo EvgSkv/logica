@@ -139,6 +139,7 @@ def main(argv):
       print('Not enough arguments. Run \'logica help\' for help.',
             file=sys.stderr)
       return 1
+    predicates = argv[3]
 
   if argv[1] == '-':
     filename = '/dev/stdin'
@@ -158,6 +159,13 @@ def main(argv):
   if not os.path.exists(filename):
     print('File not found: %s' % filename, file=sys.stderr)
     return 1
+
+  if command == 'run_in_terminal':
+    from tools import run_in_terminal
+    artistic_table = run_in_terminal.Run(filename, predicates)
+    print(artistic_table)
+    return
+
   program_text = open(filename).read()
 
   try:
@@ -186,8 +194,6 @@ def main(argv):
     type_error_checker = infer.TypeErrorChecker(parsed_rules)
     type_error_checker.CheckForError()
     return 0
-
-  predicates = argv[3]
 
   user_flags = ReadUserFlags(parsed_rules, argv[4:])
 
@@ -264,11 +270,6 @@ def main(argv):
       else:
         assert False, 'Unknown engine: %s' % engine
       print(o.decode())
-
-    if command == 'run_in_terminal':
-      from tools import run_in_terminal
-      artistic_table = run_in_terminal.Run(filename, predicate)
-      print(artistic_table)
 
 
 def run_main():

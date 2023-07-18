@@ -16,12 +16,17 @@
 
 """Library for using Logica in CoLab."""
 
+import getpass
+import json
+
 from .common import color
 from .common import concertina_lib
 
 from .compiler import functors
 from .compiler import rule_translate
 from .compiler import universe
+
+from .type_inference.research import infer
 
 import IPython
 
@@ -70,6 +75,8 @@ SHOW_FULL_QUERY = True
 
 PREAMBLE = None
 
+DISPLAY_MODE = 'colab'  # or colab-text
+
 
 def SetPreamble(preamble):
   global PREAMBLE
@@ -82,6 +89,21 @@ def SetProject(project):
 def SetDbConnection(connection):
   global DB_CONNECTION
   DB_CONNECTION = connection
+
+def ConnectToPostgres(mode='interactive'):
+  import psycopg2
+  if mode == 'interactive':
+    print('Please enter PostgreSQL connection config in JSON format.')
+    print('Example:')
+    print('{"host": "myhost", "database": "megadb", '
+          '"user": "myuser", "password": "42"}')
+    connection_str = getpass.getpass()
+  elif mode == 'environment':
+    connection_str = os.environ.get('LOGICA_PSQL_CONNECTION')
+  else:
+    assert False, 'Unknown mode:' + mode
+  connection_json = json.loads(connection_str)
+  SetDbConnection(psycopg2.connect(**connection_json))
 
 def EnsureAuthenticatedUser():
   global USER_AUTHENTICATED
@@ -142,12 +164,17 @@ def RunSQL(sql, engine, connection=None, is_final=False):
     client = bigquery.Client(project=PROJECT)
     return client.query(sql).to_dataframe()
   elif engine == 'psql':
-    # Sorry, this is not looking good.
-    from sqlalchemy import text
     if is_final:
-      return pandas.read_sql(text(sql), connection)
+      cursor = connection.cursor()
+      cursor.execute(sql)
+      rows = cursor.fetchall()
+      df = pandas.DataFrame(
+        rows, columns=[d[0] for d in cursor.description])
+      return df
     else:
-      return connection.execute(text(sql))
+      cursor = connection.cursor()
+      cursor.execute(sql)
+      connection.commit()    
   elif engine == 'sqlite':
     try:
       if is_final:
@@ -215,6 +242,9 @@ def Logica(line, cell, run_query):
   except rule_translate.RuleCompileException as e:
     e.ShowMessage()
     return
+  except infer.TypeErrorCaughtException as e:
+    e.ShowMessage()
+    return
 
   engine = program.annotations.Engine()
 
@@ -273,7 +303,8 @@ def Logica(line, cell, run_query):
                       'for now.')   
                       
     result_map = concertina_lib.ExecuteLogicaProgram(
-      executions, sql_runner=sql_runner, sql_engine=engine)
+      executions, sql_runner=sql_runner, sql_engine=engine,
+      display_mode=DISPLAY_MODE)
 
   for idx, predicate in enumerate(predicates):
     t = result_map[predicate]
