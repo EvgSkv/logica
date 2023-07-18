@@ -1,6 +1,6 @@
 #!/usr/bin/python
 #
-# Copyright 2023 Logica
+# Copyright 2023 Logica Authors
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -19,7 +19,7 @@ from typing import Dict
 from sqlalchemy import create_engine, inspect, types
 
 from type_inference.inspectors.inspector_base import Inspector
-from type_inference.inspectors.table_not_exist_exception import TableNotExistException
+from type_inference.inspectors.table_not_exist_exception import TableDoesNotExistException
 from type_inference.types.variable_types import Type, NumberType, ListType, StringType, RecordType
 
 
@@ -45,6 +45,6 @@ class PostgresInspector(Inspector):
 
   def TryGetColumnsInfo(self, table_name: str) -> Dict[str, Type]:
     if not self._inspector.has_table(table_name):
-      raise TableNotExistException(table_name)
+      raise TableDoesNotExistException(table_name)
     columns_info = self._inspector.get_columns(table_name)
     return {column['name']: Convert(column['type']) for column in columns_info}

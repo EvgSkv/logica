@@ -1,6 +1,6 @@
 #!/usr/bin/python
 #
-# Copyright 2023 Logica
+# Copyright 2023 Logica Authors
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -22,7 +22,7 @@ from sqlalchemy import MetaData, Table, Column, Integer, create_engine
 
 from type_inference.inspectors.postgres_inspector import PostgresInspector
 from type_inference.inspectors.sqlite_inspector import SQLiteInspector
-from type_inference.inspectors.table_not_exist_exception import TableNotExistException
+from type_inference.inspectors.table_not_exist_exception import TableDoesNotExistException
 from type_inference.type_inference_service import TypeInference
 from type_inference.types.edge import Equality
 from type_inference.types.expression import Variable, PredicateAddressing
@@ -78,7 +78,7 @@ class TestTypeInferenceWithSqlite(unittest.TestCase):
     graphs['Q'] = graph
     sqlite_inspector = SQLiteInspector('../tests/logica.db')
 
-    with self.assertRaises(TableNotExistException):
+    with self.assertRaises(TableDoesNotExistException):
       TypeInference(graphs, sqlite_inspector).Infer()
 
 
@@ -127,5 +127,5 @@ class TestTypeInferenceWithPsql(unittest.TestCase):
     graphs['Q'] = graph
     postgres_inspector = PostgresInspector('logica', 'logica')
 
-    with self.assertRaises(TableNotExistException):
+    with self.assertRaises(TableDoesNotExistException):
       TypeInference(graphs, postgres_inspector).Infer()

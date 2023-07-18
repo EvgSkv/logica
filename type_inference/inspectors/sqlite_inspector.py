@@ -1,6 +1,6 @@
 #!/usr/bin/python
 #
-# Copyright 2023 Logica
+# Copyright 2023 Logica Authors
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -18,7 +18,7 @@ import sqlite3
 from typing import Dict
 
 from type_inference.inspectors.inspector_base import Inspector
-from type_inference.inspectors.table_not_exist_exception import TableNotExistException
+from type_inference.inspectors.table_not_exist_exception import TableDoesNotExistException
 from type_inference.types.variable_types import NumberType, StringType, Type
 
 
@@ -42,5 +42,5 @@ class SQLiteInspector(Inspector):
       cursor = conn.cursor()
       columns_info = cursor.execute(f'PRAGMA table_info({table_name});').fetchall()
       if len(columns_info) == 0:
-        raise TableNotExistException(table_name)
+        raise TableDoesNotExistException(table_name)
     return {column[1]: Convert(column[2]) for column in columns_info}
