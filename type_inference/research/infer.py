@@ -68,20 +68,6 @@ class ContextualizedError:
   def HelpfulErrorMessage(self):
     result = str(self.type_error)
 
-    if (isinstance(self.type_error[0], dict) and
-        isinstance(self.type_error[1], dict)):
-      if isinstance(self.type_error[0],
-                    reference_algebra.ClosedRecord):
-        a, b = self.type_error
-      else:
-        b, a = self.type_error
-      if (isinstance(a, reference_algebra.ClosedRecord) and
-          isinstance(b, reference_algebra.OpenRecord) and
-          list(b)[0] not in a.keys() ):
-        result = (
-          'record ' + str(a) + ' does not have field ' + list(b)[0] + '.'
-        )
-
     if self.refers_to_variable:
       result = color.Format(
         'Variable {warning}%s{end} ' %

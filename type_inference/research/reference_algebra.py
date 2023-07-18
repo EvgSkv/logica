@@ -39,9 +39,30 @@ class ClosedRecord(dict):
 
 class BadType(tuple):
   def __str__(self):
-    colored_t1 = color.Format('{warning}{t}{end}', args_dict={'t': RenderType(self[0])})
-    colored_t2 = color.Format('{warning}{t}{end}', args_dict={'t': RenderType(self[1])})
+    if (isinstance(self[0], dict) and
+        isinstance(self[1], dict)):
+      if isinstance(self[0],
+                    ClosedRecord):
+        a, b = self
+      else:
+        b, a = self
+    else:
+      a, b = self
 
+    colored_t1 = color.Format('{warning}{t}{end}',
+                              args_dict={'t': RenderType(a)})
+    colored_t2 = color.Format('{warning}{t}{end}',
+                              args_dict={'t': RenderType(b)})
+
+    if (isinstance(a, ClosedRecord) and
+        isinstance(b, OpenRecord) and
+        list(b)[0] not in a.keys()):
+      colored_e = color.Format(
+        '{warning}{t}{end}', args_dict={'t': RenderType(list(b)[0])})
+      return (
+        f'is a record {colored_t1} and it does not have ' +
+        f'field {colored_e}, which is addressed.'
+      )
     return (
       f'is implied to be {colored_t1} and ' +
       f'simultaneously {colored_t2}, which is impossible.')
