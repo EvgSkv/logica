@@ -136,8 +136,13 @@ def TypesOfBultins():
         'RecordAsJson': {
            0: reference_algebra.OpenRecord({}),
            'logica_value': 'Str'
+        },
+        '>': {
+           'left': x,
+           'right': x
         }
     }
+    types_of_predicate['<'] = types_of_predicate['<='] = types_of_predicate['>='] = types_of_predicate['>']
     return {
         p: {k: reference_algebra.TypeReference(v)
             for k, v in types.items()}
