@@ -943,7 +943,8 @@ class LogicaProgram(object):
     s = rule_translate.ExtractRuleStructure(
         r, allocator, external_vocabulary)
 
-    s.ElliminateInternalVariables(assert_full_ellimination=False)
+    # TODO(2023 July): Was this always redundant?
+    # s.ElliminateInternalVariables(assert_full_ellimination=False)
 
     self.RunInjections(s, allocator)
     s.ElliminateInternalVariables(assert_full_ellimination=True)
