@@ -139,12 +139,19 @@ def TypesOfBultins():
         },
         '>': {
            'left': x,
-           'right': x
+           'right': x,
+           'logica_value': 'Any'
         },
         'ArrayConcat': {
            0: [x],
            1: [x],
            'logica_value': [x]
+        },
+        'Substr': {
+           0: 'Str',
+           1: 'Num',
+           2: 'Num',
+           'logica_value': 'Str'
         }
     }
     types_of_predicate['<'] = types_of_predicate['<='] = types_of_predicate['>='] = types_of_predicate['>']

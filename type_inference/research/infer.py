@@ -214,7 +214,7 @@ def BuildDependencies(rules):
   result = {}
   for rule in rules:
     p, ds = ExtractDendencies(rule)
-    result[p] = list(sorted(set(ds) - set([p])))
+    result[p] = list(set(sorted(set(ds) - set([p]))) | set(result.get(p, [])))
   return result
 
 def BuildComplexities(dependencies):
