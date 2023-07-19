@@ -177,6 +177,14 @@ class TypesInferenceEngine:
       else:
         value = v['aggregation']['expression']
       value_type = value['type']['the_type']
+      if field_name not in predicate_signature:
+        raise TypeErrorCaughtException(
+          ContextualizedError.BuildNiceMessage(
+            rule['full_text'],
+            color.Format(
+              'Predicate {warning}%s{end} has ' % predicate_name +
+              'inconcistent rules, some include field ') +
+              color.Format('{warning}%s{end}' % field_name) + ' while others do not.'))
       reference_algebra.Unify(
         predicate_signature[field_name],
         value_type)
