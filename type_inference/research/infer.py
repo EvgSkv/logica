@@ -296,11 +296,16 @@ class TypeInferenceForRule:
           output_value_type.target = reference_algebra.TypeReference.To(error)
 
       for fv in field_value:
-        if fv['field'] in signature:
+        field_name = fv['field']
+        if (field_name not in signature and
+            isinstance(field_name, int) and
+            'col%d' % field_name in signature):
+          field_name = 'col%d' % field_name
+        if field_name in signature:
           reference_algebra.Unify(
             fv['value']['expression']['type']['the_type'],
-            copy(signature[fv['field']]))
-        elif fv['field'] == '*':
+            copy(signature[field_name]))
+        elif field_name == '*':
           args = copy(reference_algebra.ClosedRecord(signature))
           reference_algebra.Unify(
             fv['value']['expression']['type']['the_type'],
@@ -308,7 +313,7 @@ class TypeInferenceForRule:
         elif '*' in signature:
           args = copy(signature['*'])
           reference_algebra.UnifyRecordField(
-            args, fv['field'],
+            args, field_name,
             fv['value']['expression']['type']['the_type'])
           if isinstance(args.Target(), reference_algebra.BadType):
             error_message = (
