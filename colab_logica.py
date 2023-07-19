@@ -103,7 +103,9 @@ def ConnectToPostgres(mode='interactive'):
   else:
     assert False, 'Unknown mode:' + mode
   connection_json = json.loads(connection_str)
-  SetDbConnection(psycopg2.connect(**connection_json))
+  connection = psycopg2.connect(**connection_json)
+  connection.autocommit = True
+  SetDbConnection(connection)
 
 def EnsureAuthenticatedUser():
   global USER_AUTHENTICATED
@@ -158,23 +160,33 @@ def ParseList(line):
     predicates = [p.strip() for p in line.split(',')]
   return predicates
 
-
+def PostgresExecute(sql, connection):
+  import psycopg2
+  cursor = connection.cursor()
+  try:
+    cursor.execute(sql)
+  except psycopg2.errors.UndefinedTable  as e:
+    raise infer.TypeErrorCaughtException(
+      infer.ContextualizedError.BuildNiceMessage(
+        'Running SQL.', 'Undefined table used: ' + str(e)))
+  except psycopg2.Error as e:
+    connection.rollback()
+    raise e
+  return cursor
+  
 def RunSQL(sql, engine, connection=None, is_final=False):
   if engine == 'bigquery':
     client = bigquery.Client(project=PROJECT)
     return client.query(sql).to_dataframe()
   elif engine == 'psql':
     if is_final:
-      cursor = connection.cursor()
-      cursor.execute(sql)
+      cursor = PostgresExecute(sql, connection)
       rows = cursor.fetchall()
       df = pandas.DataFrame(
         rows, columns=[d[0] for d in cursor.description])
       return df
     else:
-      cursor = connection.cursor()
-      cursor.execute(sql)
-      connection.commit()    
+      PostgresExecute(sql, connection)
   elif engine == 'sqlite':
     try:
       if is_final:
@@ -301,10 +313,13 @@ def Logica(line, cell, run_query):
     else:
       raise Exception('Logica only supports BigQuery, PostgreSQL and SQLite '
                       'for now.')   
-                      
-    result_map = concertina_lib.ExecuteLogicaProgram(
-      executions, sql_runner=sql_runner, sql_engine=engine,
-      display_mode=DISPLAY_MODE)
+    try:                  
+      result_map = concertina_lib.ExecuteLogicaProgram(
+        executions, sql_runner=sql_runner, sql_engine=engine,
+        display_mode=DISPLAY_MODE)
+    except infer.TypeErrorCaughtException as e:
+      e.ShowMessage()
+      return
 
   for idx, predicate in enumerate(predicates):
     t = result_map[predicate]

@@ -134,6 +134,7 @@ class PostgreSQL(Dialect):
     return {
         'Range': '(SELECT ARRAY_AGG(x) FROM GENERATE_SERIES(0, {0} - 1) as x)',
         'ToString': 'CAST(%s AS TEXT)',
+        'ToInt64': 'CAST(%s AS BIGINT)',
         'Element': '({0})[{1} + 1]',
         'Size': 'ARRAY_LENGTH(%s, 1)',
         'Count': 'COUNT(DISTINCT {0})',
