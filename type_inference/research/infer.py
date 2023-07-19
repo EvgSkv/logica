@@ -57,13 +57,20 @@ class ContextualizedError:
     else:
       pass
 
-  def NiceMessage(self):
+  @classmethod
+  def BuildNiceMessage(self, context_string, error_message):
     result_lines = [
       color.Format('{underline}Type analysis:{end}'),
-      self.context_string, '',
-      color.Format('[ {error}Error{end} ] ') + self.HelpfulErrorMessage()]
-    
+      context_string, '',
+      color.Format('[ {error}Error{end} ] ') + error_message]
     return '\n'.join(result_lines)
+    
+  def NiceMessage(self):
+    if (isinstance(self.type_error[0], str) and 
+        self.type_error[0].startswith('VERBATIM:')):
+      return self.type_error[0].removeprefix('VERBATIM:')
+    return self.BuildNiceMessage(self.context_string,
+                                 self.HelpfulErrorMessage())
 
   def HelpfulErrorMessage(self):
     result = str(self.type_error)
@@ -265,37 +272,90 @@ class TypeInferenceForRule:
     Walk(self.rule, ActMindingPodLiterals)
 
   def ActMindingBuiltinFieldTypes(self, node):
-    def InstillTypes(field_value, signature, output_value_type):
+    def InstillTypes(predicate_name,
+                     field_value, signature, output_value):
       copier = reference_algebra.TypeStructureCopier()
       copy = copier.CopyConcreteOrReferenceType
-      if output_value_type:
-        reference_algebra.Unify(
-          output_value_type,
-          copy(signature['logica_value']))
+      if output_value:
+        output_value_type = output_value['type']['the_type']
+        if 'logica_value' in signature:
+          reference_algebra.Unify(
+            output_value_type,
+            copy(signature['logica_value']))
+        else:
+          error_message = (
+            ContextualizedError.BuildNiceMessage(
+              output_value['expression_heritage'].Display(),
+              'Predicate %s is not a function, but was called as such.' %
+                color.Format('{warning}%s{end}') % predicate_name,
+            )
+          )
+          error = reference_algebra.BadType(
+            ('VERBATIM:' + error_message,
+            output_value_type.target))
+          output_value_type.target = reference_algebra.TypeReference.To(error)
+
       for fv in field_value:
         if fv['field'] in signature:
           reference_algebra.Unify(
             fv['value']['expression']['type']['the_type'],
             copy(signature[fv['field']]))
+        elif fv['field'] == '*':
+          args = copy(reference_algebra.ClosedRecord(signature))
+          reference_algebra.Unify(
+            fv['value']['expression']['type']['the_type'],
+            reference_algebra.TypeReference.To(args))
+        elif '*' in signature:
+          args = copy(signature['*'])
+          reference_algebra.UnifyRecordField(
+            args, fv['field'],
+            fv['value']['expression']['type']['the_type'])
+          if isinstance(args.Target(), reference_algebra.BadType):
+            error_message = (
+              ContextualizedError.BuildNiceMessage(
+                fv['value']['expression']['expression_heritage'].Display(),
+                'Predicate %s does not have argument %s, but it was addressed.' %
+                  (color.Format('{warning}%s{end}') % predicate_name,
+                  color.Format('{warning}%s{end}') % fv['field'])
+              )
+            )
+            error = reference_algebra.BadType(
+              ('VERBATIM:' + error_message,
+              fv['value']['expression']['type']['the_type'].target))
+            fv['value']['expression']['type']['the_type'].target = (
+              reference_algebra.TypeReference.To(error))        
+        else:
+          error_message = (
+            ContextualizedError.BuildNiceMessage(
+              fv['value']['expression']['expression_heritage'].Display(),
+              'Predicate %s does not have argument %s, but it was addressed.' %
+                (color.Format('{warning}%s{end}') % predicate_name,
+                 color.Format('{warning}%s{end}') % fv['field'])
+            )
+          )
+          error = reference_algebra.BadType(
+            ('VERBATIM:' + error_message,
+            fv['value']['expression']['type']['the_type'].target))
+          fv['value']['expression']['type']['the_type'].target = (
+            reference_algebra.TypeReference.To(error))
 
     for e in ExpressionsIterator(node):
       if 'call' in e:
         p = e['call']['predicate_name']
         if p in self.types_of_builtins:
-          InstillTypes(e['call']['record']['field_value'],
-                       self.types_of_builtins[p],
-                       e['type']['the_type'])
+          InstillTypes(p, e['call']['record']['field_value'],
+                       self.types_of_builtins[p], e)
 
     if 'predicate' in node:
       p = node['predicate']['predicate_name']
       if p in self.types_of_builtins:
-        InstillTypes(node['predicate']['record']['field_value'],
+        InstillTypes(p, node['predicate']['record']['field_value'],
                      self.types_of_builtins[p], None)
 
     if 'head' in node:
       p = node['head']['predicate_name']
       if p in self.types_of_builtins:
-        InstillTypes(node['head']['record']['field_value'],
+        InstillTypes(p, node['head']['record']['field_value'],
                      self.types_of_builtins[p], None)
 
 
