@@ -46,6 +46,8 @@ class BadType(tuple):
         a, b = self
       else:
         b, a = self
+    elif self[1] == 'Singular':
+      b, a = self
     else:
       a, b = self
 
@@ -63,6 +65,17 @@ class BadType(tuple):
         f'is a record {colored_t1} and it does not have ' +
         f'field {colored_e}, which is addressed.'
       )
+    if a == 'Singular':
+      assert isinstance(b, list), 'Fatally incorrect singular error: %s' % b
+      return (
+        f'belongs to a list, but is implied to be {colored_t2}. '
+        f'Logica has to follow existing DB practice (Posgres, BigQuery) '
+        f'and disallow lists to be elements of lists. This includes '
+        f'ArgMax and ArgMin aggregations, as they use SQL arrays as an '
+        f'intermediate. Kindly wrap your inner list into a single field '
+        f'record.'
+      )
+
     return (
       f'is implied to be {colored_t1} and ' +
       f'simultaneously {colored_t2}, which is impossible.')
@@ -156,6 +169,8 @@ def VeryConcreteType(t, upward=None):
 def IsFullyDefined(t):
   if t == 'Any':
     return False
+  if t == 'Singular':
+    return False
   if isinstance(t, str):
     return True
   if isinstance(t, BadType):
@@ -175,16 +190,18 @@ def Rank(x):
     return -1
   if x == 'Any':
     return 0
-  if x == 'Num':
+  if x == 'Singular':
     return 1
-  if x == 'Str':
+  if x == 'Num':
     return 2
-  if isinstance(x, list):
+  if x == 'Str':
     return 3
-  if isinstance(x, OpenRecord):
+  if isinstance(x, list):
     return 4
-  if isinstance(x, ClosedRecord):
+  if isinstance(x, OpenRecord):
     return 5
+  if isinstance(x, ClosedRecord):
+    return 6
   assert False, 'Bad type: %s' % x
 
 
@@ -219,6 +236,15 @@ def Unify(a, b):
     concrete_a, concrete_b = concrete_b, concrete_a
 
   if concrete_a == 'Any':
+    a.target = b
+    return
+  
+  if concrete_a == 'Singular':
+    if isinstance(concrete_b, list):
+      a.target, b.target = (
+          Incompatible(a.target, b.target),
+          Incompatible(b.target, a.target))
+      return
     a.target = b
     return
 
@@ -299,10 +325,9 @@ def UnifyFriendlyRecords(a, b, record_type):
 
 def UnifyListElement(a_list, b_element):
   """Analysis of expression `b in a`."""
+  Unify(b_element, TypeReference.To('Singular'))
   b = TypeReference([b_element])
   Unify(a_list, b)
-
-  # TODO: Prohibit lists of lists.
 
 
 def UnifyRecordField(a_record, field_name, b_field_value):

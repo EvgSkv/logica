@@ -22,8 +22,9 @@ else:
 def TypesOfBultins():
     x = reference_algebra.TypeReference('Any')
     y = reference_algebra.TypeReference('Any')
-    list_of_x = reference_algebra.TypeReference('Any')
-    reference_algebra.UnifyListElement(list_of_x, x)
+    list_of_e = reference_algebra.TypeReference('Any')
+    e = reference_algebra.TypeReference('Singular')
+    reference_algebra.UnifyListElement(list_of_e, e)
 
     types_of_predicate = {
         'Aggr': {
@@ -73,8 +74,8 @@ def TypesOfBultins():
             'logica_value': 'Num'
         },
         'List': {
-            0: x,
-            'logica_value': list_of_x
+            0: e,
+            'logica_value': list_of_e
         },
         '->': {
            'left': x,
@@ -82,22 +83,22 @@ def TypesOfBultins():
            'logica_value': reference_algebra.ClosedRecord({'arg': x, 'value': y})
         },
         'ArgMin': {
-           0: reference_algebra.ClosedRecord({'arg': x, 'value': y}),
-           'logica_value': x
+           0: reference_algebra.ClosedRecord({'arg': e, 'value': y}),
+           'logica_value': e
         },
         'ArgMax': {
-           0: reference_algebra.ClosedRecord({'arg': x, 'value': y}),
-           'logica_value': x
+           0: reference_algebra.ClosedRecord({'arg': e, 'value': y}),
+           'logica_value': e
         },
         'ArgMinK': {
-           0: reference_algebra.ClosedRecord({'arg': x, 'value': y}),
+           0: reference_algebra.ClosedRecord({'arg': e, 'value': y}),
            1: 'Num',
-           'logica_value': [x]
+           'logica_value': [e]
         },
         'ArgMaxK': {
-           0: reference_algebra.ClosedRecord({'arg': x, 'value': y}),
+           0: reference_algebra.ClosedRecord({'arg': e, 'value': y}),
            1: 'Num',
-           'logica_value': [x]
+           'logica_value': [e]
         },        
         'Range': {
            0: 'Num',
@@ -108,7 +109,7 @@ def TypesOfBultins():
            'logica_value': 'Num'
         },
         'Size': {
-           0: ['Any'],
+           0: ['Singular'],
            'logica_value': 'Num'
         },
         '-': {
@@ -126,8 +127,8 @@ def TypesOfBultins():
            'logica_value': y
         },
         'Array': {
-           0: reference_algebra.ClosedRecord({'arg': x, 'value': y}),
-           'logica_value': y
+           0: reference_algebra.ClosedRecord({'arg': x, 'value': e}),
+           'logica_value': e
         },
         'ValueOfUnnested': {
            0: x,
@@ -143,9 +144,9 @@ def TypesOfBultins():
            'logica_value': 'Any'
         },
         'ArrayConcat': {
-           0: [x],
-           1: [x],
-           'logica_value': [x]
+           0: [e],
+           1: [e],
+           'logica_value': [e]
         },
         'Substr': {
            0: 'Str',
