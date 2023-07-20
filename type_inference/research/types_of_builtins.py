@@ -60,7 +60,7 @@ def TypesOfBultins():
             'left': 'Num',
             'right': 'Num',
             'logica_value': 'Num'
-        }, 
+        },
         'Num': {
             0: 'Num',
             'logica_value': 'Num'
@@ -153,9 +153,20 @@ def TypesOfBultins():
            1: 'Num',
            2: 'Num',
            'logica_value': 'Str'
+        },
+        'Fingerprint': {
+           0: 'Str',
+           'logica_value': 'Num'
+        },
+        'Abs': {
+           0: 'Num',
+           'logica_value': 'Num'
         }
     }
     types_of_predicate['<'] = types_of_predicate['<='] = types_of_predicate['>='] = types_of_predicate['>']
+    types_of_predicate['Sin'] = types_of_predicate['Cos'] = types_of_predicate['Log'
+      ] = types_of_predicate['Exp'] = types_of_predicate['Abs']
+    types_of_predicate['%'] = types_of_predicate['/'] = types_of_predicate['*']
     return {
         p: {k: reference_algebra.TypeReference(v)
             for k, v in types.items()}

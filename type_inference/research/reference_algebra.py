@@ -352,6 +352,9 @@ class TypeStructureCopier:
     if isinstance(t, dict):
       c = type(t)
       return c({k: self.CopyConcreteOrReferenceType(v) for k, v in t.items()})
+    if isinstance(t, BadType):
+      return BadType((self.CopyConcreteOrReferenceType(t[0]),
+                      self.CopyConcreteOrReferenceType(t[1])))
     assert False, (t, type(t))
 
   def CopyTypeReference(self, t):
