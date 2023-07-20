@@ -679,8 +679,9 @@ class TypeCollector:
 
   def BuildPsqlDefinitions(self):
     for t in self.psql_struct_type_name:
+      arg_name = lambda x: x if isinstance(x, str) else 'col%d' % x
       args = ', '.join(
-        f + ' ' + self.PsqlType(v)
+        arg_name(f) + ' ' + self.PsqlType(v)
         for f, v in sorted(self.type_map[t].items())
       )
       self.psql_type_definition[t] = f'create type %s as (%s);' % (
