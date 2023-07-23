@@ -1019,8 +1019,9 @@ class SubqueryTranslator(object):
       dependency_sql = self.program.UseFlagsAsParameters(dependency_sql)
       self.execution.workflow_predicates_stack.pop()
       maybe_drop_table = (
-          'DROP TABLE IF EXISTS %s;\n' % ground.table_name
-          if ground.overwrite else '')
+          'DROP TABLE IF EXISTS %s%s;\n' % ((
+              ground.table_name if ground.overwrite else '',
+              self.execution.dialect.MaybeCascadingDeletionWord())))
       export_statement = (
           maybe_drop_table +
           'CREATE TABLE {name} AS {dependency_sql}'.format(

@@ -38,6 +38,10 @@ def Get(engine):
 class Dialect(object):
   pass
 
+  # Default methods:
+  def MaybeCascadingDeletionWord(self):
+    return ''  # No CASCADE is needed by default.
+
 
 class BigQueryDialect(Dialect):
   """BigQuery SQL dialect."""
@@ -164,6 +168,9 @@ class PostgreSQL(Dialect):
 
   def DecorateCombineRule(self, rule, var):
     return DecorateCombineRule(rule, var)
+  
+  def MaybeCascadingDeletionWord(self):
+    return ' CASCADE'  # Need to cascade in PSQL.
 
 
 class Trino(Dialect):

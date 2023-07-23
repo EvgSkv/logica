@@ -103,7 +103,9 @@ def ConnectToPostgres(mode='interactive'):
   else:
     assert False, 'Unknown mode:' + mode
   connection_json = json.loads(connection_str)
+  print('Starting connection...')
   connection = psycopg2.connect(**connection_json)
+  print('Connection established.')
   connection.autocommit = True
   SetDbConnection(connection)
 
