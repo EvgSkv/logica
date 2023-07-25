@@ -150,7 +150,7 @@ class TypesInferenceEngine:
     self.dependencies = BuildDependencies(self.parsed_rules)
     self.complexities = BuildComplexities(self.dependencies)
     self.parsed_rules = list(sorted(self.parsed_rules, key=lambda x: self.complexities[x['head']['predicate_name']]))
-    self.types_of_builtins = types_of_builtins.TypesOfBultins()
+    self.predicate_signature = types_of_builtins.TypesOfBultins()
     self.typing_preamble = None
 
   def CollectTypes(self):
@@ -160,14 +160,14 @@ class TypesInferenceEngine:
 
   def UpdateTypes(self, rule):
     predicate_name = rule['head']['predicate_name']
-    if predicate_name in self.types_of_builtins:
-       predicate_signature = self.types_of_builtins[predicate_name]
+    if predicate_name in self.predicate_signature:
+       predicate_signature = self.predicate_signature[predicate_name]
     else:
       predicate_signature = {}
       for fv in rule['head']['record']['field_value']:
         field_name = fv['field']
         predicate_signature[field_name] = reference_algebra.TypeReference('Any')
-      self.types_of_builtins[predicate_name] = predicate_signature
+      self.predicate_signature[predicate_name] = predicate_signature
 
     for fv in rule['head']['record']['field_value']:
       field_name = fv['field']
@@ -194,7 +194,7 @@ class TypesInferenceEngine:
     for rule in self.parsed_rules:
       if rule['head']['predicate_name'][0] == '@':
         continue
-      t = TypeInferenceForRule(rule, self.types_of_builtins)
+      t = TypeInferenceForRule(rule, self.predicate_signature)
       t.PerformInference()
       self.UpdateTypes(rule)
 
@@ -204,13 +204,12 @@ class TypesInferenceEngine:
 
   def ShowPredicateTypes(self):
     result_lines = []
-    for predicate_name, signature in self.types_of_builtins.items():
+    for predicate_name, signature in self.predicate_signature.items():
       result_lines.append(RenderPredicateSignature(predicate_name, signature))
     return '\n'.join(result_lines)
 
 
 def ConcretizeTypes(node):
-  # print('>> concretizing', node)
   if isinstance(node, dict):
     if 'type' in node:
       node['type']['the_type'] = reference_algebra.VeryConcreteType(

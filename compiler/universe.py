@@ -555,7 +555,7 @@ class LogicaProgram(object):
     typing_engine.InferTypes()
     type_error_checker = infer.TypeErrorChecker(rules)
     type_error_checker.CheckForError(mode='raise')
-    self.predicate_signatures = typing_engine.types_of_builtins
+    self.predicate_signatures = typing_engine.predicate_signature
     return typing_engine.typing_preamble
 
   def RunMakes(self, rules):
