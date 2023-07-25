@@ -41,6 +41,9 @@ class Dialect(object):
   # Default methods:
   def MaybeCascadingDeletionWord(self):
     return ''  # No CASCADE is needed by default.
+  
+  def PredicateLiteral(self, predicate_name):
+    return "'predicate_name:%s'" % predicate_name
 
 
 class BigQueryDialect(Dialect):
@@ -75,6 +78,10 @@ class BigQueryDialect(Dialect):
   def DecorateCombineRule(self, rule, var):
     return rule
 
+  def PredicateLiteral(self, predicate_name):
+    return 'STRUCT("%s" AS predicate_name)' % predicate_name
+
+  
 class SqLiteDialect(Dialect):
   """SqLite SQL dialect."""
 

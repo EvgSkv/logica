@@ -272,7 +272,7 @@ class QL(object):
   def PredicateLiteral(self, literal):
     if self.convert_to_json:
       return '{"predicate_name": "%s"}' % (literal['predicate_name'])
-    return 'STRUCT("%s" AS predicate_name)' % literal['predicate_name']
+    return self.dialect.PredicateLiteral(literal['predicate_name'])
 
   def Variable(self, variable):
     if variable['var_name'] in self.vocabulary:
