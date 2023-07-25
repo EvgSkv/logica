@@ -18,18 +18,26 @@
 
 import json
 import os
+import sys
 
 if not __package__ or '.' not in __package__:
   from common import concertina_lib
   from compiler import universe
   from parser_py import parse
+  from common import psql_logica
   from common import sqlite3_logica
+  from compiler import functors
+  from compiler import rule_translate
+  from type_inference.research import infer
 else:
   from ..common import concertina_lib
   from ..compiler import universe
   from ..parser_py import parse
+  from ..common import psql_logica
   from ..common import sqlite3_logica
-
+  from ..compiler import functors
+  from ..compiler import rule_translate
+  from ..type_inference.research import infer
 
 class SqlRunner(object):
   def __init__(self, engine):
@@ -79,19 +87,13 @@ def RunSQL(sql, engine, connection=None, is_final=False,
     # pandas.read_gbq(sql, project_id=bq_project_id)
     return list(df.columns), [list(r) for _, r in df.iterrows()]
   elif engine == 'psql':
-    import pandas
     if is_final:
-      cursor = connection.cursor()
-      cursor.execute(sql)
-      rows = cursor.fetchall()
-      df = pandas.DataFrame(
-        rows, columns=[d[0] for d in cursor.description])
-      connection.close()
-      return list(df.columns), [list(r) for _, r in df.iterrows()]
+      cursor = psql_logica.PostgresExecute(sql, connection)
+      rows = [list(map(psql_logica.DigestPsqlType, row))
+              for row in cursor.fetchall()]
+      return [d[0] for d in cursor.description], rows
     else:
-      cursor = connection.cursor()
-      cursor.execute(sql)
-      connection.commit()
+      psql_logica.PostgresExecute(sql, connection)
   elif engine == 'sqlite':
     try:
       if is_final:
@@ -112,16 +114,32 @@ def RunSQL(sql, engine, connection=None, is_final=False,
 
 
 def Run(filename, predicate_name):
-  rules = parse.ParseFile(open(filename).read())['rule']
-  program = universe.LogicaProgram(rules)
-  engine = program.annotations.Engine()
+  try:
+    rules = parse.ParseFile(open(filename).read())['rule']
+  except parse.ParsingException as parsing_exception:
+    parsing_exception.ShowMessage()
+    sys.exit(1)
 
-  # This is needed to build the program execution.
-  unused_sql = program.FormattedPredicateSql(predicate_name)
 
-  (header, rows) = concertina_lib.ExecuteLogicaProgram(
-      [program.execution], SqlRunner(engine), engine,
-      display_mode='terminal')[predicate_name]
+  try:
+    program = universe.LogicaProgram(rules)
+    engine = program.annotations.Engine()
+
+    # This is needed to build the program execution.
+    unused_sql = program.FormattedPredicateSql(predicate_name)
+
+    (header, rows) = concertina_lib.ExecuteLogicaProgram(
+        [program.execution], SqlRunner(engine), engine,
+        display_mode='terminal')[predicate_name]
+  except rule_translate.RuleCompileException as rule_compilation_exception:
+    rule_compilation_exception.ShowMessage()
+    sys.exit(1)
+  except functors.FunctorError as functor_exception:
+    functor_exception.ShowMessage()
+    sys.exit(1)
+  except infer.TypeErrorCaughtException as type_error_exception:
+    type_error_exception.ShowMessage()
+    sys.exit(1)
 
   artistic_table = sqlite3_logica.ArtisticTable(header, rows)
   return artistic_table

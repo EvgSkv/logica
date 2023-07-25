@@ -23,6 +23,7 @@ import re
 
 from .common import color
 from .common import concertina_lib
+from .common import psql_logica
 
 from .compiler import functors
 from .compiler import rule_translate
@@ -164,55 +165,6 @@ def ParseList(line):
     predicates = [p.strip() for p in line.split(',')]
   return predicates
 
-def PostgresExecute(sql, connection):
-  import psycopg2
-  import psycopg2.extras
-  cursor = connection.cursor()
-  try:
-    cursor.execute(sql)
-    # Make connection aware of the used types.
-    types = re.findall(r'-- Logica type: (\w*)', sql)
-    for t in types:
-      if t != 'logicarecord893574736':  # Empty record.
-        psycopg2.extras.register_composite(t, cursor, globally=True)
-  except psycopg2.errors.UndefinedTable  as e:
-    raise infer.TypeErrorCaughtException(
-      infer.ContextualizedError.BuildNiceMessage(
-        'Running SQL.', 'Undefined table used: ' + str(e)))
-  except psycopg2.Error as e:
-    connection.rollback()
-    raise e
-  return cursor
-
-
-def DigestPsqlType(x):
-  if isinstance(x, tuple):
-    return PsqlTypeAsDictionary(x)
-  if isinstance(x, list) and len(x) > 0:
-    return PsqlTypeAsList(x)
-  if isinstance(x, Decimal):
-    if x.as_integer_ratio()[1] == 1:
-      return int(x)
-    else:
-      return float(x)
-  return x
-
-
-def PsqlTypeAsDictionary(record):
-  result = {}
-  for f in record._asdict():
-    a = getattr(record, f)
-    result[f] = DigestPsqlType(a)
-  return result
-
-
-def PsqlTypeAsList(a):
-  e = a[0]
-  if isinstance(e, tuple):
-    return [PsqlTypeAsDictionary(i) for i in a]
-  else:
-    return a
-
 
 def RunSQL(sql, engine, connection=None, is_final=False):
   if engine == 'bigquery':
@@ -220,14 +172,14 @@ def RunSQL(sql, engine, connection=None, is_final=False):
     return client.query(sql).to_dataframe()
   elif engine == 'psql':
     if is_final:
-      cursor = PostgresExecute(sql, connection)
+      cursor = psql_logica.PostgresExecute(sql, connection)
       rows = cursor.fetchall()
       df = pandas.DataFrame(
         rows, columns=[d[0] for d in cursor.description])
-      df = df.applymap(DigestPsqlType)
+      df = df.applymap(psql_logica.DigestPsqlType)
       return df
     else:
-      PostgresExecute(sql, connection)
+      psql_logica.PostgresExecute(sql, connection)
   elif engine == 'sqlite':
     try:
       if is_final:
