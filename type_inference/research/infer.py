@@ -688,6 +688,7 @@ class TypeCollector:
         self.psql_struct_type_name[t], args)
 
     wrap = lambda n, d: (
+      f"-- Logica type: {n}\n" +
       f"if not exists (select 'I(am) :- I(think)' from pg_type where typname = '{n}') then {d} end if;"
     )
     self.definitions = [

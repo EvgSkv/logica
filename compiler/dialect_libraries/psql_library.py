@@ -41,4 +41,7 @@ RecordAsJson(r) = SqlExpr(
   "ROW_TO_JSON({r})", {r:});
 
 Fingerprint(s) = SqlExpr("('x' || substr(md5({s}), 1, 16))::bit(64)::bigint", {s:});
+
+Num(a) = a;
+Str(a) = a;
 """

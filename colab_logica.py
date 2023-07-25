@@ -16,8 +16,10 @@
 
 """Library for using Logica in CoLab."""
 
+from decimal import Decimal
 import getpass
 import json
+import re
 
 from .common import color
 from .common import concertina_lib
@@ -164,9 +166,15 @@ def ParseList(line):
 
 def PostgresExecute(sql, connection):
   import psycopg2
+  import psycopg2.extras
   cursor = connection.cursor()
   try:
     cursor.execute(sql)
+    # Make connection aware of the used types.
+    types = re.findall(r'-- Logica type: (\w*)', sql)
+    for t in types:
+      if t != 'logicarecord893574736':  # Empty record.
+        psycopg2.extras.register_composite(t, cursor, globally=True)
   except psycopg2.errors.UndefinedTable  as e:
     raise infer.TypeErrorCaughtException(
       infer.ContextualizedError.BuildNiceMessage(
@@ -175,7 +183,37 @@ def PostgresExecute(sql, connection):
     connection.rollback()
     raise e
   return cursor
-  
+
+
+def DigestPsqlType(x):
+  if isinstance(x, tuple):
+    return PsqlTypeAsDictionary(x)
+  if isinstance(x, list) and len(x) > 0:
+    return PsqlTypeAsList(x)
+  if isinstance(x, Decimal):
+    if x.as_integer_ratio()[1] == 1:
+      return int(x)
+    else:
+      return float(x)
+  return x
+
+
+def PsqlTypeAsDictionary(record):
+  result = {}
+  for f in record._asdict():
+    a = getattr(record, f)
+    result[f] = DigestPsqlType(a)
+  return result
+
+
+def PsqlTypeAsList(a):
+  e = a[0]
+  if isinstance(e, tuple):
+    return [PsqlTypeAsDictionary(i) for i in a]
+  else:
+    return a
+
+
 def RunSQL(sql, engine, connection=None, is_final=False):
   if engine == 'bigquery':
     client = bigquery.Client(project=PROJECT)
@@ -186,6 +224,7 @@ def RunSQL(sql, engine, connection=None, is_final=False):
       rows = cursor.fetchall()
       df = pandas.DataFrame(
         rows, columns=[d[0] for d in cursor.description])
+      df = df.applymap(DigestPsqlType)
       return df
     else:
       PostgresExecute(sql, connection)
@@ -205,6 +244,15 @@ def RunSQL(sql, engine, connection=None, is_final=False):
   else:
     raise Exception('Logica only supports BigQuery, PostgreSQL and SQLite '
                     'for now.')
+
+
+def Ingress(table_name, csv_file_name):
+  with open(csv_file_name) as csv_data_io:
+    cursor = DB_CONNECTION.cursor()
+    cursor.copy_expert(
+      'COPY %s FROM STDIN WITH CSV HEADER' % table_name,
+      csv_data_io)
+    DB_CONNECTION.commit()
 
 
 class SqliteRunner(object):
