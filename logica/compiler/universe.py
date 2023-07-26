@@ -36,7 +36,7 @@ else:
   from ..compiler import expr_translate
   from ..compiler import functors
   from ..compiler import rule_translate
-  from parser_py import parse
+  from ..parser_py import parse
 
 PredicateInfo = collections.namedtuple('PredicateInfo',
                                        ['embeddable'])
