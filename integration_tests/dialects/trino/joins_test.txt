@@ -1,0 +1,10 @@
+       col0       |  name   | phone |       email       
+------------------+---------+-------+-------------------
+ CompleteContacts | James   | 345   | james@example.com 
+ CompleteContacts | Matthew | 456   | matt@example.com  
+ Contacts         | James   | 345   | james@example.com 
+ Contacts         | John    | 123   | NULL              
+ Contacts         | Joseph  | 567   | NULL              
+ Contacts         | Matthew | 456   | matt@example.com  
+ Contacts         | Timothy | NULL  | tim@example.com   
+(7 rows)
