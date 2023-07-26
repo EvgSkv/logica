@@ -395,5 +395,7 @@ colab_logica.SetDbConnection(connection)""")
 
   print('Connected.')
   global DEFAULT_ENGINE
+  global DB_CONNECTION
   DEFAULT_ENGINE = 'psql'
+  DB_CONNECTION = connection
   return engine, connection
