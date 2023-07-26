@@ -224,13 +224,9 @@ class PostgresRunner(object):
   def __init__(self):
     global DB_CONNECTION
     global DB_ENGINE
-    if DB_CONNECTION:
-      self.engine = DB_ENGINE
-      self.connection = DB_CONNECTION
-    else:
-      (self.engine, self.connection) = PostgresJumpStart()
-      DB_ENGINE = self.engine
-      DB_CONNECTION = self.connection
+    if not DB_CONNECTION:
+      PostgresJumpStart()
+    self.connection = DB_CONNECTION
   
   def  __call__(self, sql, engine, is_final):
     return RunSQL(sql, engine, self.connection, is_final)
@@ -346,6 +342,14 @@ def Logica(line, cell, run_query):
       print(' ') # To activate the tabbar.
 
 def PostgresJumpStart():
+  print("Assuming this is running on Google CoLab in a temporary")
+  print("environment.")
+  print("Would you like to install and run postgres?")
+  user_choice = input('y/N?')
+  if user_choice != 'y':
+    print('User declined.')
+    print('Bailing out.')
+    return
   # Install postgresql server.
   print("Installing and configuring an empty PostgreSQL database.")
   result = 0
@@ -384,13 +388,7 @@ colab_logica.SetDbConnection(connection)""")
     return
   print('Installation succeeded. Connecting...')
   # Connect to the database.
-  from logica import colab_logica
-  from sqlalchemy import create_engine
-  import pandas
-  # engine = create_engine('postgresql+psycopg2://logica:logica@127.0.0.1', pool_recycle=3600)
-  # connection = engine.connect()
   import psycopg2
-  engine = 'psql'
   connection = psycopg2.connect(host='localhost', database='logica', user='logica', password='logica')
 
   print('Connected.')
@@ -398,4 +396,3 @@ colab_logica.SetDbConnection(connection)""")
   global DB_CONNECTION
   DEFAULT_ENGINE = 'psql'
   DB_CONNECTION = connection
-  return engine, connection
