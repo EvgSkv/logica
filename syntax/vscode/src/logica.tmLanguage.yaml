@@ -1,0 +1,406 @@
+#
+# Copyright 2020 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+---
+"$schema": https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json
+name: Logica
+patterns:
+  - include: "#program"
+
+repository:
+  expression:
+    patterns:
+      - include: "#combine"
+      - include: "#string_literal"
+      - include: "#number_literal"
+      - include: "#boolean_literal"
+      - include: "#null_literal"
+      - include: "#list"
+      - include: "#inclusion"
+      - include: "#implication"
+      - include: "#unary_operator_call"
+      - include: "#binary_operator_call"
+      - include: "#record"
+      - include: "#call"
+      # assign_combination is included as an expression for convenience.
+      - include: "#assign_combination"
+      - begin: "\\("
+        end: "\\)"
+        beginCaptures:
+          '0': {name: "punctuation.parenthesis.begin.logica"}
+        endCaptures:
+          '0': {name: "punctuation.parenthesis.end.logica"}
+        patterns:
+          - include: "#expression"
+  
+  combine:
+    patterns:
+      - name: keyword.control.flow.logica
+        match: "\\bcombine\\b"
+      - include: "#aggregating_operator"
+      
+  string_literal:
+    name: string.quoted.double.logica
+    begin: "\""
+    end: "\""
+    patterns:
+      - name: constant.character.escape.logica
+        match: \\.
+  
+  number_literal:
+    patterns:
+      - name: constant.numeric.float.logica
+        match: |
+          (?x)
+            (?<! \w)
+            (?:
+              \. (?: [0-9] )+
+              |
+              (?: [0-9] )+ \. (?: [0-9] )+
+              |
+              (?: [0-9] )+ \.
+            )\b
+      - name: constant.numeric.dec.logica
+        match: |
+          (?x)
+            (?<![\w\.])(?:
+                [1-9](?: [0-9] )*
+                |
+                0+
+            )\b 
+  
+  boolean_literal: 
+    name: constant.language.logica
+    match: \b(true|false)\b
+  
+  null_literal:
+    name: constant.language.logica
+    match: \b(null)\b
+  
+  list:
+    begin: \[
+    end: \]
+    beginCaptures:
+      '0': {name: punctuation.definition.list.begin.logica}
+    endCaptures:
+      '0': {name: punctuation.definition.list.end.logica}
+    patterns:
+      - name: punctuation.separator.element.logica
+        match: ","
+      - include: "#expression"
+  
+  inclusion:
+    patterns:
+      - name: keyword.operator.logical.logica
+        match: \bin\b
+  
+  implication:
+    patterns:
+      - name: keyword.operator.logical.logica
+        match: \b(if|else|then)\b
+  
+  field:
+    match: "\\b(?<!@)[A-Za-z_]\\w*\\b(?=[:?])"
+    name: "variable.parameter.logica"
+  
+  record_field_value:
+    patterns:
+      - include: "#field"
+      - name: punctuation.separator.colon.logica
+        match: ":"
+      - include: "#expression"
+  
+  record_internal:
+    patterns:
+      - name: punctuation.separator.element.logica
+        match: ","
+      - match: |
+          (?x)
+            ((?<!\.)\.\.(?!\.))
+            (?:[a-z0-9_]+)
+        captures:
+          '1': {'name': 'keyword.operator.spread.logica'}
+      - include: "#record_field_value"
+  
+  aggregating_field_value:
+    patterns:
+      - include: "#field"
+      - match: "\\?"
+        name: keyword.operator.logica
+      - include: "#aggregating_assignment"
+  
+  aggregating_record_internal:
+    patterns:
+      - name: punctuation.separator.element.logica
+        match: ","
+      - include: "#record_field_value"
+      - include: "#aggregating_field_value"
+  
+  record:
+    begin: "{"
+    end: "}"
+    beginCaptures:
+      '0': {name: punctuation.definition.dict.begin.logica}
+    endCaptures:
+      '0': {name: punctuation.definition.dict.end.logica}
+    patterns:
+      - include: "#record_internal"
+  
+  operator:
+    patterns:
+      - name: keyword.operator.logical.logica
+        match: (?x) ( && | \|\| )
+      - name: keyword.operator.comparison.logica
+        match: (?x) ( < | > | <= | >= | == | !=)
+      - name: keyword.operator.arithmetic.logica
+        match: (?x) (\+ | \* | \/ | \+\+ | \^ | ->)(?!=)
+        
+  unary_operator:
+    patterns:
+      - name: keyword.operator.logical.logica
+        match: \!(?!=)
+      - name: keyword.operator.arithmetic.logica
+        match: (?<!:)-(?!=)
+  
+  unary_operator_call:
+    patterns:
+      - include: "#unary_operator"
+  
+  binary_operator_call:
+    patterns:
+      - include: "#operator"
+
+  import:
+    patterns:
+      - begin: \b(?<!\.)(import)\b
+        end: $
+        beginCaptures:
+          '1': {name: keyword.control.import.logica}
+        patterns:
+          - match: |
+              (?x)
+                (?:.+)
+                \. 
+                (\w+)
+                \s+
+                (as)
+                \s+
+                (\w+)
+            captures:
+              '1': {patterns: [{include: "#logica_predicate"}]}
+              '2': {name: keyword.control.import.logica}
+              '3': {patterns: [{include: "#logica_predicate"}]}
+          - match: |
+              (?x)
+                (?:.+)
+                \.
+                (\w+)
+            captures:
+              '1': {patterns: [{include: "#logica_predicate"}]}
+  
+  logica_predicate:
+    match: |
+      (?x) 
+        (?<!\w)
+        ([A-Z_]\w*)
+    captures:
+      '1': {name: entity.name.function.logica}
+  
+  other_predicate:
+    patterns:
+      - match: "`[^`]+`"
+        name: "string.interpolated.logica"
+  
+  predicate:
+    patterns:
+      - include: "#logica_predicate"
+      - include: "#other_predicate"
+    
+  call:
+    # This entry includes patterns of both call and head_call.
+    name: meta.function-call.logica
+    begin: |
+      (?x)
+        (@)?
+        (?:
+          ([A-Z_]\w*) |
+          (
+            (?: `[^`]+`) | 
+            (?: [\w.]+)
+          )
+        )
+        (?<= [\w`])
+        (\()
+    end: (\))
+    beginCaptures:
+      '1': {name: keyword.operator.arithmetic.logica}
+      '2': {name: entity.name.function.logica}
+      '3': {patterns: [{include: "#other_predicate"}]}
+      '4': {name: "punctuation.definition.arguments.begin.logica"}
+    endCaptures:
+      '1': {name: "punctuation.definition.arguments.end.logica"}
+    patterns:
+      - include: "#record_internal"
+      - include: "#aggregating_field_value"
+  
+  assignment:
+    patterns:
+      - include: "#simple_assignment"
+      - include: "#aggregating_assignment"
+  
+  simple_assignment:
+    patterns:
+      - match: "="
+        name: "keyword.operator.assignment.logica"
+      - include: "#expression"
+  
+  aggregating_operator:
+    patterns:
+      - match: "\\+="
+        name: "keyword.operator.assignment.logica"
+      - match: "([A-Z_]\\w*)(=)"
+        captures:
+          '1': {name: entity.name.function.logica}
+          '2': {name: "keyword.operator.assignment.logica"}
+  
+  aggregating_assignment:
+    patterns:
+      - include: "#aggregating_operator"
+      - include: "#expression"
+  
+  proposition:
+    patterns:
+      - include: "#conjunction"
+      - include: "#disjunction"
+      - include: "#negation"
+      - include: "#call"
+      - include: "#binary_operator_call"
+      - include: "#unary_operator_call"
+      - include: "#assign_combination"
+      - include: "#inclusion"
+      - begin: "\\("
+        end: "\\)"
+        beginCaptures:
+          '0': {name: "punctuation.parenthesis.begin.logica"}
+        endCaptures:
+          '0': {name: "punctuation.parenthesis.end.logica"}
+        patterns:
+          - include: "#proposition"
+  
+  conjunction:
+    patterns:
+      - name: punctuation.separator.element.logica
+        match: ","
+  
+  disjunction:
+    patterns:
+      - name: keyword.operator.logical.logica
+        match: "\\|"
+  
+  negation:
+    name: keyword.operator.logical.logica
+    match: "~"
+  
+  assign_combination:
+    patterns:
+      - include: '#aggregating_operator'  
+      - name: keyword.operator.assignment.logica
+        match: ":-"
+  
+  program: 
+    patterns:
+      - include: "#program_entry"
+      - name: punctuation.terminator.statement.logica
+        match: ";"
+      - include: "#comment"
+
+  program_entry:
+    patterns:
+    - include: "#import"
+    - include: "#functor_application"
+    - include: "#rule"
+  
+  rule:
+    patterns:
+      - include: "#rule_head"
+      - match: ":-"
+        name: "keyword.operator.assignment.logica"
+      - include: "#rule_body"
+  
+  rule_body:
+    patterns:
+      - include: "#proposition"
+  
+  rule_head:
+    patterns:
+      - include: "#assignment"
+      - include: "#head_call"
+      - match: (?x)\b distinct \b
+        name: "keyword.control.flow.logica"
+  
+  functor_application:
+    begin: |
+      (?x)
+        ([A-Z_]\w*)
+        (?: \s*)
+        (:=)
+        (?: \s*)
+        ([A-Z_]\w*)
+        (\()
+    end: (\))
+    beginCaptures:
+      '1': {name: entity.name.function.logica}
+      '2': {name: keyword.operator.assignment.logica}
+      '3': {name: entity.name.function.logica}
+      '4': {name: "punctuation.definition.arguments.begin.logica"}
+    endCaptures:
+      '1': {name: "punctuation.definition.arguments.end.logica"}
+    patterns:
+      - include: "#functor_record_internal"
+  
+  functor_record_internal:
+    patterns:
+      - name: punctuation.separator.colon.logica
+        match: ":"
+      - name: punctuation.separator.element.logica
+        match: ","
+      - include: "#logica_predicate"
+
+  comment:
+    patterns:
+    - include: "#inline_comment"
+    - include: "#block_comment"
+  
+  inline_comment:
+    patterns:
+    - name: comment.line.number-sign.logica
+      begin: \s*+(#)
+      beginCaptures:
+        '1':
+          name: punctuation.definition.comment.logica
+      end: "$"
+  
+  block_comment:
+    name: comment.block.logica
+    begin: \s*+(\/\*)
+    beginCaptures:
+      '1':
+        name: punctuation.definition.comment.begin.logica
+    end: (\*\/)
+    endCaptures:
+      '1':
+        name: punctuation.definition.comment.end.logica
+
+scopeName: source.logica

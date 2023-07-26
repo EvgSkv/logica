@@ -1,0 +1,267 @@
+DROP TABLE IF EXISTS logica_test.closure_TC1_f5; -- at [1:1]
+Dropped active-grp.logica_test.closure_TC1_f5
+
+CREATE TABLE logica_test.closure_TC1_f5 AS WITH t_9_Friend AS (SELECT * FROM (
+  
+    SELECT
+      "Alice" AS col0,
+      "Bob" AS col1
+   UNION ALL
+  
+    SELECT
+      "Bob" AS col0,
+      "Carrol" AS col1
+   UNION ALL
+  
+    SELECT
+      "Bob" AS col0,
+      "Diana" AS col1
+   UNION ALL
+  
+    SELECT
+      "Diana" AS col0,
+      "Elon" AS col1
+  
+) AS UNUSED_TABLE_NAME  ),
+t_8_closure_TC0_f5 AS (SELECT
+  Friend.col0 AS col0,
+  Friend.col1 AS col1
+FROM
+  t_9_Friend AS Friend
+GROUP BY col0, col1),
+t_7_closure_TC1_MultBodyAggAux_f5 AS (SELECT * FROM (
+  
+    SELECT
+      closure_TC0_f5.col0 AS col0,
+      closure_TC0_f5.col1 AS col1
+    FROM
+      t_8_closure_TC0_f5 AS closure_TC0_f5
+   UNION ALL
+  
+    SELECT
+      t_10_closure_TC0_f5.col0 AS col0,
+      t_11_closure_TC0_f5.col1 AS col1
+    FROM
+      t_8_closure_TC0_f5 AS t_10_closure_TC0_f5, t_8_closure_TC0_f5 AS t_11_closure_TC0_f5
+    WHERE
+      t_11_closure_TC0_f5.col0 = t_10_closure_TC0_f5.col1
+  
+) AS UNUSED_TABLE_NAME  )
+SELECT
+  closure_TC1_MultBodyAggAux_f5.col0 AS col0,
+  closure_TC1_MultBodyAggAux_f5.col1 AS col1
+FROM
+  t_7_closure_TC1_MultBodyAggAux_f5 AS closure_TC1_MultBodyAggAux_f5
+GROUP BY col0, col1; -- at [2:1]
+Created active-grp.logica_test.closure_TC1_f5
+
+DROP TABLE IF EXISTS logica_test.closure_TC2_f5; -- at [57:1]
+Dropped active-grp.logica_test.closure_TC2_f5
+
+CREATE TABLE logica_test.closure_TC2_f5 AS WITH t_6_closure_TC1_MultBodyAggAux_f1_f5 AS (SELECT * FROM (
+  
+    SELECT
+      closure_TC1_f5.col0 AS col0,
+      closure_TC1_f5.col1 AS col1
+    FROM
+      logica_test.closure_TC1_f5 AS closure_TC1_f5
+   UNION ALL
+  
+    SELECT
+      t_13_closure_TC1_f5.col0 AS col0,
+      t_14_closure_TC1_f5.col1 AS col1
+    FROM
+      logica_test.closure_TC1_f5 AS t_13_closure_TC1_f5, logica_test.closure_TC1_f5 AS t_14_closure_TC1_f5
+    WHERE
+      t_14_closure_TC1_f5.col0 = t_13_closure_TC1_f5.col1
+  
+) AS UNUSED_TABLE_NAME  )
+SELECT
+  closure_TC1_MultBodyAggAux_f1_f5.col0 AS col0,
+  closure_TC1_MultBodyAggAux_f1_f5.col1 AS col1
+FROM
+  t_6_closure_TC1_MultBodyAggAux_f1_f5 AS closure_TC1_MultBodyAggAux_f1_f5
+GROUP BY col0, col1; -- at [58:1]
+Created active-grp.logica_test.closure_TC2_f5
+
+DROP TABLE IF EXISTS logica_test.closure_TC1_f2_f5; -- at [85:1]
+Dropped active-grp.logica_test.closure_TC1_f2_f5
+
+CREATE TABLE logica_test.closure_TC1_f2_f5 AS WITH t_5_closure_TC1_MultBodyAggAux_f2_f5 AS (SELECT * FROM (
+  
+    SELECT
+      closure_TC2_f5.col0 AS col0,
+      closure_TC2_f5.col1 AS col1
+    FROM
+      logica_test.closure_TC2_f5 AS closure_TC2_f5
+   UNION ALL
+  
+    SELECT
+      t_15_closure_TC2_f5.col0 AS col0,
+      t_16_closure_TC2_f5.col1 AS col1
+    FROM
+      logica_test.closure_TC2_f5 AS t_15_closure_TC2_f5, logica_test.closure_TC2_f5 AS t_16_closure_TC2_f5
+    WHERE
+      t_16_closure_TC2_f5.col0 = t_15_closure_TC2_f5.col1
+  
+) AS UNUSED_TABLE_NAME  )
+SELECT
+  closure_TC1_MultBodyAggAux_f2_f5.col0 AS col0,
+  closure_TC1_MultBodyAggAux_f2_f5.col1 AS col1
+FROM
+  t_5_closure_TC1_MultBodyAggAux_f2_f5 AS closure_TC1_MultBodyAggAux_f2_f5
+GROUP BY col0, col1; -- at [86:1]
+Created active-grp.logica_test.closure_TC1_f2_f5
+
+DROP TABLE IF EXISTS logica_test.closure_TC3_f5; -- at [113:1]
+Dropped active-grp.logica_test.closure_TC3_f5
+
+CREATE TABLE logica_test.closure_TC3_f5 AS WITH t_4_closure_TC1_MultBodyAggAux_f1_f2_f5 AS (SELECT * FROM (
+  
+    SELECT
+      closure_TC1_f2_f5.col0 AS col0,
+      closure_TC1_f2_f5.col1 AS col1
+    FROM
+      logica_test.closure_TC1_f2_f5 AS closure_TC1_f2_f5
+   UNION ALL
+  
+    SELECT
+      t_17_closure_TC1_f2_f5.col0 AS col0,
+      t_18_closure_TC1_f2_f5.col1 AS col1
+    FROM
+      logica_test.closure_TC1_f2_f5 AS t_17_closure_TC1_f2_f5, logica_test.closure_TC1_f2_f5 AS t_18_closure_TC1_f2_f5
+    WHERE
+      t_18_closure_TC1_f2_f5.col0 = t_17_closure_TC1_f2_f5.col1
+  
+) AS UNUSED_TABLE_NAME  )
+SELECT
+  closure_TC1_MultBodyAggAux_f1_f2_f5.col0 AS col0,
+  closure_TC1_MultBodyAggAux_f1_f2_f5.col1 AS col1
+FROM
+  t_4_closure_TC1_MultBodyAggAux_f1_f2_f5 AS closure_TC1_MultBodyAggAux_f1_f2_f5
+GROUP BY col0, col1; -- at [114:1]
+Created active-grp.logica_test.closure_TC3_f5
+
+DROP TABLE IF EXISTS logica_test.closure_TC1_f3_f5; -- at [141:1]
+Dropped active-grp.logica_test.closure_TC1_f3_f5
+
+CREATE TABLE logica_test.closure_TC1_f3_f5 AS WITH t_3_closure_TC1_MultBodyAggAux_f3_f5 AS (SELECT * FROM (
+  
+    SELECT
+      closure_TC3_f5.col0 AS col0,
+      closure_TC3_f5.col1 AS col1
+    FROM
+      logica_test.closure_TC3_f5 AS closure_TC3_f5
+   UNION ALL
+  
+    SELECT
+      t_19_closure_TC3_f5.col0 AS col0,
+      t_20_closure_TC3_f5.col1 AS col1
+    FROM
+      logica_test.closure_TC3_f5 AS t_19_closure_TC3_f5, logica_test.closure_TC3_f5 AS t_20_closure_TC3_f5
+    WHERE
+      t_20_closure_TC3_f5.col0 = t_19_closure_TC3_f5.col1
+  
+) AS UNUSED_TABLE_NAME  )
+SELECT
+  closure_TC1_MultBodyAggAux_f3_f5.col0 AS col0,
+  closure_TC1_MultBodyAggAux_f3_f5.col1 AS col1
+FROM
+  t_3_closure_TC1_MultBodyAggAux_f3_f5 AS closure_TC1_MultBodyAggAux_f3_f5
+GROUP BY col0, col1; -- at [142:1]
+Created active-grp.logica_test.closure_TC1_f3_f5
+
+DROP TABLE IF EXISTS logica_test.closure_TC2_f3_f5; -- at [169:1]
+Dropped active-grp.logica_test.closure_TC2_f3_f5
+
+CREATE TABLE logica_test.closure_TC2_f3_f5 AS WITH t_2_closure_TC1_MultBodyAggAux_f1_f3_f5 AS (SELECT * FROM (
+  
+    SELECT
+      closure_TC1_f3_f5.col0 AS col0,
+      closure_TC1_f3_f5.col1 AS col1
+    FROM
+      logica_test.closure_TC1_f3_f5 AS closure_TC1_f3_f5
+   UNION ALL
+  
+    SELECT
+      t_21_closure_TC1_f3_f5.col0 AS col0,
+      t_22_closure_TC1_f3_f5.col1 AS col1
+    FROM
+      logica_test.closure_TC1_f3_f5 AS t_21_closure_TC1_f3_f5, logica_test.closure_TC1_f3_f5 AS t_22_closure_TC1_f3_f5
+    WHERE
+      t_22_closure_TC1_f3_f5.col0 = t_21_closure_TC1_f3_f5.col1
+  
+) AS UNUSED_TABLE_NAME  )
+SELECT
+  closure_TC1_MultBodyAggAux_f1_f3_f5.col0 AS col0,
+  closure_TC1_MultBodyAggAux_f1_f3_f5.col1 AS col1
+FROM
+  t_2_closure_TC1_MultBodyAggAux_f1_f3_f5 AS closure_TC1_MultBodyAggAux_f1_f3_f5
+GROUP BY col0, col1; -- at [170:1]
+Created active-grp.logica_test.closure_TC2_f3_f5
+
+DROP TABLE IF EXISTS logica_test.closure_TC1_f2_f3_f5; -- at [197:1]
+Dropped active-grp.logica_test.closure_TC1_f2_f3_f5
+
+CREATE TABLE logica_test.closure_TC1_f2_f3_f5 AS WITH t_1_closure_TC1_MultBodyAggAux_f2_f3_f5 AS (SELECT * FROM (
+  
+    SELECT
+      closure_TC2_f3_f5.col0 AS col0,
+      closure_TC2_f3_f5.col1 AS col1
+    FROM
+      logica_test.closure_TC2_f3_f5 AS closure_TC2_f3_f5
+   UNION ALL
+  
+    SELECT
+      t_23_closure_TC2_f3_f5.col0 AS col0,
+      t_24_closure_TC2_f3_f5.col1 AS col1
+    FROM
+      logica_test.closure_TC2_f3_f5 AS t_23_closure_TC2_f3_f5, logica_test.closure_TC2_f3_f5 AS t_24_closure_TC2_f3_f5
+    WHERE
+      t_24_closure_TC2_f3_f5.col0 = t_23_closure_TC2_f3_f5.col1
+  
+) AS UNUSED_TABLE_NAME  )
+SELECT
+  closure_TC1_MultBodyAggAux_f2_f3_f5.col0 AS col0,
+  closure_TC1_MultBodyAggAux_f2_f3_f5.col1 AS col1
+FROM
+  t_1_closure_TC1_MultBodyAggAux_f2_f3_f5 AS closure_TC1_MultBodyAggAux_f2_f3_f5
+GROUP BY col0, col1; -- at [198:1]
+Created active-grp.logica_test.closure_TC1_f2_f3_f5
+
+WITH t_0_closure_TC1_MultBodyAggAux_f1_f2_f3_f5 AS (SELECT * FROM (
+  
+    SELECT
+      closure_TC1_f2_f3_f5.col0 AS col0,
+      closure_TC1_f2_f3_f5.col1 AS col1
+    FROM
+      logica_test.closure_TC1_f2_f3_f5 AS closure_TC1_f2_f3_f5
+   UNION ALL
+  
+    SELECT
+      t_25_closure_TC1_f2_f3_f5.col0 AS col0,
+      t_26_closure_TC1_f2_f3_f5.col1 AS col1
+    FROM
+      logica_test.closure_TC1_f2_f3_f5 AS t_25_closure_TC1_f2_f3_f5, logica_test.closure_TC1_f2_f3_f5 AS t_26_closure_TC1_f2_f3_f5
+    WHERE
+      t_26_closure_TC1_f2_f3_f5.col0 = t_25_closure_TC1_f2_f3_f5.col1
+  
+) AS UNUSED_TABLE_NAME  )
+SELECT
+  closure_TC1_MultBodyAggAux_f1_f2_f3_f5.col0 AS col0,
+  closure_TC1_MultBodyAggAux_f1_f2_f3_f5.col1 AS col1
+FROM
+  t_0_closure_TC1_MultBodyAggAux_f1_f2_f3_f5 AS closure_TC1_MultBodyAggAux_f1_f2_f3_f5
+GROUP BY col0, col1 ORDER BY col0, col1; -- at [225:1]
++-------+--------+
+| col0  |  col1  |
++-------+--------+
+| Alice | Bob    |
+| Alice | Carrol |
+| Alice | Diana  |
+| Alice | Elon   |
+| Bob   | Carrol |
+| Bob   | Diana  |
+| Bob   | Elon   |
+| Diana | Elon   |
++-------+--------+

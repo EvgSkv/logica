@@ -1,0 +1,23 @@
+    col0     | col1 | col2  
+-------------+------+-------
+ ChildrenOf  | A    | B,F,G
+ ChildrenOf  | B    | C,E
+ ChildrenOf  | C    | D
+ ChildrenOf  | G    | H
+ Grandparent | A    | C
+ Grandparent | A    | E
+ Grandparent | A    | H
+ Grandparent | B    | D
+ NumChildren | A    | 3
+ NumChildren | B    | 2
+ NumChildren | C    | 1
+ NumChildren | G    | 1
+ Parent      | A    | B
+ Parent      | A    | F
+ Parent      | A    | G
+ Parent      | B    | C
+ Parent      | B    | E
+ Parent      | C    | D
+ Parent      | G    | H
+(19 rows)
+
