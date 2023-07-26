@@ -345,7 +345,7 @@ def PostgresJumpStart():
   print("Assuming this is running on Google CoLab in a temporary")
   print("environment.")
   print("Would you like to install and run postgres?")
-  user_choice = input('y/N?')
+  user_choice = input('y or N? ')
   if user_choice != 'y':
     print('User declined.')
     print('Bailing out.')
