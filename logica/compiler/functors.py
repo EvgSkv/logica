@@ -40,7 +40,7 @@ if '.' not in __package__:
 else:
   from ..common import color
   from ..compiler.dialect_libraries import recursion_library
-  from parser_py import parse
+  from ..parser_py import parse
 
 
 class FunctorError(Exception):
