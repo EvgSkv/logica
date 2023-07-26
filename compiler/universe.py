@@ -137,6 +137,11 @@ class Annotations(object):
   def __init__(self, rules, user_flags):
     # Extracting DefineFlags first, so that we can use flags in @Ground
     # annotations.
+    if 'logica_default_engine' in user_flags:
+      self.default_engine = user_flags['logica_default_engine']
+    else:
+      self.default_engine = 'bigquery'
+
     self.annotations = self.ExtractAnnotations(
         rules, restrict_to=['@DefineFlag', '@ResetFlagValue'])
     self.user_flags = user_flags
@@ -167,12 +172,14 @@ class Annotations(object):
     programmatic_flag_values = {}
     for flag, a in self.annotations['@ResetFlagValue'].items():
       programmatic_flag_values[flag] = a.get('1', '${%s}' % flag)
+    system_flags = set(['logica_default_engine'])
+    allowed_flags_set = set(default_values) | system_flags
 
-    if not set(self.user_flags) <= set(default_values):
+    if not set(self.user_flags) <= allowed_flags_set:
       raise rule_translate.RuleCompileException(
           'Undefined flags used: %s' % list(
-              set(self.user_flags) - set(default_values)),
-          str(set(self.user_flags) - set(default_values)))
+              set(self.user_flags) - allowed_flags_set),
+          str(set(self.user_flags) - allowed_flags_set))
     flag_values = default_values
     flag_values.update(**programmatic_flag_values)
     flag_values.update(**self.user_flags)
@@ -249,19 +256,20 @@ class Annotations(object):
     return self.ExtractSingleton('@Dataset', 'logica_test')
 
   def Engine(self):
-    engine = self.ExtractSingleton('@Engine', 'bigquery')
+    engine = self.ExtractSingleton('@Engine', self.default_engine)
     if engine not in dialects.DIALECTS:
       AnnotationError('Unrecognized engine: %s' % engine,
                       self.annotations['@Engine'][engine])
     return engine
  
   def ShouldTypecheck(self):
-    if '@Engine' not in self.annotations:
-      return False
-    if len(self.annotations['@Engine'].values()) == 0:
-      return False
-    
     engine = self.Engine()
+
+    if '@Engine' not in self.annotations:
+      return engine == 'psql'
+    if len(self.annotations['@Engine'].values()) == 0:
+      return  engine == 'psql'
+    
     engine_annotation = list(self.annotations['@Engine'].values())[0]
     if 'type_checking' not in engine_annotation:
       if engine == 'psql':

@@ -80,6 +80,8 @@ PREAMBLE = None
 
 DISPLAY_MODE = 'colab'  # or colab-text
 
+DEFAULT_ENGINE = 'bigquery'
+
 
 def SetPreamble(preamble):
   global PREAMBLE
@@ -111,6 +113,8 @@ def ConnectToPostgres(mode='interactive'):
   print('Connection established.')
   connection.autocommit = True
   SetDbConnection(connection)
+  global DEFAULT_ENGINE
+  DEFAULT_ENGINE = 'psql'
 
 def EnsureAuthenticatedUser():
   global USER_AUTHENTICATED
@@ -249,7 +253,9 @@ def Logica(line, cell, run_query):
     e.ShowMessage()
     return
   try:
-    program = universe.LogicaProgram(parsed_rules)
+    program = universe.LogicaProgram(
+        parsed_rules,
+        user_flags={'logica_default_engine': DEFAULT_ENGINE})
   except functors.FunctorError as e:
     e.ShowMessage()
     return
