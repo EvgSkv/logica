@@ -387,7 +387,13 @@ colab_logica.SetDbConnection(connection)""")
   from logica import colab_logica
   from sqlalchemy import create_engine
   import pandas
-  engine = create_engine('postgresql+psycopg2://logica:logica@127.0.0.1', pool_recycle=3600)
-  connection = engine.connect()
+  # engine = create_engine('postgresql+psycopg2://logica:logica@127.0.0.1', pool_recycle=3600)
+  # connection = engine.connect()
+  import psycopg2
+  engine = 'psql'
+  connection = psycopg2.connect(host='localhost', database='logica', user='logica', password='logica')
+
   print('Connected.')
+  global DEFAULT_ENGINE
+  DEFAULT_ENGINE = 'psql'
   return engine, connection
