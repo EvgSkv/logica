@@ -78,7 +78,10 @@ SHOW_FULL_QUERY = True
 
 PREAMBLE = None
 
-DISPLAY_MODE = 'colab'  # or colab-text
+if hasattr(concertina_lib, 'graphviz'):
+  DISPLAY_MODE = 'colab'
+else:
+  DISPLAY_MODE = 'colab-text'
 
 DEFAULT_ENGINE = 'bigquery'
 
@@ -98,18 +101,20 @@ def SetDbConnection(connection):
 def ConnectToPostgres(mode='interactive'):
   import psycopg2
   if mode == 'interactive':
-    print('Please enter PostgreSQL connection config in JSON format.')
-    print('Example:')
-    print('{"host": "myhost", "database": "megadb", '
-          '"user": "myuser", "password": "42"}')
+    print('Please enter PostgreSQL URL, or config in JSON format with fields host, database, user and password.')
     connection_str = getpass.getpass()
   elif mode == 'environment':
     connection_str = os.environ.get('LOGICA_PSQL_CONNECTION')
   else:
     assert False, 'Unknown mode:' + mode
-  connection_json = json.loads(connection_str)
-  print('Starting connection...')
-  connection = psycopg2.connect(**connection_json)
+  if connection_str.startswith('postgres'):
+    print('Connecting to postgresql url...')
+    connection = psycopg2.connect(connection_str)
+  else:
+    print('Parsing connection JSON.')
+    connection_json = json.loads(connection_str)
+    print('Issuing connection request...')
+    connection = psycopg2.connect(**connection_json)
   print('Connection established.')
   connection.autocommit = True
   SetDbConnection(connection)

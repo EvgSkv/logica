@@ -66,8 +66,4 @@ def PsqlTypeAsDictionary(record):
 
 
 def PsqlTypeAsList(a):
-  e = a[0]
-  if isinstance(e, tuple):
-    return [PsqlTypeAsDictionary(i) for i in a]
-  else:
-    return a
+  return list(map(DigestPsqlType, a))

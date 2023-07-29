@@ -368,7 +368,12 @@ def Revive(t):
   if isinstance(t, str):
     return TypeReference(t)
   if isinstance(t, dict):
-    return TypeReference(OpenRecord({k: Revive(v) for k, v in t.items()}))
+    def ReviveKey(k):
+      if k in ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9']:
+        return int(k)
+      return k
+    return TypeReference(OpenRecord(
+      {ReviveKey(k): Revive(v) for k, v in t.items()}))
   if isinstance(t, list):
     return TypeReference(list(map(Revive, t)))
   if isinstance(t, BadType):
