@@ -99,24 +99,7 @@ def SetDbConnection(connection):
   DB_CONNECTION = connection
 
 def ConnectToPostgres(mode='interactive'):
-  import psycopg2
-  if mode == 'interactive':
-    print('Please enter PostgreSQL URL, or config in JSON format with fields host, database, user and password.')
-    connection_str = getpass.getpass()
-  elif mode == 'environment':
-    connection_str = os.environ.get('LOGICA_PSQL_CONNECTION')
-  else:
-    assert False, 'Unknown mode:' + mode
-  if connection_str.startswith('postgres'):
-    print('Connecting to postgresql url...')
-    connection = psycopg2.connect(connection_str)
-  else:
-    print('Parsing connection JSON.')
-    connection_json = json.loads(connection_str)
-    print('Issuing connection request...')
-    connection = psycopg2.connect(**connection_json)
-  print('Connection established.')
-  connection.autocommit = True
+  connection = psql_logica.ConnectToPostgres(mode)
   SetDbConnection(connection)
   global DEFAULT_ENGINE
   DEFAULT_ENGINE = 'psql'

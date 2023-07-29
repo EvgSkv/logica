@@ -57,14 +57,7 @@ class SqlRunner(object):
     else:
       credentials, project = None, None
     if engine == 'psql':
-      import psycopg2
-      if os.environ.get('LOGICA_PSQL_CONNECTION'):
-        connection_json = json.loads(os.environ.get('LOGICA_PSQL_CONNECTION'))
-      else:
-        assert False, (
-          'Please provide PSQL connection parameters '
-          'in LOGICA_PSQL_CONNECTION')
-      self.connection = psycopg2.connect(**connection_json)
+      self.connection = psql_logica.ConnectToPostgres('environment')
 
     self.bq_credentials = credentials
     self.bq_project = project

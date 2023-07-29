@@ -531,7 +531,8 @@ class RuleStructure(object):
                          for v in ordered_distinct_vars)
         elif subquery_encoder.execution.dialect.GroupBySpecBy() == 'expr':
           r += ', '.join(
-            ql.ConvertToSql(self.select[k]) for k in ordered_distinct_vars
+            ql.ConvertToSqlForGroupBy(self.select[k])
+            for k in ordered_distinct_vars
           )
         else:
           assert False, 'Broken dialect %s, group by spec: %s' % (

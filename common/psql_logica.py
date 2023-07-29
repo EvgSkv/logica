@@ -14,6 +14,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import getpass
+import json
+import os
 import re
 from decimal import Decimal
 
@@ -67,3 +70,25 @@ def PsqlTypeAsDictionary(record):
 
 def PsqlTypeAsList(a):
   return list(map(DigestPsqlType, a))
+
+
+def ConnectToPostgres(mode):
+  import psycopg2
+  if mode == 'interactive':
+    print('Please enter PostgreSQL URL, or config in JSON format with fields host, database, user and password.')
+    connection_str = getpass.getpass()
+  elif mode == 'environment':
+    connection_str = os.environ.get('LOGICA_PSQL_CONNECTION')
+    assert connection_str, (
+        'Please provide PSQL connection parameters '
+        'in LOGICA_PSQL_CONNECTION.')
+  else:
+    assert False, 'Unknown mode:' + mode
+  if connection_str.startswith('postgres'):
+    connection = psycopg2.connect(connection_str)
+  else:
+    connection_json = json.loads(connection_str)
+    connection = psycopg2.connect(**connection_json)
+
+  connection.autocommit = True
+  return connection

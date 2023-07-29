@@ -429,6 +429,12 @@ class QL(object):
         'implication': {'if_then': new_if_thens, 'otherwise': new_otherwise}}
     return self.ConvertToSql(new_expr)
 
+  def ConvertToSqlForGroupBy(self, expression):
+    if 'literal' in expression and 'the_string' in expression['literal']:
+      # To calm down PSQL:
+      return f"({self.ConvertToSql(expression)} || '')"
+    return self.ConvertToSql(expression)
+
   def ConvertToSql(self, expression):
     """Converting Logica expression into SQL."""
     # print('EXPR:', expression)
