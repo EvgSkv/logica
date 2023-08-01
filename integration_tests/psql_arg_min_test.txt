@@ -1,6 +1,0 @@
-  dep  | person  
--------+---------
- Eng   | Matthew
- Sales | Evan
-(2 rows)
-
