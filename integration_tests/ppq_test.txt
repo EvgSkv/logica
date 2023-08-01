@@ -1,5 +1,0 @@
-Error in query string: Error processing job 'active-
-grp:bqjob_r2e8a5f02ea22db23_000001722034c3e2_1': Syntax error: Unexpected "+" at
-[21:23]
-Failure details:
-- query: Syntax error: Unexpected "+" at [21:23]

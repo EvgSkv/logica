@@ -1,4 +1,0 @@
-city,state,int64_population,float64_internet_penetration
-Seattle,WA,1000000,0.9
-TwinPeaks,WA,2000,0.1
-Portland,OR,500000,0.8
