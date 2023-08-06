@@ -570,10 +570,13 @@ class QL(object):
       record = expression['record']
       record_type = expression.get('type', {}).get('type_name', None)
       if self.dialect.Name() == 'PostgreSQL' and record_type is None:
+        rendered_type = expression.get('type', {}).get('rendered_type', None)
         raise self.exception_maker(color.Format(
             'Record needs type in PostgreSQL: '
-            '{warning}{record}{end}.', dict(
-                record=expression['expression_heritage'])))
+            '{warning}{record}{end} was inferred only '
+            'an incomplete type {warning}{type}{end}.', dict(
+                record=expression['expression_heritage'],
+                type=rendered_type)))
     
       return self.Record(
         record,

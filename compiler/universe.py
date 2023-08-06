@@ -418,6 +418,17 @@ class Annotations(object):
         ql.convert_to_json = True
 
         annotation = rule['head']['predicate_name']
+        # Checking for aggregations.
+        aggregated_fields = [
+          fv['field']
+          for fv in rule['head']['record']['field_value']
+          if 'aggregation' in fv['value']]
+        if aggregated_fields:
+          raise rule_translate.RuleCompileException(
+                'Annotation may not use aggregation, but field '
+                '%s is aggregated.' % (
+                    color.Warn(aggregated_fields[0])),
+                rule_text)
         field_values_json_str = ql.ConvertToSql(
             {'record': rule['head']['record']})
         try:
@@ -518,6 +529,7 @@ class LogicaProgram(object):
     # Infering types if requested.
     self.typing_preamble = ''
     self.predicate_signatures = {}
+    self.typing_engine = None
     if self.annotations.ShouldTypecheck():
       self.typing_preamble = self.RunTypechecker()
 
@@ -561,6 +573,7 @@ class LogicaProgram(object):
     rules = [r for _, r in self.rules]
     typing_engine = infer.TypesInferenceEngine(rules)
     typing_engine.InferTypes()
+    self.typing_engine = typing_engine
     type_error_checker = infer.TypeErrorChecker(rules)
     type_error_checker.CheckForError(mode='raise')
     self.predicate_signatures = typing_engine.predicate_signature

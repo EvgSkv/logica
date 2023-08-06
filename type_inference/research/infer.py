@@ -125,6 +125,8 @@ def ActMindingPodLiterals(node):
         reference_algebra.Unify(e['type']['the_type'], reference_algebra.TypeReference('Num'))
       if 'the_string' in e['literal']:
         reference_algebra.Unify(e['type']['the_type'], reference_algebra.TypeReference('Str'))
+      if 'the_bool' in e['literal']:
+        reference_algebra.Unify(e['type']['the_type'], reference_algebra.TypeReference('Bool'))
 
 def ActClearingTypes(node):
   if 'type' in node:
@@ -648,6 +650,7 @@ class TypeCollector:
       t = node['type']['the_type']
       t_rendering = reference_algebra.RenderType(t)
       self.type_map[t_rendering] = t
+      node['type']['rendered_type'] = t_rendering
       if isinstance(t, dict) and reference_algebra.IsFullyDefined(t):
         node['type']['type_name'] = RecordTypeName(t_rendering)
       if isinstance(t, list) and reference_algebra.IsFullyDefined(t):
@@ -669,6 +672,8 @@ class TypeCollector:
       return 'text'
     if t == 'Num':
       return 'numeric'
+    if t == 'Bool':
+      return 'bool'
     if isinstance(t, dict):
       return RecordTypeName(reference_algebra.RenderType(t))
     if isinstance(t, list):

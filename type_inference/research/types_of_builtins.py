@@ -34,7 +34,7 @@ def TypesOfBultins():
         '==': {
            'left': x,
            'right': x,
-           'logica_value': 'Any'  # TODO: Add Boolean.
+           'logica_value': 'Bool'
         },
         '=': {
           'left': x,
@@ -141,7 +141,7 @@ def TypesOfBultins():
         '>': {
            'left': x,
            'right': x,
-           'logica_value': 'Any'
+           'logica_value': 'Bool'
         },
         'ArrayConcat': {
            0: [e],
@@ -161,12 +161,42 @@ def TypesOfBultins():
         'Abs': {
            0: 'Num',
            'logica_value': 'Num'
+        },
+        '!': {
+           0: 'Bool',
+           'logica_value': 'Bool'
+        },
+        '||': {
+           'left': 'Bool',
+           'right': 'Bool',
+           'logica_value': 'Bool'
+        },
+        'IsNull': {
+           0: 'Any',
+           'logica_value': 'Bool'
+        },
+        'ToString': {
+           0: 'Any',
+           'logica_value': 'Str'
+        },
+        'ToInt64': {
+           0: 'Any',
+           'logica_value': 'Num'
+        },
+        'ToFloat64': {
+           0: 'Any',
+           'logica_value': 'Num'
+        },
+        'AnyValue': {
+           0: x,
+           'logica_value': x
         }
     }
     types_of_predicate['<'] = types_of_predicate['<='] = types_of_predicate['>='] = types_of_predicate['>']
     types_of_predicate['Sin'] = types_of_predicate['Cos'] = types_of_predicate['Log'
       ] = types_of_predicate['Exp'] = types_of_predicate['Abs']
     types_of_predicate['%'] = types_of_predicate['/'] = types_of_predicate['*']
+    types_of_predicate['&&'] = types_of_predicate['||']
     return {
         p: {k: reference_algebra.TypeReference(v)
             for k, v in types.items()}

@@ -188,11 +188,15 @@ def main(argv):
     return 0
 
   if command == 'show_signatures':
-    typing_engine = infer.TypesInferenceEngine(parsed_rules)
-    typing_engine.InferTypes()
-    print(typing_engine.ShowPredicateTypes())
-    type_error_checker = infer.TypeErrorChecker(parsed_rules)
-    type_error_checker.CheckForError()
+    try:
+      logic_program = universe.LogicaProgram(parsed_rules)
+      if not logic_program.typing_engine:
+        logic_program.RunTypechecker()
+    except infer.TypeErrorCaughtException as type_error_exception:
+      print(logic_program.typing_engine.ShowPredicateTypes())
+      type_error_exception.ShowMessage()
+      return 1
+    print(logic_program.typing_engine.ShowPredicateTypes())
     return 0
 
   user_flags = ReadUserFlags(parsed_rules, argv[4:])
