@@ -39,6 +39,7 @@
          }
         },
         "type": {
+         "rendered_type": "Num",
          "the_type": "Num",
          "type_id": 0
         }
@@ -59,6 +60,7 @@
         "expression_heritage": "x",
         "type": {
          "element_type_name": "logicarecord350574256",
+         "rendered_type": "[{a: {z: Num}}]",
          "the_type": [
           {
            "a": {
@@ -82,6 +84,7 @@
               "element": {
                "expression_heritage": "a",
                "type": {
+                "rendered_type": "{z: Num}",
                 "the_type": {
                  "z": "Num"
                 },
@@ -107,6 +110,7 @@
                        "expression": {
                         "expression_heritage": "z",
                         "type": {
+                         "rendered_type": "Num",
                          "the_type": "Num",
                          "type_id": 1
                         },
@@ -119,6 +123,7 @@
                     ]
                    },
                    "type": {
+                    "rendered_type": "{z: Num}",
                     "the_type": {
                      "z": "Num"
                     },
@@ -131,6 +136,7 @@
                },
                "type": {
                 "element_type_name": "logicarecord574638620",
+                "rendered_type": "[{z: Num}]",
                 "the_type": [
                  {
                   "z": "Num"
@@ -172,6 +178,7 @@
                           "expression": {
                            "expression_heritage": "a",
                            "type": {
+                            "rendered_type": "{z: Num}",
                             "the_type": {
                              "z": "Num"
                             },
@@ -187,6 +194,7 @@
                        ]
                       },
                       "type": {
+                       "rendered_type": "{a: {z: Num}}",
                        "the_type": {
                         "a": {
                          "z": "Num"
@@ -203,6 +211,7 @@
                 },
                 "type": {
                  "element_type_name": "logicarecord350574256",
+                 "rendered_type": "[{a: {z: Num}}]",
                  "the_type": [
                   {
                    "a": {
@@ -222,6 +231,7 @@
         },
         "type": {
          "element_type_name": "logicarecord350574256",
+         "rendered_type": "[{a: {z: Num}}]",
          "the_type": [
           {
            "a": {
@@ -245,6 +255,7 @@
            "expression": {
             "expression_heritage": "z",
             "type": {
+             "rendered_type": "Num",
              "the_type": "Num",
              "type_id": 1
             },
@@ -273,6 +284,7 @@
         "expression_heritage": "x",
         "type": {
          "element_type_name": "logicarecord350574256",
+         "rendered_type": "[{a: {z: Num}}]",
          "the_type": [
           {
            "a": {
@@ -306,6 +318,7 @@
               }
              },
              "type": {
+              "rendered_type": "Num",
               "the_type": "Num",
               "type_id": 4
              }
@@ -315,6 +328,7 @@
          ]
         },
         "type": {
+         "rendered_type": "{o: Num}",
          "the_type": {
           "o": "Num"
          },

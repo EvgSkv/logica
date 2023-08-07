@@ -8,6 +8,7 @@
        "left_hand_side": {
         "expression_heritage": "x",
         "type": {
+         "rendered_type": "Num",
          "the_type": "Num",
          "type_id": 0
         },
@@ -25,6 +26,7 @@
               "element": {
                "expression_heritage": "a",
                "type": {
+                "rendered_type": "Num",
                 "the_type": "Num",
                 "type_id": 2
                },
@@ -45,6 +47,7 @@
                     }
                    },
                    "type": {
+                    "rendered_type": "Num",
                     "the_type": "Num",
                     "type_id": 7
                    }
@@ -57,6 +60,7 @@
                     }
                    },
                    "type": {
+                    "rendered_type": "Num",
                     "the_type": "Num",
                     "type_id": 8
                    }
@@ -69,6 +73,7 @@
                     }
                    },
                    "type": {
+                    "rendered_type": "Num",
                     "the_type": "Num",
                     "type_id": 9
                    }
@@ -78,6 +83,7 @@
                },
                "type": {
                 "element_type_name": "numeric",
+                "rendered_type": "[Num]",
                 "the_type": [
                  "Num"
                 ],
@@ -110,6 +116,7 @@
                      "expression": {
                       "expression_heritage": "a",
                       "type": {
+                       "rendered_type": "Num",
                        "the_type": "Num",
                        "type_id": 2
                       },
@@ -123,6 +130,7 @@
                  }
                 },
                 "type": {
+                 "rendered_type": "Num",
                  "the_type": "Num",
                  "type_id": 5
                 }
@@ -135,6 +143,7 @@
          }
         },
         "type": {
+         "rendered_type": "Num",
          "the_type": "Num",
          "type_id": 4
         }
@@ -147,6 +156,7 @@
         "expression_heritage": "y",
         "type": {
          "element_type_name": "text",
+         "rendered_type": "[Str]",
          "the_type": [
           "Str"
          ],
@@ -166,6 +176,7 @@
               "element": {
                "expression_heritage": "a",
                "type": {
+                "rendered_type": "Str",
                 "the_type": "Str",
                 "type_id": 3
                },
@@ -186,6 +197,7 @@
                     }
                    },
                    "type": {
+                    "rendered_type": "Str",
                     "the_type": "Str",
                     "type_id": 13
                    }
@@ -198,6 +210,7 @@
                     }
                    },
                    "type": {
+                    "rendered_type": "Str",
                     "the_type": "Str",
                     "type_id": 14
                    }
@@ -207,6 +220,7 @@
                },
                "type": {
                 "element_type_name": "text",
+                "rendered_type": "[Str]",
                 "the_type": [
                  "Str"
                 ],
@@ -239,6 +253,7 @@
                      "expression": {
                       "expression_heritage": "a",
                       "type": {
+                       "rendered_type": "Str",
                        "the_type": "Str",
                        "type_id": 3
                       },
@@ -253,6 +268,7 @@
                 },
                 "type": {
                  "element_type_name": "text",
+                 "rendered_type": "[Str]",
                  "the_type": [
                   "Str"
                  ],
@@ -268,6 +284,7 @@
         },
         "type": {
          "element_type_name": "text",
+         "rendered_type": "[Str]",
          "the_type": [
           "Str"
          ],
@@ -290,6 +307,7 @@
        "expression": {
         "expression_heritage": "x",
         "type": {
+         "rendered_type": "Num",
          "the_type": "Num",
          "type_id": 0
         },
@@ -306,6 +324,7 @@
         "expression_heritage": "y",
         "type": {
          "element_type_name": "text",
+         "rendered_type": "[Str]",
          "the_type": [
           "Str"
          ],

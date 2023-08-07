@@ -8,6 +8,7 @@
        "left_hand_side": {
         "expression_heritage": "x",
         "type": {
+         "rendered_type": "Num",
          "the_type": "Num",
          "type_id": 0
         },
@@ -31,6 +32,7 @@
                }
               },
               "type": {
+               "rendered_type": "Num",
                "the_type": "Num",
                "type_id": 14
               }
@@ -43,6 +45,7 @@
              "expression": {
               "expression_heritage": "z",
               "type": {
+               "rendered_type": "Num",
                "the_type": "Num",
                "type_id": 1
               },
@@ -57,6 +60,7 @@
         },
         "expression_heritage": "1 + z",
         "type": {
+         "rendered_type": "Num",
          "the_type": "Num",
          "type_id": 13
         }
@@ -74,6 +78,7 @@
            "expression": {
             "expression_heritage": "z",
             "type": {
+             "rendered_type": "Num",
              "the_type": "Num",
              "type_id": 1
             },
@@ -89,6 +94,7 @@
            "expression": {
             "expression_heritage": "w",
             "type": {
+             "rendered_type": "{a: {b: Num}}",
              "the_type": {
               "a": {
                "b": "Num"
@@ -109,6 +115,7 @@
            "expression": {
             "expression_heritage": "l",
             "type": {
+             "rendered_type": "[Singular]",
              "the_type": [
               "Singular"
              ],
@@ -129,6 +136,7 @@
        "element": {
         "expression_heritage": "e",
         "type": {
+         "rendered_type": "Singular",
          "the_type": "Singular",
          "type_id": 4
         },
@@ -139,6 +147,7 @@
        "list": {
         "expression_heritage": "l",
         "type": {
+         "rendered_type": "[Singular]",
          "the_type": [
           "Singular"
          ],
@@ -161,6 +170,7 @@
            "record": {
             "expression_heritage": "w",
             "type": {
+             "rendered_type": "{a: {b: Num}}",
              "the_type": {
               "a": {
                "b": "Num"
@@ -182,6 +192,7 @@
            }
           },
           "type": {
+           "rendered_type": "{b: Num}",
            "the_type": {
             "b": "Num"
            },
@@ -198,6 +209,7 @@
          }
         },
         "type": {
+         "rendered_type": "Num",
          "the_type": "Num",
          "type_id": 15
         }
@@ -210,6 +222,7 @@
          }
         },
         "type": {
+         "rendered_type": "Num",
          "the_type": "Num",
          "type_id": 16
         }
@@ -235,6 +248,7 @@
          }
         },
         "type": {
+         "rendered_type": "Num",
          "the_type": "Num",
          "type_id": 5
         }
@@ -252,6 +266,7 @@
          }
         },
         "type": {
+         "rendered_type": "Str",
          "the_type": "Str",
          "type_id": 6
         }
@@ -264,6 +279,7 @@
        "expression": {
         "expression_heritage": "x",
         "type": {
+         "rendered_type": "Num",
          "the_type": "Num",
          "type_id": 0
         },
@@ -279,6 +295,7 @@
        "expression": {
         "expression_heritage": "z",
         "type": {
+         "rendered_type": "Num",
          "the_type": "Num",
          "type_id": 1
         },
@@ -297,6 +314,7 @@
          "record": {
           "expression_heritage": "w",
           "type": {
+           "rendered_type": "{a: {b: Num}}",
            "the_type": {
             "a": {
              "b": "Num"
@@ -318,6 +336,7 @@
          }
         },
         "type": {
+         "rendered_type": "{b: Num}",
          "the_type": {
           "b": "Num"
          },
@@ -345,6 +364,7 @@
               }
              },
              "type": {
+              "rendered_type": "Num",
               "the_type": "Num",
               "type_id": 9
              }
@@ -362,6 +382,7 @@
               }
              },
              "type": {
+              "rendered_type": "Str",
               "the_type": "Str",
               "type_id": 10
              }
@@ -386,6 +407,7 @@
                    }
                   },
                   "type": {
+                   "rendered_type": "Num",
                    "the_type": "Num",
                    "type_id": 12
                   }
@@ -395,6 +417,7 @@
               ]
              },
              "type": {
+              "rendered_type": "{z: Num}",
               "the_type": {
                "z": "Num"
               },
@@ -407,6 +430,7 @@
          ]
         },
         "type": {
+         "rendered_type": "{r: {z: Num}, t: Num, z: Str}",
          "the_type": {
           "r": {
            "z": "Num"
