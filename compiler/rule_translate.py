@@ -206,6 +206,13 @@ class RuleStructure(object):
     self.full_rule_text = None
     self.distinct_denoted = None
 
+  def SelectAsRecord(self):
+    return {'record': {
+      'field_value': [{
+        'field': k,
+        'value': {'expression': v}
+      } for k, v in sorted(self.select.items())]}}
+
   def OwnVarsVocabulary(self):
     """Returns a map: logica variable -> SQL expression with the value."""
     def TableAndFieldToSql(table, field):
@@ -476,7 +483,11 @@ class RuleStructure(object):
 
     for k, v in self.select.items():
       if k == '*':
-        fields.append('%s.*' % ql.ConvertToSql(v))
+        if 'variable' in v:
+          v['variable']['dont_expand'] = True  # For SQLite.
+        fields.append(
+          subquery_encoder.execution.dialect.Subscript(
+           ql.ConvertToSql(v), '*', True))
       else:
         fields.append('%s AS %s' % (ql.ConvertToSql(v), LogicaFieldToSqlField(k)))
     r += ',\n'.join('  ' + f for f in fields)
@@ -504,6 +515,9 @@ class RuleStructure(object):
           tables.append(sql)
       self.SortUnnestings()
       for element, the_list in self.unnestings:
+        if 'variable' in element:
+          # To prevent SQLite record unfolding.
+          element['variable']['dont_expand'] = True
         tables.append(
             subquery_encoder.execution.dialect.UnnestPhrase().format(
                 ql.ConvertToSql(the_list), ql.ConvertToSql(element)))
@@ -610,7 +624,8 @@ def ExtractInclusionStructure(inclusion, s):
               'value': {
                 'expression': {
                   'variable': {
-                    'var_name': var_name
+                    'var_name': var_name,
+                    'dont_expand': True
                   }
                 }
               }

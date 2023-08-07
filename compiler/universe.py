@@ -926,6 +926,11 @@ class LogicaProgram(object):
                           }
                       }
                   })
+                elif table_var == '*':
+                  s.vars_unification.append({
+                    'left': {'variable': {'var_name': clause_var}},
+                    'right': rs.SelectAsRecord()
+                  })
                 else:
                   extra_hint = '' if table_var != '*' else (
                       ' Are you using ..<rest of> for injectible predicate? '

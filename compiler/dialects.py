@@ -60,7 +60,7 @@ class BigQueryDialect(Dialect):
         '++': 'CONCAT(%s, %s)',
     }
 
-  def Subscript(self, record, subscript):
+  def Subscript(self, record, subscript, record_is_table):
     return '%s.%s' % (record, subscript)
   
   def LibraryProgram(self):
@@ -120,8 +120,11 @@ class SqLiteDialect(Dialect):
         'in': 'IN_LIST(%s, %s)'
     }
 
-  def Subscript(self, record, subscript):
-    return 'JSON_EXTRACT(%s, "$.%s")' % (record, subscript)
+  def Subscript(self, record, subscript, record_is_table):
+    if record_is_table:
+      return '%s.%s' % (record, subscript)
+    else:
+      return 'JSON_EXTRACT(%s, "$.%s")' % (record, subscript)
   
   def LibraryProgram(self):
     return sqlite_library.library
@@ -158,7 +161,7 @@ class PostgreSQL(Dialect):
         '++': 'CONCAT(%s, %s)',
     }
 
-  def Subscript(self, record, subscript):
+  def Subscript(self, record, subscript, record_is_table):
     return '(%s).%s' % (record, subscript)
   
   def LibraryProgram(self):
@@ -201,7 +204,7 @@ class Trino(Dialect):
         '++': 'CONCAT(%s, %s)',
     }
 
-  def Subscript(self, record, subscript):
+  def Subscript(self, record, subscript, record_is_table):
     return '%s.%s' % (record, subscript)
   
   def LibraryProgram(self):
@@ -239,7 +242,7 @@ class Presto(Dialect):
         '++': 'CONCAT(%s, %s)',
     }
 
-  def Subscript(self, record, subscript):
+  def Subscript(self, record, subscript, record_is_table):
     return '%s.%s' % (record, subscript)
   
   def LibraryProgram(self):

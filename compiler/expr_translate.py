@@ -235,10 +235,10 @@ class QL(object):
   def Infix(self, op, args):
     return op % (args['left'], args['right'])
 
-  def Subscript(self, record, subscript):
+  def Subscript(self, record, subscript, record_is_table):
     if isinstance(subscript, int):
       subscript = 'col%d' % subscript
-    return self.dialect.Subscript(record, subscript)
+    return self.dialect.Subscript(record, subscript, record_is_table)
 
   def IntLiteral(self, literal):
     return str(literal['number'])
@@ -274,7 +274,33 @@ class QL(object):
       return '{"predicate_name": "%s"}' % (literal['predicate_name'])
     return self.dialect.PredicateLiteral(literal['predicate_name'])
 
-  def Variable(self, variable):
+  def VariableMaybeTableSQLite(self, variable, expression_type):
+    def MakeSubscript(subscripted_variable, subscripted_field):
+      return {'expression': 
+              {'subscript': {'record': {'variable': 
+                                        {'var_name': subscripted_variable, 
+                                         'dont_expand': True}},
+                             'subscript': {
+                               'literal': {'the_symbol': {
+                                 'symbol': subscripted_field}}}}}}
+    expr = self.vocabulary[variable['var_name']]
+    if '.' not in expr and 'dont_expand' not in variable:
+
+      if not isinstance(expression_type, dict):
+        raise self.exception_maker(
+          'Could not create record ' + color.Warn(expr) + 
+          '. Type inference is ' +
+          'required to convert table rows to records in SQLite.')
+      return self.ConvertToSql({'record': {'field_value': [
+        {'field': k,
+          'value': MakeSubscript(variable['var_name'], k)}
+        for k in sorted(expression_type)
+      ]}})
+    return expr    
+
+  def Variable(self, variable, expression_type):
+    if self.dialect.Name() == 'SqLite':
+      return self.VariableMaybeTableSQLite(variable, expression_type)
     if variable['var_name'] in self.vocabulary:
       return self.vocabulary[variable['var_name']]
     else:
@@ -435,12 +461,23 @@ class QL(object):
       return f"({self.ConvertToSql(expression)} || '')"
     return self.ConvertToSql(expression)
 
+  def ExpressionIsTable(self, expression):
+    return (
+      'variable' in expression and
+      'dont_expand' in expression['variable'] and
+      self.VariableIsTable(expression['variable']['var_name']))
+  
+  def VariableIsTable(self, variable_name):
+    return '.' not in self.vocabulary[variable_name]
+
   def ConvertToSql(self, expression):
     """Converting Logica expression into SQL."""
     # print('EXPR:', expression)
     # Variables.
     if 'variable' in expression:
-      return self.Variable(expression['variable'])
+      the_type = expression.get('type', {}).get('the_type', 'Any')
+      return self.Variable(expression['variable'],
+                           the_type)
 
     # Literals.
     if 'literal' in expression:
@@ -564,7 +601,7 @@ class QL(object):
           return simplified_sub
       # Couldn't optimize, just return the '.' expression.
       record = self.ConvertToSql(sub['record'])
-      return self.Subscript(record, subscript)
+      return self.Subscript(record, subscript, self.ExpressionIsTable(sub['record']))
 
     if 'record' in expression:
       record = expression['record']
