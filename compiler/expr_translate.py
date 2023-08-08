@@ -96,8 +96,8 @@ class QL(object):
       '&&': '%s AND %s',
       '%': 'MOD(%s, %s)'
   }
-  BULK_FUNCTIONS = {}
-  BULK_FUNCTIONS_ARITY_RANGE = {}
+  BULK_FUNCTIONS = None
+  BULK_FUNCTIONS_ARITY_RANGE = None
 
   # When adding any analytic functions please check that ConvertAnalytic
   # function handles them correctly.
@@ -188,18 +188,22 @@ class QL(object):
     reader = processed_functions.GetCsv()
     header = next(reader)
 
+    bulk_functions = {}
+    bulk_functions_arity_range = {}
     for row in reader:
       row = dict(list(zip(header, row)))
       if row['function'][0] == '$':
         # TODO: Process operators.
         continue
       function_name = CamelCase(row['function'])
-      cls.BULK_FUNCTIONS[function_name] = (
+      bulk_functions[function_name] = (
           '%s(%s)' % (row['sql_function'], '%s'))
-      cls.BULK_FUNCTIONS_ARITY_RANGE[function_name] = (
+      bulk_functions_arity_range[function_name] = (
           int(row['min_args']),
           float('inf')
           if row['has_repeated_args'] == '1' else int(row['max_args']))
+      cls.BULK_FUNCTIONS = bulk_functions
+      cls.BULK_FUNCTIONS_ARITY_RANGE = bulk_functions_arity_range
 
   def BuiltInFunctionArityRange(self, f):
     """Returns arity of the built-in function."""
