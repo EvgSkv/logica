@@ -291,7 +291,8 @@ class RuleStructure(object):
     ReplaceVariable(u_left, u_right, self.vars_unification)
     ReplaceVariable(u_left, u_right, self.constraints)
     
-  def ElliminateInternalVariables(self, assert_full_ellimination=False):
+  # TODO: Parameter unfold_recods just patches some bug. Careful review is needed.
+  def ElliminateInternalVariables(self, assert_full_ellimination=False, unfold_records=True):
     """Elliminates internal variables via substitution."""
     variables = self.InternalVariables()
     while True:
@@ -316,7 +317,9 @@ class RuleStructure(object):
             self.ReplaceVariableEverywhere(u_left, u_right)
             done = False
         # Assignments to variables in record fields.
-        if True:  # Confirm that unwraping works and make this unconditional.
+        if unfold_records:  # Confirm that unwraping works and make this unconditional.
+          # Unwrapping goes wild sometimes. Letting it go right to left only.
+          # for k, r in [['left', 'right']]:
           for k, r in [['left', 'right'], ['right', 'left']]:
             if u[k] == u[r]:
               continue

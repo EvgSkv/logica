@@ -899,7 +899,7 @@ class LogicaProgram(object):
           [r] = rules
           rs = rule_translate.ExtractRuleStructure(
               r, allocator, None)
-          rs.ElliminateInternalVariables(assert_full_ellimination=False)
+          rs.ElliminateInternalVariables(assert_full_ellimination=False, unfold_records=False)
           new_tables.update(rs.tables)
           InjectStructure(s, rs)
 
