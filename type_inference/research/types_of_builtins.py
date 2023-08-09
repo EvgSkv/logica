@@ -190,6 +190,11 @@ def TypesOfBultins():
         'AnyValue': {
            0: x,
            'logica_value': x
+        },
+        'Format': {
+           0: 'Str',
+           1: 'Any', 2: 'Any', 3: 'Any', 4: 'Any', 5: 'Any', 6: 'Any',
+           'logica_value': 'Str'
         }
     }
     types_of_predicate['<'] = types_of_predicate['<='] = types_of_predicate['>='] = types_of_predicate['>']
