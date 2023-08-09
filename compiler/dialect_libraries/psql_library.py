@@ -18,12 +18,12 @@ library = """
 ->(left:, right:) = {arg: left, value: right};
 `=`(left:, right:) = right :- left == right;
 
-ArgMin(a) = SqlExpr("(ARRAY_AGG({arg} order by {value}))[1]",
-                    {arg: a.arg, value: a.value});
+ArgMin(a) = (SqlExpr("(ARRAY_AGG({arg} order by {value}))[1]",
+                     {arg: {argpod: a.arg}, value: a.value})).argpod;
 
-ArgMax(a) = SqlExpr(
+ArgMax(a) = (SqlExpr(
   "(ARRAY_AGG({arg} order by {value} desc))[1]",
-  {arg: a.arg, value: a.value});
+  {arg: {argpod: a.arg}, value: a.value})).argpod;
 
 ArgMaxK(a, l) = SqlExpr(
   "(ARRAY_AGG({arg} order by {value} desc))[1:{lim}]",

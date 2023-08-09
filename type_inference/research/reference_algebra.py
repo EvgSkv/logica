@@ -71,8 +71,8 @@ class BadType(tuple):
         f'belongs to a list, but is implied to be {colored_t2}. '
         f'Logica has to follow existing DB practice (Posgres, BigQuery) '
         f'and disallow lists to be elements of lists. This includes '
-        f'ArgMax and ArgMin aggregations, as they use SQL arrays as an '
-        f'intermediate. Kindly wrap your inner list into a single field '
+        f'ArgMaxK and ArgMinK aggregations, as they build lists. '
+        f'Kindly wrap your inner list into a single field '
         f'record.'
       )
 

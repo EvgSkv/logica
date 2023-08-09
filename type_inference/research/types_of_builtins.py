@@ -83,12 +83,12 @@ def TypesOfBultins():
            'logica_value': reference_algebra.ClosedRecord({'arg': x, 'value': y})
         },
         'ArgMin': {
-           0: reference_algebra.ClosedRecord({'arg': e, 'value': y}),
-           'logica_value': e
+           0: reference_algebra.ClosedRecord({'arg': x, 'value': y}),
+           'logica_value': x
         },
         'ArgMax': {
-           0: reference_algebra.ClosedRecord({'arg': e, 'value': y}),
-           'logica_value': e
+           0: reference_algebra.ClosedRecord({'arg': x, 'value': y}),
+           'logica_value': x
         },
         'ArgMinK': {
            0: reference_algebra.ClosedRecord({'arg': e, 'value': y}),

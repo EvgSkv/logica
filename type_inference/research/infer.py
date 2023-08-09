@@ -154,11 +154,13 @@ class TypesInferenceEngine:
     self.parsed_rules = list(sorted(self.parsed_rules, key=lambda x: self.complexities[x['head']['predicate_name']]))
     self.predicate_signature = types_of_builtins.TypesOfBultins()
     self.typing_preamble = None
+    self.collector = None
 
   def CollectTypes(self):
     collector = TypeCollector(self.parsed_rules)
     collector.CollectTypes()
     self.typing_preamble = collector.typing_preamble
+    self.collector = collector
 
   def UpdateTypes(self, rule):
     predicate_name = rule['head']['predicate_name']
@@ -477,6 +479,7 @@ class TypeInferenceForStructure:
   def __init__(self, structure, signatures):
     self.structure = structure
     self.signatures = signatures
+    self.collector = None
 
   def PerformInference(self):
     quazy_rule = self.BuildQuazyRule()
@@ -485,10 +488,11 @@ class TypeInferenceForStructure:
     inferencer = TypeInferenceForRule(quazy_rule, self.signatures)
     inferencer.PerformInference()
     Walk(quazy_rule, ActRecallingTypes)
-          
+
     Walk(quazy_rule, ConcretizeTypes)
     collector = TypeCollector([quazy_rule])
     collector.CollectTypes()
+    self.collector = collector
 
     import json
     # 
@@ -644,7 +648,7 @@ class TypeCollector:
     self.psql_type_definition = {}
     self.definitions = []
     self.typing_preamble = ''
-  
+
   def ActPopulatingTypeMap(self, node):
     if 'type' in node:
       t = node['type']['the_type']
@@ -656,7 +660,7 @@ class TypeCollector:
       if isinstance(t, list) and reference_algebra.IsFullyDefined(t):
         [e] = t
         node['type']['element_type_name'] = self.PsqlType(e)
-  
+
   def CollectTypes(self):
     Walk(self.parsed_rules, self.ActPopulatingTypeMap)
     for t in self.type_map:
@@ -695,8 +699,10 @@ class TypeCollector:
       f"-- Logica type: {n}\n" +
       f"if not exists (select 'I(am) :- I(think)' from pg_type where typname = '{n}') then {d} end if;"
     )
-    self.definitions = [
-      wrap(self.psql_struct_type_name[t], self.psql_type_definition[t])
-      for t in sorted(self.psql_struct_type_name, key=len)]
+    self.definitions = {
+      t: wrap(self.psql_struct_type_name[t], self.psql_type_definition[t])
+      for t in sorted(self.psql_struct_type_name, key=len)}
+    self.typing_preamble = BuildPreamble(self.definitions)
 
-    self.typing_preamble = 'DO $$\nBEGIN\n' + '\n'.join(self.definitions) + '\nEND $$;\n'
+def BuildPreamble(definitions):
+    return 'DO $$\nBEGIN\n' + '\n'.join(definitions.values()) + '\nEND $$;\n'

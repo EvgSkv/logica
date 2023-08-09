@@ -528,6 +528,7 @@ class LogicaProgram(object):
 
     # Infering types if requested.
     self.typing_preamble = ''
+    self.required_type_definitions = {}
     self.predicate_signatures = {}
     self.typing_engine = None
     if self.annotations.ShouldTypecheck():
@@ -577,6 +578,7 @@ class LogicaProgram(object):
     type_error_checker = infer.TypeErrorChecker(rules)
     type_error_checker.CheckForError(mode='raise')
     self.predicate_signatures = typing_engine.predicate_signature
+    self.required_type_definitions.update(typing_engine.collector.definitions)
     return typing_engine.typing_preamble
 
   def RunMakes(self, rules):
@@ -798,6 +800,8 @@ class LogicaProgram(object):
                                                                [])
     self.execution.dependencies_of = self.functors.args_of
     self.execution.dialect = dialects.Get(self.annotations.Engine())
+  
+  def UpdateExecutionWithTyping(self):
     if self.execution.dialect.Name() == 'PostgreSQL':
       self.execution.preamble += '\n' + self.typing_preamble
 
@@ -815,6 +819,8 @@ class LogicaProgram(object):
       sql = self.FunctionSql(name, allocator)
     else:
       sql = self.PredicateSql(name, allocator)
+
+    self.UpdateExecutionWithTyping()
 
     assert self.execution.workflow_predicates_stack == [name], (
         'Logica internal error: unexpected workflow stack: %s' %
@@ -977,6 +983,8 @@ class LogicaProgram(object):
     s.UnificationsToConstraints()
     type_inference = infer.TypeInferenceForStructure(s, self.predicate_signatures)
     type_inference.PerformInference()
+    self.required_type_definitions.update(type_inference.collector.definitions)
+    self.typing_preamble = infer.BuildPreamble(self.required_type_definitions)
 
     try:
       sql = s.AsSql(self.MakeSubqueryTranslator(allocator), self.flag_values)
