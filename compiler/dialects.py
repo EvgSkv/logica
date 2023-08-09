@@ -150,7 +150,7 @@ class PostgreSQL(Dialect):
         'ToString': 'CAST(%s AS TEXT)',
         'ToInt64': 'CAST(%s AS BIGINT)',
         'Element': '({0})[{1} + 1]',
-        'Size': 'ARRAY_LENGTH(%s, 1)',
+        'Size': 'COALESCE(ARRAY_LENGTH({0}, 1), 0)',
         'Count': 'COUNT(DISTINCT {0})',
         'MagicalEntangle': '(CASE WHEN {1} = 0 THEN {0} ELSE NULL END)',
         'ArrayConcat': '{0} || {1}'
