@@ -202,8 +202,8 @@ class QL(object):
           int(row['min_args']),
           float('inf')
           if row['has_repeated_args'] == '1' else int(row['max_args']))
-      cls.BULK_FUNCTIONS = bulk_functions
-      cls.BULK_FUNCTIONS_ARITY_RANGE = bulk_functions_arity_range
+    cls.BULK_FUNCTIONS = bulk_functions
+    cls.BULK_FUNCTIONS_ARITY_RANGE = bulk_functions_arity_range
 
   def BuiltInFunctionArityRange(self, f):
     """Returns arity of the built-in function."""
