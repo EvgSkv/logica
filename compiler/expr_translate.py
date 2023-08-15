@@ -39,6 +39,7 @@ class QL(object):
       'ToUInt64': 'CAST(%s AS UINT64)',
       'ToString': 'CAST(%s AS STRING)',
       # Aggregation.
+      '1': 'MIN(%s)',  # Should be ANY_VALUE, but using MIN, so it works everywhere.
       'Aggr': '%s',  # Placeholder to use formulas for aggregation.
       'Agg+': 'SUM(%s)',
       'Agg++': 'ARRAY_CONCAT_AGG(%s)',
