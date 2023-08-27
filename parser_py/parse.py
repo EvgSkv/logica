@@ -579,7 +579,7 @@ def ParseLiteral(s):
 def ParseInfix(s, operators=None):
   """Parses an infix operator expression."""
   operators = operators or [
-      '||', '&&', '->', '==', '<=', '>=', '<', '>', '!=', '=',
+      '||', '&&', '->', '==', '<=', '>=', '<', '>', '!=', '=', '~',
       ' in ', ' is not ', ' is ', '++?', '++', '+', '-', '*', '/', '%',
       '^', '!']
   unary_operators = ['-', '!']
@@ -598,6 +598,8 @@ def ParseInfix(s, operators=None):
             'predicate_name': op,
             'record': ParseRecordInternals(right)
         }
+      if op == '~' and not left:
+        return None  # Negation is special.
 
       left_expr = ParseExpression(left)
       right_expr = ParseExpression(right)
@@ -807,6 +809,9 @@ def ParseGenericCall(s, opening, closing):
     # Specialcasing `=` assignment operator for definition.
     if predicate == '`=`':
       predicate = '='
+    # Specialcasing `~` type equality operator for definition.
+    if predicate == '`~`':
+      predicate = '~'
     return predicate, s[idx + 1: -1]
 
 

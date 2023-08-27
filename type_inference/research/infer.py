@@ -408,6 +408,13 @@ class TypeInferenceForRule:
 
       node['type']['the_type'].CloseRecord()
 
+  def ActMindingTypingPredicateLiterals(self, node):
+    if 'type' in node and 'literal' in node and 'the_predicate' in node['literal']:
+      predicate_name = node['literal']['the_predicate']['predicate_name']
+      if predicate_name in ['Str', 'Num', 'Bool']:
+        reference_algebra.Unify(node['type']['the_type'],
+                                reference_algebra.TypeReference(predicate_name))
+
   def ActMindingListLiterals(self, node):
     if 'type' in node and 'literal' in node and 'the_list' in node['literal']:
       list_type = node['type']['the_type']
@@ -447,6 +454,7 @@ class TypeInferenceForRule:
       )
 
   def IterateInference(self):
+    Walk(self.rule, self.ActMindingTypingPredicateLiterals)
     Walk(self.rule, self.ActMindingRecordLiterals)
     Walk(self.rule, self.ActUnifying)
     Walk(self.rule, self.ActUnderstandingSubscription)

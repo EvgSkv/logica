@@ -17,6 +17,7 @@
 library = """
 ->(left:, right:) = {arg: left, value: right};
 `=`(left:, right:) = right :- left == right;
+`~`(left:, right:);  # No action. Compiler unifies types.
 
 ArgMin(a) = (SqlExpr("(ARRAY_AGG({arg} order by {value}))[1]",
                      {arg: {argpod: a.arg}, value: a.value})).argpod;

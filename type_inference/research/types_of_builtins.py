@@ -22,6 +22,8 @@ else:
 def TypesOfBultins():
     x = reference_algebra.TypeReference('Any')
     y = reference_algebra.TypeReference('Any')
+    # Special X that ends up singular in SQLite.
+    special_x = reference_algebra.TypeReference('Any')
     list_of_e = reference_algebra.TypeReference('Any')
     e = reference_algebra.TypeReference('Singular')
     reference_algebra.UnifyListElement(list_of_e, e)
@@ -40,6 +42,10 @@ def TypesOfBultins():
           'left': x,
           'right': x,
           'logica_value': x
+        },
+        '~': {
+          'left': x,
+          'right': x 
         },
         '++': {
           'left': 'Str',
@@ -83,12 +89,12 @@ def TypesOfBultins():
            'logica_value': reference_algebra.ClosedRecord({'arg': x, 'value': y})
         },
         'ArgMin': {
-           0: reference_algebra.ClosedRecord({'arg': x, 'value': y}),
-           'logica_value': x
+           0: reference_algebra.ClosedRecord({'arg': special_x, 'value': y}),
+           'logica_value': special_x
         },
         'ArgMax': {
-           0: reference_algebra.ClosedRecord({'arg': x, 'value': y}),
-           'logica_value': x
+           0: reference_algebra.ClosedRecord({'arg': special_x, 'value': y}),
+           'logica_value': special_x
         },
         'ArgMinK': {
            0: reference_algebra.ClosedRecord({'arg': e, 'value': y}),
