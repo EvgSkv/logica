@@ -378,6 +378,7 @@ colab_logica.SetDbConnection(connection)""")
   # Connect to the database.
   import psycopg2
   connection = psycopg2.connect(host='localhost', database='logica', user='logica', password='logica')
+  connection.autocommit = True
 
   print('Connected.')
   global DEFAULT_ENGINE
