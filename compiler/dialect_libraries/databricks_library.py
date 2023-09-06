@@ -1,8 +1,3 @@
-"""
-Take snowflake dialect as a reference and implement the same set of functions for Databricks
-Once done, test every function and their combinations thoroughly
-"""
-
 library = """
 ->(left:, right:) = {arg: left, value: right};
 ArgMin(a) = SqlExpr(
