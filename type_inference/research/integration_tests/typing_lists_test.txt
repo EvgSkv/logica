@@ -1,0 +1,270 @@
+[
+ {
+  "body": {
+   "conjunction": {
+    "conjunct": [
+     {
+      "inclusion": {
+       "element": {
+        "expression_heritage": "a",
+        "type": {
+         "rendered_type": "Num",
+         "the_type": "Num",
+         "type_id": 0
+        },
+        "variable": {
+         "var_name": "a"
+        }
+       },
+       "list": {
+        "expression_heritage": "[1, 2]",
+        "literal": {
+         "the_list": {
+          "element": [
+           {
+            "expression_heritage": "1",
+            "literal": {
+             "the_number": {
+              "number": "1"
+             }
+            },
+            "type": {
+             "rendered_type": "Num",
+             "the_type": "Num",
+             "type_id": 6
+            }
+           },
+           {
+            "expression_heritage": "2",
+            "literal": {
+             "the_number": {
+              "number": "2"
+             }
+            },
+            "type": {
+             "rendered_type": "Num",
+             "the_type": "Num",
+             "type_id": 7
+            }
+           }
+          ]
+         }
+        },
+        "type": {
+         "element_type_name": "numeric",
+         "rendered_type": "[Num]",
+         "the_type": [
+          "Num"
+         ],
+         "type_id": 5
+        }
+       }
+      }
+     },
+     {
+      "predicate": {
+       "predicate_name": "T",
+       "record": {
+        "field_value": [
+         {
+          "field": 0,
+          "value": {
+           "expression": {
+            "expression_heritage": "b",
+            "type": {
+             "element_type_name": "numeric",
+             "rendered_type": "[Num]",
+             "the_type": [
+              "Num"
+             ],
+             "type_id": 1
+            },
+            "variable": {
+             "var_name": "b"
+            }
+           }
+          }
+         }
+        ]
+       }
+      }
+     },
+     {
+      "inclusion": {
+       "element": {
+        "expression_heritage": "a",
+        "type": {
+         "rendered_type": "Num",
+         "the_type": "Num",
+         "type_id": 0
+        },
+        "variable": {
+         "var_name": "a"
+        }
+       },
+       "list": {
+        "expression_heritage": "b",
+        "type": {
+         "element_type_name": "numeric",
+         "rendered_type": "[Num]",
+         "the_type": [
+          "Num"
+         ],
+         "type_id": 1
+        },
+        "variable": {
+         "var_name": "b"
+        }
+       }
+      }
+     },
+     {
+      "unification": {
+       "left_hand_side": {
+        "expression_heritage": "c",
+        "type": {
+         "element_type_name": "text",
+         "rendered_type": "[Str]",
+         "the_type": [
+          "Str"
+         ],
+         "type_id": 2
+        },
+        "variable": {
+         "var_name": "c"
+        }
+       },
+       "right_hand_side": {
+        "expression_heritage": "[\"hello\"]",
+        "literal": {
+         "the_list": {
+          "element": [
+           {
+            "expression_heritage": "\"hello\"",
+            "literal": {
+             "the_string": {
+              "the_string": "hello"
+             }
+            },
+            "type": {
+             "rendered_type": "Str",
+             "the_type": "Str",
+             "type_id": 9
+            }
+           }
+          ]
+         }
+        },
+        "type": {
+         "element_type_name": "text",
+         "rendered_type": "[Str]",
+         "the_type": [
+          "Str"
+         ],
+         "type_id": 8
+        }
+       }
+      }
+     }
+    ]
+   }
+  },
+  "full_text": "Test([1], a, b, c) :- a in [1, 2], T(b), a in b, c == [\"hello\"]",
+  "head": {
+   "predicate_name": "Test",
+   "record": {
+    "field_value": [
+     {
+      "field": 0,
+      "value": {
+       "expression": {
+        "expression_heritage": "[1]",
+        "literal": {
+         "the_list": {
+          "element": [
+           {
+            "expression_heritage": "1",
+            "literal": {
+             "the_number": {
+              "number": "1"
+             }
+            },
+            "type": {
+             "rendered_type": "Num",
+             "the_type": "Num",
+             "type_id": 4
+            }
+           }
+          ]
+         }
+        },
+        "type": {
+         "element_type_name": "numeric",
+         "rendered_type": "[Num]",
+         "the_type": [
+          "Num"
+         ],
+         "type_id": 3
+        }
+       }
+      }
+     },
+     {
+      "field": 1,
+      "value": {
+       "expression": {
+        "expression_heritage": "a",
+        "type": {
+         "rendered_type": "Num",
+         "the_type": "Num",
+         "type_id": 0
+        },
+        "variable": {
+         "var_name": "a"
+        }
+       }
+      }
+     },
+     {
+      "field": 2,
+      "value": {
+       "expression": {
+        "expression_heritage": "b",
+        "type": {
+         "element_type_name": "numeric",
+         "rendered_type": "[Num]",
+         "the_type": [
+          "Num"
+         ],
+         "type_id": 1
+        },
+        "variable": {
+         "var_name": "b"
+        }
+       }
+      }
+     },
+     {
+      "field": 3,
+      "value": {
+       "expression": {
+        "expression_heritage": "c",
+        "type": {
+         "element_type_name": "text",
+         "rendered_type": "[Str]",
+         "the_type": [
+          "Str"
+         ],
+         "type_id": 2
+        },
+        "variable": {
+         "var_name": "c"
+        }
+       }
+      }
+     }
+    ]
+   }
+  }
+ }
+]

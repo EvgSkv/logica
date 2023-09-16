@@ -13,7 +13,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-@Engine("sqlite");
+@Engine("sqlite", type_checking: false);
+
 
 Test("simple_assignment", {a:, b:}) :- {a:, b:} == {a: "va", b: "vb"};
 Test("arrow_assignment", {a:, b:}) :- a -> b == "va" -> "vb";

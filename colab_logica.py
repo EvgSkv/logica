@@ -16,12 +16,20 @@
 
 """Library for using Logica in CoLab."""
 
+from decimal import Decimal
+import getpass
+import json
+import re
+
 from .common import color
 from .common import concertina_lib
+from .common import psql_logica
 
 from .compiler import functors
 from .compiler import rule_translate
 from .compiler import universe
+
+from .type_inference.research import infer
 
 import IPython
 
@@ -70,6 +78,13 @@ SHOW_FULL_QUERY = True
 
 PREAMBLE = None
 
+if hasattr(concertina_lib, 'graphviz'):
+  DISPLAY_MODE = 'colab'
+else:
+  DISPLAY_MODE = 'colab-text'
+
+DEFAULT_ENGINE = 'bigquery'
+
 
 def SetPreamble(preamble):
   global PREAMBLE
@@ -82,6 +97,12 @@ def SetProject(project):
 def SetDbConnection(connection):
   global DB_CONNECTION
   DB_CONNECTION = connection
+
+def ConnectToPostgres(mode='interactive'):
+  connection = psql_logica.ConnectToPostgres(mode)
+  SetDbConnection(connection)
+  global DEFAULT_ENGINE
+  DEFAULT_ENGINE = 'psql'
 
 def EnsureAuthenticatedUser():
   global USER_AUTHENTICATED
@@ -143,9 +164,14 @@ def RunSQL(sql, engine, connection=None, is_final=False):
     return client.query(sql).to_dataframe()
   elif engine == 'psql':
     if is_final:
-      return pandas.read_sql(sql, connection)
+      cursor = psql_logica.PostgresExecute(sql, connection)
+      rows = cursor.fetchall()
+      df = pandas.DataFrame(
+        rows, columns=[d[0] for d in cursor.description])
+      df = df.applymap(psql_logica.DigestPsqlType)
+      return df
     else:
-      return connection.execute(sql)
+      psql_logica.PostgresExecute(sql, connection)
   elif engine == 'sqlite':
     try:
       if is_final:
@@ -164,6 +190,15 @@ def RunSQL(sql, engine, connection=None, is_final=False):
                     'for now.')
 
 
+def Ingress(table_name, csv_file_name):
+  with open(csv_file_name) as csv_data_io:
+    cursor = DB_CONNECTION.cursor()
+    cursor.copy_expert(
+      'COPY %s FROM STDIN WITH CSV HEADER' % table_name,
+      csv_data_io)
+    DB_CONNECTION.commit()
+
+
 class SqliteRunner(object):
   def __init__(self):
     self.connection = sqlite3_logica.SqliteConnect()
@@ -177,13 +212,9 @@ class PostgresRunner(object):
   def __init__(self):
     global DB_CONNECTION
     global DB_ENGINE
-    if DB_CONNECTION:
-      self.engine = DB_ENGINE
-      self.connection = DB_CONNECTION
-    else:
-      (self.engine, self.connection) = PostgresJumpStart()
-      DB_ENGINE = self.engine
-      DB_CONNECTION = self.connection
+    if not DB_CONNECTION:
+      PostgresJumpStart()
+    self.connection = DB_CONNECTION
   
   def  __call__(self, sql, engine, is_final):
     return RunSQL(sql, engine, self.connection, is_final)
@@ -206,11 +237,16 @@ def Logica(line, cell, run_query):
     e.ShowMessage()
     return
   try:
-    program = universe.LogicaProgram(parsed_rules)
+    program = universe.LogicaProgram(
+        parsed_rules,
+        user_flags={'logica_default_engine': DEFAULT_ENGINE})
   except functors.FunctorError as e:
     e.ShowMessage()
     return
   except rule_translate.RuleCompileException as e:
+    e.ShowMessage()
+    return
+  except infer.TypeErrorCaughtException as e:
     e.ShowMessage()
     return
 
@@ -269,9 +305,13 @@ def Logica(line, cell, run_query):
     else:
       raise Exception('Logica only supports BigQuery, PostgreSQL and SQLite '
                       'for now.')   
-                      
-    result_map = concertina_lib.ExecuteLogicaProgram(
-      executions, sql_runner=sql_runner, sql_engine=engine)
+    try:                  
+      result_map = concertina_lib.ExecuteLogicaProgram(
+        executions, sql_runner=sql_runner, sql_engine=engine,
+        display_mode=DISPLAY_MODE)
+    except infer.TypeErrorCaughtException as e:
+      e.ShowMessage()
+      return
 
   for idx, predicate in enumerate(predicates):
     t = result_map[predicate]
@@ -290,6 +330,14 @@ def Logica(line, cell, run_query):
       print(' ') # To activate the tabbar.
 
 def PostgresJumpStart():
+  print("Assuming this is running on Google CoLab in a temporary")
+  print("environment.")
+  print("Would you like to install and run postgres?")
+  user_choice = input('y or N? ')
+  if user_choice != 'y':
+    print('User declined.')
+    print('Bailing out.')
+    return
   # Install postgresql server.
   print("Installing and configuring an empty PostgreSQL database.")
   result = 0
@@ -328,10 +376,12 @@ colab_logica.SetDbConnection(connection)""")
     return
   print('Installation succeeded. Connecting...')
   # Connect to the database.
-  from logica import colab_logica
-  from sqlalchemy import create_engine
-  import pandas
-  engine = create_engine('postgresql+psycopg2://logica:logica@127.0.0.1', pool_recycle=3600)
-  connection = engine.connect()
+  import psycopg2
+  connection = psycopg2.connect(host='localhost', database='logica', user='logica', password='logica')
+  connection.autocommit = True
+
   print('Connected.')
-  return engine, connection
+  global DEFAULT_ENGINE
+  global DB_CONNECTION
+  DEFAULT_ENGINE = 'psql'
+  DB_CONNECTION = connection

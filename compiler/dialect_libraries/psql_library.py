@@ -17,13 +17,14 @@
 library = """
 ->(left:, right:) = {arg: left, value: right};
 `=`(left:, right:) = right :- left == right;
+`~`(left:, right:);  # No action. Compiler unifies types.
 
-ArgMin(a) = SqlExpr("(ARRAY_AGG({arg} order by {value}))[1]",
-                    {arg: a.arg, value: a.value});
+ArgMin(a) = (SqlExpr("(ARRAY_AGG({arg} order by {value}))[1]",
+                     {arg: {argpod: a.arg}, value: a.value})).argpod;
 
-ArgMax(a) = SqlExpr(
+ArgMax(a) = (SqlExpr(
   "(ARRAY_AGG({arg} order by {value} desc))[1]",
-  {arg: a.arg, value: a.value});
+  {arg: {argpod: a.arg}, value: a.value})).argpod;
 
 ArgMaxK(a, l) = SqlExpr(
   "(ARRAY_AGG({arg} order by {value} desc))[1:{lim}]",
@@ -37,4 +38,11 @@ Array(a) = SqlExpr(
   "ARRAY_AGG({value} order by {arg})",
   {arg: a.arg, value: a.value});
 
+RecordAsJson(r) = SqlExpr(
+  "ROW_TO_JSON({r})", {r:});
+
+Fingerprint(s) = SqlExpr("('x' || substr(md5({s}), 1, 16))::bit(64)::bigint", {s:});
+
+Num(a) = a;
+Str(a) = a;
 """

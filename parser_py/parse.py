@@ -83,6 +83,14 @@ class HeritageAwareString(str):
             self.heritage[self.start:self.stop],
             self.heritage[self.stop:])
 
+  def Display(self):
+    a, b, c = self.Pieces()
+    if not b:
+      b = '<EMPTY>'
+    return color.Format(
+      '{before}{warning}{error_text}{end}{after}',
+      dict(before=a, error_text=b, after=c))
+
 
 class ParsingException(Exception):
   """Exception thrown by parsing."""
@@ -571,7 +579,7 @@ def ParseLiteral(s):
 def ParseInfix(s, operators=None):
   """Parses an infix operator expression."""
   operators = operators or [
-      '||', '&&', '->', '==', '<=', '>=', '<', '>', '!=', '=',
+      '||', '&&', '->', '==', '<=', '>=', '<', '>', '!=', '=', '~',
       ' in ', ' is not ', ' is ', '++?', '++', '+', '-', '*', '/', '%',
       '^', '!']
   unary_operators = ['-', '!']
@@ -590,6 +598,8 @@ def ParseInfix(s, operators=None):
             'predicate_name': op,
             'record': ParseRecordInternals(right)
         }
+      if op == '~' and not left:
+        return None  # Negation is special.
 
       left_expr = ParseExpression(left)
       right_expr = ParseExpression(right)
@@ -716,6 +726,11 @@ def ParseImplication(s):
 
 
 def ParseExpression(s):
+  e = ActuallyParseExpression(s)
+  e['expression_heritage'] = s
+  return e
+
+def ActuallyParseExpression(s):
   """Parsing logica.Expression."""
   v = ParseCombine(s)
   if v:
@@ -794,6 +809,9 @@ def ParseGenericCall(s, opening, closing):
     # Specialcasing `=` assignment operator for definition.
     if predicate == '`=`':
       predicate = '='
+    # Specialcasing `~` type equality operator for definition.
+    if predicate == '`~`':
+      predicate = '~'
     return predicate, s[idx + 1: -1]
 
 

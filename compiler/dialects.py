@@ -38,6 +38,13 @@ def Get(engine):
 class Dialect(object):
   pass
 
+  # Default methods:
+  def MaybeCascadingDeletionWord(self):
+    return ''  # No CASCADE is needed by default.
+  
+  def PredicateLiteral(self, predicate_name):
+    return "'predicate_name:%s'" % predicate_name
+
 
 class BigQueryDialect(Dialect):
   """BigQuery SQL dialect."""
@@ -53,7 +60,7 @@ class BigQueryDialect(Dialect):
         '++': 'CONCAT(%s, %s)',
     }
 
-  def Subscript(self, record, subscript):
+  def Subscript(self, record, subscript, record_is_table):
     return '%s.%s' % (record, subscript)
   
   def LibraryProgram(self):
@@ -71,6 +78,10 @@ class BigQueryDialect(Dialect):
   def DecorateCombineRule(self, rule, var):
     return rule
 
+  def PredicateLiteral(self, predicate_name):
+    return 'STRUCT("%s" AS predicate_name)' % predicate_name
+
+  
 class SqLiteDialect(Dialect):
   """SqLite SQL dialect."""
 
@@ -100,74 +111,7 @@ class SqLiteDialect(Dialect):
     }
 
   def DecorateCombineRule(self, rule, var):
-    """Resolving ambiguity of aggregation scope."""
-    # Entangling result of aggregation with a variable that comes from a list
-    # unnested inside a combine expression, to make it clear that aggregation
-    # must be done in the combine. 
-    rule = copy.deepcopy(rule)
-
-    rule['head']['record']['field_value'][0]['value'][
-      'aggregation']['expression']['call'][
-      'record']['field_value'][0]['value'] = (
-      {
-        'expression': {
-          'call': {
-            'predicate_name': 'MagicalEntangle',
-            'record': {
-              'field_value': [
-                {
-                  'field': 0,
-                  'value': rule['head']['record']['field_value'][0]['value'][
-                    'aggregation']['expression']['call'][
-                      'record']['field_value'][0]['value']      
-                },
-                {
-                  'field': 1,
-                  'value': {
-                    'expression': {
-                      'variable': {
-                        'var_name': var
-                      }
-                    }
-                  }
-                }
-              ]
-            }
-          }
-        }
-      }
-    )
-
-    if 'body' not in rule:
-      rule['body'] = {'conjunction': {'conjunct': []}}
-    rule['body']['conjunction']['conjunct'].append(
-      {
-        "inclusion": {
-          "list": {
-            "literal": {
-              "the_list": {
-                "element": [
-                  {
-                    "literal": {
-                      "the_number": {
-                        "number": "0"
-                      }
-                    }
-                  }
-                ]
-              }
-            }
-          },
-          "element": {
-            "variable": {
-              "var_name": var
-            }
-          }
-        }
-      }      
-    )
-    return rule
-
+    return DecorateCombineRule(rule, var)
 
   def InfixOperators(self):
     return {
@@ -176,8 +120,11 @@ class SqLiteDialect(Dialect):
         'in': 'IN_LIST(%s, %s)'
     }
 
-  def Subscript(self, record, subscript):
-    return 'JSON_EXTRACT(%s, "$.%s")' % (record, subscript)
+  def Subscript(self, record, subscript, record_is_table):
+    if record_is_table:
+      return '%s.%s' % (record, subscript)
+    else:
+      return 'JSON_EXTRACT(%s, "$.%s")' % (record, subscript)
   
   def LibraryProgram(self):
     return sqlite_library.library
@@ -201,9 +148,12 @@ class PostgreSQL(Dialect):
     return {
         'Range': '(SELECT ARRAY_AGG(x) FROM GENERATE_SERIES(0, {0} - 1) as x)',
         'ToString': 'CAST(%s AS TEXT)',
+        'ToInt64': 'CAST(%s AS BIGINT)',
         'Element': '({0})[{1} + 1]',
-        'Size': 'ARRAY_LENGTH(%s, 1)',
-        'Count': 'COUNT(DISTINCT {0})'
+        'Size': 'COALESCE(ARRAY_LENGTH({0}, 1), 0)',
+        'Count': 'COUNT(DISTINCT {0})',
+        'MagicalEntangle': '(CASE WHEN {1} = 0 THEN {0} ELSE NULL END)',
+        'ArrayConcat': '{0} || {1}'
       }
 
   def InfixOperators(self):
@@ -211,7 +161,7 @@ class PostgreSQL(Dialect):
         '++': 'CONCAT(%s, %s)',
     }
 
-  def Subscript(self, record, subscript):
+  def Subscript(self, record, subscript, record_is_table):
     return '(%s).%s' % (record, subscript)
   
   def LibraryProgram(self):
@@ -224,10 +174,13 @@ class PostgreSQL(Dialect):
     return 'ARRAY[%s]'
 
   def GroupBySpecBy(self):
-    return 'name'
+    return 'expr'
 
   def DecorateCombineRule(self, rule, var):
-    return rule
+    return DecorateCombineRule(rule, var)
+  
+  def MaybeCascadingDeletionWord(self):
+    return ' CASCADE'  # Need to cascade in PSQL.
 
 
 class Trino(Dialect):
@@ -251,7 +204,7 @@ class Trino(Dialect):
         '++': 'CONCAT(%s, %s)',
     }
 
-  def Subscript(self, record, subscript):
+  def Subscript(self, record, subscript, record_is_table):
     return '%s.%s' % (record, subscript)
   
   def LibraryProgram(self):
@@ -289,7 +242,7 @@ class Presto(Dialect):
         '++': 'CONCAT(%s, %s)',
     }
 
-  def Subscript(self, record, subscript):
+  def Subscript(self, record, subscript, record_is_table):
     return '%s.%s' % (record, subscript)
   
   def LibraryProgram(self):
@@ -307,6 +260,74 @@ class Presto(Dialect):
   def DecorateCombineRule(self, rule, var):
     return rule
 
+def DecorateCombineRule(rule, var):
+  """Resolving ambiguity of aggregation scope."""
+  # Entangling result of aggregation with a variable that comes from a list
+  # unnested inside a combine expression, to make it clear that aggregation
+  # must be done in the combine. 
+  rule = copy.deepcopy(rule)
+
+  rule['head']['record']['field_value'][0]['value'][
+    'aggregation']['expression']['call'][
+    'record']['field_value'][0]['value'] = (
+    {
+      'expression': {
+        'call': {
+          'predicate_name': 'MagicalEntangle',
+          'record': {
+            'field_value': [
+              {
+                'field': 0,
+                'value': rule['head']['record']['field_value'][0]['value'][
+                  'aggregation']['expression']['call'][
+                    'record']['field_value'][0]['value']      
+              },
+              {
+                'field': 1,
+                'value': {
+                  'expression': {
+                    'variable': {
+                      'var_name': var
+                    }
+                  }
+                }
+              }
+            ]
+          }
+        }
+      }
+    }
+  )
+
+  if 'body' not in rule:
+    rule['body'] = {'conjunction': {'conjunct': []}}
+  rule['body']['conjunction']['conjunct'].append(
+    {
+      "inclusion": {
+        "list": {
+          "literal": {
+            "the_list": {
+              "element": [
+                {
+                  "literal": {
+                    "the_number": {
+                      "number": "0"
+                    }
+                  }
+                }
+              ]
+            }
+          }
+        },
+        "element": {
+          "variable": {
+            "var_name": var
+          }
+        }
+      }
+    }      
+  )
+  return rule
 
 DIALECTS = {
     'bigquery': BigQueryDialect,

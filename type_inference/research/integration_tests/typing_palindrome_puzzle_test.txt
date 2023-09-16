@@ -1,0 +1,2008 @@
+[
+ {
+  "full_text": "@Engine(\"psql\")",
+  "head": {
+   "predicate_name": "@Engine",
+   "record": {
+    "field_value": [
+     {
+      "field": 0,
+      "value": {
+       "expression": {
+        "expression_heritage": "\"psql\"",
+        "literal": {
+         "the_string": {
+          "the_string": "psql"
+         }
+        }
+       }
+      }
+     }
+    ]
+   }
+  }
+ },
+ {
+  "full_text": "Word(\"abbacdcaaaxx\")",
+  "head": {
+   "predicate_name": "Word",
+   "record": {
+    "field_value": [
+     {
+      "field": 0,
+      "value": {
+       "expression": {
+        "expression_heritage": "\"abbacdcaaaxx\"",
+        "literal": {
+         "the_string": {
+          "the_string": "abbacdcaaaxx"
+         }
+        },
+        "type": {
+         "rendered_type": "Str",
+         "the_type": "Str",
+         "type_id": 0
+        }
+       }
+      }
+     }
+    ]
+   }
+  }
+ },
+ {
+  "body": {
+   "conjunction": {
+    "conjunct": [
+     {
+      "predicate": {
+       "predicate_name": "Word",
+       "record": {
+        "field_value": [
+         {
+          "field": 0,
+          "value": {
+           "expression": {
+            "expression_heritage": "word",
+            "type": {
+             "rendered_type": "Str",
+             "the_type": "Str",
+             "type_id": 1
+            },
+            "variable": {
+             "var_name": "word"
+            }
+           }
+          }
+         }
+        ]
+       }
+      }
+     },
+     {
+      "inclusion": {
+       "element": {
+        "expression_heritage": "i",
+        "type": {
+         "rendered_type": "Num",
+         "the_type": "Num",
+         "type_id": 0
+        },
+        "variable": {
+         "var_name": "i"
+        }
+       },
+       "list": {
+        "call": {
+         "predicate_name": "Range",
+         "record": {
+          "field_value": [
+           {
+            "field": 0,
+            "value": {
+             "expression": {
+              "call": {
+               "predicate_name": "Length",
+               "record": {
+                "field_value": [
+                 {
+                  "field": 0,
+                  "value": {
+                   "expression": {
+                    "expression_heritage": "word",
+                    "type": {
+                     "rendered_type": "Str",
+                     "the_type": "Str",
+                     "type_id": 1
+                    },
+                    "variable": {
+                     "var_name": "word"
+                    }
+                   }
+                  }
+                 }
+                ]
+               }
+              },
+              "expression_heritage": "Length(word)",
+              "type": {
+               "rendered_type": "Num",
+               "the_type": "Num",
+               "type_id": 7
+              }
+             }
+            }
+           }
+          ]
+         }
+        },
+        "expression_heritage": "Range(Length(word))",
+        "type": {
+         "element_type_name": "numeric",
+         "rendered_type": "[Num]",
+         "the_type": [
+          "Num"
+         ],
+         "type_id": 6
+        }
+       }
+      }
+     }
+    ]
+   }
+  },
+  "full_text": "Char(i) = Substr(word, i + 1, 1) :- Word(word), i in Range(Length(word))",
+  "head": {
+   "predicate_name": "Char",
+   "record": {
+    "field_value": [
+     {
+      "field": 0,
+      "value": {
+       "expression": {
+        "expression_heritage": "i",
+        "type": {
+         "rendered_type": "Num",
+         "the_type": "Num",
+         "type_id": 0
+        },
+        "variable": {
+         "var_name": "i"
+        }
+       }
+      }
+     },
+     {
+      "field": "logica_value",
+      "value": {
+       "expression": {
+        "call": {
+         "predicate_name": "Substr",
+         "record": {
+          "field_value": [
+           {
+            "field": 0,
+            "value": {
+             "expression": {
+              "expression_heritage": "word",
+              "type": {
+               "rendered_type": "Str",
+               "the_type": "Str",
+               "type_id": 1
+              },
+              "variable": {
+               "var_name": "word"
+              }
+             }
+            }
+           },
+           {
+            "field": 1,
+            "value": {
+             "expression": {
+              "call": {
+               "predicate_name": "+",
+               "record": {
+                "field_value": [
+                 {
+                  "field": "left",
+                  "value": {
+                   "expression": {
+                    "expression_heritage": "i",
+                    "type": {
+                     "rendered_type": "Num",
+                     "the_type": "Num",
+                     "type_id": 0
+                    },
+                    "variable": {
+                     "var_name": "i"
+                    }
+                   }
+                  }
+                 },
+                 {
+                  "field": "right",
+                  "value": {
+                   "expression": {
+                    "expression_heritage": "1",
+                    "literal": {
+                     "the_number": {
+                      "number": "1"
+                     }
+                    },
+                    "type": {
+                     "rendered_type": "Num",
+                     "the_type": "Num",
+                     "type_id": 4
+                    }
+                   }
+                  }
+                 }
+                ]
+               }
+              },
+              "expression_heritage": "i + 1",
+              "type": {
+               "rendered_type": "Num",
+               "the_type": "Num",
+               "type_id": 3
+              }
+             }
+            }
+           },
+           {
+            "field": 2,
+            "value": {
+             "expression": {
+              "expression_heritage": "1",
+              "literal": {
+               "the_number": {
+                "number": "1"
+               }
+              },
+              "type": {
+               "rendered_type": "Num",
+               "the_type": "Num",
+               "type_id": 5
+              }
+             }
+            }
+           }
+          ]
+         }
+        },
+        "expression_heritage": "Substr(word, i + 1, 1)",
+        "type": {
+         "rendered_type": "Str",
+         "the_type": "Str",
+         "type_id": 2
+        }
+       }
+      }
+     }
+    ]
+   }
+  }
+ },
+ {
+  "full_text": "@Ground(Palindrome)",
+  "head": {
+   "predicate_name": "@Ground",
+   "record": {
+    "field_value": [
+     {
+      "field": 0,
+      "value": {
+       "expression": {
+        "expression_heritage": "Palindrome",
+        "literal": {
+         "the_predicate": {
+          "predicate_name": "Palindrome"
+         }
+        }
+       }
+      }
+     }
+    ]
+   }
+  }
+ },
+ {
+  "full_text": "Palindrome(i, i) = Char(i)",
+  "head": {
+   "predicate_name": "Palindrome",
+   "record": {
+    "field_value": [
+     {
+      "field": 0,
+      "value": {
+       "expression": {
+        "expression_heritage": "i",
+        "type": {
+         "rendered_type": "Num",
+         "the_type": "Num",
+         "type_id": 0
+        },
+        "variable": {
+         "var_name": "i"
+        }
+       }
+      }
+     },
+     {
+      "field": 1,
+      "value": {
+       "expression": {
+        "expression_heritage": "i",
+        "type": {
+         "rendered_type": "Num",
+         "the_type": "Num",
+         "type_id": 0
+        },
+        "variable": {
+         "var_name": "i"
+        }
+       }
+      }
+     },
+     {
+      "field": "logica_value",
+      "value": {
+       "expression": {
+        "call": {
+         "predicate_name": "Char",
+         "record": {
+          "field_value": [
+           {
+            "field": 0,
+            "value": {
+             "expression": {
+              "expression_heritage": "i",
+              "type": {
+               "rendered_type": "Num",
+               "the_type": "Num",
+               "type_id": 0
+              },
+              "variable": {
+               "var_name": "i"
+              }
+             }
+            }
+           }
+          ]
+         }
+        },
+        "expression_heritage": "Char(i)",
+        "type": {
+         "rendered_type": "Str",
+         "the_type": "Str",
+         "type_id": 1
+        }
+       }
+      }
+     }
+    ]
+   }
+  }
+ },
+ {
+  "body": {
+   "conjunction": {
+    "conjunct": [
+     {
+      "unification": {
+       "left_hand_side": {
+        "call": {
+         "predicate_name": "Char",
+         "record": {
+          "field_value": [
+           {
+            "field": 0,
+            "value": {
+             "expression": {
+              "expression_heritage": "i",
+              "type": {
+               "rendered_type": "Num",
+               "the_type": "Num",
+               "type_id": 0
+              },
+              "variable": {
+               "var_name": "i"
+              }
+             }
+            }
+           }
+          ]
+         }
+        },
+        "expression_heritage": "Char(i)",
+        "type": {
+         "rendered_type": "Str",
+         "the_type": "Str",
+         "type_id": 8
+        }
+       },
+       "right_hand_side": {
+        "call": {
+         "predicate_name": "Char",
+         "record": {
+          "field_value": [
+           {
+            "field": 0,
+            "value": {
+             "expression": {
+              "call": {
+               "predicate_name": "+",
+               "record": {
+                "field_value": [
+                 {
+                  "field": "left",
+                  "value": {
+                   "expression": {
+                    "expression_heritage": "i",
+                    "type": {
+                     "rendered_type": "Num",
+                     "the_type": "Num",
+                     "type_id": 0
+                    },
+                    "variable": {
+                     "var_name": "i"
+                    }
+                   }
+                  }
+                 },
+                 {
+                  "field": "right",
+                  "value": {
+                   "expression": {
+                    "expression_heritage": "1",
+                    "literal": {
+                     "the_number": {
+                      "number": "1"
+                     }
+                    },
+                    "type": {
+                     "rendered_type": "Num",
+                     "the_type": "Num",
+                     "type_id": 11
+                    }
+                   }
+                  }
+                 }
+                ]
+               }
+              },
+              "expression_heritage": "i + 1",
+              "type": {
+               "rendered_type": "Num",
+               "the_type": "Num",
+               "type_id": 10
+              }
+             }
+            }
+           }
+          ]
+         }
+        },
+        "expression_heritage": "Char(i + 1)",
+        "type": {
+         "rendered_type": "Str",
+         "the_type": "Str",
+         "type_id": 9
+        }
+       }
+      }
+     }
+    ]
+   }
+  },
+  "full_text": "Palindrome(i, i + 1) = Char(i) ++ Char(i + 1) :- Char(i) == Char(i + 1)",
+  "head": {
+   "predicate_name": "Palindrome",
+   "record": {
+    "field_value": [
+     {
+      "field": 0,
+      "value": {
+       "expression": {
+        "expression_heritage": "i",
+        "type": {
+         "rendered_type": "Num",
+         "the_type": "Num",
+         "type_id": 0
+        },
+        "variable": {
+         "var_name": "i"
+        }
+       }
+      }
+     },
+     {
+      "field": 1,
+      "value": {
+       "expression": {
+        "call": {
+         "predicate_name": "+",
+         "record": {
+          "field_value": [
+           {
+            "field": "left",
+            "value": {
+             "expression": {
+              "expression_heritage": "i",
+              "type": {
+               "rendered_type": "Num",
+               "the_type": "Num",
+               "type_id": 0
+              },
+              "variable": {
+               "var_name": "i"
+              }
+             }
+            }
+           },
+           {
+            "field": "right",
+            "value": {
+             "expression": {
+              "expression_heritage": "1",
+              "literal": {
+               "the_number": {
+                "number": "1"
+               }
+              },
+              "type": {
+               "rendered_type": "Num",
+               "the_type": "Num",
+               "type_id": 2
+              }
+             }
+            }
+           }
+          ]
+         }
+        },
+        "expression_heritage": "i + 1",
+        "type": {
+         "rendered_type": "Num",
+         "the_type": "Num",
+         "type_id": 1
+        }
+       }
+      }
+     },
+     {
+      "field": "logica_value",
+      "value": {
+       "expression": {
+        "call": {
+         "predicate_name": "++",
+         "record": {
+          "field_value": [
+           {
+            "field": "left",
+            "value": {
+             "expression": {
+              "call": {
+               "predicate_name": "Char",
+               "record": {
+                "field_value": [
+                 {
+                  "field": 0,
+                  "value": {
+                   "expression": {
+                    "expression_heritage": "i",
+                    "type": {
+                     "rendered_type": "Num",
+                     "the_type": "Num",
+                     "type_id": 0
+                    },
+                    "variable": {
+                     "var_name": "i"
+                    }
+                   }
+                  }
+                 }
+                ]
+               }
+              },
+              "expression_heritage": "Char(i)",
+              "type": {
+               "rendered_type": "Str",
+               "the_type": "Str",
+               "type_id": 4
+              }
+             }
+            }
+           },
+           {
+            "field": "right",
+            "value": {
+             "expression": {
+              "call": {
+               "predicate_name": "Char",
+               "record": {
+                "field_value": [
+                 {
+                  "field": 0,
+                  "value": {
+                   "expression": {
+                    "call": {
+                     "predicate_name": "+",
+                     "record": {
+                      "field_value": [
+                       {
+                        "field": "left",
+                        "value": {
+                         "expression": {
+                          "expression_heritage": "i",
+                          "type": {
+                           "rendered_type": "Num",
+                           "the_type": "Num",
+                           "type_id": 0
+                          },
+                          "variable": {
+                           "var_name": "i"
+                          }
+                         }
+                        }
+                       },
+                       {
+                        "field": "right",
+                        "value": {
+                         "expression": {
+                          "expression_heritage": "1",
+                          "literal": {
+                           "the_number": {
+                            "number": "1"
+                           }
+                          },
+                          "type": {
+                           "rendered_type": "Num",
+                           "the_type": "Num",
+                           "type_id": 7
+                          }
+                         }
+                        }
+                       }
+                      ]
+                     }
+                    },
+                    "expression_heritage": "i + 1",
+                    "type": {
+                     "rendered_type": "Num",
+                     "the_type": "Num",
+                     "type_id": 6
+                    }
+                   }
+                  }
+                 }
+                ]
+               }
+              },
+              "expression_heritage": "Char(i + 1)",
+              "type": {
+               "rendered_type": "Str",
+               "the_type": "Str",
+               "type_id": 5
+              }
+             }
+            }
+           }
+          ]
+         }
+        },
+        "expression_heritage": "Char(i) ++ Char(i + 1)",
+        "type": {
+         "rendered_type": "Str",
+         "the_type": "Str",
+         "type_id": 3
+        }
+       }
+      }
+     }
+    ]
+   }
+  }
+ },
+ {
+  "body": {
+   "conjunction": {
+    "conjunct": [
+     {
+      "predicate": {
+       "predicate_name": "Palindrome",
+       "record": {
+        "field_value": [
+         {
+          "field": 0,
+          "value": {
+           "expression": {
+            "expression_heritage": "i",
+            "type": {
+             "rendered_type": "Num",
+             "the_type": "Num",
+             "type_id": 0
+            },
+            "variable": {
+             "var_name": "i"
+            }
+           }
+          }
+         },
+         {
+          "field": 1,
+          "value": {
+           "expression": {
+            "expression_heritage": "j",
+            "type": {
+             "rendered_type": "Num",
+             "the_type": "Num",
+             "type_id": 1
+            },
+            "variable": {
+             "var_name": "j"
+            }
+           }
+          }
+         }
+        ]
+       }
+      }
+     },
+     {
+      "unification": {
+       "left_hand_side": {
+        "call": {
+         "predicate_name": "Char",
+         "record": {
+          "field_value": [
+           {
+            "field": 0,
+            "value": {
+             "expression": {
+              "call": {
+               "predicate_name": "-",
+               "record": {
+                "field_value": [
+                 {
+                  "field": "left",
+                  "value": {
+                   "expression": {
+                    "expression_heritage": "i",
+                    "type": {
+                     "rendered_type": "Num",
+                     "the_type": "Num",
+                     "type_id": 0
+                    },
+                    "variable": {
+                     "var_name": "i"
+                    }
+                   }
+                  }
+                 },
+                 {
+                  "field": "right",
+                  "value": {
+                   "expression": {
+                    "expression_heritage": "1",
+                    "literal": {
+                     "the_number": {
+                      "number": "1"
+                     }
+                    },
+                    "type": {
+                     "rendered_type": "Num",
+                     "the_type": "Num",
+                     "type_id": 18
+                    }
+                   }
+                  }
+                 }
+                ]
+               }
+              },
+              "expression_heritage": "i - 1",
+              "type": {
+               "rendered_type": "Num",
+               "the_type": "Num",
+               "type_id": 17
+              }
+             }
+            }
+           }
+          ]
+         }
+        },
+        "expression_heritage": "Char(i - 1)",
+        "type": {
+         "rendered_type": "Str",
+         "the_type": "Str",
+         "type_id": 15
+        }
+       },
+       "right_hand_side": {
+        "call": {
+         "predicate_name": "Char",
+         "record": {
+          "field_value": [
+           {
+            "field": 0,
+            "value": {
+             "expression": {
+              "call": {
+               "predicate_name": "+",
+               "record": {
+                "field_value": [
+                 {
+                  "field": "left",
+                  "value": {
+                   "expression": {
+                    "expression_heritage": "j",
+                    "type": {
+                     "rendered_type": "Num",
+                     "the_type": "Num",
+                     "type_id": 1
+                    },
+                    "variable": {
+                     "var_name": "j"
+                    }
+                   }
+                  }
+                 },
+                 {
+                  "field": "right",
+                  "value": {
+                   "expression": {
+                    "expression_heritage": "1",
+                    "literal": {
+                     "the_number": {
+                      "number": "1"
+                     }
+                    },
+                    "type": {
+                     "rendered_type": "Num",
+                     "the_type": "Num",
+                     "type_id": 20
+                    }
+                   }
+                  }
+                 }
+                ]
+               }
+              },
+              "expression_heritage": "j + 1",
+              "type": {
+               "rendered_type": "Num",
+               "the_type": "Num",
+               "type_id": 19
+              }
+             }
+            }
+           }
+          ]
+         }
+        },
+        "expression_heritage": "Char(j + 1)",
+        "type": {
+         "rendered_type": "Str",
+         "the_type": "Str",
+         "type_id": 16
+        }
+       }
+      }
+     }
+    ]
+   }
+  },
+  "full_text": "Palindrome(i - 1, j + 1) = Char(i - 1) ++ Palindrome(i, j) ++ Char(j + 1) :- Palindrome(i, j), Char(i - 1) == Char(j + 1)",
+  "head": {
+   "predicate_name": "Palindrome",
+   "record": {
+    "field_value": [
+     {
+      "field": 0,
+      "value": {
+       "expression": {
+        "call": {
+         "predicate_name": "-",
+         "record": {
+          "field_value": [
+           {
+            "field": "left",
+            "value": {
+             "expression": {
+              "expression_heritage": "i",
+              "type": {
+               "rendered_type": "Num",
+               "the_type": "Num",
+               "type_id": 0
+              },
+              "variable": {
+               "var_name": "i"
+              }
+             }
+            }
+           },
+           {
+            "field": "right",
+            "value": {
+             "expression": {
+              "expression_heritage": "1",
+              "literal": {
+               "the_number": {
+                "number": "1"
+               }
+              },
+              "type": {
+               "rendered_type": "Num",
+               "the_type": "Num",
+               "type_id": 3
+              }
+             }
+            }
+           }
+          ]
+         }
+        },
+        "expression_heritage": "i - 1",
+        "type": {
+         "rendered_type": "Num",
+         "the_type": "Num",
+         "type_id": 2
+        }
+       }
+      }
+     },
+     {
+      "field": 1,
+      "value": {
+       "expression": {
+        "call": {
+         "predicate_name": "+",
+         "record": {
+          "field_value": [
+           {
+            "field": "left",
+            "value": {
+             "expression": {
+              "expression_heritage": "j",
+              "type": {
+               "rendered_type": "Num",
+               "the_type": "Num",
+               "type_id": 1
+              },
+              "variable": {
+               "var_name": "j"
+              }
+             }
+            }
+           },
+           {
+            "field": "right",
+            "value": {
+             "expression": {
+              "expression_heritage": "1",
+              "literal": {
+               "the_number": {
+                "number": "1"
+               }
+              },
+              "type": {
+               "rendered_type": "Num",
+               "the_type": "Num",
+               "type_id": 5
+              }
+             }
+            }
+           }
+          ]
+         }
+        },
+        "expression_heritage": "j + 1",
+        "type": {
+         "rendered_type": "Num",
+         "the_type": "Num",
+         "type_id": 4
+        }
+       }
+      }
+     },
+     {
+      "field": "logica_value",
+      "value": {
+       "expression": {
+        "call": {
+         "predicate_name": "++",
+         "record": {
+          "field_value": [
+           {
+            "field": "left",
+            "value": {
+             "expression": {
+              "call": {
+               "predicate_name": "++",
+               "record": {
+                "field_value": [
+                 {
+                  "field": "left",
+                  "value": {
+                   "expression": {
+                    "call": {
+                     "predicate_name": "Char",
+                     "record": {
+                      "field_value": [
+                       {
+                        "field": 0,
+                        "value": {
+                         "expression": {
+                          "call": {
+                           "predicate_name": "-",
+                           "record": {
+                            "field_value": [
+                             {
+                              "field": "left",
+                              "value": {
+                               "expression": {
+                                "expression_heritage": "i",
+                                "type": {
+                                 "rendered_type": "Num",
+                                 "the_type": "Num",
+                                 "type_id": 0
+                                },
+                                "variable": {
+                                 "var_name": "i"
+                                }
+                               }
+                              }
+                             },
+                             {
+                              "field": "right",
+                              "value": {
+                               "expression": {
+                                "expression_heritage": "1",
+                                "literal": {
+                                 "the_number": {
+                                  "number": "1"
+                                 }
+                                },
+                                "type": {
+                                 "rendered_type": "Num",
+                                 "the_type": "Num",
+                                 "type_id": 10
+                                }
+                               }
+                              }
+                             }
+                            ]
+                           }
+                          },
+                          "expression_heritage": "i - 1",
+                          "type": {
+                           "rendered_type": "Num",
+                           "the_type": "Num",
+                           "type_id": 9
+                          }
+                         }
+                        }
+                       }
+                      ]
+                     }
+                    },
+                    "expression_heritage": "Char(i - 1)",
+                    "type": {
+                     "rendered_type": "Str",
+                     "the_type": "Str",
+                     "type_id": 8
+                    }
+                   }
+                  }
+                 },
+                 {
+                  "field": "right",
+                  "value": {
+                   "expression": {
+                    "call": {
+                     "predicate_name": "Palindrome",
+                     "record": {
+                      "field_value": [
+                       {
+                        "field": 0,
+                        "value": {
+                         "expression": {
+                          "expression_heritage": "i",
+                          "type": {
+                           "rendered_type": "Num",
+                           "the_type": "Num",
+                           "type_id": 0
+                          },
+                          "variable": {
+                           "var_name": "i"
+                          }
+                         }
+                        }
+                       },
+                       {
+                        "field": 1,
+                        "value": {
+                         "expression": {
+                          "expression_heritage": "j",
+                          "type": {
+                           "rendered_type": "Num",
+                           "the_type": "Num",
+                           "type_id": 1
+                          },
+                          "variable": {
+                           "var_name": "j"
+                          }
+                         }
+                        }
+                       }
+                      ]
+                     }
+                    },
+                    "expression_heritage": "Palindrome(i, j)",
+                    "type": {
+                     "rendered_type": "Str",
+                     "the_type": "Str",
+                     "type_id": 11
+                    }
+                   }
+                  }
+                 }
+                ]
+               }
+              },
+              "expression_heritage": "Char(i - 1) ++ Palindrome(i, j)",
+              "type": {
+               "rendered_type": "Str",
+               "the_type": "Str",
+               "type_id": 7
+              }
+             }
+            }
+           },
+           {
+            "field": "right",
+            "value": {
+             "expression": {
+              "call": {
+               "predicate_name": "Char",
+               "record": {
+                "field_value": [
+                 {
+                  "field": 0,
+                  "value": {
+                   "expression": {
+                    "call": {
+                     "predicate_name": "+",
+                     "record": {
+                      "field_value": [
+                       {
+                        "field": "left",
+                        "value": {
+                         "expression": {
+                          "expression_heritage": "j",
+                          "type": {
+                           "rendered_type": "Num",
+                           "the_type": "Num",
+                           "type_id": 1
+                          },
+                          "variable": {
+                           "var_name": "j"
+                          }
+                         }
+                        }
+                       },
+                       {
+                        "field": "right",
+                        "value": {
+                         "expression": {
+                          "expression_heritage": "1",
+                          "literal": {
+                           "the_number": {
+                            "number": "1"
+                           }
+                          },
+                          "type": {
+                           "rendered_type": "Num",
+                           "the_type": "Num",
+                           "type_id": 14
+                          }
+                         }
+                        }
+                       }
+                      ]
+                     }
+                    },
+                    "expression_heritage": "j + 1",
+                    "type": {
+                     "rendered_type": "Num",
+                     "the_type": "Num",
+                     "type_id": 13
+                    }
+                   }
+                  }
+                 }
+                ]
+               }
+              },
+              "expression_heritage": "Char(j + 1)",
+              "type": {
+               "rendered_type": "Str",
+               "the_type": "Str",
+               "type_id": 12
+              }
+             }
+            }
+           }
+          ]
+         }
+        },
+        "expression_heritage": "Char(i - 1) ++ Palindrome(i, j) ++ Char(j + 1)",
+        "type": {
+         "rendered_type": "Str",
+         "the_type": "Str",
+         "type_id": 6
+        }
+       }
+      }
+     }
+    ]
+   }
+  }
+ },
+ {
+  "full_text": "@Ground(Path)",
+  "head": {
+   "predicate_name": "@Ground",
+   "record": {
+    "field_value": [
+     {
+      "field": 0,
+      "value": {
+       "expression": {
+        "expression_heritage": "Path",
+        "literal": {
+         "the_predicate": {
+          "predicate_name": "Path"
+         }
+        }
+       }
+      }
+     }
+    ]
+   }
+  }
+ },
+ {
+  "full_text": "Path(i, j) = {path: [Palindrome(i, j)]} distinct",
+  "head": {
+   "predicate_name": "Path_MultBodyAggAux",
+   "record": {
+    "field_value": [
+     {
+      "field": 0,
+      "value": {
+       "expression": {
+        "expression_heritage": "i",
+        "type": {
+         "rendered_type": "Num",
+         "the_type": "Num",
+         "type_id": 0
+        },
+        "variable": {
+         "var_name": "i"
+        }
+       }
+      }
+     },
+     {
+      "field": 1,
+      "value": {
+       "expression": {
+        "expression_heritage": "j",
+        "type": {
+         "rendered_type": "Num",
+         "the_type": "Num",
+         "type_id": 1
+        },
+        "variable": {
+         "var_name": "j"
+        }
+       }
+      }
+     },
+     {
+      "field": "logica_value",
+      "value": {
+       "expression": {
+        "expression_heritage": "{path: [Palindrome(i, j)]}",
+        "record": {
+         "field_value": [
+          {
+           "field": "path",
+           "value": {
+            "expression": {
+             "expression_heritage": "[Palindrome(i, j)]",
+             "literal": {
+              "the_list": {
+               "element": [
+                {
+                 "call": {
+                  "predicate_name": "Palindrome",
+                  "record": {
+                   "field_value": [
+                    {
+                     "field": 0,
+                     "value": {
+                      "expression": {
+                       "expression_heritage": "i",
+                       "type": {
+                        "rendered_type": "Num",
+                        "the_type": "Num",
+                        "type_id": 0
+                       },
+                       "variable": {
+                        "var_name": "i"
+                       }
+                      }
+                     }
+                    },
+                    {
+                     "field": 1,
+                     "value": {
+                      "expression": {
+                       "expression_heritage": "j",
+                       "type": {
+                        "rendered_type": "Num",
+                        "the_type": "Num",
+                        "type_id": 1
+                       },
+                       "variable": {
+                        "var_name": "j"
+                       }
+                      }
+                     }
+                    }
+                   ]
+                  }
+                 },
+                 "expression_heritage": "Palindrome(i, j)",
+                 "type": {
+                  "rendered_type": "Str",
+                  "the_type": "Str",
+                  "type_id": 4
+                 }
+                }
+               ]
+              }
+             },
+             "type": {
+              "element_type_name": "text",
+              "rendered_type": "[Str]",
+              "the_type": [
+               "Str"
+              ],
+              "type_id": 3
+             }
+            }
+           }
+          }
+         ]
+        },
+        "type": {
+         "rendered_type": "{path: [Str]}",
+         "the_type": {
+          "path": [
+           "Str"
+          ]
+         },
+         "type_id": 2,
+         "type_name": "logicarecord808144452"
+        }
+       }
+      }
+     }
+    ]
+   }
+  }
+ },
+ {
+  "full_text": "Path(i, k) = {path: ArrayConcat(Path(i, j).path,  Path(j + 1, k).path)} distinct",
+  "head": {
+   "predicate_name": "Path_MultBodyAggAux",
+   "record": {
+    "field_value": [
+     {
+      "field": 0,
+      "value": {
+       "expression": {
+        "expression_heritage": "i",
+        "type": {
+         "rendered_type": "Num",
+         "the_type": "Num",
+         "type_id": 0
+        },
+        "variable": {
+         "var_name": "i"
+        }
+       }
+      }
+     },
+     {
+      "field": 1,
+      "value": {
+       "expression": {
+        "expression_heritage": "k",
+        "type": {
+         "rendered_type": "Num",
+         "the_type": "Num",
+         "type_id": 1
+        },
+        "variable": {
+         "var_name": "k"
+        }
+       }
+      }
+     },
+     {
+      "field": "logica_value",
+      "value": {
+       "expression": {
+        "expression_heritage": "{path: ArrayConcat(Path(i, j).path,  Path(j + 1, k).path)}",
+        "record": {
+         "field_value": [
+          {
+           "field": "path",
+           "value": {
+            "expression": {
+             "call": {
+              "predicate_name": "ArrayConcat",
+              "record": {
+               "field_value": [
+                {
+                 "field": 0,
+                 "value": {
+                  "expression": {
+                   "expression_heritage": "Path(i, j).path",
+                   "subscript": {
+                    "record": {
+                     "call": {
+                      "predicate_name": "Path",
+                      "record": {
+                       "field_value": [
+                        {
+                         "field": 0,
+                         "value": {
+                          "expression": {
+                           "expression_heritage": "i",
+                           "type": {
+                            "rendered_type": "Num",
+                            "the_type": "Num",
+                            "type_id": 0
+                           },
+                           "variable": {
+                            "var_name": "i"
+                           }
+                          }
+                         }
+                        },
+                        {
+                         "field": 1,
+                         "value": {
+                          "expression": {
+                           "expression_heritage": "j",
+                           "type": {
+                            "rendered_type": "Num",
+                            "the_type": "Num",
+                            "type_id": 2
+                           },
+                           "variable": {
+                            "var_name": "j"
+                           }
+                          }
+                         }
+                        }
+                       ]
+                      }
+                     },
+                     "expression_heritage": "Path(i, j)",
+                     "type": {
+                      "rendered_type": "{path: [Str]}",
+                      "the_type": {
+                       "path": [
+                        "Str"
+                       ]
+                      },
+                      "type_id": 6,
+                      "type_name": "logicarecord808144452"
+                     }
+                    },
+                    "subscript": {
+                     "literal": {
+                      "the_symbol": {
+                       "symbol": "path"
+                      }
+                     }
+                    }
+                   },
+                   "type": {
+                    "element_type_name": "text",
+                    "rendered_type": "[Str]",
+                    "the_type": [
+                     "Str"
+                    ],
+                    "type_id": 5
+                   }
+                  }
+                 }
+                },
+                {
+                 "field": 1,
+                 "value": {
+                  "expression": {
+                   "expression_heritage": "Path(j + 1, k).path",
+                   "subscript": {
+                    "record": {
+                     "call": {
+                      "predicate_name": "Path",
+                      "record": {
+                       "field_value": [
+                        {
+                         "field": 0,
+                         "value": {
+                          "expression": {
+                           "call": {
+                            "predicate_name": "+",
+                            "record": {
+                             "field_value": [
+                              {
+                               "field": "left",
+                               "value": {
+                                "expression": {
+                                 "expression_heritage": "j",
+                                 "type": {
+                                  "rendered_type": "Num",
+                                  "the_type": "Num",
+                                  "type_id": 2
+                                 },
+                                 "variable": {
+                                  "var_name": "j"
+                                 }
+                                }
+                               }
+                              },
+                              {
+                               "field": "right",
+                               "value": {
+                                "expression": {
+                                 "expression_heritage": "1",
+                                 "literal": {
+                                  "the_number": {
+                                   "number": "1"
+                                  }
+                                 },
+                                 "type": {
+                                  "rendered_type": "Num",
+                                  "the_type": "Num",
+                                  "type_id": 10
+                                 }
+                                }
+                               }
+                              }
+                             ]
+                            }
+                           },
+                           "expression_heritage": "j + 1",
+                           "type": {
+                            "rendered_type": "Num",
+                            "the_type": "Num",
+                            "type_id": 9
+                           }
+                          }
+                         }
+                        },
+                        {
+                         "field": 1,
+                         "value": {
+                          "expression": {
+                           "expression_heritage": "k",
+                           "type": {
+                            "rendered_type": "Num",
+                            "the_type": "Num",
+                            "type_id": 1
+                           },
+                           "variable": {
+                            "var_name": "k"
+                           }
+                          }
+                         }
+                        }
+                       ]
+                      }
+                     },
+                     "expression_heritage": "Path(j + 1, k)",
+                     "type": {
+                      "rendered_type": "{path: [Str]}",
+                      "the_type": {
+                       "path": [
+                        "Str"
+                       ]
+                      },
+                      "type_id": 8,
+                      "type_name": "logicarecord808144452"
+                     }
+                    },
+                    "subscript": {
+                     "literal": {
+                      "the_symbol": {
+                       "symbol": "path"
+                      }
+                     }
+                    }
+                   },
+                   "type": {
+                    "element_type_name": "text",
+                    "rendered_type": "[Str]",
+                    "the_type": [
+                     "Str"
+                    ],
+                    "type_id": 7
+                   }
+                  }
+                 }
+                }
+               ]
+              }
+             },
+             "expression_heritage": "ArrayConcat(Path(i, j).path,  Path(j + 1, k).path)",
+             "type": {
+              "element_type_name": "text",
+              "rendered_type": "[Str]",
+              "the_type": [
+               "Str"
+              ],
+              "type_id": 4
+             }
+            }
+           }
+          }
+         ]
+        },
+        "type": {
+         "rendered_type": "{path: [Str]}",
+         "the_type": {
+          "path": [
+           "Str"
+          ]
+         },
+         "type_id": 3,
+         "type_name": "logicarecord808144452"
+        }
+       }
+      }
+     }
+    ]
+   }
+  }
+ },
+ {
+  "body": {
+   "conjunction": {
+    "conjunct": [
+     {
+      "unification": {
+       "left_hand_side": {
+        "expression_heritage": "path",
+        "type": {
+         "rendered_type": "{path: [Str]}",
+         "the_type": {
+          "path": [
+           "Str"
+          ]
+         },
+         "type_id": 0,
+         "type_name": "logicarecord808144452"
+        },
+        "variable": {
+         "var_name": "path"
+        }
+       },
+       "right_hand_side": {
+        "call": {
+         "predicate_name": "Path",
+         "record": {
+          "field_value": []
+         }
+        },
+        "expression_heritage": "Path()",
+        "type": {
+         "rendered_type": "{path: [Str]}",
+         "the_type": {
+          "path": [
+           "Str"
+          ]
+         },
+         "type_id": 5,
+         "type_name": "logicarecord808144452"
+        }
+       }
+      }
+     }
+    ]
+   }
+  },
+  "distinct_denoted": true,
+  "full_text": "ShortestPath() ArgMin= path -> Size(path.path) :- path == Path()",
+  "head": {
+   "predicate_name": "ShortestPath",
+   "record": {
+    "field_value": [
+     {
+      "field": "logica_value",
+      "value": {
+       "aggregation": {
+        "expression": {
+         "call": {
+          "predicate_name": "ArgMin",
+          "record": {
+           "field_value": [
+            {
+             "field": 0,
+             "value": {
+              "expression": {
+               "call": {
+                "predicate_name": "->",
+                "record": {
+                 "field_value": [
+                  {
+                   "field": "left",
+                   "value": {
+                    "expression": {
+                     "expression_heritage": "path",
+                     "type": {
+                      "rendered_type": "{path: [Str]}",
+                      "the_type": {
+                       "path": [
+                        "Str"
+                       ]
+                      },
+                      "type_id": 0,
+                      "type_name": "logicarecord808144452"
+                     },
+                     "variable": {
+                      "var_name": "path"
+                     }
+                    }
+                   }
+                  },
+                  {
+                   "field": "right",
+                   "value": {
+                    "expression": {
+                     "call": {
+                      "predicate_name": "Size",
+                      "record": {
+                       "field_value": [
+                        {
+                         "field": 0,
+                         "value": {
+                          "expression": {
+                           "expression_heritage": "path.path",
+                           "subscript": {
+                            "record": {
+                             "expression_heritage": "path",
+                             "type": {
+                              "rendered_type": "{path: [Str]}",
+                              "the_type": {
+                               "path": [
+                                "Str"
+                               ]
+                              },
+                              "type_id": 0,
+                              "type_name": "logicarecord808144452"
+                             },
+                             "variable": {
+                              "var_name": "path"
+                             }
+                            },
+                            "subscript": {
+                             "literal": {
+                              "the_symbol": {
+                               "symbol": "path"
+                              }
+                             }
+                            }
+                           },
+                           "type": {
+                            "element_type_name": "text",
+                            "rendered_type": "[Str]",
+                            "the_type": [
+                             "Str"
+                            ],
+                            "type_id": 4
+                           }
+                          }
+                         }
+                        }
+                       ]
+                      }
+                     },
+                     "expression_heritage": "Size(path.path)",
+                     "type": {
+                      "rendered_type": "Num",
+                      "the_type": "Num",
+                      "type_id": 3
+                     }
+                    }
+                   }
+                  }
+                 ]
+                }
+               },
+               "expression_heritage": "path -> Size(path.path)",
+               "type": {
+                "rendered_type": "{arg: {path: [Str]}, value: Num}",
+                "the_type": {
+                 "arg": {
+                  "path": [
+                   "Str"
+                  ]
+                 },
+                 "value": "Num"
+                },
+                "type_id": 2,
+                "type_name": "logicarecord659526184"
+               }
+              }
+             }
+            }
+           ]
+          }
+         },
+         "type": {
+          "rendered_type": "{path: [Str]}",
+          "the_type": {
+           "path": [
+            "Str"
+           ]
+          },
+          "type_id": 1,
+          "type_name": "logicarecord808144452"
+         }
+        }
+       }
+      }
+     }
+    ]
+   }
+  }
+ },
+ {
+  "body": {
+   "conjunction": {
+    "conjunct": [
+     {
+      "predicate": {
+       "predicate_name": "Path_MultBodyAggAux",
+       "record": {
+        "field_value": [
+         {
+          "field": 0,
+          "value": {
+           "expression": {
+            "type": {
+             "rendered_type": "Num",
+             "the_type": "Num",
+             "type_id": 0
+            },
+            "variable": {
+             "var_name": 0
+            }
+           }
+          }
+         },
+         {
+          "field": 1,
+          "value": {
+           "expression": {
+            "type": {
+             "rendered_type": "Num",
+             "the_type": "Num",
+             "type_id": 1
+            },
+            "variable": {
+             "var_name": 1
+            }
+           }
+          }
+         },
+         {
+          "field": "logica_value",
+          "value": {
+           "expression": {
+            "type": {
+             "rendered_type": "{path: [Str]}",
+             "the_type": {
+              "path": [
+               "Str"
+              ]
+             },
+             "type_id": 2,
+             "type_name": "logicarecord808144452"
+            },
+            "variable": {
+             "var_name": "logica_value"
+            }
+           }
+          }
+         }
+        ]
+       }
+      }
+     }
+    ]
+   }
+  },
+  "distinct_denoted": true,
+  "full_text": "Path(i, k) = {path: ArrayConcat(Path(i, j).path,  Path(j + 1, k).path)} distinct",
+  "head": {
+   "predicate_name": "Path",
+   "record": {
+    "field_value": [
+     {
+      "field": 0,
+      "value": {
+       "expression": {
+        "type": {
+         "rendered_type": "Num",
+         "the_type": "Num",
+         "type_id": 0
+        },
+        "variable": {
+         "var_name": 0
+        }
+       }
+      }
+     },
+     {
+      "field": 1,
+      "value": {
+       "expression": {
+        "type": {
+         "rendered_type": "Num",
+         "the_type": "Num",
+         "type_id": 1
+        },
+        "variable": {
+         "var_name": 1
+        }
+       }
+      }
+     },
+     {
+      "field": "logica_value",
+      "value": {
+       "expression": {
+        "type": {
+         "rendered_type": "{path: [Str]}",
+         "the_type": {
+          "path": [
+           "Str"
+          ]
+         },
+         "type_id": 2,
+         "type_name": "logicarecord808144452"
+        },
+        "variable": {
+         "var_name": "logica_value"
+        }
+       }
+      }
+     }
+    ]
+   }
+  }
+ }
+]
