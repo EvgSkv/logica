@@ -161,7 +161,7 @@ class Annotations(object):
       preamble += (
           '-- Initializing PostgreSQL environment.\n'
           'set client_min_messages to warning;\n'
-          'create schema if not exists logica_test;\n\n')
+          'create schema if not exists logica_home;\n\n')
     return preamble
 
   def BuildFlagValues(self):
@@ -253,7 +253,11 @@ class Annotations(object):
     return FieldValuesAsList(self.annotations['@OrderBy'][predicate_name])
 
   def Dataset(self):
-    return self.ExtractSingleton('@Dataset', 'logica_test')
+    default_dataset = 'logica_test'
+    # This change is intended for all engines in the future.
+    if self.Engine() == 'psql':
+      default_dataset = 'logica_home'
+    return self.ExtractSingleton('@Dataset', default_dataset)
 
   def Engine(self):
     engine = self.ExtractSingleton('@Engine', self.default_engine)
