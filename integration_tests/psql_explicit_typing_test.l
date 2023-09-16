@@ -26,8 +26,8 @@ R(f: {c: 5, d: [{e: "e"}]}, g: "g");
 SaveT() += 1 :- T();
 SaveR() += 1 :- R();
 
-@Ground(D, "logica_test.T");
-@Ground(RawE, "logica_test.R");
+@Ground(D, "logica_home.T");
+@Ground(RawE, "logica_home.R");
 
 E(..r) :-
   RawE(..r),
