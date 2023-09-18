@@ -5,7 +5,10 @@ import datetime
 try:
   import graphviz
 except:
-  print('Could not import graphviz tools in Concertina.')
+  pass
+  # This is annoying to see in terminal each time.
+  # Consider adding back if lack of messaging is confusing.
+  # print('Could not import graphviz tools in Concertina.')
 
 try:
   from IPython.display import HTML
