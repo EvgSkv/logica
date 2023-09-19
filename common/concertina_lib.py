@@ -41,7 +41,7 @@ class ConcertinaQueryEngine(object):
                                is_final=(predicate in self.final_predicates))
       end = datetime.datetime.now()
       if self.print_running_predicate:
-        print(' (%d ms)' % ((end - start).microseconds / 1000))
+        print(' (%d ms)' % int((end - start).total_seconds() * 1000))
       if predicate in self.final_predicates:
         self.final_result[predicate] = result
 
