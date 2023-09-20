@@ -57,7 +57,7 @@ class BigQueryDialect(Dialect):
 
   def Subscript(self, record, subscript):
     return '%s.%s' % (record, subscript)
-  
+
   def LibraryProgram(self):
     return bq_library.library
 
@@ -105,7 +105,7 @@ class SqLiteDialect(Dialect):
     """Resolving ambiguity of aggregation scope."""
     # Entangling result of aggregation with a variable that comes from a list
     # unnested inside a combine expression, to make it clear that aggregation
-    # must be done in the combine. 
+    # must be done in the combine.
     rule = copy.deepcopy(rule)
 
     rule['head']['record']['field_value'][0]['value'][
@@ -121,7 +121,7 @@ class SqLiteDialect(Dialect):
                   'field': 0,
                   'value': rule['head']['record']['field_value'][0]['value'][
                     'aggregation']['expression']['call'][
-                      'record']['field_value'][0]['value']      
+                      'record']['field_value'][0]['value']
                 },
                 {
                   'field': 1,
@@ -166,7 +166,7 @@ class SqLiteDialect(Dialect):
             }
           }
         }
-      }      
+      }
     )
     return rule
 
@@ -180,7 +180,7 @@ class SqLiteDialect(Dialect):
 
   def Subscript(self, record, subscript):
     return 'JSON_EXTRACT(%s, "$.%s")' % (record, subscript)
-  
+
   def LibraryProgram(self):
     return sqlite_library.library
 
@@ -215,7 +215,7 @@ class PostgreSQL(Dialect):
 
   def Subscript(self, record, subscript):
     return '(%s).%s' % (record, subscript)
-  
+
   def LibraryProgram(self):
     return psql_library.library
 
@@ -255,7 +255,7 @@ class Trino(Dialect):
 
   def Subscript(self, record, subscript):
     return '%s.%s' % (record, subscript)
-  
+
   def LibraryProgram(self):
     return trino_library.library
 
@@ -276,7 +276,7 @@ class Presto(Dialect):
 
   def Name(self):
     return 'Presto'
-  
+
   def BuiltInFunctions(self):
     return {
         'Range': 'SEQUENCE(0, %s - 1)',
@@ -293,7 +293,7 @@ class Presto(Dialect):
 
   def Subscript(self, record, subscript):
     return '%s.%s' % (record, subscript)
-  
+
   def LibraryProgram(self):
     return presto_library.library
 
@@ -312,6 +312,8 @@ class Presto(Dialect):
 
 class Databricks(Dialect):
     """Databricks dialect"""
+
+    #TODO: add DATEDIFF and NOW function
 
     def Name(self):
         return 'Databricks'
