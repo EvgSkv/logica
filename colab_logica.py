@@ -269,6 +269,9 @@ def Logica(line, cell, run_query):
   sub_bars = []
   ip = IPython.get_ipython()
   for idx, predicate in enumerate(predicates):
+    # Prepopulating types.
+
+  for idx, predicate in enumerate(predicates):
     with bar.output_to(logs_idx):
       try:
         sql = program.FormattedPredicateSql(predicate)

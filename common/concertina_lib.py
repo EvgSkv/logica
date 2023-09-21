@@ -293,10 +293,14 @@ def ExecuteLogicaProgram(logica_executions, sql_runner, sql_engine,
       print_running_predicate=(display_mode != 'terminal'))
 
   preambles = set(e.preamble for e in logica_executions)
-  assert len(preambles) == 1, 'Inconsistent preambles: %s' % preambles
-  [preamble] = list(preambles)
-  if preamble:
-    sql_runner(preamble, sql_engine, is_final=False)
+  # Due to change of types from predicate to predicate preables are not
+  # consistent. However we expect preambles to be idempotent.
+  # So we simply run all of them.
+  # assert len(preambles) == 1, 'Inconsistent preambles: %s' % preambles
+  # [preamble] = list(preambles)
+  for preamble in preambles:
+    if preamble:
+      sql_runner(preamble, sql_engine, is_final=False)
 
   concertina = Concertina(config, engine, display_mode=display_mode)
   concertina.Run()
