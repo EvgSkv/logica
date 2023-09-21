@@ -5,7 +5,10 @@ import datetime
 try:
   import graphviz
 except:
-  print('Could not import graphviz tools in Concertina.')
+  pass
+  # This is annoying to see in terminal each time.
+  # Consider adding back if lack of messaging is confusing.
+  # print('Could not import graphviz tools in Concertina.')
 
 try:
   from IPython.display import HTML
@@ -38,7 +41,7 @@ class ConcertinaQueryEngine(object):
                                is_final=(predicate in self.final_predicates))
       end = datetime.datetime.now()
       if self.print_running_predicate:
-        print(' (%d ms)' % ((end - start).microseconds / 1000))
+        print(' (%d ms)' % int((end - start).total_seconds() * 1000))
       if predicate in self.final_predicates:
         self.final_result[predicate] = result
 
@@ -290,10 +293,14 @@ def ExecuteLogicaProgram(logica_executions, sql_runner, sql_engine,
       print_running_predicate=(display_mode != 'terminal'))
 
   preambles = set(e.preamble for e in logica_executions)
-  assert len(preambles) == 1, 'Inconsistent preambles: %s' % preambles
-  [preamble] = list(preambles)
-  if preamble:
-    sql_runner(preamble, sql_engine, is_final=False)
+  # Due to change of types from predicate to predicate preables are not
+  # consistent. However we expect preambles to be idempotent.
+  # So we simply run all of them.
+  # assert len(preambles) == 1, 'Inconsistent preambles: %s' % preambles
+  # [preamble] = list(preambles)
+  for preamble in preambles:
+    if preamble:
+      sql_runner(preamble, sql_engine, is_final=False)
 
   concertina = Concertina(config, engine, display_mode=display_mode)
   concertina.Run()
