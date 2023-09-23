@@ -213,6 +213,14 @@ class PostgresRunner(object):
     global DB_CONNECTION
     global DB_ENGINE
     if not DB_CONNECTION:
+      print("Assuming this is running on Google CoLab in a temporary")
+      print("environment.")
+      print("Would you like to install and run postgres?")
+      user_choice = input('y or N? ')
+      if user_choice != 'y':
+        print('User declined.')
+        print('Bailing out.')
+        return
       PostgresJumpStart()
     self.connection = DB_CONNECTION
   
@@ -330,14 +338,6 @@ def Logica(line, cell, run_query):
       print(' ') # To activate the tabbar.
 
 def PostgresJumpStart():
-  print("Assuming this is running on Google CoLab in a temporary")
-  print("environment.")
-  print("Would you like to install and run postgres?")
-  user_choice = input('y or N? ')
-  if user_choice != 'y':
-    print('User declined.')
-    print('Bailing out.')
-    return
   # Install postgresql server.
   print("Installing and configuring an empty PostgreSQL database.")
   result = 0
