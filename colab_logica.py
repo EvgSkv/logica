@@ -368,11 +368,12 @@ def PostgresJumpStart():
 
 # Connect to the database.
 from logica import colab_logica
-from sqlalchemy import create_engine
-import pandas
-engine = create_engine('postgresql+psycopg2://logica:logica@127.0.0.1', pool_recycle=3600);
-connection = engine.connect();
-colab_logica.SetDbConnection(connection)""")
+import psycopg2
+connection = psycopg2.connect(host='localhost', database='logica', user='logica', password='logica')
+connection.autocommit = True
+colab_logica.DEFAULT_ENGINE = 'psql'
+colab_logica.SetDbConnection(connection)
+""")
     return
   print('Installation succeeded. Connecting...')
   # Connect to the database.
