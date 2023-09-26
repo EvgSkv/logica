@@ -1154,8 +1154,10 @@ def ParseRule(s: HeritageAwareString) -> Dict:
               'distinct_denoted': True}
   if len(parts) == 2:
     body = parts[1]
-    result['body'] = {'conjunction': ParseConjunction(body,
-                                                      allow_singleton=True)}
+    result['body'] = ParseProposition(body)
+    # Old style, which has incorrect priority of logical operands:
+    # result['body'] = {'conjunction': ParseConjunction(body,
+    #                                                   allow_singleton=True)}
   result['full_text'] = s  # For error messages.
   return result
 
@@ -1451,7 +1453,7 @@ class DisjunctiveNormalForm(object):
     result = []
     for conjuncts in dnf:
       new_rule = copy.deepcopy(rule)
-      new_rule['body']['conjunction']['conjunct'] = copy.deepcopy(conjuncts)
+      new_rule['body'] = {'conjunction': {'conjunct': copy.deepcopy(conjuncts)}}
       result.append(new_rule)
     return result
 

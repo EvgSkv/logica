@@ -160,6 +160,7 @@ class PostgreSQL(Dialect):
   def InfixOperators(self):
     return {
         '++': 'CONCAT(%s, %s)',
+        'in': '%s = ANY(%s)'
     }
 
   def Subscript(self, record, subscript, record_is_table):
