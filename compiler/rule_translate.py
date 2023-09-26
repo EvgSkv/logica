@@ -206,6 +206,13 @@ class RuleStructure(object):
     self.full_rule_text = None
     self.distinct_denoted = None
 
+  def SelectAsRecord(self):
+    return {'record': {
+      'field_value': [{
+        'field': k,
+        'value': {'expression': v}
+      } for k, v in sorted(self.select.items())]}}
+
   def OwnVarsVocabulary(self):
     """Returns a map: logica variable -> SQL expression with the value."""
     def TableAndFieldToSql(table, field):
@@ -284,7 +291,8 @@ class RuleStructure(object):
     ReplaceVariable(u_left, u_right, self.vars_unification)
     ReplaceVariable(u_left, u_right, self.constraints)
     
-  def ElliminateInternalVariables(self, assert_full_ellimination=False):
+  # TODO: Parameter unfold_recods just patches some bug. Careful review is needed.
+  def ElliminateInternalVariables(self, assert_full_ellimination=False, unfold_records=True):
     """Elliminates internal variables via substitution."""
     variables = self.InternalVariables()
     while True:
@@ -309,7 +317,9 @@ class RuleStructure(object):
             self.ReplaceVariableEverywhere(u_left, u_right)
             done = False
         # Assignments to variables in record fields.
-        if True:  # Confirm that unwraping works and make this unconditional.
+        if unfold_records:  # Confirm that unwraping works and make this unconditional.
+          # Unwrapping goes wild sometimes. Letting it go right to left only.
+          # for k, r in [['left', 'right']]:
           for k, r in [['left', 'right'], ['right', 'left']]:
             if u[k] == u[r]:
               continue
@@ -476,7 +486,11 @@ class RuleStructure(object):
 
     for k, v in self.select.items():
       if k == '*':
-        fields.append('%s.*' % ql.ConvertToSql(v))
+        if 'variable' in v:
+          v['variable']['dont_expand'] = True  # For SQLite.
+        fields.append(
+          subquery_encoder.execution.dialect.Subscript(
+           ql.ConvertToSql(v), '*', True))
       else:
         fields.append('%s AS %s' % (ql.ConvertToSql(v), LogicaFieldToSqlField(k)))
     r += ',\n'.join('  ' + f for f in fields)
@@ -504,11 +518,14 @@ class RuleStructure(object):
           tables.append(sql)
       self.SortUnnestings()
       for element, the_list in self.unnestings:
+        if 'variable' in element:
+          # To prevent SQLite record unfolding.
+          element['variable']['dont_expand'] = True
         tables.append(
             subquery_encoder.execution.dialect.UnnestPhrase().format(
                 ql.ConvertToSql(the_list), ql.ConvertToSql(element)))
       if not tables:
-        tables.append('(SELECT "singleton" as s) as unused_singleton')
+        tables.append("(SELECT 'singleton' as s) as unused_singleton")
       from_str = ', '.join(tables)
       # Indent the from_str.
       from_str = '\n'.join('  ' + l for l in from_str.split('\n'))
@@ -531,7 +548,8 @@ class RuleStructure(object):
                          for v in ordered_distinct_vars)
         elif subquery_encoder.execution.dialect.GroupBySpecBy() == 'expr':
           r += ', '.join(
-            ql.ConvertToSql(self.select[k]) for k in ordered_distinct_vars
+            ql.ConvertToSqlForGroupBy(self.select[k])
+            for k in ordered_distinct_vars
           )
         else:
           assert False, 'Broken dialect %s, group by spec: %s' % (
@@ -609,7 +627,8 @@ def ExtractInclusionStructure(inclusion, s):
               'value': {
                 'expression': {
                   'variable': {
-                    'var_name': var_name
+                    'var_name': var_name,
+                    'dont_expand': True
                   }
                 }
               }

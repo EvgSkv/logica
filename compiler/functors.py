@@ -42,6 +42,16 @@ else:
   from ..compiler.dialect_libraries import recursion_library
   from ..parser_py import parse
 
+import datetime
+
+class Timer:
+  def __init__(self, name):
+    self.name = name
+    self.time = datetime.datetime.now()
+
+  def Stop(self):
+    print('%s / micros elapsed:' % self.name, (datetime.datetime.now() - self.time).microseconds)
+
 
 class FunctorError(Exception):
   """Exception thrown when Make is bad."""
@@ -172,9 +182,18 @@ class Functors(object):
     while queue:
       e = queue.popleft()
       result.add(e)
-      for a in self.ArgsOf(e):
+      args_of_e = self.ArgsOf(e)
+      if isinstance(args_of_e, set):
+        arg_type = 'final'
+      else:
+        arg_type = 'preliminary'
+
+      for a in args_of_e:
         if a not in result:
-          queue.append(a)
+          if arg_type == 'preliminary':
+            queue.append(a)
+          else:
+            result.add(a)
 
     del self.args_of[functor]
 

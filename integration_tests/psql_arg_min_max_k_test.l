@@ -30,13 +30,8 @@ TestArgMin() ArgMin= payload -> v :- Data(v:, payload:);
 ArgMax3(x) = ArgMaxK(x, 3);
 ArgMin2(x) = ArgMinK(x, 2);
 
-# Type is created as follows:
-# create type StringIntPair as (first text, second decimal)
-StringIntPair(s, i) = SqlExpr("({s}, {i})::StringIntPair",
-                              {s:, i:});
-
-TestArgMaxK() ArgMax3= StringIntPair(payload, v) -> v :- Data(v:, payload:);
-TestArgMinK() ArgMin2= StringIntPair(payload, v) -> v :- Data(v:, payload:);
+TestArgMaxK() ArgMax3= {payload:, v:} -> v :- Data(v:, payload:);
+TestArgMinK() ArgMin2= {payload:, v:} -> v :- Data(v:, payload:);
 
 @OrderBy(Test, "arg_opt");
 Test(opt: "Max", arg_opt: TestArgMax(), arg_opt_k:  TestArgMaxK());

@@ -7,17 +7,13 @@ Word("water");
 Word("wind");
 Word("sun");
 
-# We assume there exists StringNumPair
-# (first text, second numeric) type.
-StringNumPair(s, i) = SqlExpr("({s}, {i})::StringNumPair", {s:, i:});
-
-WordAndLength(StringNumPair(word, Length(word))) :-
+WordAndLength({word:, length: Length(word)}) :-
   Word(word);
 
-WordsByLengthList() Array= length -> StringNumPair(word, length) :-
+WordsByLengthList() Array= length -> {word:, length:} :-
   WordAndLength(word_and_length),
-  word == word_and_length.first,
-  length == word_and_length.second;
+  word == word_and_length.word,
+  length == word_and_length.length;
 
 Test := WordsByLengthList()
 # If test fails create the type by running:

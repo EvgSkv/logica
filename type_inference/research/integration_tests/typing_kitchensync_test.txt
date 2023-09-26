@@ -1,0 +1,1006 @@
+[
+ {
+  "full_text": "@Engine(\"psql\")",
+  "head": {
+   "predicate_name": "@Engine",
+   "record": {
+    "field_value": [
+     {
+      "field": 0,
+      "value": {
+       "expression": {
+        "expression_heritage": "\"psql\"",
+        "literal": {
+         "the_string": {
+          "the_string": "psql"
+         }
+        }
+       }
+      }
+     }
+    ]
+   }
+  }
+ },
+ {
+  "full_text": "Kitchensync(\n    name: \"sync 1\", \n    items: [{item: \"plate\", num: 10}, {item: \"cup\", num: 6}])",
+  "head": {
+   "predicate_name": "Kitchensync",
+   "record": {
+    "field_value": [
+     {
+      "field": "name",
+      "value": {
+       "expression": {
+        "expression_heritage": "\"sync 1\"",
+        "literal": {
+         "the_string": {
+          "the_string": "sync 1"
+         }
+        },
+        "type": {
+         "rendered_type": "Str",
+         "the_type": "Str",
+         "type_id": 0
+        }
+       }
+      }
+     },
+     {
+      "field": "items",
+      "value": {
+       "expression": {
+        "expression_heritage": "[{item: \"plate\", num: 10}, {item: \"cup\", num: 6}]",
+        "literal": {
+         "the_list": {
+          "element": [
+           {
+            "expression_heritage": "{item: \"plate\", num: 10}",
+            "record": {
+             "field_value": [
+              {
+               "field": "item",
+               "value": {
+                "expression": {
+                 "expression_heritage": "\"plate\"",
+                 "literal": {
+                  "the_string": {
+                   "the_string": "plate"
+                  }
+                 },
+                 "type": {
+                  "rendered_type": "Str",
+                  "the_type": "Str",
+                  "type_id": 4
+                 }
+                }
+               }
+              },
+              {
+               "field": "num",
+               "value": {
+                "expression": {
+                 "expression_heritage": "10",
+                 "literal": {
+                  "the_number": {
+                   "number": "10"
+                  }
+                 },
+                 "type": {
+                  "rendered_type": "Num",
+                  "the_type": "Num",
+                  "type_id": 5
+                 }
+                }
+               }
+              }
+             ]
+            },
+            "type": {
+             "rendered_type": "{item: Str, num: Num}",
+             "the_type": {
+              "item": "Str",
+              "num": "Num"
+             },
+             "type_id": 2,
+             "type_name": "logicarecord454966611"
+            }
+           },
+           {
+            "expression_heritage": "{item: \"cup\", num: 6}",
+            "record": {
+             "field_value": [
+              {
+               "field": "item",
+               "value": {
+                "expression": {
+                 "expression_heritage": "\"cup\"",
+                 "literal": {
+                  "the_string": {
+                   "the_string": "cup"
+                  }
+                 },
+                 "type": {
+                  "rendered_type": "Str",
+                  "the_type": "Str",
+                  "type_id": 6
+                 }
+                }
+               }
+              },
+              {
+               "field": "num",
+               "value": {
+                "expression": {
+                 "expression_heritage": "6",
+                 "literal": {
+                  "the_number": {
+                   "number": "6"
+                  }
+                 },
+                 "type": {
+                  "rendered_type": "Num",
+                  "the_type": "Num",
+                  "type_id": 7
+                 }
+                }
+               }
+              }
+             ]
+            },
+            "type": {
+             "rendered_type": "{item: Str, num: Num}",
+             "the_type": {
+              "item": "Str",
+              "num": "Num"
+             },
+             "type_id": 3,
+             "type_name": "logicarecord454966611"
+            }
+           }
+          ]
+         }
+        },
+        "type": {
+         "element_type_name": "logicarecord454966611",
+         "rendered_type": "[{item: Str, num: Num}]",
+         "the_type": [
+          {
+           "item": "Str",
+           "num": "Num"
+          }
+         ],
+         "type_id": 1
+        }
+       }
+      }
+     }
+    ]
+   }
+  }
+ },
+ {
+  "full_text": "Kitchensync(\n    name: \"sync 2\", \n    items: [{item: \"plate\", num: 15}, {item: \"spoon\", num: 20}])",
+  "head": {
+   "predicate_name": "Kitchensync",
+   "record": {
+    "field_value": [
+     {
+      "field": "name",
+      "value": {
+       "expression": {
+        "expression_heritage": "\"sync 2\"",
+        "literal": {
+         "the_string": {
+          "the_string": "sync 2"
+         }
+        },
+        "type": {
+         "rendered_type": "Str",
+         "the_type": "Str",
+         "type_id": 0
+        }
+       }
+      }
+     },
+     {
+      "field": "items",
+      "value": {
+       "expression": {
+        "expression_heritage": "[{item: \"plate\", num: 15}, {item: \"spoon\", num: 20}]",
+        "literal": {
+         "the_list": {
+          "element": [
+           {
+            "expression_heritage": "{item: \"plate\", num: 15}",
+            "record": {
+             "field_value": [
+              {
+               "field": "item",
+               "value": {
+                "expression": {
+                 "expression_heritage": "\"plate\"",
+                 "literal": {
+                  "the_string": {
+                   "the_string": "plate"
+                  }
+                 },
+                 "type": {
+                  "rendered_type": "Str",
+                  "the_type": "Str",
+                  "type_id": 4
+                 }
+                }
+               }
+              },
+              {
+               "field": "num",
+               "value": {
+                "expression": {
+                 "expression_heritage": "15",
+                 "literal": {
+                  "the_number": {
+                   "number": "15"
+                  }
+                 },
+                 "type": {
+                  "rendered_type": "Num",
+                  "the_type": "Num",
+                  "type_id": 5
+                 }
+                }
+               }
+              }
+             ]
+            },
+            "type": {
+             "rendered_type": "{item: Str, num: Num}",
+             "the_type": {
+              "item": "Str",
+              "num": "Num"
+             },
+             "type_id": 2,
+             "type_name": "logicarecord454966611"
+            }
+           },
+           {
+            "expression_heritage": "{item: \"spoon\", num: 20}",
+            "record": {
+             "field_value": [
+              {
+               "field": "item",
+               "value": {
+                "expression": {
+                 "expression_heritage": "\"spoon\"",
+                 "literal": {
+                  "the_string": {
+                   "the_string": "spoon"
+                  }
+                 },
+                 "type": {
+                  "rendered_type": "Str",
+                  "the_type": "Str",
+                  "type_id": 6
+                 }
+                }
+               }
+              },
+              {
+               "field": "num",
+               "value": {
+                "expression": {
+                 "expression_heritage": "20",
+                 "literal": {
+                  "the_number": {
+                   "number": "20"
+                  }
+                 },
+                 "type": {
+                  "rendered_type": "Num",
+                  "the_type": "Num",
+                  "type_id": 7
+                 }
+                }
+               }
+              }
+             ]
+            },
+            "type": {
+             "rendered_type": "{item: Str, num: Num}",
+             "the_type": {
+              "item": "Str",
+              "num": "Num"
+             },
+             "type_id": 3,
+             "type_name": "logicarecord454966611"
+            }
+           }
+          ]
+         }
+        },
+        "type": {
+         "element_type_name": "logicarecord454966611",
+         "rendered_type": "[{item: Str, num: Num}]",
+         "the_type": [
+          {
+           "item": "Str",
+           "num": "Num"
+          }
+         ],
+         "type_id": 1
+        }
+       }
+      }
+     }
+    ]
+   }
+  }
+ },
+ {
+  "full_text": "Kitchensync(\n    name: \"luxury sync\", \n    items: [{item: \"fork\", num: 5}, {item: \"cup\", num: 4}])",
+  "head": {
+   "predicate_name": "Kitchensync",
+   "record": {
+    "field_value": [
+     {
+      "field": "name",
+      "value": {
+       "expression": {
+        "expression_heritage": "\"luxury sync\"",
+        "literal": {
+         "the_string": {
+          "the_string": "luxury sync"
+         }
+        },
+        "type": {
+         "rendered_type": "Str",
+         "the_type": "Str",
+         "type_id": 0
+        }
+       }
+      }
+     },
+     {
+      "field": "items",
+      "value": {
+       "expression": {
+        "expression_heritage": "[{item: \"fork\", num: 5}, {item: \"cup\", num: 4}]",
+        "literal": {
+         "the_list": {
+          "element": [
+           {
+            "expression_heritage": "{item: \"fork\", num: 5}",
+            "record": {
+             "field_value": [
+              {
+               "field": "item",
+               "value": {
+                "expression": {
+                 "expression_heritage": "\"fork\"",
+                 "literal": {
+                  "the_string": {
+                   "the_string": "fork"
+                  }
+                 },
+                 "type": {
+                  "rendered_type": "Str",
+                  "the_type": "Str",
+                  "type_id": 4
+                 }
+                }
+               }
+              },
+              {
+               "field": "num",
+               "value": {
+                "expression": {
+                 "expression_heritage": "5",
+                 "literal": {
+                  "the_number": {
+                   "number": "5"
+                  }
+                 },
+                 "type": {
+                  "rendered_type": "Num",
+                  "the_type": "Num",
+                  "type_id": 5
+                 }
+                }
+               }
+              }
+             ]
+            },
+            "type": {
+             "rendered_type": "{item: Str, num: Num}",
+             "the_type": {
+              "item": "Str",
+              "num": "Num"
+             },
+             "type_id": 2,
+             "type_name": "logicarecord454966611"
+            }
+           },
+           {
+            "expression_heritage": "{item: \"cup\", num: 4}",
+            "record": {
+             "field_value": [
+              {
+               "field": "item",
+               "value": {
+                "expression": {
+                 "expression_heritage": "\"cup\"",
+                 "literal": {
+                  "the_string": {
+                   "the_string": "cup"
+                  }
+                 },
+                 "type": {
+                  "rendered_type": "Str",
+                  "the_type": "Str",
+                  "type_id": 6
+                 }
+                }
+               }
+              },
+              {
+               "field": "num",
+               "value": {
+                "expression": {
+                 "expression_heritage": "4",
+                 "literal": {
+                  "the_number": {
+                   "number": "4"
+                  }
+                 },
+                 "type": {
+                  "rendered_type": "Num",
+                  "the_type": "Num",
+                  "type_id": 7
+                 }
+                }
+               }
+              }
+             ]
+            },
+            "type": {
+             "rendered_type": "{item: Str, num: Num}",
+             "the_type": {
+              "item": "Str",
+              "num": "Num"
+             },
+             "type_id": 3,
+             "type_name": "logicarecord454966611"
+            }
+           }
+          ]
+         }
+        },
+        "type": {
+         "element_type_name": "logicarecord454966611",
+         "rendered_type": "[{item: Str, num: Num}]",
+         "the_type": [
+          {
+           "item": "Str",
+           "num": "Num"
+          }
+         ],
+         "type_id": 1
+        }
+       }
+      }
+     }
+    ]
+   }
+  }
+ },
+ {
+  "body": {
+   "conjunction": {
+    "conjunct": [
+     {
+      "predicate": {
+       "predicate_name": "Kitchensync",
+       "record": {
+        "field_value": [
+         {
+          "field": "name",
+          "value": {
+           "expression": {
+            "expression_heritage": "name",
+            "type": {
+             "rendered_type": "Str",
+             "the_type": "Str",
+             "type_id": 0
+            },
+            "variable": {
+             "var_name": "name"
+            }
+           }
+          }
+         },
+         {
+          "field": "items",
+          "value": {
+           "expression": {
+            "expression_heritage": "items",
+            "type": {
+             "element_type_name": "logicarecord454966611",
+             "rendered_type": "[{item: Str, num: Num}]",
+             "the_type": [
+              {
+               "item": "Str",
+               "num": "Num"
+              }
+             ],
+             "type_id": 2
+            },
+            "variable": {
+             "var_name": "items"
+            }
+           }
+          }
+         }
+        ]
+       }
+      }
+     },
+     {
+      "predicate": {
+       "predicate_name": "Kitchensync",
+       "record": {
+        "field_value": [
+         {
+          "field": "name",
+          "value": {
+           "expression": {
+            "expression_heritage": "name",
+            "type": {
+             "rendered_type": "Str",
+             "the_type": "Str",
+             "type_id": 0
+            },
+            "variable": {
+             "var_name": "name"
+            }
+           }
+          }
+         },
+         {
+          "field": "items",
+          "value": {
+           "expression": {
+            "expression_heritage": "items",
+            "type": {
+             "element_type_name": "logicarecord454966611",
+             "rendered_type": "[{item: Str, num: Num}]",
+             "the_type": [
+              {
+               "item": "Str",
+               "num": "Num"
+              }
+             ],
+             "type_id": 2
+            },
+            "variable": {
+             "var_name": "items"
+            }
+           }
+          }
+         }
+        ]
+       }
+      }
+     },
+     {
+      "unification": {
+       "left_hand_side": {
+        "expression_heritage": "overview",
+        "type": {
+         "element_type_name": "logicarecord980116590",
+         "rendered_type": "[{item: Str, quantity: Str}]",
+         "the_type": [
+          {
+           "item": "Str",
+           "quantity": "Str"
+          }
+         ],
+         "type_id": 1
+        },
+        "variable": {
+         "var_name": "overview"
+        }
+       },
+       "right_hand_side": {
+        "combine": {
+         "body": {
+          "conjunction": {
+           "conjunct": [
+            {
+             "predicate": {
+              "predicate_name": "=",
+              "record": {
+               "field_value": [
+                {
+                 "field": "left",
+                 "value": {
+                  "expression": {
+                   "expression_heritage": "quantity",
+                   "type": {
+                    "rendered_type": "Str",
+                    "the_type": "Str",
+                    "type_id": 4
+                   },
+                   "variable": {
+                    "var_name": "quantity"
+                   }
+                  }
+                 }
+                },
+                {
+                 "field": "right",
+                 "value": {
+                  "expression": {
+                   "expression_heritage": "if num > 9 then\n          \"large\"\n        else\n          \"small\"",
+                   "implication": {
+                    "if_then": [
+                     {
+                      "condition": {
+                       "call": {
+                        "predicate_name": ">",
+                        "record": {
+                         "field_value": [
+                          {
+                           "field": "left",
+                           "value": {
+                            "expression": {
+                             "expression_heritage": "num",
+                             "type": {
+                              "rendered_type": "Num",
+                              "the_type": "Num",
+                              "type_id": 5
+                             },
+                             "variable": {
+                              "var_name": "num"
+                             }
+                            }
+                           }
+                          },
+                          {
+                           "field": "right",
+                           "value": {
+                            "expression": {
+                             "expression_heritage": "9",
+                             "literal": {
+                              "the_number": {
+                               "number": "9"
+                              }
+                             },
+                             "type": {
+                              "rendered_type": "Num",
+                              "the_type": "Num",
+                              "type_id": 13
+                             }
+                            }
+                           }
+                          }
+                         ]
+                        }
+                       },
+                       "expression_heritage": "num > 9",
+                       "type": {
+                        "rendered_type": "Bool",
+                        "the_type": "Bool",
+                        "type_id": 11
+                       }
+                      },
+                      "consequence": {
+                       "expression_heritage": "\"large\"",
+                       "literal": {
+                        "the_string": {
+                         "the_string": "large"
+                        }
+                       },
+                       "type": {
+                        "rendered_type": "Str",
+                        "the_type": "Str",
+                        "type_id": 12
+                       }
+                      }
+                     }
+                    ],
+                    "otherwise": {
+                     "expression_heritage": "\"small\"",
+                     "literal": {
+                      "the_string": {
+                       "the_string": "small"
+                      }
+                     },
+                     "type": {
+                      "rendered_type": "Str",
+                      "the_type": "Str",
+                      "type_id": 10
+                     }
+                    }
+                   },
+                   "type": {
+                    "rendered_type": "Str",
+                    "the_type": "Str",
+                    "type_id": 9
+                   }
+                  }
+                 }
+                }
+               ]
+              }
+             }
+            },
+            {
+             "predicate": {
+              "predicate_name": ">",
+              "record": {
+               "field_value": [
+                {
+                 "field": "left",
+                 "value": {
+                  "expression": {
+                   "expression_heritage": "num",
+                   "type": {
+                    "rendered_type": "Num",
+                    "the_type": "Num",
+                    "type_id": 5
+                   },
+                   "variable": {
+                    "var_name": "num"
+                   }
+                  }
+                 }
+                },
+                {
+                 "field": "right",
+                 "value": {
+                  "expression": {
+                   "expression_heritage": "5",
+                   "literal": {
+                    "the_number": {
+                     "number": "5"
+                    }
+                   },
+                   "type": {
+                    "rendered_type": "Num",
+                    "the_type": "Num",
+                    "type_id": 14
+                   }
+                  }
+                 }
+                }
+               ]
+              }
+             }
+            },
+            {
+             "inclusion": {
+              "element": {
+               "expression_heritage": "{item:, num:}",
+               "record": {
+                "field_value": [
+                 {
+                  "field": "item",
+                  "value": {
+                   "expression": {
+                    "expression_heritage": "item",
+                    "type": {
+                     "rendered_type": "Str",
+                     "the_type": "Str",
+                     "type_id": 3
+                    },
+                    "variable": {
+                     "var_name": "item"
+                    }
+                   }
+                  }
+                 },
+                 {
+                  "field": "num",
+                  "value": {
+                   "expression": {
+                    "expression_heritage": "num",
+                    "type": {
+                     "rendered_type": "Num",
+                     "the_type": "Num",
+                     "type_id": 5
+                    },
+                    "variable": {
+                     "var_name": "num"
+                    }
+                   }
+                  }
+                 }
+                ]
+               },
+               "type": {
+                "rendered_type": "{item: Str, num: Num}",
+                "the_type": {
+                 "item": "Str",
+                 "num": "Num"
+                },
+                "type_id": 15,
+                "type_name": "logicarecord454966611"
+               }
+              },
+              "list": {
+               "expression_heritage": "items",
+               "type": {
+                "element_type_name": "logicarecord454966611",
+                "rendered_type": "[{item: Str, num: Num}]",
+                "the_type": [
+                 {
+                  "item": "Str",
+                  "num": "Num"
+                 }
+                ],
+                "type_id": 2
+               },
+               "variable": {
+                "var_name": "items"
+               }
+              }
+             }
+            }
+           ]
+          }
+         },
+         "distinct_denoted": true,
+         "full_text": "overview List= (\n    {item:, quantity:} :-\n    quantity = (\n        if num > 9 then\n          \"large\"\n        else\n          \"small\"\n    ),\n    num > 5,\n    {item:, num:} in items\n  )",
+         "head": {
+          "predicate_name": "Combine",
+          "record": {
+           "field_value": [
+            {
+             "field": "logica_value",
+             "value": {
+              "aggregation": {
+               "expression": {
+                "call": {
+                 "predicate_name": "List",
+                 "record": {
+                  "field_value": [
+                   {
+                    "field": 0,
+                    "value": {
+                     "expression": {
+                      "expression_heritage": "{item:, quantity:}",
+                      "record": {
+                       "field_value": [
+                        {
+                         "field": "item",
+                         "value": {
+                          "expression": {
+                           "expression_heritage": "item",
+                           "type": {
+                            "rendered_type": "Str",
+                            "the_type": "Str",
+                            "type_id": 3
+                           },
+                           "variable": {
+                            "var_name": "item"
+                           }
+                          }
+                         }
+                        },
+                        {
+                         "field": "quantity",
+                         "value": {
+                          "expression": {
+                           "expression_heritage": "quantity",
+                           "type": {
+                            "rendered_type": "Str",
+                            "the_type": "Str",
+                            "type_id": 4
+                           },
+                           "variable": {
+                            "var_name": "quantity"
+                           }
+                          }
+                         }
+                        }
+                       ]
+                      },
+                      "type": {
+                       "rendered_type": "{item: Str, quantity: Str}",
+                       "the_type": {
+                        "item": "Str",
+                        "quantity": "Str"
+                       },
+                       "type_id": 8,
+                       "type_name": "logicarecord980116590"
+                      }
+                     }
+                    }
+                   }
+                  ]
+                 }
+                },
+                "type": {
+                 "element_type_name": "logicarecord980116590",
+                 "rendered_type": "[{item: Str, quantity: Str}]",
+                 "the_type": [
+                  {
+                   "item": "Str",
+                   "quantity": "Str"
+                  }
+                 ],
+                 "type_id": 7
+                }
+               }
+              }
+             }
+            }
+           ]
+          }
+         }
+        },
+        "type": {
+         "element_type_name": "logicarecord980116590",
+         "rendered_type": "[{item: Str, quantity: Str}]",
+         "the_type": [
+          {
+           "item": "Str",
+           "quantity": "Str"
+          }
+         ],
+         "type_id": 6
+        }
+       }
+      }
+     }
+    ]
+   }
+  },
+  "full_text": "Test(name:, overview:) :-\n  Kitchensync(name:, items:),\n  Kitchensync(name:, items:),\n  overview List= (\n    {item:, quantity:} :-\n    quantity = (\n        if num > 9 then\n          \"large\"\n        else\n          \"small\"\n    ),\n    num > 5,\n    {item:, num:} in items\n  )",
+  "head": {
+   "predicate_name": "Test",
+   "record": {
+    "field_value": [
+     {
+      "field": "name",
+      "value": {
+       "expression": {
+        "expression_heritage": "name",
+        "type": {
+         "rendered_type": "Str",
+         "the_type": "Str",
+         "type_id": 0
+        },
+        "variable": {
+         "var_name": "name"
+        }
+       }
+      }
+     },
+     {
+      "field": "overview",
+      "value": {
+       "expression": {
+        "expression_heritage": "overview",
+        "type": {
+         "element_type_name": "logicarecord980116590",
+         "rendered_type": "[{item: Str, quantity: Str}]",
+         "the_type": [
+          {
+           "item": "Str",
+           "quantity": "Str"
+          }
+         ],
+         "type_id": 1
+        },
+        "variable": {
+         "var_name": "overview"
+        }
+       }
+      }
+     }
+    ]
+   }
+  }
+ }
+]

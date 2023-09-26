@@ -18,13 +18,18 @@
 """Utilities for YotaQL tests."""
 
 import subprocess
+import json
 
 if '.' not in __package__:
   from common import color
   from common import logica_lib
+  from type_inference.research import infer
+  from parser_py import parse
 else:
   from ..common import color
   from ..common import logica_lib
+  from ..type_inference.research import infer
+  from ..parser_py import parse
 
 
 class TestManager(object):
@@ -53,6 +58,47 @@ class TestManager(object):
     RunTest(name, src, predicate, golden, user_flags,
             cls.GOLDEN_RUN, cls.ANNOUNCE_TESTS,
             import_root)
+
+  @classmethod
+  def RunTypesTest(cls, name, src=None, golden=None):
+    if cls.RUN_ONLY and name not in cls.RUN_ONLY:
+      return
+    RunTypesTest(name, src, golden,
+                 overwrite=cls.GOLDEN_RUN)
+
+
+def RunTypesTest(name, src=None, golden=None,
+                 overwrite=False):
+  src = src or (name + '.l')
+  golden = golden or (name + '.txt')
+
+  test_result = '{warning}RUNNING{end}'
+  print(color.Format('% 50s   %s' % (name, test_result)))
+
+  program_text = open(src).read()
+  try:
+    parsed_rules = parse.ParseFile(program_text)['rule']
+  except parse.ParsingException as parsing_exception:
+    parsing_exception.ShowMessage()
+    sys.exit(1)
+
+  typing_engine = infer.TypesInferenceEngine(parsed_rules)
+  typing_engine.InferTypes()
+  result = json.dumps(parsed_rules, sort_keys=True, indent=' ')
+
+  if overwrite:
+    with open(golden, 'w') as w:
+      w.write(result)
+  golden_result = open(golden).read()
+
+  if result == golden_result:
+    test_result = '{ok}PASSED{end}'
+  else:
+    p = subprocess.Popen(['diff', '-', golden], stdin=subprocess.PIPE)
+    p.communicate(result.encode())
+    test_result = '{error}FAILED{end}'
+
+  print('\033[F\033[K' + color.Format('% 50s   %s' % (name, test_result)))
 
 
 def RunTest(name, src, predicate, golden,

@@ -15,7 +15,7 @@
 
 # Testing SQLite record introspection.
 
-@Engine("sqlite");
+@Engine("sqlite", type_checking: false);
 
 Test(1, AssembleRecord(["planet" -> "Earth", "species" -> "Humans"]));
 Test(2, DisassembleRecord({planet: "Mars", species: "Apes"}));

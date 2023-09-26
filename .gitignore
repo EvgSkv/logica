@@ -1,1 +1,6 @@
+*.DS_Store
+*.pyc
+.ipynb_checkpoints
+.idea
+__pycache__/
 docs/.DS_Store
