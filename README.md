@@ -40,7 +40,7 @@ capable of processing substantial volumes of data right on your machine.
 We encourage you to try Logica, especially if
 
 *   you already use logic programming and need more computational power, **or**
-*   you already have data in a SQL database/datawarehouse supported by Logica like BigQuery, PostgreSQL, SQLite, **or**
+*   you already have data in BigQuery, PostgreSQL or SQLite, **or**
 *   you want to learn logic programming and apply it to processing of Big Data.
 
 Support for more SQL dialects and engines is coming in the future.
