@@ -43,7 +43,7 @@ We encourage you to try Logica, especially if
 *   you use SQL, but feel unsatisfied about its readability, **or**
 *   you want to learn logic programming and apply it to processing of Big Data.
 
-Support more SQL dialects and engines is coming in the future.
+Support for more SQL dialects and engines is coming in the future.
 
 ## I have not heard of logic programming. What is it?
 
