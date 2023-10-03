@@ -24,21 +24,26 @@ a language created at Google earlier.
 ## Why?
 
 Logica is for engineers, data scientists and other specialists who want to use
-logic programming syntax when writing queries and pipelines to run on
-[BigQuery](https://cloud.google.com/bigquery).
+logic programming syntax when writing queries and pipelines for databases and datawarehouses.
+Logica programs run on
+[BigQuery](https://cloud.google.com/bigquery), [Postgres](https://postgresql.org) and [SQLite](https://www.sqlite.org/).
 
-Logica compiles to StandardSQL and gives you access to the power of BigQuery
-engine with the convenience of logic programming syntax. This is useful because
-BigQuery is magnitudes more powerful than state of the art native
-logic programming engines.
+Logica compiles to SQL and gives you access to the power of SQL ecosystem
+with the convenience of logic programming syntax. 
+
+This is useful because
+SQL enginers are magnitudes more powerful than state of the art native
+logic programming engines. For example, BigQuery is a distributed datawarehouse and thus logic programs written
+in Logica can be easily parallelized onto thousands of servers. Postgres and SQLite are among most popular databases, they are
+capable of processing substantial volumes of data right on your machine.
 
 We encourage you to try Logica, especially if
 
 *   you already use logic programming and need more computational power, **or**
-*   you use SQL, but feel unsatisfied about its readability, **or**
+*   you already have data in BigQuery, PostgreSQL or SQLite, **or**
 *   you want to learn logic programming and apply it to processing of Big Data.
 
-In the future we plan to support more SQL dialects and engines.
+Support for more SQL dialects and engines is coming in the future.
 
 ## I have not heard of logic programming. What is it?
 

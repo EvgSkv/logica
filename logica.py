@@ -47,6 +47,7 @@ if __name__ == '__main__' and not __package__:
   from compiler import rule_translate
   from compiler import universe
   from parser_py import parse
+  from type_inference.research import infer
 else:
   from .common import color
   from .common import sqlite3_logica
@@ -54,6 +55,7 @@ else:
   from .compiler import rule_translate
   from .compiler import universe
   from .parser_py import parse
+  from .type_inference.research import infer
 
 
 def ReadUserFlags(rules, argv):
@@ -130,13 +132,14 @@ def main(argv):
           'GoodIdea(snack: "carrots")\'')
     return 1
 
-  if len(argv) == 3 and argv[2] == 'parse':
+  if len(argv) == 3 and argv[2] in ['parse', 'infer_types', 'show_signatures']:
     pass  # compile needs just 2 actual arguments.
   else:
     if len(argv) < 4:
       print('Not enough arguments. Run \'logica help\' for help.',
             file=sys.stderr)
       return 1
+    predicates = argv[3]
 
   if argv[1] == '-':
     filename = '/dev/stdin'
@@ -145,7 +148,8 @@ def main(argv):
 
   command = argv[2]
 
-  commands = ['parse', 'print', 'run', 'run_to_csv', 'run_in_terminal']
+  commands = ['parse', 'print', 'run', 'run_to_csv', 'run_in_terminal',
+              'infer_types', 'show_signatures']
 
   if command not in commands:
     print(color.Format('Unknown command {warning}{command}{end}. '
@@ -155,6 +159,13 @@ def main(argv):
   if not os.path.exists(filename):
     print('File not found: %s' % filename, file=sys.stderr)
     return 1
+
+  if command == 'run_in_terminal':
+    from tools import run_in_terminal
+    artistic_table = run_in_terminal.Run(filename, predicates)
+    print(artistic_table)
+    return
+
   program_text = open(filename).read()
 
   try:
@@ -165,11 +176,28 @@ def main(argv):
     sys.exit(1)
 
   if command == 'parse':
-    # No indentation to avoid file size inflation.
-    print(json.dumps(parsed_rules, sort_keys=True, indent=''))
+    # Minimal indentation for better readability of deep objects.
+    print(json.dumps(parsed_rules, sort_keys=True, indent=' '))
     return 0
 
-  predicates = argv[3]
+  if command == 'infer_types':
+    typing_engine = infer.TypesInferenceEngine(parsed_rules)
+    typing_engine.InferTypes()
+    # print(parsed_rules)
+    print(json.dumps(parsed_rules, sort_keys=True, indent=' '))
+    return 0
+
+  if command == 'show_signatures':
+    try:
+      logic_program = universe.LogicaProgram(parsed_rules)
+      if not logic_program.typing_engine:
+        logic_program.RunTypechecker()
+    except infer.TypeErrorCaughtException as type_error_exception:
+      print(logic_program.typing_engine.ShowPredicateTypes())
+      type_error_exception.ShowMessage()
+      return 1
+    print(logic_program.typing_engine.ShowPredicateTypes())
+    return 0
 
   user_flags = ReadUserFlags(parsed_rules, argv[4:])
 
@@ -188,6 +216,10 @@ def main(argv):
     except functors.FunctorError as functor_exception:
       functor_exception.ShowMessage()
       sys.exit(1)
+    except infer.TypeErrorCaughtException as type_error_exception:
+      type_error_exception.ShowMessage()
+      sys.exit(1)
+      
 
     if command == 'print':
       print(formatted_sql)
@@ -242,11 +274,6 @@ def main(argv):
       else:
         assert False, 'Unknown engine: %s' % engine
       print(o.decode())
-
-    if command == 'run_in_terminal':
-      from tools import run_in_terminal
-      artistic_table = run_in_terminal.Run(filename, predicate)
-      print(artistic_table)
 
 
 def run_main():

@@ -1,0 +1,138 @@
+[
+ {
+  "body": {
+   "conjunction": {
+    "conjunct": [
+     {
+      "predicate": {
+       "predicate_name": "T",
+       "record": {
+        "field_value": [
+         {
+          "field": 0,
+          "value": {
+           "expression": {
+            "expression_heritage": "a",
+            "type": {
+             "rendered_type": "Str",
+             "the_type": "Str",
+             "type_id": 0
+            },
+            "variable": {
+             "var_name": "a"
+            }
+           }
+          }
+         },
+         {
+          "field": 1,
+          "value": {
+           "expression": {
+            "expression_heritage": "t",
+            "type": {
+             "rendered_type": "Num",
+             "the_type": "Num",
+             "type_id": 1
+            },
+            "variable": {
+             "var_name": "t"
+            }
+           }
+          }
+         }
+        ]
+       }
+      }
+     },
+     {
+      "predicate": {
+       "predicate_name": "Str",
+       "record": {
+        "field_value": [
+         {
+          "field": 0,
+          "value": {
+           "expression": {
+            "expression_heritage": "a",
+            "type": {
+             "rendered_type": "Str",
+             "the_type": "Str",
+             "type_id": 0
+            },
+            "variable": {
+             "var_name": "a"
+            }
+           }
+          }
+         }
+        ]
+       }
+      }
+     }
+    ]
+   }
+  },
+  "distinct_denoted": true,
+  "full_text": "Test(a:, b? += t) distinct :- T(a, t), Str(a)",
+  "head": {
+   "predicate_name": "Test",
+   "record": {
+    "field_value": [
+     {
+      "field": "a",
+      "value": {
+       "expression": {
+        "expression_heritage": "a",
+        "type": {
+         "rendered_type": "Str",
+         "the_type": "Str",
+         "type_id": 0
+        },
+        "variable": {
+         "var_name": "a"
+        }
+       }
+      }
+     },
+     {
+      "field": "b",
+      "value": {
+       "aggregation": {
+        "expression": {
+         "call": {
+          "predicate_name": "Agg+",
+          "record": {
+           "field_value": [
+            {
+             "field": 0,
+             "value": {
+              "expression": {
+               "expression_heritage": "t",
+               "type": {
+                "rendered_type": "Num",
+                "the_type": "Num",
+                "type_id": 1
+               },
+               "variable": {
+                "var_name": "t"
+               }
+              }
+             }
+            }
+           ]
+          }
+         },
+         "type": {
+          "rendered_type": "Num",
+          "the_type": "Num",
+          "type_id": 2
+         }
+        }
+       }
+      }
+     }
+    ]
+   }
+  }
+ }
+]

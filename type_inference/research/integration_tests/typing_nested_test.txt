@@ -1,0 +1,396 @@
+[
+ {
+  "body": {
+   "conjunction": {
+    "conjunct": [
+     {
+      "predicate": {
+       "predicate_name": "=",
+       "record": {
+        "field_value": [
+         {
+          "field": "left",
+          "value": {
+           "expression": {
+            "expression_heritage": "l",
+            "type": {
+             "element_type_name": "logicarecord762067541",
+             "rendered_type": "[{a: {b: {c: [Num]}}}]",
+             "the_type": [
+              {
+               "a": {
+                "b": {
+                 "c": [
+                  "Num"
+                 ]
+                }
+               }
+              }
+             ],
+             "type_id": 1
+            },
+            "variable": {
+             "var_name": "l"
+            }
+           }
+          }
+         },
+         {
+          "field": "right",
+          "value": {
+           "expression": {
+            "expression_heritage": "[{a: {b: {c: [1]}}}]",
+            "literal": {
+             "the_list": {
+              "element": [
+               {
+                "expression_heritage": "{a: {b: {c: [1]}}}",
+                "record": {
+                 "field_value": [
+                  {
+                   "field": "a",
+                   "value": {
+                    "expression": {
+                     "expression_heritage": "{b: {c: [1]}}",
+                     "record": {
+                      "field_value": [
+                       {
+                        "field": "b",
+                        "value": {
+                         "expression": {
+                          "expression_heritage": "{c: [1]}",
+                          "record": {
+                           "field_value": [
+                            {
+                             "field": "c",
+                             "value": {
+                              "expression": {
+                               "expression_heritage": "[1]",
+                               "literal": {
+                                "the_list": {
+                                 "element": [
+                                  {
+                                   "expression_heritage": "1",
+                                   "literal": {
+                                    "the_number": {
+                                     "number": "1"
+                                    }
+                                   },
+                                   "type": {
+                                    "rendered_type": "Num",
+                                    "the_type": "Num",
+                                    "type_id": 9
+                                   }
+                                  }
+                                 ]
+                                }
+                               },
+                               "type": {
+                                "element_type_name": "numeric",
+                                "rendered_type": "[Num]",
+                                "the_type": [
+                                 "Num"
+                                ],
+                                "type_id": 8
+                               }
+                              }
+                             }
+                            }
+                           ]
+                          },
+                          "type": {
+                           "rendered_type": "{c: [Num]}",
+                           "the_type": {
+                            "c": [
+                             "Num"
+                            ]
+                           },
+                           "type_id": 7,
+                           "type_name": "logicarecord137760342"
+                          }
+                         }
+                        }
+                       }
+                      ]
+                     },
+                     "type": {
+                      "rendered_type": "{b: {c: [Num]}}",
+                      "the_type": {
+                       "b": {
+                        "c": [
+                         "Num"
+                        ]
+                       }
+                      },
+                      "type_id": 6,
+                      "type_name": "logicarecord261470720"
+                     }
+                    }
+                   }
+                  }
+                 ]
+                },
+                "type": {
+                 "rendered_type": "{a: {b: {c: [Num]}}}",
+                 "the_type": {
+                  "a": {
+                   "b": {
+                    "c": [
+                     "Num"
+                    ]
+                   }
+                  }
+                 },
+                 "type_id": 5,
+                 "type_name": "logicarecord762067541"
+                }
+               }
+              ]
+             }
+            },
+            "type": {
+             "element_type_name": "logicarecord762067541",
+             "rendered_type": "[{a: {b: {c: [Num]}}}]",
+             "the_type": [
+              {
+               "a": {
+                "b": {
+                 "c": [
+                  "Num"
+                 ]
+                }
+               }
+              }
+             ],
+             "type_id": 4
+            }
+           }
+          }
+         }
+        ]
+       }
+      }
+     },
+     {
+      "inclusion": {
+       "element": {
+        "expression_heritage": "x",
+        "type": {
+         "rendered_type": "{a: {b: {c: [Num]}}}",
+         "the_type": {
+          "a": {
+           "b": {
+            "c": [
+             "Num"
+            ]
+           }
+          }
+         },
+         "type_id": 2,
+         "type_name": "logicarecord762067541"
+        },
+        "variable": {
+         "var_name": "x"
+        }
+       },
+       "list": {
+        "expression_heritage": "l",
+        "type": {
+         "element_type_name": "logicarecord762067541",
+         "rendered_type": "[{a: {b: {c: [Num]}}}]",
+         "the_type": [
+          {
+           "a": {
+            "b": {
+             "c": [
+              "Num"
+             ]
+            }
+           }
+          }
+         ],
+         "type_id": 1
+        },
+        "variable": {
+         "var_name": "l"
+        }
+       }
+      }
+     },
+     {
+      "predicate": {
+       "predicate_name": "=",
+       "record": {
+        "field_value": [
+         {
+          "field": "left",
+          "value": {
+           "expression": {
+            "expression_heritage": "c",
+            "type": {
+             "element_type_name": "numeric",
+             "rendered_type": "[Num]",
+             "the_type": [
+              "Num"
+             ],
+             "type_id": 3
+            },
+            "variable": {
+             "var_name": "c"
+            }
+           }
+          }
+         },
+         {
+          "field": "right",
+          "value": {
+           "expression": {
+            "expression_heritage": "x.a.b.c",
+            "subscript": {
+             "record": {
+              "expression_heritage": "x.a.b",
+              "subscript": {
+               "record": {
+                "expression_heritage": "x.a",
+                "subscript": {
+                 "record": {
+                  "expression_heritage": "x",
+                  "type": {
+                   "rendered_type": "{a: {b: {c: [Num]}}}",
+                   "the_type": {
+                    "a": {
+                     "b": {
+                      "c": [
+                       "Num"
+                      ]
+                     }
+                    }
+                   },
+                   "type_id": 2,
+                   "type_name": "logicarecord762067541"
+                  },
+                  "variable": {
+                   "var_name": "x"
+                  }
+                 },
+                 "subscript": {
+                  "literal": {
+                   "the_symbol": {
+                    "symbol": "a"
+                   }
+                  }
+                 }
+                },
+                "type": {
+                 "rendered_type": "{b: {c: [Num]}}",
+                 "the_type": {
+                  "b": {
+                   "c": [
+                    "Num"
+                   ]
+                  }
+                 },
+                 "type_id": 12,
+                 "type_name": "logicarecord261470720"
+                }
+               },
+               "subscript": {
+                "literal": {
+                 "the_symbol": {
+                  "symbol": "b"
+                 }
+                }
+               }
+              },
+              "type": {
+               "rendered_type": "{c: [Num]}",
+               "the_type": {
+                "c": [
+                 "Num"
+                ]
+               },
+               "type_id": 11,
+               "type_name": "logicarecord137760342"
+              }
+             },
+             "subscript": {
+              "literal": {
+               "the_symbol": {
+                "symbol": "c"
+               }
+              }
+             }
+            },
+            "type": {
+             "element_type_name": "numeric",
+             "rendered_type": "[Num]",
+             "the_type": [
+              "Num"
+             ],
+             "type_id": 10
+            }
+           }
+          }
+         }
+        ]
+       }
+      }
+     },
+     {
+      "inclusion": {
+       "element": {
+        "expression_heritage": "y",
+        "type": {
+         "rendered_type": "Num",
+         "the_type": "Num",
+         "type_id": 0
+        },
+        "variable": {
+         "var_name": "y"
+        }
+       },
+       "list": {
+        "expression_heritage": "c",
+        "type": {
+         "element_type_name": "numeric",
+         "rendered_type": "[Num]",
+         "the_type": [
+          "Num"
+         ],
+         "type_id": 3
+        },
+        "variable": {
+         "var_name": "c"
+        }
+       }
+      }
+     }
+    ]
+   }
+  },
+  "full_text": "Test(y) :-\n  l = [{a: {b: {c: [1]}}}],\n  x in l,\n  c = x.a.b.c,\n  y in c",
+  "head": {
+   "predicate_name": "Test",
+   "record": {
+    "field_value": [
+     {
+      "field": 0,
+      "value": {
+       "expression": {
+        "expression_heritage": "y",
+        "type": {
+         "rendered_type": "Num",
+         "the_type": "Num",
+         "type_id": 0
+        },
+        "variable": {
+         "var_name": "y"
+        }
+       }
+      }
+     }
+    ]
+   }
+  }
+ }
+]

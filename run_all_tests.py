@@ -21,6 +21,7 @@ import sys
 from common import logica_test
 from integration_tests import run_tests as integration_tests
 from integration_tests.import_tests import run_tests as import_tests
+from type_inference.research.integration_tests import run_tests as type_inference_tests
 
 
 if 'golden_run' in sys.argv:
@@ -35,5 +36,6 @@ for a in sys.argv:
 
 logica_test.PrintHeader()
 
+type_inference_tests.RunAll()
 integration_tests.RunAll()
 import_tests.RunAll()

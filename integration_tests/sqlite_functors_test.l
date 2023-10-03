@@ -16,7 +16,7 @@
 # Testing subtle functor application order.
 
 @Engine("sqlite");
-T1("t1");
+T1() = "t1";
 F() = T1();
 D := F();
 B() = D();

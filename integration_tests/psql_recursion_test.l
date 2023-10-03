@@ -27,7 +27,7 @@ ComponentOf(x) Min= y :- Distance(x, y);
 
 @OrderBy(Analyzed, "vertex");
 Analyzed(vertex: x, component: ComponentOf(x),
-         distances? Array= (-y) -> [y, Distance(x, y)]) distinct;
+         distances? Array= (-y) -> {y:, d: Distance(x, y)}) distinct;
 
 Test := Analyzed();
 
