@@ -207,6 +207,11 @@ def TypesOfBultins():
            0: list_of_e,
            1: 'Num',
            'logica_value': e
+        },
+        'MagicalEntangle': {
+           0: x,
+           1: 'Any',
+           'logica_value': x
         }
     }
     types_of_predicate['<'] = types_of_predicate['<='] = types_of_predicate['>='] = types_of_predicate['>']
