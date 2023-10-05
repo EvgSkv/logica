@@ -531,11 +531,15 @@ class RuleStructure(object):
       from_str = '\n'.join('  ' + l for l in from_str.split('\n'))
       r += from_str
       if self.constraints:
-        r += '\nWHERE\n'
         constraints = []
+        # Predicates used for type inference.
+        ephemeral_predicates = ['~']
         for c in self.constraints:
-          constraints.append(ql.ConvertToSql(c))
-        r += ' AND\n'.join(map(Indent2, constraints))
+          if c['call']['predicate_name'] not in ephemeral_predicates:
+            constraints.append(ql.ConvertToSql(c))
+        if constraints:
+          r += '\nWHERE\n'
+          r += ' AND\n'.join(map(Indent2, constraints))
       if self.distinct_vars:
         ordered_distinct_vars = [
             v for v in self.select.keys() if v in self.distinct_vars]
@@ -565,7 +569,7 @@ def ExtractPredicateStructure(c, s):
 
   if predicate in (
       '<=', '<', '>', '>=', '!=', '&&', '||', '!', 'IsNull', 'Like',
-      'Constraint', 'is', 'is not'):
+      'Constraint', 'is', 'is not', '~'):
     s.constraints.append({'call': c})
     return
 

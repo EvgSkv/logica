@@ -45,7 +45,8 @@ def TypesOfBultins():
         },
         '~': {
           'left': x,
-          'right': x 
+          'right': x,
+          'logica_value': 'Bool'
         },
         '++': {
           'left': 'Str',

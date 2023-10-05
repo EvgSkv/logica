@@ -95,6 +95,10 @@ def ExpressionsIterator(node):
     if f in node:
       yield node[f]
   
+  # For inference in structures.
+  if 'constraints' in node:
+    for x in node['constraints']:
+      yield x
   if 'record' in node and 'field_value' not in node['record']:
   # if 'record' in node and 'expression_heritage' in node:
     yield node['record']

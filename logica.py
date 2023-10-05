@@ -160,8 +160,12 @@ def main(argv):
     print('File not found: %s' % filename, file=sys.stderr)
     return 1
 
+  # This has to be before reading program.
   if command == 'run_in_terminal':
-    from tools import run_in_terminal
+    if __name__ == '__main__' and not __package__:
+      from tools import run_in_terminal
+    else:
+      from .tools import run_in_terminal
     artistic_table = run_in_terminal.Run(filename, predicates)
     print(artistic_table)
     return
