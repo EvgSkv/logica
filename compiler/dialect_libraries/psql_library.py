@@ -42,6 +42,8 @@ RecordAsJson(r) = SqlExpr(
 
 Fingerprint(s) = SqlExpr("('x' || substr(md5({s}), 1, 16))::bit(64)::bigint", {s:});
 
+ReadFile(filename) = SqlExpr("pg_read_file({filename})", {filename:});
+
 Num(a) = a;
 Str(a) = a;
 """
