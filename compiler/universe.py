@@ -556,7 +556,7 @@ class LogicaProgram(object):
           raise rule_translate.RuleCompileException(
               color.Format(
                   'Either all rules of a predicate must be distinct denoted '
-                  'or none. Predicate {warning}{p}{end} viaolates it.',
+                  'or none. Predicate {warning}{p}{end} violates it.',
                   dict(p=p)), r['full_text'])
   
   def UnfoldRecursion(self, rules):
