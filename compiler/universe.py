@@ -526,6 +526,7 @@ class LogicaProgram(object):
       predicate_name = rule['head']['predicate_name']
       self.defined_predicates.add(predicate_name)
       self.rules.append((predicate_name, rule))
+    self.CheckDistinctConsistency()
     # We need to recompute annotations, because 'Make' created more rules and
     # annotations.
     self.annotations = Annotations(extended_rules, self.user_flags)
@@ -543,6 +544,21 @@ class LogicaProgram(object):
     # Function compilation may have added irrelevant defines:
     self.execution = None
 
+  def CheckDistinctConsistency(self):
+    is_distinct = {}
+    for p, r in self.rules:
+      distinct_before = is_distinct.get(p, None)
+      distinct_here = 'distinct_denoted' in r
+      if distinct_before is None:
+        is_distinct[p] = distinct_here
+      else:
+        if distinct_before != distinct_here:
+          raise rule_translate.RuleCompileException(
+              color.Format(
+                  'Either all rules of a predicate must be distinct denoted '
+                  'or none. Predicate {warning}{p}{end} viaolates it.',
+                  dict(p=p)), r['full_text'])
+  
   def UnfoldRecursion(self, rules):
     annotations = Annotations(rules, {})
     f = functors.Functors(rules)
