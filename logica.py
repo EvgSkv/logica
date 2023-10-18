@@ -38,6 +38,8 @@ import os
 import subprocess
 import sys
 
+from type_inference.type_retrieval_service import TypeRetrievalService
+
 # We are doing this 'if' to allow usage of the code as package and as a
 # script.
 if __name__ == '__main__' and not __package__:
@@ -149,7 +151,7 @@ def main(argv):
   command = argv[2]
 
   commands = ['parse', 'print', 'run', 'run_to_csv', 'run_in_terminal',
-              'infer_types', 'show_signatures']
+              'infer_types', 'show_signatures', 'build_schema']
 
   if command not in commands:
     print(color.Format('Unknown command {warning}{command}{end}. '
@@ -185,6 +187,10 @@ def main(argv):
     typing_engine.InferTypes()
     # print(parsed_rules)
     print(json.dumps(parsed_rules, sort_keys=True, indent=' '))
+    return 0
+
+  if command == 'build_schema':
+    TypeRetrievalService(parsed_rules, predicates.split(',')).RetrieveTypes()
     return 0
 
   if command == 'show_signatures':
