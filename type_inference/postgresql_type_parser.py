@@ -74,8 +74,4 @@ def try_parse_postgresql_type(pg_type: str) -> str | None:
     if type_in_lowercase in unvariable_types_dict:
         return unvariable_types_dict[type_in_lowercase]
     else:
-        variable_parse_result = __try_parse_variable_type(type_in_lowercase)
-        if variable_parse_result is not None:
-            return variable_parse_result
-
-    return None
+        return __try_parse_variable_type(type_in_lowercase)
