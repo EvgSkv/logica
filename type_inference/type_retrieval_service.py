@@ -1,7 +1,8 @@
 from functools import cache
 from typing import Dict
-from postgresql_type_parser import try_parse_postgresql_type
+from type_inference.postgresql_type_parser import try_parse_postgresql_type
 import psycopg2
+from os import linesep
 
 from type_inference.type_retrieval_exception import TypeRetrievalException
 
@@ -120,10 +121,10 @@ HAVING table_name IN ({joined_table_names});''')
                 result.append(f'{rule["full_text"]},')
 
                 local = []
-                for column, udt_type in columns[self.table_names[rule['head']['predicate_name']]].items():
+                for column, udt_type in sorted(columns[self.table_names[rule['head']['predicate_name']]].items(), key=lambda t: t[0]):
                     local.append(f'{column}: {unpack_type(udt_type, conn)}')
-                var_name = rule['head']['record']['field_value']['value']['expression']['variable']['var_name']
-                result.append(f'{var_name} ~ {{{",".join(local)}}}')
+                var_name = rule['head']['record']['field_value'][0]['value']['expression']['variable']['var_name']
+                result.append(f'{var_name} ~ {{{", ".join(local)}}};{linesep}')
 
             with open(filename, 'w') as writefile:
-                writefile.writelines(result)
+                writefile.writelines(linesep.join(result))
