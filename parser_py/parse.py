@@ -576,14 +576,18 @@ def ParseLiteral(s):
     return {'the_predicate': v}
 
 
-def ParseInfix(s, operators=None):
+def ParseInfix(s, operators=None, disallow_operators=None):
   """Parses an infix operator expression."""
   operators = operators or [
       '||', '&&', '->', '==', '<=', '>=', '<', '>', '!=', '=', '~',
       ' in ', ' is not ', ' is ', '++?', '++', '+', '-', '*', '/', '%',
       '^', '!']
+  # We disallow ~ in expressions.
+  disallow_operators = disallow_operators or []
   unary_operators = ['-', '!']
   for op in operators:
+    if op in disallow_operators:
+      continue
     parts = SplitRaw(s, op)
     if len(parts) > 1:
       # Right is the rightmost operand and left are all the other operands.
@@ -750,7 +754,7 @@ def ActuallyParseExpression(s):
   v = ParseCall(s, is_aggregation_allowed=False)
   if v:
     return {'call': v}
-  v = ParseInfix(s)
+  v = ParseInfix(s, disallow_operators='~')
   if v:
     return {'call': v}
   v = ParseSubscript(s)
