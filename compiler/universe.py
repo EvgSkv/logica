@@ -647,14 +647,12 @@ class LogicaProgram(object):
     if len(rules) == 1:
       [rule] = rules
       result = (
-          self.SingleRuleSql(rule, allocator, external_vocabulary) +
+          self.SingleRuleSql(rule, allocator, external_vocabulary,
+                             must_not_be_nil=True) +
           self.annotations.OrderByClause(name) +
           self.annotations.LimitClause(name))
-      if result.startswith('/* nil */'):
-        raise rule_translate.RuleCompileException(
-          'Single rule is nil for predicate %s. '
-          'Recursion unfolding failed.' % color.Warn(name),
-          rule['full_text'])
+      # Exception should be raised by SingleRuleSql.
+      assert not result.startswith('/* nil */')
       return result
     elif len(rules) > 1:
       rules_sql = []
@@ -986,7 +984,7 @@ class LogicaProgram(object):
 
   def SingleRuleSql(self, rule,
                     allocator=None, external_vocabulary=None,
-                    is_combine=False):
+                    is_combine=False, must_not_be_nil=False):
     """Producing SQL for a given rule in the program."""
     allocator = allocator or self.NewNamesAllocator()
     r = rule
@@ -1008,6 +1006,12 @@ class LogicaProgram(object):
     self.required_type_definitions.update(type_inference.collector.definitions)
     self.typing_preamble = infer.BuildPreamble(self.required_type_definitions)
 
+    if must_not_be_nil:
+      if 'nil' in s.tables.values():
+        raise rule_translate.RuleCompileException(
+          'Single rule is nil for predicate %s. '
+          'Recursion unfolding failed.' % color.Warn(s.this_predicate_name),
+          rule['full_text'])
     try:
       sql = s.AsSql(self.MakeSubqueryTranslator(allocator), self.flag_values)
     except RuntimeError as runtime_error:
