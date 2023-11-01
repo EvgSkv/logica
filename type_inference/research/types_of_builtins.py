@@ -129,6 +129,14 @@ def TypesOfBultins():
            0: x,
            'logica_value': x
         },
+        'Sum': {
+           0: 'Num',
+           'logica_value': 'Num'
+        },
+        'Avg': {
+           0: 'Num',
+           'logica_value': 'Num'
+        },
         'Max': {
            0: x,
            'logica_value': y
