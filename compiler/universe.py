@@ -1006,12 +1006,18 @@ class LogicaProgram(object):
     self.required_type_definitions.update(type_inference.collector.definitions)
     self.typing_preamble = infer.BuildPreamble(self.required_type_definitions)
 
-    if must_not_be_nil:
-      if 'nil' in s.tables.values():
+    if 'nil' in s.tables.values():
+      if must_not_be_nil:
         raise rule_translate.RuleCompileException(
           'Single rule is nil for predicate %s. '
           'Recursion unfolding failed.' % color.Warn(s.this_predicate_name),
           rule['full_text'])
+      else:
+        # Calling compilation could result in type error, as
+        # types coming from nil are not known.
+        # Return a rule marked for deletion.
+        return '/* nil */ SELECT 42'
+
     try:
       sql = s.AsSql(self.MakeSubqueryTranslator(allocator), self.flag_values)
     except RuntimeError as runtime_error:
@@ -1021,6 +1027,7 @@ class LogicaProgram(object):
             s.full_rule_text)
       else:
         raise runtime_error
+    # TODO: Should this be removed?
     if 'nil' in s.tables.values():
       # Mark rule for deletion.
       sql = '/* nil */' + sql
