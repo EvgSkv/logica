@@ -15,13 +15,7 @@ def InitBuiltInTypes(connection_string: str):
 
     with psycopg2.connect(connection_string) as conn:
         with conn.cursor() as cur:
-            # this SQL returns all primitive types (defined by PostgreSQL directly)
-            # note: pg_type stores all the types
-            # note: basic types are defined in pg_catalog namespace
-            # note: pg_type.typrelid is 0 for non-composite types
-            # note: pg_class stores everything that has columns or is otherwise similar to a table
-            # note: pg_class.relkind is 'c' for composite types
-            # note: last expressions excludes arrays from result
+            # this SQL query returns all primitive types (defined by PostgreSQL directly)
             cur.execute('''
 SELECT t.typname as type
 FROM pg_type t
@@ -50,8 +44,7 @@ def unpack_type(udt_type: str, conn) -> str:
         return f'[{unpack_type(udt_type.lstrip("_"), conn)}]'
 
     with conn.cursor() as cur:
-        # this SQL returns all children (= fields) of given udt_type (named by parent_type) and its types
-        # note: children are stored in pg_attribute
+        # this SQL query returns all children (= fields) of given udt_type (named by parent_type) and its types
         cur.execute('''
 SELECT pg_attribute.attname AS field_name,
     child_type.typname AS field_type
@@ -105,8 +98,8 @@ class TypeRetrievalService:
         filename = filename.replace('.l', '_schema.l')
         with psycopg2.connect(self.connection_string) as conn:
             with conn.cursor() as cursor:
-                # for each given table this SQL returns json object
-                # where keys are names of column in that table and values are corresponding types
+                # for each given table this SQL query returns json object
+                # where keys are names of columns in that table and values are corresponding types
                 cursor.execute('''
 SELECT table_name, jsonb_object_agg(column_name, udt_name)
 FROM information_schema.columns
