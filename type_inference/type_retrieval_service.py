@@ -15,25 +15,30 @@ def InitBuiltInTypes(connection_string: str):
 
     with psycopg2.connect(connection_string) as conn:
         with conn.cursor() as cur:
-            cur.execute(f'''
+            # this SQL returns all primitive types (defined by PostgreSQL directly)
+            # note: pg_type stores all the types
+            # note: basic types are defined in pg_catalog namespace
+            # note: pg_type.typrelid is 0 for non-composite types
+            # note: pg_class stores everything that has columns or is otherwise similar to a table
+            # note: pg_class.relkind is 'c' for composite types
+            # note: last expressions excludes arrays from result
+            cur.execute('''
 SELECT t.typname as type
 FROM pg_type t
-    LEFT JOIN pg_catalog.pg_namespace n ON n.oid = t.typnamespace
-WHERE (
-        t.typrelid = 0 OR (
-            SELECT c.relkind = 'c'
-            FROM pg_catalog.pg_class c
-            WHERE c.oid = t.typrelid
-        )
+         LEFT JOIN pg_catalog.pg_namespace n ON n.oid = t.typnamespace
+WHERE n.nspname = 'pg_catalog'
+  AND (
+            t.typrelid = 0 OR (SELECT c.relkind = 'c'
+                               FROM pg_catalog.pg_class c
+                               WHERE c.oid = t.typrelid)
     )
-    AND NOT EXISTS (
+  AND NOT EXISTS(
         SELECT 1
         FROM pg_catalog.pg_type el
         WHERE el.oid = t.typelem
-            AND el.typarray = t.oid
-    )
-    AND n.nspname = 'pg_catalog';''')
-            built_in_types.update([x[0] for x in cur.fetchall()])
+          AND el.typarray = t.oid
+    );''')
+            built_in_types.update((t[0] for t in cur.fetchall()))
 
 
 @cache
@@ -45,20 +50,18 @@ def unpack_type(udt_type: str, conn) -> str:
         return f'[{unpack_type(udt_type.lstrip("_"), conn)}]'
 
     with conn.cursor() as cur:
-        cur.execute(f'''
+        # this SQL returns all children (= fields) of given udt_type (named by parent_type) and its types
+        # note: children are stored in pg_attribute
+        cur.execute('''
 SELECT pg_attribute.attname AS field_name,
     child_type.typname AS field_type
 FROM pg_type AS parent_type
     JOIN pg_attribute ON pg_attribute.attrelid = parent_type.typrelid
     JOIN pg_type AS child_type ON child_type.oid = pg_attribute.atttypid
-WHERE parent_type.typname = '{udt_type}';''')
+WHERE parent_type.typname = '{%s}';''', (udt_type,))
 
-        type_info = []
-
-        for field_name, field_type in cur.fetchall():
-            type_info.append(f'{field_name}: {unpack_type(field_type, conn)}')
-
-        return f'{{{", ".join(type_info)}}}'
+        fields = (f'{field_name}: {unpack_type(field_type, conn)}' for field_name, field_type in cur.fetchall())
+        return f'{{{", ".join(fields)}}}'
 
 
 def ValidateRuleAndGetTableName(rule: dict) -> str:
@@ -96,33 +99,30 @@ class TypeRetrievalService:
         InitBuiltInTypes(self.connection_string)
 
     def ValidateParsedRulesAndGetTableNames(self) -> Dict[str, str]:
-        mapping = dict()
+        return {rule['head']['predicate_name']: ValidateRuleAndGetTableName(rule) for rule in self.parsed_rules}
 
-        for rule in self.parsed_rules:
-            mapping[rule['head']['predicate_name']] = ValidateRuleAndGetTableName(rule)
-
-        return mapping
-
-    def RetrieveTypes(self, filename="default.l"):
+    def RetrieveTypes(self, filename='default.l'):
         filename = filename.replace('.l', '_schema.l')
         with psycopg2.connect(self.connection_string) as conn:
-            joined_table_names = ','.join((f"'{n}'" for n in self.table_names.values()))
-
             with conn.cursor() as cursor:
-                cursor.execute(f'''
+                # for each given table this SQL returns json object
+                # where keys are names of column in that table and values are corresponding types
+                cursor.execute('''
 SELECT table_name, jsonb_object_agg(column_name, udt_name)
 FROM information_schema.columns
 GROUP BY table_name
-HAVING table_name IN ({joined_table_names});''')
+HAVING table_name IN %s;''', (self.table_names.values(),))
                 columns = {table: columns for table, columns in cursor.fetchall()}
 
             result = []
+
             for rule in self.parsed_rules:
                 result.append(f'{rule["full_text"]},')
-
                 local = []
+
                 for column, udt_type in sorted(columns[self.table_names[rule['head']['predicate_name']]].items(), key=lambda t: t[0]):
                     local.append(f'{column}: {unpack_type(udt_type, conn)}')
+
                 var_name = rule['head']['record']['field_value'][0]['value']['expression']['variable']['var_name']
                 result.append(f'{var_name} ~ {{{", ".join(local)}}};{linesep}')
 
