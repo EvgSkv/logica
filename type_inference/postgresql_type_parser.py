@@ -1,3 +1,19 @@
+#!/usr/bin/python
+#
+# Copyright 2023 Logica Authors
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 str_type = "Str"
 num_type = "Num"
 bool_type = "Bool"
@@ -52,26 +68,26 @@ unvariable_types_dict["xml"] = str_type
 
 
 def __try_parse_variable_type(pg_type: str) -> str | None:
-    if pg_type.startswith("bit"):
-        return str_type
-    elif pg_type.startswith("char"):
-        return str_type
-    elif pg_type.startswith("varchar"):
-        return str_type
-    elif pg_type.startswith("interval"):
-        return str_type
-    elif pg_type.startswith("numeric"):
-        return num_type
-    elif pg_type.startswith("decimal"):
-        return num_type
-    elif pg_type.startswith("time"):
-        return str_type
-    return None
+  if pg_type.startswith("bit"):
+    return str_type
+  elif pg_type.startswith("char"):
+    return str_type
+  elif pg_type.startswith("varchar"):
+    return str_type
+  elif pg_type.startswith("interval"):
+    return str_type
+  elif pg_type.startswith("numeric"):
+    return num_type
+  elif pg_type.startswith("decimal"):
+    return num_type
+  elif pg_type.startswith("time"):
+    return str_type
+  return None
 
 
 def try_parse_postgresql_type(pg_type: str) -> str | None:
-    type_in_lowercase = pg_type.lower()
-    if type_in_lowercase in unvariable_types_dict:
-        return unvariable_types_dict[type_in_lowercase]
-    else:
-        return __try_parse_variable_type(type_in_lowercase)
+  type_in_lowercase = pg_type.lower()
+  if type_in_lowercase in unvariable_types_dict:
+    return unvariable_types_dict[type_in_lowercase]
+  else:
+    return __try_parse_variable_type(type_in_lowercase)
