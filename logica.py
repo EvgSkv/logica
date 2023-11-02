@@ -190,7 +190,7 @@ def main(argv):
     return 0
 
   if command == 'build_schema':
-    TypeRetrievalService(parsed_rules, predicates.split(',')).RetrieveTypes()
+    TypeRetrievalService(parsed_rules, predicates.split(',')).RetrieveTypes(filename)
     return 0
 
   if command == 'show_signatures':

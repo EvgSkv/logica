@@ -1,9 +1,10 @@
 from functools import cache
 from typing import Dict
+from type_inference.postgresql_type_parser import try_parse_postgresql_type
 import psycopg2
+from os import linesep
 
 from type_inference.type_retrieval_exception import TypeRetrievalException
-
 
 built_in_types = set()
 
@@ -34,10 +35,11 @@ WHERE (
     AND n.nspname = 'pg_catalog';''')
             built_in_types.update([x[0] for x in cur.fetchall()])
 
+
 @cache
 def unpack_type(udt_type: str, conn) -> str:
     if udt_type in built_in_types:
-        return udt_type
+        return try_parse_postgresql_type(udt_type)
 
     if udt_type.startswith('_'):
         return f'[{unpack_type(udt_type.lstrip("_"), conn)}]'
@@ -65,17 +67,17 @@ def ValidateRuleAndGetTableName(rule: dict) -> str:
 
     if len(field_value) != 1 or field_value[0]['field'] != '*':
         raise TypeRetrievalException(rule_text)
-    
+
     conjuncts = rule['body']['conjunction']['conjunct']
 
     if len(conjuncts) != 1:
         raise TypeRetrievalException(rule_text)
-    
+
     conjunct = conjuncts[0]
 
-    if 'predicate' not in conjunct:   
+    if 'predicate' not in conjunct:
         raise TypeRetrievalException(rule_text)
-    
+
     field_values = conjunct['predicate']['record']['field_value']
 
     if len(field_values) != 1 or field_values[0]['field'] != '*':
@@ -85,7 +87,8 @@ def ValidateRuleAndGetTableName(rule: dict) -> str:
 
 
 class TypeRetrievalService:
-    def __init__(self, parsed_rules, predicate_names, connection_string='dbname=logica user=logica password=logica host=127.0.0.1'):
+    def __init__(self, parsed_rules, predicate_names,
+                 connection_string='dbname=logica user=logica password=logica host=127.0.0.1'):
         predicate_names_as_set = set(predicate_names)
         self.parsed_rules = [r for r in parsed_rules if r['head']['predicate_name'] in predicate_names_as_set]
         self.connection_string = connection_string
@@ -100,8 +103,9 @@ class TypeRetrievalService:
 
         return mapping
 
-    def RetrieveTypes(self):
-        with psycopg2.connect(self.connection_string) as conn: 
+    def RetrieveTypes(self, filename="default.l"):
+        filename = filename.replace('.l', '_schema.l')
+        with psycopg2.connect(self.connection_string) as conn:
             joined_table_names = ','.join((f"'{n}'" for n in self.table_names.values()))
 
             with conn.cursor() as cursor:
@@ -112,10 +116,15 @@ GROUP BY table_name
 HAVING table_name IN ({joined_table_names});''')
                 columns = {table: columns for table, columns in cursor.fetchall()}
 
+            result = []
             for rule in self.parsed_rules:
-                print(rule['full_text'])
-                
-                for column, udt_type in columns[self.table_names[rule['head']['predicate_name']]].items():
-                    print(column, ':', unpack_type(udt_type, conn))
+                result.append(f'{rule["full_text"]},')
 
-                print()
+                local = []
+                for column, udt_type in sorted(columns[self.table_names[rule['head']['predicate_name']]].items(), key=lambda t: t[0]):
+                    local.append(f'{column}: {unpack_type(udt_type, conn)}')
+                var_name = rule['head']['record']['field_value'][0]['value']['expression']['variable']['var_name']
+                result.append(f'{var_name} ~ {{{", ".join(local)}}};{linesep}')
+
+            with open(filename, 'w') as writefile:
+                writefile.writelines(linesep.join(result))

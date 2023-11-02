@@ -1,6 +1,6 @@
-str_type = "String"
-num_type = "Number"
-bool_type = "Boolean"
+str_type = "Str"
+num_type = "Num"
+bool_type = "Bool"
 
 unvariable_types_dict = {}
 unvariable_types_dict["boolean"] = bool_type
