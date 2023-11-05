@@ -143,7 +143,7 @@ def TypesOfBultins():
         },
         'Array': {
            0: reference_algebra.ClosedRecord({'arg': x, 'value': e}),
-           'logica_value': e
+           'logica_value': [e]
         },
         'ValueOfUnnested': {
            0: x,
