@@ -38,8 +38,6 @@ import os
 import subprocess
 import sys
 
-from type_inference.type_retrieval_service import TypeRetrievalService
-
 # We are doing this 'if' to allow usage of the code as package and as a
 # script.
 if __name__ == '__main__' and not __package__:
@@ -50,6 +48,7 @@ if __name__ == '__main__' and not __package__:
   from compiler import universe
   from parser_py import parse
   from type_inference.research import infer
+  from type_inference.type_retrieval_service import TypeRetrievalService
 else:
   from .common import color
   from .common import sqlite3_logica
@@ -58,6 +57,7 @@ else:
   from .compiler import universe
   from .parser_py import parse
   from .type_inference.research import infer
+  from .type_inference.type_retrieval_service import TypeRetrievalService
 
 
 def ReadUserFlags(rules, argv):
@@ -189,10 +189,6 @@ def main(argv):
     print(json.dumps(parsed_rules, sort_keys=True, indent=' '))
     return 0
 
-  if command == 'build_schema':
-    TypeRetrievalService(parsed_rules, predicates.split(',')).RetrieveTypes(filename)
-    return 0
-
   if command == 'show_signatures':
     try:
       logic_program = universe.LogicaProgram(parsed_rules)
@@ -205,9 +201,12 @@ def main(argv):
     print(logic_program.typing_engine.ShowPredicateTypes())
     return 0
 
-  user_flags = ReadUserFlags(parsed_rules, argv[4:])
-
   predicates_list = predicates.split(',')
+  if command == 'build_schema':
+    TypeRetrievalService(parsed_rules, predicates_list).RetrieveTypes(filename)
+    return 0
+
+  user_flags = ReadUserFlags(parsed_rules, argv[4:])
   for predicate in predicates_list:
     try:
       logic_program = universe.LogicaProgram(

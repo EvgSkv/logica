@@ -18,56 +18,55 @@ str_type = "Str"
 num_type = "Num"
 bool_type = "Bool"
 
-unvariable_types_dict = {}
-unvariable_types_dict["boolean"] = bool_type
-unvariable_types_dict["bool"] = bool_type
+POSTGRES_TYPE_TO_LOGICA_TYPE = {
+  "boolean": bool_type,
+  "bool": bool_type,
+  "bigint": num_type,
+  "int8": num_type,
+  "bigserial": num_type,
+  "serial8": num_type,
+  "double precision": num_type,
+  "float8": num_type,
+  "integer": num_type,
+  "int": num_type,
+  "int4": num_type,
+  "money": num_type,
+  "real": num_type,
+  "float4": num_type,
+  "smallint": num_type,
+  "int2": num_type,
+  "smallserial": num_type,
+  "serial2": num_type,
+  "serial": num_type,
+  "serial4": num_type,
+  "varbit": str_type,
+  "box": str_type,
+  "bytea": str_type,
+  "cidr": str_type,
+  "circle": str_type,
+  "date": str_type,
+  "inet": str_type,
+  "json": str_type,
+  "jsonb": str_type,
+  "line": str_type,
+  "lseg": str_type,
+  "macaddr": str_type,
+  "path": str_type,
+  "pg_lsn": str_type,
+  "point": str_type,
+  "polygon": str_type,
+  "text": str_type,
+  "timetz": str_type,
+  "timestamptz": str_type,
+  "tsquery": str_type,
+  "tsvector": str_type,
+  "txid_snapshot": str_type,
+  "uuid": str_type,
+  "xml": str_type
+}
 
-unvariable_types_dict["bigint"] = num_type
-unvariable_types_dict["int8"] = num_type
-unvariable_types_dict["bigserial"] = num_type
-unvariable_types_dict["serial8"] = num_type
-unvariable_types_dict["double precision"] = num_type
-unvariable_types_dict["float8"] = num_type
-unvariable_types_dict["integer"] = num_type
-unvariable_types_dict["int"] = num_type
-unvariable_types_dict["int4"] = num_type
-unvariable_types_dict["money"] = num_type
-unvariable_types_dict["real"] = num_type
-unvariable_types_dict["float4"] = num_type
-unvariable_types_dict["smallint"] = num_type
-unvariable_types_dict["int2"] = num_type
-unvariable_types_dict["smallserial"] = num_type
-unvariable_types_dict["serial2"] = num_type
-unvariable_types_dict["serial"] = num_type
-unvariable_types_dict["serial4"] = num_type
 
-unvariable_types_dict["varbit"] = str_type
-unvariable_types_dict["box"] = str_type
-unvariable_types_dict["bytea"] = str_type
-unvariable_types_dict["cidr"] = str_type
-unvariable_types_dict["circle"] = str_type
-unvariable_types_dict["date"] = str_type
-unvariable_types_dict["inet"] = str_type
-unvariable_types_dict["json"] = str_type
-unvariable_types_dict["jsonb"] = str_type
-unvariable_types_dict["line"] = str_type
-unvariable_types_dict["lseg"] = str_type
-unvariable_types_dict["macaddr"] = str_type
-unvariable_types_dict["path"] = str_type
-unvariable_types_dict["pg_lsn"] = str_type
-unvariable_types_dict["point"] = str_type
-unvariable_types_dict["polygon"] = str_type
-unvariable_types_dict["text"] = str_type
-unvariable_types_dict["timetz"] = str_type
-unvariable_types_dict["timestamptz"] = str_type
-unvariable_types_dict["tsquery"] = str_type
-unvariable_types_dict["tsvector"] = str_type
-unvariable_types_dict["txid_snapshot"] = str_type
-unvariable_types_dict["uuid"] = str_type
-unvariable_types_dict["xml"] = str_type
-
-
-def __try_parse_variable_type(pg_type: str) -> str | None:
+def TryParsePostgresTypeToLogicaType(pg_type: str) -> str | None:
   if pg_type.startswith("bit"):
     return str_type
   elif pg_type.startswith("char"):
@@ -85,9 +84,9 @@ def __try_parse_variable_type(pg_type: str) -> str | None:
   return None
 
 
-def try_parse_postgresql_type(pg_type: str) -> str | None:
+def PostgresTypeToLogicaType(pg_type: str) -> str | None:
   type_in_lowercase = pg_type.lower()
-  if type_in_lowercase in unvariable_types_dict:
-    return unvariable_types_dict[type_in_lowercase]
+  if type_in_lowercase in POSTGRES_TYPE_TO_LOGICA_TYPE:
+    return POSTGRES_TYPE_TO_LOGICA_TYPE[type_in_lowercase]
   else:
-    return __try_parse_variable_type(type_in_lowercase)
+    return TryParsePostgresTypeToLogicaType(type_in_lowercase)
