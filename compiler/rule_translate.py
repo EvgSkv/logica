@@ -207,11 +207,18 @@ class RuleStructure(object):
     self.distinct_denoted = None
 
   def SelectAsRecord(self):
+    def StrIntKey(x):
+      k, v = x
+      if isinstance(k, str):
+        return (k, v)
+      if isinstance(k, int):
+        return ('%03d' % k, v)
+      assert False, 'x:%s' % str(x)    
     return {'record': {
       'field_value': [{
         'field': k,
         'value': {'expression': v}
-      } for k, v in sorted(self.select.items())]}}
+      } for k, v in sorted(self.select.items(), key=StrIntKey)]}}
 
   def OwnVarsVocabulary(self):
     """Returns a map: logica variable -> SQL expression with the value."""
@@ -729,7 +736,7 @@ def InlinePredicateValuesRecursively(r, names_allocator, conjuncts):
         'Got: %s' % str(r))
 
   for k in member_index:
-    if k != 'combine':
+    if k != 'combine' and k != 'type':
       if isinstance(r[k], dict) or isinstance(r[k], list):
         InlinePredicateValuesRecursively(r[k], names_allocator, conjuncts)
 

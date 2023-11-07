@@ -123,6 +123,14 @@ class TypeReference:
     assert isinstance(a.target, dict), a.target
     a.target = ClosedRecord(a.target)
 
+def StrIntKey(x):
+  k, v = x
+  if isinstance(k, str):
+    return (k, v)
+  if isinstance(k, int):
+    return ('%03d' % k, v)
+  assert False, 'x:%s' % str(x)
+  
 def RenderType(t):
   if isinstance(t, str):
     return t
@@ -130,7 +138,7 @@ def RenderType(t):
     return '[%s]' % RenderType(t[0])
   if isinstance(t, dict):
     return '{%s}' % ', '.join('%s: %s' % (k, RenderType(v))
-                              for k, v in sorted(t.items()))
+                              for k, v in sorted(t.items(), key=StrIntKey))
   if isinstance(t, tuple):
     return '(%s != %s)' % (RenderType(t[0]), RenderType(t[1]))
   assert False, type(t)

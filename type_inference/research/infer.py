@@ -704,7 +704,8 @@ class TypeCollector:
         else (x if isinstance(x, str) else 'col%d' % x))
       args = ', '.join(
         arg_name(f) + ' ' + self.PsqlType(v)
-        for f, v in sorted(self.type_map[t].items())
+        for f, v in sorted(self.type_map[t].items(),
+                           key=reference_algebra.StrIntKey)
       )
       self.psql_type_definition[t] = f'create type %s as (%s);' % (
         self.psql_struct_type_name[t], args)

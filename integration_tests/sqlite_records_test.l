@@ -22,5 +22,9 @@ D(..r) :- T(..r), r.a == 1;
 
 E(two_a: 2 * a) :- T(a:);
 
+F(a) = {a:, b: 2 * a} :- a = 5;
+
 @OrderBy(Test, "a", "ta");
-Test(a: r.a, b: r.b, r:, c:, two_a_record:, ta: two_a_record.two_a) :- D(a: c), T(..r), E(..two_a_record);
+Test(a: r.a, b: r.b, r:, c:, two_a_record:, ta: two_a_record.two_a,
+     f:) :-
+  D(a: c), T(..r), E(..two_a_record), F(..f);

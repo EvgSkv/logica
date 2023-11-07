@@ -299,7 +299,7 @@ class QL(object):
       return self.ConvertToSql({'record': {'field_value': [
         {'field': k,
           'value': MakeSubscript(variable['var_name'], k)}
-        for k in sorted(expression_type)
+        for k in sorted(expression_type, key=StrIntKey)
       ]}})
     return expr    
 
@@ -350,7 +350,8 @@ class QL(object):
       assert record_type, json.dumps(record, indent=' ')
       args = ', '.join(
         self.ConvertToSql(f_v['value']['expression'])
-        for f_v in sorted(record['field_value'], key=lambda x: x['field']))
+        for f_v in sorted(record['field_value'],
+                          key=lambda x: StrIntKey(x['field'])))
       return 'ROW(%s)::%s' % (args, record_type)
     return 'STRUCT(%s)' % arguments_str
 
@@ -643,3 +644,10 @@ class QL(object):
     assert False, (
         'Logica bug: expression %s failed to compile for unknown reason.' %
         str(expression))
+
+def StrIntKey(k):
+  if isinstance(k, str):
+    return k
+  if isinstance(k, int):
+    return '%03d' % k
+  assert False, 'x:%s' % str(k)  
