@@ -149,6 +149,7 @@ class PostgreSQL(Dialect):
   def BuiltInFunctions(self):
     return {
         'Range': '(SELECT ARRAY_AGG(x) FROM GENERATE_SERIES(0, {0} - 1) as x)',
+        'RangeOf' : '(SELECT ARRAY_AGG(x) FROM GENERATE_SERIES(0, ARRAY_LENGTH({0}, 1) - 1) as x)',
         'ToString': 'CAST(%s AS TEXT)',
         'ToInt64': 'CAST(%s AS BIGINT)',
         'Element': '({0})[{1} + 1]',
