@@ -57,9 +57,6 @@ class QL(object):
       'DateAddDay': 'DATE_ADD({0}, INTERVAL {1} DAY)',
       'DateDiffDay': 'DATE_DIFF({0}, {1}, DAY)',
       'Element': '{0}[OFFSET({1})]',
-      'Enumerate': ('ARRAY(SELECT STRUCT('
-                    'ROW_NUMBER() OVER () AS n, x AS element) '
-                    'FROM UNNEST(%s) as x)'),
       'IsNull': '(%s IS NULL)',
       'Join': 'ARRAY_TO_STRING(%s)',
       'Like': '({0} LIKE {1})',
