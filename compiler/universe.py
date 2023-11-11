@@ -1180,7 +1180,7 @@ def RecursionError():
   return color.Format(
       'Recursion in this rule is too deep and running over Python '
       'defualt recursion limit. If this is intentional use '
-       '{warning}sys.setrecursionlimit(None){end} command in your '
+       '{warning}sys.setrecursionlimit(10000){end} command in your '
        'notebook, or script.')
 
 
