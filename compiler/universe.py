@@ -1178,10 +1178,10 @@ def InjectStructure(target, source):
 
 def RecursionError():
   return color.Format(
-      'Recursion in this rule is too deep and running over Python '
-      'defualt recursion limit. If this is intentional use '
-       '{warning}sys.setrecursionlimit(10000){end} command in your '
-       'notebook, or script.')
+      'Recursion in this rule is {warning}too deep{end}. It is running '
+      'over Python defualt recursion limit. If this is intentional use '
+      '{warning}sys.setrecursionlimit(10000){end} command in your '
+      'notebook, or script.')
 
 
 def RaiseCompilerError(message, context):
