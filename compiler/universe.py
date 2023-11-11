@@ -1178,9 +1178,10 @@ def InjectStructure(target, source):
 
 def RecursionError():
   return color.Format(
-      'The rule appears to use recursion. '
-      '{warning}Recursion{end} is neither supported by '
-      'Logica nor by StandardSQL.')
+      'Recursion in this rule is too deep and running over Python '
+      'defualt recursion limit. If this is intentional use '
+       '{warning}sys.setrecursionlimit(None){end} command in your '
+       'notebook, or script.')
 
 
 def RaiseCompilerError(message, context):
