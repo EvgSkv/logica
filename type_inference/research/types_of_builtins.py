@@ -84,6 +84,10 @@ def TypesOfBultins():
             0: e,
             'logica_value': list_of_e
         },
+        'Set': {
+            0: e,
+            'logica_value': list_of_e 
+        },
         '->': {
            'left': x,
            'right': y,
