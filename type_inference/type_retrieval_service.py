@@ -60,6 +60,7 @@ class TypeRetrievalService:
 
   def RetrieveTypes(self, filename='default.l'):
     filename = filename.replace('.l', '_schema.l')
+
     with psycopg2.connect(self.connection_string) as conn:
       with conn.cursor() as cursor:
         # for each given table this SQL query returns json object
@@ -68,7 +69,7 @@ class TypeRetrievalService:
 SELECT table_name, jsonb_object_agg(column_name, udt_name)
 FROM information_schema.columns
 GROUP BY table_name
-HAVING table_name IN %s;''', (self.table_names.values(),))
+HAVING table_name IN %s;''', (tuple(self.table_names.values()),))
         columns = {table: columns for table, columns in cursor.fetchall()}
 
       resulting_rule_lines = []
@@ -82,7 +83,7 @@ HAVING table_name IN %s;''', (self.table_names.values(),))
 
         var_name = rule['head']['record']['field_value'][0]['value']['expression']['variable']['var_name']
         fields_line = ', '.join(fields)
-        resulting_rule_lines.append('%s ~ {%s};\n' % (var_name, fields_line))
+        resulting_rule_lines.append('  %s ~ {%s};\n' % (var_name, fields_line))
 
       with open(filename, 'w') as file:
         file.writelines('\n'.join(resulting_rule_lines))

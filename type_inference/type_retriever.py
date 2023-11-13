@@ -56,13 +56,6 @@ class TypeRetriever:
     if udt_type in self.name_to_type_cache:
       return self.name_to_type_cache[udt_type]
 
-    if udt_type.startswith('_'):
-      single_value_type = self.UnpackTypeByCachesOnly(udt_type[1:])
-
-      if single_value_type:
-        self.name_to_type_cache[udt_type] = f'[{single_value_type}]'
-        return self.name_to_type_cache[udt_type]
-
     return None
 
   def UnpackType(self, udt_type: str, conn) -> str:
@@ -70,44 +63,52 @@ class TypeRetriever:
 
     if result:
       return result
+
+    if udt_type.startswith('_'):
+      single_value_type = self.UnpackType(udt_type[1:], conn)
+      self.name_to_type_cache[udt_type] = f'[{single_value_type}]'
+      return self.name_to_type_cache[udt_type]
     
     with conn.cursor() as cur:
       # this SQL query returns all nested types used in definition of given udt_type
       cur.execute('''
 WITH RECURSIVE R AS (SELECT pg_attribute.attname AS field_name,
                             child_type.typname   AS field_type,
-                            '%s'::name           AS parent_type
+                            parent_type.typname  AS parent_type
                      FROM pg_type AS parent_type
                               JOIN pg_attribute ON pg_attribute.attrelid = parent_type.typrelid
                               JOIN pg_type AS child_type ON child_type.oid = pg_attribute.atttypid
-                     WHERE parent_type.typname = '%s'
+                     WHERE parent_type.typname IN %s
 
                      UNION
 
-                     SELECT pg_attribute.attname AS field_name,
-                            child_type.typname   AS field_type,
-                            R.field_type         AS parent_type
+                     SELECT pg_attribute.attname                AS field_name,
+                            child_type.typname                  AS field_type,
+                            trim(leading '_' from R.field_type) AS parent_type
                      FROM pg_type AS parent_type
+                              JOIN R ON parent_type.typname = trim(leading '_' from R.field_type)
                               JOIN pg_attribute ON pg_attribute.attrelid = parent_type.typrelid
-                              JOIN pg_type AS child_type ON child_type.oid = pg_attribute.atttypid
-                              JOIN R ON parent_type.typname = trim(leading '_' from R.field_type))
+                              JOIN pg_type AS child_type ON child_type.oid = pg_attribute.atttypid)
 SELECT parent_type, jsonb_object_agg(field_name, field_type)
 FROM R
-GROUP BY parent_type;''', (udt_type,))
-      
+GROUP BY parent_type;''', ((udt_type,),))
+
       new_types = {type_name: fields for type_name, fields in cur.fetchall()}
-      self.AdjustNestedTypes(new_types)
+      print(udt_type)
+      print(new_types)
+      print()
+      self.AdjustNestedTypes(new_types, conn)
 
     return self.name_to_type_cache[udt_type]
 
-  def AdjustNestedTypes(self, new_types: Dict[str, Dict[str, str]]):
+  def AdjustNestedTypes(self, new_types: Dict[str, Dict[str, str]], conn):
     while new_types:
       keys_to_delete = []
 
       for type_name, fields in new_types.items():
-        if all(type not in new_types for type in fields.values()):
-          fields = (f'{field_name}: {self.UnpackTypeByCachesOnly(field_type)}' for field_name, field_type in fields.items())
-          self.name_to_type_cache[type_name] = ', '.join(fields)
+        if all(type.lstrip('_') not in new_types for type in fields.values()):
+          fields = (f'{field_name}: {self.UnpackType(field_type, conn)}' for field_name, field_type in fields.items())
+          self.name_to_type_cache[type_name] = f'{{{", ".join(fields)}}}'
           keys_to_delete.append(type_name)
 
       for key_to_delete in keys_to_delete:
