@@ -48,7 +48,7 @@ if __name__ == '__main__' and not __package__:
   from compiler import universe
   from parser_py import parse
   from type_inference.research import infer
-  from type_inference.type_retrieval_service import TypeRetrievalService
+  from type_inference import type_retrieval_service
 else:
   from .common import color
   from .common import sqlite3_logica
@@ -57,7 +57,7 @@ else:
   from .compiler import universe
   from .parser_py import parse
   from .type_inference.research import infer
-  from .type_inference.type_retrieval_service import TypeRetrievalService
+  from .type_inference import type_retrieval_service
 
 
 def ReadUserFlags(rules, argv):
@@ -202,8 +202,9 @@ def main(argv):
     return 0
 
   predicates_list = predicates.split(',')
+
   if command == 'build_schema':
-    TypeRetrievalService(parsed_rules, predicates_list).RetrieveTypes(filename)
+    type_retrieval_service.TypeRetrievalService(parsed_rules, predicates_list).RetrieveTypes(filename)
     return 0
 
   user_flags = ReadUserFlags(parsed_rules, argv[4:])

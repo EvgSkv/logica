@@ -16,8 +16,9 @@
 
 from typing import Dict
 from type_inference.type_retrieval_exception import TypeRetrievalException
-from type_inference.built_in_type_retriever import BuiltInTypeRetriever
+from type_inference.type_retriever import TypeRetriever
 import psycopg2
+
 
 def ValidateRuleAndGetTableName(rule: dict) -> str:
   rule_text = rule['full_text']
@@ -51,8 +52,8 @@ class TypeRetrievalService:
     self.parsed_rules = [r for r in parsed_rules if r['head']['predicate_name'] in predicate_names_as_set]
     self.connection_string = connection_string
     self.table_names = self.ValidateParsedRulesAndGetTableNames()
-    self.built_inTypes_retriever = BuiltInTypeRetriever()
-    self.built_inTypes_retriever.InitBuiltInTypes(self.connection_string)
+    self.type_retriever = TypeRetriever()
+    self.type_retriever.InitBuiltInTypes(self.connection_string)
 
   def ValidateParsedRulesAndGetTableNames(self) -> Dict[str, str]:
     return {rule['head']['predicate_name']: ValidateRuleAndGetTableName(rule) for rule in self.parsed_rules}
@@ -70,18 +71,18 @@ GROUP BY table_name
 HAVING table_name IN %s;''', (self.table_names.values(),))
         columns = {table: columns for table, columns in cursor.fetchall()}
 
-      result = []
+      resulting_rule_lines = []
 
       for rule in self.parsed_rules:
-        result.append(f'{rule["full_text"]},')
-        local = []
+        resulting_rule_lines.append(f'{rule["full_text"]},')
+        fields = []
 
         for column, udt_type in sorted(columns[self.table_names[rule['head']['predicate_name']]].items(), key=lambda t: t[0]):
-          local.append(f'{column}: {UnpackType(udt_type, conn)}')
+          fields.append(f'{column}: {self.type_retriever.UnpackType(udt_type, conn)}')
 
         var_name = rule['head']['record']['field_value'][0]['value']['expression']['variable']['var_name']
-        fields = ", ".join(local)
-        result.append('%s ~ {%s};\n' % (var_name, fields))
+        fields_line = ', '.join(fields)
+        resulting_rule_lines.append('%s ~ {%s};\n' % (var_name, fields_line))
 
-      with open(filename, 'w') as writefile:
-        writefile.writelines('\n'.join(result))
+      with open(filename, 'w') as file:
+        file.writelines('\n'.join(resulting_rule_lines))
