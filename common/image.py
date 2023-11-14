@@ -37,9 +37,10 @@ def Animate(spacetime,
             min_shadow=0.1,
             gif_file='animation.gif',
             should_display=True,
-            fps=10):
+            fps=10,
+            figsize=None):
   """Animating a dataframe."""
-  fig, ax = pyplot.subplots()
+  fig, ax = pyplot.subplots(figsize=figsize)
   if field_width is None:
     field_width = max(spacetime[column_x]) + 1
   if field_height is None:
@@ -88,7 +89,6 @@ def ShowImage(img,
               vmin=0,
               vmax=None):
   """Showing dataframe as an image."""
-  pyplot.figure()
   if column_v is None or (column_v == 'logica_value' and
                           column_v not in img):
     if column_v is None:
