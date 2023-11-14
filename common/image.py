@@ -49,6 +49,8 @@ def Animate(spacetime,
   if column_v is None:
     column_v = '*magical_indicator_column*'
     spacetime[column_v] = 1
+  if column_v == 'logica_value' and 'logica_value' not in spacetime:
+    spacetime['logica_value'] = 1
 
   if vmin is None:
     vmin = min(spacetime[column_v])
