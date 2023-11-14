@@ -143,7 +143,7 @@ def TypesOfBultins():
         },
         'Max': {
            0: x,
-           'logica_value': y
+           'logica_value': x
         },
         'Array': {
            0: reference_algebra.ClosedRecord({'arg': x, 'value': e}),
