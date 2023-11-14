@@ -50,6 +50,15 @@ class TypeRetriever:
         self.built_in_types.update((t[0] for t in cur.fetchall()))
 
   def UnpackTypeByCachesOnly(self, udt_type: str) -> str | None:
+    if udt_type[0] == '_':
+      single_value_type = self.UnpackTypeByCachesOnly(udt_type[1:])
+
+      if not single_value_type:
+        return None
+
+      self.name_to_type_cache[udt_type] = f'[{self.UnpackTypeByCachesOnly(udt_type[1:])}]'
+      return self.name_to_type_cache[udt_type]
+
     if udt_type in self.built_in_types:
       return PostgresTypeToLogicaType(udt_type)
 
@@ -60,12 +69,12 @@ class TypeRetriever:
 
   def UnpackTypes(self, types: [str], conn) -> Dict[str, str]:
     result = {type: self.UnpackTypeByCachesOnly(type) for type in types}
-    not_cached_types = [udt_type.ltrim('_') for udt_type, type in result.items() if not type]
+    not_cached_types = [udt_type.lstrip('_') for udt_type, type in result.items() if not type]
     self.PopulateCacheByTypes(not_cached_types, conn)
 
     for udt_type, type in result.items():
       if not type:
-        result[udt_type] = self.name_to_type_cache[udt_type]    
+        result[udt_type] = self.UnpackTypeByCachesOnly(udt_type)
 
     return result
   
@@ -106,7 +115,7 @@ GROUP BY parent_type;''', (tuple(types),))
 
       for type_name, fields in new_types.items():
         if all(type.lstrip('_') not in new_types for type in fields.values()):
-          fields = (f'{field_name}: {self.UnpackType(field_type, conn)}' for field_name, field_type in fields.items())
+          fields = (f'{field_name}: {self.UnpackTypeByCachesOnly(field_type)}' for field_name, field_type in fields.items())
           self.name_to_type_cache[type_name] = f'{{{", ".join(fields)}}}'
           keys_to_delete.append(type_name)
 
