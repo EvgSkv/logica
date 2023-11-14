@@ -65,7 +65,8 @@ def Animate(sacetime,
       decay *= shadow_factor
       i += 1
     img.set_data(r.T)
-  ani = animation.FuncAnimation(fig, Update, frames=range(max(sacetime['col2'])))
+  ani = animation.FuncAnimation(
+    fig, Update, frames=range(max(sacetime[column_t])))
   ani.save(gif_file, writer='pillow', fps=fps)
   if should_display:
     IPython.display.display(IPython.display.Image(filename=gif_file))
