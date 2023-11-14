@@ -58,17 +58,21 @@ class TypeRetriever:
 
     return None
 
-  def UnpackType(self, udt_type: str, conn) -> str:
-    result = self.UnpackTypeByCachesOnly(udt_type)
+  def UnpackTypes(self, types: [str], conn) -> Dict[str, str]:
+    result = {type: self.UnpackTypeByCachesOnly(type) for type in types}
+    not_cached_types = [udt_type.ltrim('_') for udt_type, type in result.items() if not type]
+    self.PopulateCacheByTypes(not_cached_types, conn)
 
-    if result:
-      return result
+    for udt_type, type in result.items():
+      if not type:
+        result[udt_type] = self.name_to_type_cache[udt_type]    
 
-    if udt_type.startswith('_'):
-      single_value_type = self.UnpackType(udt_type[1:], conn)
-      self.name_to_type_cache[udt_type] = f'[{single_value_type}]'
-      return self.name_to_type_cache[udt_type]
-    
+    return result
+  
+  def PopulateCacheByTypes(self, types: [str], conn):
+    if not types:
+      return
+
     with conn.cursor() as cur:
       # this SQL query returns all nested types used in definition of given udt_type
       cur.execute('''
@@ -91,15 +95,10 @@ WITH RECURSIVE R AS (SELECT pg_attribute.attname AS field_name,
                               JOIN pg_type AS child_type ON child_type.oid = pg_attribute.atttypid)
 SELECT parent_type, jsonb_object_agg(field_name, field_type)
 FROM R
-GROUP BY parent_type;''', ((udt_type,),))
+GROUP BY parent_type;''', (tuple(types),))
 
       new_types = {type_name: fields for type_name, fields in cur.fetchall()}
-      print(udt_type)
-      print(new_types)
-      print()
       self.AdjustNestedTypes(new_types, conn)
-
-    return self.name_to_type_cache[udt_type]
 
   def AdjustNestedTypes(self, new_types: Dict[str, Dict[str, str]], conn):
     while new_types:

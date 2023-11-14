@@ -76,10 +76,9 @@ HAVING table_name IN %s;''', (tuple(self.table_names.values()),))
 
       for rule in self.parsed_rules:
         resulting_rule_lines.append(f'{rule["full_text"]},')
-        fields = []
-
-        for column, udt_type in sorted(columns[self.table_names[rule['head']['predicate_name']]].items(), key=lambda t: t[0]):
-          fields.append(f'{column}: {self.type_retriever.UnpackType(udt_type, conn)}')
+        table_columns = columns[self.table_names[rule['head']['predicate_name']]]
+        table_types = self.type_retriever.UnpackTypes(table_columns.values(), conn)
+        fields = (f'{column}: {table_types[udt_type]}' for column, udt_type in sorted(table_columns.items()))
 
         var_name = rule['head']['record']['field_value'][0]['value']['expression']['variable']['var_name']
         fields_line = ', '.join(fields)
