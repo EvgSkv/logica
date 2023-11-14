@@ -38,7 +38,8 @@ def Animate(spacetime,
             gif_file='animation.gif',
             should_display=True,
             fps=10,
-            figsize=None):
+            figsize=None,
+            show_progress=True):
   """Animating a dataframe."""
   fig, ax = pyplot.subplots(figsize=figsize)
   if field_width is None:
@@ -60,7 +61,13 @@ def Animate(spacetime,
   r = numpy.zeros(field_shape)
   img = pyplot.imshow(r.T, cmap=cmap, vmin=vmin, vmax=vmax)
 
+  num_frames = max(spacetime[column_t])
   def Update(frame):
+    if show_progress:
+      total = 40
+      done = frame * 40 // (num_frames - 1)
+      print('\rAnimating: ' + done * '█' + (total - done) * '▒',
+            end='', flush=True)
     r = numpy.zeros(field_shape)
     decay = 1
     i = 0
@@ -72,8 +79,10 @@ def Animate(spacetime,
       decay *= shadow_factor
       i += 1
     img.set_data(r.T)
-  ani = animation.FuncAnimation(
-    fig, Update, frames=range(max(spacetime[column_t])))
+  ani = animation.FuncAnimation(fig, Update, frames=range(num_frames))
+  if show_progress:
+    print('')
+
   ani.save(gif_file, writer='pillow', fps=fps)
   if should_display:
     IPython.display.display(IPython.display.Image(filename=gif_file))
