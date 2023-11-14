@@ -23,7 +23,7 @@ from matplotlib import animation
 import IPython
 
 
-def Animate(sacetime,
+def Animate(spacetime,
             column_x='col0',
             column_y='col1',
             column_t='col2',
@@ -41,15 +41,19 @@ def Animate(sacetime,
   """Animating a dataframe."""
   fig, ax = pyplot.subplots()
   if field_width is None:
-    field_width = max(sacetime[column_x]) + 1
+    field_width = max(spacetime[column_x]) + 1
   if field_height is None:
-    field_height = max(sacetime[column_y]) + 1  
+    field_height = max(spacetime[column_y]) + 1  
   field_shape = (field_width, field_height)
 
+  if column_v is None:
+    column_v = '*magical_indicator_column*'
+    spacetime[column_v] = 1
+
   if vmin is None:
-    vmin = min(sacetime[column_v])
+    vmin = min(spacetime[column_v])
   if vmax is None:
-    vmax = max(sacetime[column_v])
+    vmax = max(spacetime[column_v])
   r = numpy.zeros(field_shape)
   img = pyplot.imshow(r.T, cmap=cmap, vmin=vmin, vmax=vmax)
 
@@ -59,14 +63,14 @@ def Animate(sacetime,
     i = 0
     while decay > min_shadow:
       m = numpy.zeros(field_shape)
-      df = sacetime[sacetime[column_t] == (frame - i)]
+      df = spacetime[spacetime[column_t] == (frame - i)]
       m[df[column_x], df[column_y]] = df[column_v] * decay
       r = numpy.maximum(r, m)
       decay *= shadow_factor
       i += 1
     img.set_data(r.T)
   ani = animation.FuncAnimation(
-    fig, Update, frames=range(max(sacetime[column_t])))
+    fig, Update, frames=range(max(spacetime[column_t])))
   ani.save(gif_file, writer='pillow', fps=fps)
   if should_display:
     IPython.display.display(IPython.display.Image(filename=gif_file))
@@ -83,7 +87,10 @@ def ShowImage(img,
               vmax=None):
   """Showing dataframe as an image."""
   pyplot.figure()
-  if column_v == 'logica_value' and column_v not in img:
+  if column_v is None or (column_v == 'logica_value' and
+                          column_v not in img):
+    if column_v is None:
+      column_v = '*magical_indicator_column*'
     img[column_v] = numpy.zeros(len(img)) + 1
   if field_width is None:
     field_width = max(img[column_x]) + 1
