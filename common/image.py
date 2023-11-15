@@ -66,7 +66,7 @@ def Animate(spacetime,
     if show_progress:
       total = 40
       done = frame * 40 // (num_frames - 1)
-      print('\rAnimating: ' + done * '█' + (total - done) * '▒',
+      print('\rAnimating: ' + done * '▒' + (total - done) * '░',
             end='', flush=True)
     r = numpy.zeros(field_shape)
     decay = 1
