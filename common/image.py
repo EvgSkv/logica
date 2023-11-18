@@ -155,8 +155,8 @@ def Hexagonal(img,
 
   # Computing hexagon.
   π = 3.14159265
-  angles = np.arange(0, 2 * π, π / 3)
-  hex_delta = numpy.vstack([np.cos(angles), np.sin(angles)]).T
+  angles = numpy.arange(0, 2 * π, π / 3)
+  hex_delta = numpy.vstack([numpy.cos(angles), numpy.sin(angles)]).T
 
   def DrawOneHexagon(center, ax, color):
     hexagon = center + hex_delta
@@ -166,7 +166,7 @@ def Hexagonal(img,
   ax.set_facecolor('black')
 
   # Get coordinates of centers.
-  rows, cols = np.indices((field_width, field_height))
+  rows, cols = numpy.indices((field_width, field_height))
   rows = rows.flatten()
   cols = cols.flatten()
   xs = 1.5 * rows
