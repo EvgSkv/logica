@@ -21,6 +21,8 @@ from matplotlib import pyplot
 from matplotlib import animation
 
 import IPython
+from PIL import Image
+import glob
 
 
 def Animate(spacetime,
@@ -117,3 +119,76 @@ def ShowImage(img,
   r[img[column_x], img[column_y]] = img[column_v]
   pyplot.imshow(r.T, cmap=cmap, vmin=vmin, vmax=vmax)
 
+def Hexagonal(img,
+              column_x='col0',
+              column_y='col1',
+              column_v='logica_value',
+              field_width=None,
+              field_height=None,
+              cmap='hot',
+              vmin=0,
+              vmax=None,
+              figsize=None):
+  """Showing dataframe as an image."""
+  if column_v is None or (column_v == 'logica_value' and
+                          column_v not in img):
+    if column_v is None:
+      column_v = '*magical_indicator_column*'
+    img[column_v] = numpy.zeros(len(img)) + 1
+  if field_width is None:
+    field_width = max(img[column_x]) + 1
+  if field_height is None:
+    field_height = max(img[column_y]) + 1  
+  field_shape = (field_width, field_height)
+
+  if vmin is None:
+    vmin = min(img[column_v])
+  if vmax is None:
+    vmax = max(img[column_v])
+
+  hex_values = numpy.zeros(field_shape)
+  hex_values[img[column_x], img[column_y]] = (
+      img[column_v] - vmin) / (vmax - vmin)
+
+  cmap = pyplot.get_cmap('hot')
+  colors = cmap(hex_values)
+
+  # Computing hexagon.
+  π = 3.14159265
+  angles = np.arange(0, 2 * π, π / 3)
+  hex_delta = numpy.vstack([np.cos(angles), np.sin(angles)]).T
+
+  def DrawOneHexagon(center, ax, color):
+    hexagon = center + hex_delta
+    ax.fill(hexagon[:,0], hexagon[:,1], c=color, edgecolor=color)
+
+  fig, ax = pyplot.subplots(figsize=figsize, facecolor='black')
+  ax.set_facecolor('black')
+
+  # Get coordinates of centers.
+  rows, cols = np.indices((field_width, field_height))
+  rows = rows.flatten()
+  cols = cols.flatten()
+  xs = 1.5 * rows
+  ys = 3 ** 0.5 * (cols + 0.5 * (rows % 2))
+  centers = numpy.vstack([xs,
+                          ys]).T
+  
+  # Draw.
+  for center, color in zip(centers, colors.reshape(-1, colors.shape[-1])):
+    DrawOneHexagon(center, ax, color)
+  
+  # Prettify.
+  ax.set_aspect('equal')
+  pyplot.xticks([])
+  pyplot.yticks([])
+
+def AnimateFiles(images_glob,
+                 output_file,
+                 duration=100,
+                 and_back=False):
+  imgs = [Image.open(f) for f in sorted(glob.glob(images_glob))]
+  if and_back:
+    imgs += reversed(imgs)
+  imgs[0].save(fp=output_file, format='GIF', append_images=imgs[1:],
+               save_all=True, duration=duration, loop=0)
