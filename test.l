@@ -1,1 +1,0 @@
-Students(..r) :- logica_home.students(..r);

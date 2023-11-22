@@ -204,7 +204,8 @@ def main(argv):
   predicates_list = predicates.split(',')
 
   if command == 'build_schema':
-    type_retrieval_service.TypeRetrievalService(parsed_rules, predicates_list).RetrieveTypes(filename)
+    type_retrieval_service.PostgresqlTypeRetrievalService(
+      parsed_rules, predicates_list).RetrieveTypes(filename)
     return 0
 
   user_flags = ReadUserFlags(parsed_rules, argv[4:])

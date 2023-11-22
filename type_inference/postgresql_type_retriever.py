@@ -19,7 +19,8 @@ from type_inference.postgresql_type_parser import PostgresTypeToLogicaType
 import psycopg2
 
 
-class TypeRetriever:
+class PostgresqlTypeRetriever:
+  """The class is an entry point for retrieving types from the database."""
   def __init__(self):
     self.built_in_types = set()
     self.name_to_type_cache = dict()
@@ -68,6 +69,7 @@ class TypeRetriever:
     return None
 
   def UnpackTypes(self, types: [str], conn) -> Dict[str, str]:
+    """Decomposes the types to composition of the primitive ones."""
     result = {type: self.UnpackTypeByCachesOnly(type) for type in types}
     not_cached_types = [udt_type.lstrip('_') for udt_type, type in result.items() if not type]
     self.PopulateCacheByTypes(not_cached_types, conn)
