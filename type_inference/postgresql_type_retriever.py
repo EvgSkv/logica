@@ -20,7 +20,7 @@ import psycopg2
 
 
 class PostgresqlTypeRetriever:
-  """The class is an entry point for retrieving types from the database."""
+  """For all given types builds its string representation as composition of Logica's primitive types."""
   def __init__(self):
     self.built_in_types = set()
     self.name_to_type_cache = dict()

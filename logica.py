@@ -49,6 +49,7 @@ if __name__ == '__main__' and not __package__:
   from parser_py import parse
   from type_inference.research import infer
   from type_inference import type_retrieval_service
+  from type_inference import unsupported_engine_exception
 else:
   from .common import color
   from .common import sqlite3_logica
@@ -58,6 +59,7 @@ else:
   from .parser_py import parse
   from .type_inference.research import infer
   from .type_inference import type_retrieval_service
+  from .type_inference import unsupported_engine_exception
 
 
 def ReadUserFlags(rules, argv):
@@ -204,9 +206,14 @@ def main(argv):
   predicates_list = predicates.split(',')
 
   if command == 'build_schema':
-    type_retrieval_service.PostgresqlTypeRetrievalService(
-      parsed_rules, predicates_list).RetrieveTypes(filename)
-    return 0
+    logic_program = universe.LogicaProgram(parsed_rules)
+    engine = logic_program.annotations.Engine()
+    if engine == 'psql':
+      type_retrieval_service.PostgresqlTypeRetrievalService(
+        parsed_rules, predicates_list).RetrieveTypes(filename)
+      return 0
+    else:
+      raise unsupported_engine_exception.UnsupportedEngineException(engine)
 
   user_flags = ReadUserFlags(parsed_rules, argv[4:])
   for predicate in predicates_list:

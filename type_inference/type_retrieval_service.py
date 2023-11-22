@@ -15,7 +15,7 @@
 # limitations under the License.
 
 from typing import Dict
-from type_inference.type_retrieval_exception import BadSchemaException
+from type_inference.bad_schema_exception import BadSchemaException
 from type_inference.postgresql_type_retriever import PostgresqlTypeRetriever
 import psycopg2
 
