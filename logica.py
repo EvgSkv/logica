@@ -205,8 +205,10 @@ def main(argv):
 
   predicates_list = predicates.split(',')
 
+  user_flags = ReadUserFlags(parsed_rules, argv[4:])
+
   if command == 'build_schema':
-    logic_program = universe.LogicaProgram(parsed_rules)
+    logic_program = universe.LogicaProgram(parsed_rules, user_flags=user_flags)
     engine = logic_program.annotations.Engine()
     if engine == 'psql':
       type_retrieval_service.PostgresqlTypeRetrievalService(
@@ -215,7 +217,6 @@ def main(argv):
     else:
       raise unsupported_engine_exception.UnsupportedEngineException(engine)
 
-  user_flags = ReadUserFlags(parsed_rules, argv[4:])
   for predicate in predicates_list:
     try:
       logic_program = universe.LogicaProgram(
