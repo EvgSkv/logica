@@ -19,7 +19,8 @@ from type_inference.postgresql_type_parser import PostgresTypeToLogicaType
 import psycopg2
 
 
-class TypeRetriever:
+class PostgresqlTypeRetriever:
+  """For all given types builds its string representation as composition of Logica's primitive types."""
   def __init__(self):
     self.built_in_types = set()
     self.name_to_type_cache = dict()
@@ -49,34 +50,26 @@ class TypeRetriever:
     );''')
         self.built_in_types.update((t[0] for t in cur.fetchall()))
 
+  def UnpackNestedType(self, udt_type: str) -> str | None:
+    unnested_type = self.UnpackTypeByCachesOnly(udt_type[1:])
+
+    if not unnested_type:
+      return None
+
+    result_type = self.name_to_type_cache[udt_type] = f'[{unnested_type}]'
+    return result_type
+
   def UnpackTypeByCachesOnly(self, udt_type: str) -> str | None:
-    if udt_type[0] == '_':
-      single_value_type = self.UnpackTypeByCachesOnly(udt_type[1:])
+    if udt_type.startswith('_'):
+      return self.UnpackNestedType(udt_type)
 
-      if not single_value_type:
-        return None
-
-      self.name_to_type_cache[udt_type] = f'[{self.UnpackTypeByCachesOnly(udt_type[1:])}]'
-      return self.name_to_type_cache[udt_type]
-
-    if udt_type in self.built_in_types:
-      return PostgresTypeToLogicaType(udt_type)
-
-    if udt_type in self.name_to_type_cache:
-      return self.name_to_type_cache[udt_type]
-
-    return None
+    return PostgresTypeToLogicaType(udt_type) or self.name_to_type_cache.get(udt_type)
 
   def UnpackTypes(self, types: [str], conn) -> Dict[str, str]:
-    result = {type: self.UnpackTypeByCachesOnly(type) for type in types}
-    not_cached_types = [udt_type.lstrip('_') for udt_type, type in result.items() if not type]
+    """Decomposes the types to composition of the primitive ones."""
+    not_cached_types = [type.lstrip('_') for type in types if not self.UnpackTypeByCachesOnly(type)]
     self.PopulateCacheByTypes(not_cached_types, conn)
-
-    for udt_type, type in result.items():
-      if not type:
-        result[udt_type] = self.UnpackTypeByCachesOnly(udt_type)
-
-    return result
+    return {type: self.UnpackTypeByCachesOnly(type) for type in types}
   
   def PopulateCacheByTypes(self, types: [str], conn):
     if not types:
@@ -107,9 +100,9 @@ FROM R
 GROUP BY parent_type;''', (tuple(types),))
 
       new_types = {type_name: fields for type_name, fields in cur.fetchall()}
-      self.AdjustNestedTypes(new_types, conn)
+      self.AdjustNestedTypes(new_types)
 
-  def AdjustNestedTypes(self, new_types: Dict[str, Dict[str, str]], conn):
+  def AdjustNestedTypes(self, new_types: Dict[str, Dict[str, str]]):
     while new_types:
       keys_to_delete = []
 

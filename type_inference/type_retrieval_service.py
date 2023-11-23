@@ -15,8 +15,8 @@
 # limitations under the License.
 
 from typing import Dict
-from type_inference.type_retrieval_exception import TypeRetrievalException
-from type_inference.type_retriever import TypeRetriever
+from type_inference.bad_schema_exception import BadSchemaException
+from type_inference.postgresql_type_retriever import PostgresqlTypeRetriever
 import psycopg2
 
 
@@ -25,40 +25,41 @@ def ValidateRuleAndGetTableName(rule: dict) -> str:
   field_value = rule['head']['record']['field_value']
 
   if len(field_value) != 1 or field_value[0]['field'] != '*':
-    raise TypeRetrievalException(rule_text)
+    raise BadSchemaException(rule_text)
 
   conjuncts = rule['body']['conjunction']['conjunct']
 
   if len(conjuncts) != 1:
-    raise TypeRetrievalException(rule_text)
+    raise BadSchemaException(rule_text)
 
   conjunct = conjuncts[0]
 
   if 'predicate' not in conjunct:
-    raise TypeRetrievalException(rule_text)
+    raise BadSchemaException(rule_text)
 
   field_values = conjunct['predicate']['record']['field_value']
 
   if len(field_values) != 1 or field_values[0]['field'] != '*':
-    raise TypeRetrievalException(rule_text)
+    raise BadSchemaException(rule_text)
 
   return conjuncts[0]['predicate']['predicate_name'].split('.')[1]  # TODO: Validate schema of the called table.
 
 
-class TypeRetrievalService:
+class PostgresqlTypeRetrievalService:
+  """The class is an entry point for type retrieval using postgresql."""
   def __init__(self, parsed_rules, predicate_names,
                connection_string='dbname=logica user=logica password=logica host=127.0.0.1'):
     predicate_names_as_set = set(predicate_names)
     self.parsed_rules = [r for r in parsed_rules if r['head']['predicate_name'] in predicate_names_as_set]
     self.connection_string = connection_string
     self.table_names = self.ValidateParsedRulesAndGetTableNames()
-    self.type_retriever = TypeRetriever()
+    self.type_retriever = PostgresqlTypeRetriever()
     self.type_retriever.InitBuiltInTypes(self.connection_string)
 
   def ValidateParsedRulesAndGetTableNames(self) -> Dict[str, str]:
     return {rule['head']['predicate_name']: ValidateRuleAndGetTableName(rule) for rule in self.parsed_rules}
 
-  def RetrieveTypes(self, filename='default.l'):
+  def RetrieveTypes(self, filename):
     filename = filename.replace('.l', '_schema.l')
 
     with psycopg2.connect(self.connection_string) as conn:
