@@ -63,7 +63,7 @@ GROUP BY t.typname, n.nspname;''')
           if is_built_in:
             self.built_in_types.add(type)
           else:
-            self.user_defined_types[type] = {field['field_name']: field['field_type'] for field in fields}
+            self.user_defined_types[type] = {field['field_name']: field['field_type'] for field in fields} if fields else {}
 
   def UnpackTypeWithCaching(self, type: str) -> str:
     if type not in self.name_to_type_cache:
