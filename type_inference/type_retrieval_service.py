@@ -54,7 +54,7 @@ class PostgresqlTypeRetrievalService:
     self.connection_string = connection_string
     self.table_names = self.ValidateParsedRulesAndGetTableNames()
     self.type_retriever = PostgresqlTypeRetriever()
-    self.type_retriever.InitBuiltInTypes(self.connection_string)
+    self.type_retriever.ExtractTypeInfo(self.connection_string)
 
   def ValidateParsedRulesAndGetTableNames(self) -> Dict[str, str]:
     return {rule['head']['predicate_name']: ValidateRuleAndGetTableName(rule) for rule in self.parsed_rules}
@@ -78,8 +78,7 @@ HAVING table_name IN %s;''', (tuple(self.table_names.values()),))
       for rule in self.parsed_rules:
         resulting_rule_lines.append(f'{rule["full_text"]},')
         table_columns = columns[self.table_names[rule['head']['predicate_name']]]
-        table_types = self.type_retriever.UnpackTypes(table_columns.values(), conn)
-        fields = (f'{column}: {table_types[udt_type]}' for column, udt_type in sorted(table_columns.items()))
+        fields = (f'{column}: {self.type_retriever.UnpackTypeWithCaching(udt_type)}' for column, udt_type in sorted(table_columns.items()))
 
         var_name = rule['head']['record']['field_value'][0]['value']['expression']['variable']['var_name']
         fields_line = ', '.join(fields)
