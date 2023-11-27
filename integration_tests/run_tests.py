@@ -91,6 +91,7 @@ def RunAll(test_presto=False, test_trino=False):
   RunTest("sqlite_reachability")
   RunTest("sqlite_element_test")
 
+  RunTest("psql_argmax2_combine_test");
   RunTest("psql_game_test")
   RunTest("psql_explicit_typing_test")
   RunTest("psql_argmin_list_test")

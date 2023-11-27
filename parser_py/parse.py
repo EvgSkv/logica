@@ -576,14 +576,18 @@ def ParseLiteral(s):
     return {'the_predicate': v}
 
 
-def ParseInfix(s, operators=None):
+def ParseInfix(s, operators=None, disallow_operators=None):
   """Parses an infix operator expression."""
   operators = operators or [
       '||', '&&', '->', '==', '<=', '>=', '<', '>', '!=', '=', '~',
       ' in ', ' is not ', ' is ', '++?', '++', '+', '-', '*', '/', '%',
       '^', '!']
+  # We disallow ~ in expressions.
+  disallow_operators = disallow_operators or []
   unary_operators = ['-', '!']
   for op in operators:
+    if op in disallow_operators:
+      continue
     parts = SplitRaw(s, op)
     if len(parts) > 1:
       # Right is the rightmost operand and left are all the other operands.
@@ -750,7 +754,7 @@ def ActuallyParseExpression(s):
   v = ParseCall(s, is_aggregation_allowed=False)
   if v:
     return {'call': v}
-  v = ParseInfix(s)
+  v = ParseInfix(s, disallow_operators='~')
   if v:
     return {'call': v}
   v = ParseSubscript(s)
@@ -1154,8 +1158,10 @@ def ParseRule(s: HeritageAwareString) -> Dict:
               'distinct_denoted': True}
   if len(parts) == 2:
     body = parts[1]
-    result['body'] = {'conjunction': ParseConjunction(body,
-                                                      allow_singleton=True)}
+    result['body'] = ParseProposition(body)
+    # Old style, which has incorrect priority of logical operands:
+    # result['body'] = {'conjunction': ParseConjunction(body,
+    #                                                   allow_singleton=True)}
   result['full_text'] = s  # For error messages.
   return result
 
@@ -1451,7 +1457,7 @@ class DisjunctiveNormalForm(object):
     result = []
     for conjuncts in dnf:
       new_rule = copy.deepcopy(rule)
-      new_rule['body']['conjunction']['conjunct'] = copy.deepcopy(conjuncts)
+      new_rule['body'] = {'conjunction': {'conjunct': copy.deepcopy(conjuncts)}}
       result.append(new_rule)
     return result
 

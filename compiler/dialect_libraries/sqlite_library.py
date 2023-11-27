@@ -17,7 +17,6 @@
 library = """
 ->(left:, right:) = {arg: left, value: right};
 `=`(left:, right:) = right :- left == right;
-`~`(left:, right:);  # No action. Compiler unifies types.
 
 Arrow(left, right) = arrow :-
   left == arrow.arg,

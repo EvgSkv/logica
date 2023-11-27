@@ -95,6 +95,10 @@ def ExpressionsIterator(node):
     if f in node:
       yield node[f]
   
+  # For inference in structures.
+  if 'constraints' in node:
+    for x in node['constraints']:
+      yield x
   if 'record' in node and 'field_value' not in node['record']:
   # if 'record' in node and 'expression_heritage' in node:
     yield node['record']
@@ -695,10 +699,13 @@ class TypeCollector:
 
   def BuildPsqlDefinitions(self):
     for t in self.psql_struct_type_name:
-      arg_name = lambda x: x if isinstance(x, str) else 'col%d' % x
+      arg_name = lambda x: (
+        '"cast"' if x == 'cast'  # Escaping keyword.
+        else (x if isinstance(x, str) else 'col%d' % x))
       args = ', '.join(
         arg_name(f) + ' ' + self.PsqlType(v)
-        for f, v in sorted(self.type_map[t].items())
+        for f, v in sorted(self.type_map[t].items(),
+                           key=reference_algebra.StrIntKey)
       )
       self.psql_type_definition[t] = f'create type %s as (%s);' % (
         self.psql_struct_type_name[t], args)

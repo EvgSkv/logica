@@ -45,7 +45,8 @@ def TypesOfBultins():
         },
         '~': {
           'left': x,
-          'right': x 
+          'right': x,
+          'logica_value': 'Bool'
         },
         '++': {
           'left': 'Str',
@@ -82,6 +83,10 @@ def TypesOfBultins():
         'List': {
             0: e,
             'logica_value': list_of_e
+        },
+        'Set': {
+            0: e,
+            'logica_value': list_of_e 
         },
         '->': {
            'left': x,
@@ -128,13 +133,21 @@ def TypesOfBultins():
            0: x,
            'logica_value': x
         },
+        'Sum': {
+           0: 'Num',
+           'logica_value': 'Num'
+        },
+        'Avg': {
+           0: 'Num',
+           'logica_value': 'Num'
+        },
         'Max': {
            0: x,
-           'logica_value': y
+           'logica_value': x
         },
         'Array': {
            0: reference_algebra.ClosedRecord({'arg': x, 'value': e}),
-           'logica_value': e
+           'logica_value': [e]
         },
         'ValueOfUnnested': {
            0: x,
@@ -206,6 +219,11 @@ def TypesOfBultins():
            0: list_of_e,
            1: 'Num',
            'logica_value': e
+        },
+        'MagicalEntangle': {
+           0: x,
+           1: 'Any',
+           'logica_value': x
         }
     }
     types_of_predicate['<'] = types_of_predicate['<='] = types_of_predicate['>='] = types_of_predicate['>']

@@ -20,12 +20,16 @@ T(1);
 T(2);
 T(3);
 T(4);
+P(1);
+P(2);
 
 @With(R);
 R(x, l) :- T(x), l == (if x == 2 || x == 3 then [x] else []);
 
 P1(x, y) :- T(x), y += x;
 P2(x, col1? List= y) distinct :- T(x), y in [1,2,3,4], R(x, l), ~(y in l);
+P3(x, y) :- T(x), y = !~ P(x);
 
 Test("1", x, y) :- P1(x, y);
 Test("2", x, y) :- P2(x, y);
+Test("3", x, y) :- P3(x, y);

@@ -526,6 +526,7 @@ class LogicaProgram(object):
       predicate_name = rule['head']['predicate_name']
       self.defined_predicates.add(predicate_name)
       self.rules.append((predicate_name, rule))
+    self.CheckDistinctConsistency()
     # We need to recompute annotations, because 'Make' created more rules and
     # annotations.
     self.annotations = Annotations(extended_rules, self.user_flags)
@@ -543,6 +544,21 @@ class LogicaProgram(object):
     # Function compilation may have added irrelevant defines:
     self.execution = None
 
+  def CheckDistinctConsistency(self):
+    is_distinct = {}
+    for p, r in self.rules:
+      distinct_before = is_distinct.get(p, None)
+      distinct_here = 'distinct_denoted' in r
+      if distinct_before is None:
+        is_distinct[p] = distinct_here
+      else:
+        if distinct_before != distinct_here:
+          raise rule_translate.RuleCompileException(
+              color.Format(
+                  'Either all rules of a predicate must be distinct denoted '
+                  'or none. Predicate {warning}{p}{end} violates it.',
+                  dict(p=p)), r['full_text'])
+  
   def UnfoldRecursion(self, rules):
     annotations = Annotations(rules, {})
     f = functors.Functors(rules)
@@ -631,14 +647,12 @@ class LogicaProgram(object):
     if len(rules) == 1:
       [rule] = rules
       result = (
-          self.SingleRuleSql(rule, allocator, external_vocabulary) +
+          self.SingleRuleSql(rule, allocator, external_vocabulary,
+                             must_not_be_nil=True) +
           self.annotations.OrderByClause(name) +
           self.annotations.LimitClause(name))
-      if result.startswith('/* nil */'):
-        raise rule_translate.RuleCompileException(
-          'Single rule is nil for predicate %s. '
-          'Recursion unfolding failed.' % color.Warn(name),
-          rule['full_text'])
+      # Exception should be raised by SingleRuleSql.
+      assert not result.startswith('/* nil */')
       return result
     elif len(rules) > 1:
       rules_sql = []
@@ -970,7 +984,7 @@ class LogicaProgram(object):
 
   def SingleRuleSql(self, rule,
                     allocator=None, external_vocabulary=None,
-                    is_combine=False):
+                    is_combine=False, must_not_be_nil=False):
     """Producing SQL for a given rule in the program."""
     allocator = allocator or self.NewNamesAllocator()
     r = rule
@@ -992,6 +1006,18 @@ class LogicaProgram(object):
     self.required_type_definitions.update(type_inference.collector.definitions)
     self.typing_preamble = infer.BuildPreamble(self.required_type_definitions)
 
+    if 'nil' in s.tables.values():
+      if must_not_be_nil:
+        raise rule_translate.RuleCompileException(
+          'Single rule is nil for predicate %s. '
+          'Recursion unfolding failed.' % color.Warn(s.this_predicate_name),
+          rule['full_text'])
+      else:
+        # Calling compilation could result in type error, as
+        # types coming from nil are not known.
+        # Return a rule marked for deletion.
+        return '/* nil */ SELECT 42'
+
     try:
       sql = s.AsSql(self.MakeSubqueryTranslator(allocator), self.flag_values)
     except RuntimeError as runtime_error:
@@ -1001,6 +1027,7 @@ class LogicaProgram(object):
             s.full_rule_text)
       else:
         raise runtime_error
+    # TODO: Should this be removed?
     if 'nil' in s.tables.values():
       # Mark rule for deletion.
       sql = '/* nil */' + sql
@@ -1151,9 +1178,10 @@ def InjectStructure(target, source):
 
 def RecursionError():
   return color.Format(
-      'The rule appears to use recursion. '
-      '{warning}Recursion{end} is neither supported by '
-      'Logica nor by StandardSQL.')
+      'Recursion in this rule is {warning}too deep{end}. It is running '
+      'over Python defualt recursion limit. If this is intentional use '
+      '{warning}sys.setrecursionlimit(10000){end} command in your '
+      'notebook, or script.')
 
 
 def RaiseCompilerError(message, context):

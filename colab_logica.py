@@ -213,6 +213,12 @@ class PostgresRunner(object):
     global DB_CONNECTION
     global DB_ENGINE
     if not DB_CONNECTION:
+      try:
+        ConnectToLocalPostgres()  
+      except:
+        pass
+
+    if not DB_CONNECTION:
       print("Assuming this is running on Google CoLab in a temporary")
       print("environment.")
       print("Would you like to install and run postgres?")
@@ -337,6 +343,19 @@ def Logica(line, cell, run_query):
           print('The query was not run.')
       print(' ') # To activate the tabbar.
 
+
+def ConnectToLocalPostgres():
+  import psycopg2
+  connection = psycopg2.connect(host='localhost', database='logica', user='logica', password='logica')
+  connection.autocommit = True
+
+  print('Connected.')
+  global DEFAULT_ENGINE
+  global DB_CONNECTION
+  DEFAULT_ENGINE = 'psql'
+  DB_CONNECTION = connection
+
+
 def PostgresJumpStart():
   # Install postgresql server.
   print("Installing and configuring an empty PostgreSQL database.")
@@ -377,12 +396,4 @@ colab_logica.SetDbConnection(connection)
     return
   print('Installation succeeded. Connecting...')
   # Connect to the database.
-  import psycopg2
-  connection = psycopg2.connect(host='localhost', database='logica', user='logica', password='logica')
-  connection.autocommit = True
-
-  print('Connected.')
-  global DEFAULT_ENGINE
-  global DB_CONNECTION
-  DEFAULT_ENGINE = 'psql'
-  DB_CONNECTION = connection
+  ConnectToLocalPostgres()

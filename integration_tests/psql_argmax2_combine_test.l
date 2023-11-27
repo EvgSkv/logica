@@ -13,18 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-@Engine("sqlite", type_checking: true);
+@Engine("psql");
+ArgMax2(x) = ArgMaxK(x, 2);
+Test(l) :- l ArgMax2= (a -> a :- a in [b]), b in [1,2];
 
-T(a: 1, b: 2);
-T(a: 3, b: 4);
-
-D(..r) :- T(..r), r.a == 1;
-
-E(two_a: 2 * a) :- T(a:);
-
-F(a) = {a:, b: 2 * a} :- a = 5;
-
-@OrderBy(Test, "a", "ta");
-Test(a: r.a, b: r.b, r:, c:, two_a_record:, ta: two_a_record.two_a,
-     f:) :-
-  D(a: c), T(..r), E(..two_a_record), F(..f);

@@ -207,11 +207,18 @@ class RuleStructure(object):
     self.distinct_denoted = None
 
   def SelectAsRecord(self):
+    def StrIntKey(x):
+      k, v = x
+      if isinstance(k, str):
+        return (k, v)
+      if isinstance(k, int):
+        return ('%03d' % k, v)
+      assert False, 'x:%s' % str(x)    
     return {'record': {
       'field_value': [{
         'field': k,
         'value': {'expression': v}
-      } for k, v in sorted(self.select.items())]}}
+      } for k, v in sorted(self.select.items(), key=StrIntKey)]}}
 
   def OwnVarsVocabulary(self):
     """Returns a map: logica variable -> SQL expression with the value."""
@@ -531,11 +538,15 @@ class RuleStructure(object):
       from_str = '\n'.join('  ' + l for l in from_str.split('\n'))
       r += from_str
       if self.constraints:
-        r += '\nWHERE\n'
         constraints = []
+        # Predicates used for type inference.
+        ephemeral_predicates = ['~']
         for c in self.constraints:
-          constraints.append(ql.ConvertToSql(c))
-        r += ' AND\n'.join(map(Indent2, constraints))
+          if c['call']['predicate_name'] not in ephemeral_predicates:
+            constraints.append(ql.ConvertToSql(c))
+        if constraints:
+          r += '\nWHERE\n'
+          r += ' AND\n'.join(map(Indent2, constraints))
       if self.distinct_vars:
         ordered_distinct_vars = [
             v for v in self.select.keys() if v in self.distinct_vars]
@@ -565,7 +576,7 @@ def ExtractPredicateStructure(c, s):
 
   if predicate in (
       '<=', '<', '>', '>=', '!=', '&&', '||', '!', 'IsNull', 'Like',
-      'Constraint', 'is', 'is not'):
+      'Constraint', 'is', 'is not', '~'):
     s.constraints.append({'call': c})
     return
 
@@ -725,7 +736,7 @@ def InlinePredicateValuesRecursively(r, names_allocator, conjuncts):
         'Got: %s' % str(r))
 
   for k in member_index:
-    if k != 'combine':
+    if k != 'combine' and k != 'type':
       if isinstance(r[k], dict) or isinstance(r[k], list):
         InlinePredicateValuesRecursively(r[k], names_allocator, conjuncts)
 

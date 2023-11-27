@@ -57,9 +57,6 @@ class QL(object):
       'DateAddDay': 'DATE_ADD({0}, INTERVAL {1} DAY)',
       'DateDiffDay': 'DATE_DIFF({0}, {1}, DAY)',
       'Element': '{0}[OFFSET({1})]',
-      'Enumerate': ('ARRAY(SELECT STRUCT('
-                    'ROW_NUMBER() OVER () AS n, x AS element) '
-                    'FROM UNNEST(%s) as x)'),
       'IsNull': '(%s IS NULL)',
       'Join': 'ARRAY_TO_STRING(%s)',
       'Like': '({0} LIKE {1})',
@@ -299,7 +296,7 @@ class QL(object):
       return self.ConvertToSql({'record': {'field_value': [
         {'field': k,
           'value': MakeSubscript(variable['var_name'], k)}
-        for k in sorted(expression_type)
+        for k in sorted(expression_type, key=StrIntKey)
       ]}})
     return expr    
 
@@ -350,7 +347,8 @@ class QL(object):
       assert record_type, json.dumps(record, indent=' ')
       args = ', '.join(
         self.ConvertToSql(f_v['value']['expression'])
-        for f_v in sorted(record['field_value'], key=lambda x: x['field']))
+        for f_v in sorted(record['field_value'],
+                          key=lambda x: StrIntKey(x['field'])))
       return 'ROW(%s)::%s' % (args, record_type)
     return 'STRUCT(%s)' % arguments_str
 
@@ -643,3 +641,10 @@ class QL(object):
     assert False, (
         'Logica bug: expression %s failed to compile for unknown reason.' %
         str(expression))
+
+def StrIntKey(k):
+  if isinstance(k, str):
+    return k
+  if isinstance(k, int):
+    return '%03d' % k
+  assert False, 'x:%s' % str(k)  
