@@ -14,8 +14,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from type_inference.postgresql_type_parser import PostgresTypeToLogicaType
 import psycopg2
+
+if '.' not in __package__:
+  from common import color
+  from type_inference import postgresql_type_parser
+else:
+  from ..common import color
+  import postgresql_type_parser
 
 
 class PostgresqlTypeRetriever:
@@ -76,7 +82,7 @@ GROUP BY t.typname, n.nspname;''')
       return '[%s]' % self.UnpackTypeWithCaching(type[1:])
     
     if type in self.built_in_types:
-      return PostgresTypeToLogicaType(type)
+      return postgresql_type_parser.PostgresTypeToLogicaType(type)
     
     fields = self.user_defined_types[type]
     fields = (f'{field_name}: {self.UnpackTypeWithCaching(field_type)}' for field_name, field_type in fields.items())
