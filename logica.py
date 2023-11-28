@@ -48,6 +48,8 @@ if __name__ == '__main__' and not __package__:
   from compiler import universe
   from parser_py import parse
   from type_inference.research import infer
+  from type_inference import type_retrieval_service
+  from type_inference import unsupported_engine_exception
 else:
   from .common import color
   from .common import sqlite3_logica
@@ -56,6 +58,8 @@ else:
   from .compiler import universe
   from .parser_py import parse
   from .type_inference.research import infer
+  from .type_inference import type_retrieval_service
+  from .type_inference import unsupported_engine_exception
 
 
 def ReadUserFlags(rules, argv):
@@ -149,7 +153,7 @@ def main(argv):
   command = argv[2]
 
   commands = ['parse', 'print', 'run', 'run_to_csv', 'run_in_terminal',
-              'infer_types', 'show_signatures']
+              'infer_types', 'show_signatures', 'build_schema']
 
   if command not in commands:
     print(color.Format('Unknown command {warning}{command}{end}. '
@@ -203,9 +207,20 @@ def main(argv):
     print(logic_program.typing_engine.ShowPredicateTypes())
     return 0
 
+  predicates_list = predicates.split(',')
+
   user_flags = ReadUserFlags(parsed_rules, argv[4:])
 
-  predicates_list = predicates.split(',')
+  if command == 'build_schema':
+    logic_program = universe.LogicaProgram(parsed_rules, user_flags=user_flags)
+    engine = logic_program.annotations.Engine()
+    if engine == 'psql':
+      type_retrieval_service.PostgresqlTypeRetrievalService(
+        parsed_rules, predicates_list).RetrieveTypes(filename)
+      return 0
+    else:
+      raise unsupported_engine_exception.UnsupportedEngineException(engine)
+
   for predicate in predicates_list:
     try:
       logic_program = universe.LogicaProgram(
