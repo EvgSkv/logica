@@ -14,20 +14,5 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from logging import error
-
-if '.' not in __package__:
-  from common import color
-  from type_inference import type_retrieval_exception
-else:
-  from ..common import color
-  import type_retrieval_exception
-
-
-class BadSchemaException(type_retrieval_exception.TypeRetrievalException):
-  def __init__(self, predicate_text: str):
-    error(f'''{color.Format("[ {error}Error{end} ]")} Bad predicate to build schema for: '{predicate_text}'
-
-Schema can be built for predicates of the form:
-'<PredicateName>(..<name of row>) :- <name table>(..<name of row>);'
-          ''')
+class TypeRetrievalException(Exception):
+  pass

@@ -15,10 +15,16 @@
 # limitations under the License.
 
 from logging import error
-from common import color
+
+if '.' not in __package__:
+  from common import color
+  from type_inference import type_retrieval_exception
+else:
+  from ..common import color
+  import type_retrieval_exception
 
 
-class UnsupportedEngineException(Exception):
+class UnsupportedEngineException(type_retrieval_exception.TypeRetrievalException):
   def __init__(self, engine: str):
     error(f'''{color.Format("[ {error}Error{end} ]")} Unsupported engine to build schema for: '{engine}'.
           Currently supported engines: psql.
