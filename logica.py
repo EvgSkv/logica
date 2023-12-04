@@ -218,6 +218,10 @@ def main(argv):
       type_retrieval_service.PostgresqlTypeRetrievalService(
         parsed_rules, predicates_list).RetrieveTypes(filename)
       return 0
+    elif engine == 'bigquery':
+      type_retrieval_service.BigQueryTypeRetrievalService(
+        parsed_rules, predicates_list).RetrieveTypes(filename)
+      return 0
     else:
       raise unsupported_engine_exception.UnsupportedEngineException(engine)
 

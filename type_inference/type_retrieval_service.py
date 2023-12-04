@@ -16,14 +16,17 @@
 
 from typing import Dict
 import psycopg2
+from google.colab import bigquery
 
 if '.' not in __package__:
   from common import color
   from type_inference import bad_schema_exception
   from type_inference import postgresql_type_retriever
+  from type_inference import bigquery_type_retriever
 else:
   import bad_schema_exception
   import postgresql_type_retriever
+  import bigquery_type_retriever
 
 
 def ValidateRuleAndGetTableName(rule: dict) -> str:
@@ -92,3 +95,42 @@ HAVING table_name IN %s;''', (tuple(self.table_names.values()),))
 
       with open(filename, 'w') as file:
         file.writelines('\n'.join(resulting_rule_lines))
+
+
+class BigQueryTypeRetrievalService:
+  """The class is an entry point for type retrieval using bigquery."""
+  def __init__(self, parsed_rules, predicate_names,
+               credentials='', project=''):
+    predicate_names_as_set = set(predicate_names)
+    self.parsed_rules = [r for r in parsed_rules if r['head']['predicate_name'] in predicate_names_as_set]
+    self.credentials = credentials
+    self.project = project
+    self.table_names = self.ValidateParsedRulesAndGetTableNames()
+    self.type_retriever = bigquery_type_retriever.BigQueryTypeRetriever()
+    self.type_retriever.ExtractTypeInfo(self.connection_string)
+
+  def ValidateParsedRulesAndGetTableNames(self) -> Dict[str, str]:
+    return {rule['head']['predicate_name']: ValidateRuleAndGetTableName(rule) for rule in self.parsed_rules}
+
+  def RetrieveTypes(self, filename):
+    filename = filename.replace('.l', '_schema.l')
+
+    client = bigquery.Client(credentials=self.credentials, project=self.project)
+    result = client.query() # todo query
+        # for each given table this SQL query returns json object
+        # where keys are names of columns in that table and values are corresponding types
+    columns = {table: columns for table, columns in result.to_dataframe()}
+
+    resulting_rule_lines = []
+
+    for rule in self.parsed_rules:
+      resulting_rule_lines.append(f'{rule["full_text"]},')
+      table_columns = columns[self.table_names[rule['head']['predicate_name']]]
+      fields = (f'{column}: {self.type_retriever.UnpackTypeWithCaching(udt_type)}' for column, udt_type in sorted(table_columns.items()))
+
+      var_name = rule['head']['record']['field_value'][0]['value']['expression']['variable']['var_name']
+      fields_line = ', '.join(fields)
+      resulting_rule_lines.append('  %s ~ {%s};\n' % (var_name, fields_line))
+
+    with open(filename, 'w') as file:
+      file.writelines('\n'.join(resulting_rule_lines))
