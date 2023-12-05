@@ -62,9 +62,9 @@ POSTGRES_TYPE_TO_LOGICA_TYPE = {
 }
 
 
-def PostgresTypeToLogicaType(pg_type: str) -> str | None:
+def PostgresTypeToLogicaType(pg_type: str):
   """Parses psql atomic type into logica type, drops parameter if needed."""
-  def TryParseParametrizedPostgresTypeToLogicaType(pg_type: str) -> str | None:
+  def TryParseParametrizedPostgresTypeToLogicaType(pg_type: str):
     if pg_type.startswith('numeric'):
       return 'Num'
     elif pg_type.startswith('decimal'):
