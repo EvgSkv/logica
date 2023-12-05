@@ -304,6 +304,8 @@ class RuleStructure(object):
     variables = self.InternalVariables()
     while True:
       done = True
+      self.vars_unification = [
+          u for u in self.vars_unification if u['left'] != u['right']]
       for u in self.vars_unification:
         # Direct variable assignments.
         for k, r in [['left', 'right'], ['right', 'left']]:
