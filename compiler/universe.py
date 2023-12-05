@@ -1001,6 +1001,8 @@ class LogicaProgram(object):
     s.UnificationsToConstraints()
     type_inference = infer.TypeInferenceForStructure(s, self.predicate_signatures)
     type_inference.PerformInference()
+    error_checker = infer.TypeErrorChecker([type_inference.quazy_rule])
+    error_checker.CheckForError('raise')
     # New types may arrive here when we have an injetible predicate with variables
     # which specific record type depends on the inputs. 
     self.required_type_definitions.update(type_inference.collector.definitions)

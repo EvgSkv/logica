@@ -492,9 +492,11 @@ class TypeInferenceForStructure:
     self.structure = structure
     self.signatures = signatures
     self.collector = None
+    self.quazy_rule = None
 
   def PerformInference(self):
     quazy_rule = self.BuildQuazyRule()
+    self.quazy_rule = quazy_rule
     Walk(quazy_rule, ActRememberingTypes)
     Walk(quazy_rule, ActClearingTypes)
     inferencer = TypeInferenceForRule(quazy_rule, self.signatures)
