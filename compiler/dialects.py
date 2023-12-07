@@ -110,6 +110,7 @@ class SqLiteDialect(Dialect):
         'Least': 'MIN(%s)',
         'Greatest': 'MAX(%s)',
         'ToString': 'CAST(%s AS TEXT)',
+        'DateAddDay': "DATE({0}, {1} || ' days')",
     }
 
   def DecorateCombineRule(self, rule, var):

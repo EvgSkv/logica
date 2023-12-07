@@ -385,7 +385,12 @@ def Revive(t):
     return TypeReference(OpenRecord(
       {ReviveKey(k): Revive(v) for k, v in t.items()}))
   if isinstance(t, list):
-    return TypeReference(list(map(Revive, t)))
+    if len(t) == 1:
+      return TypeReference(list(map(Revive, t)))
+    elif len(t) == 2:
+      return TypeReference(BadType(map(Revive, t)))
+    else:
+      assert False, t
   if isinstance(t, BadType):
     return TypeReference(BadType(map(Revive, t)))
   assert False, [type(t), t]
