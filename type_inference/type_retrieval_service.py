@@ -14,9 +14,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import json
 from typing import Dict
 import psycopg2
-from google.colab import bigquery
+from google.cloud import bigquery
 
 if '.' not in __package__:
   from common import color
@@ -29,7 +30,7 @@ else:
   import bigquery_type_retriever
 
 
-def ValidateRuleAndGetTableName(rule: dict) -> str:
+def ValidateRuleAndGetTableName(rule: dict, lower_table_name: bool = False) -> str:
   rule_text = rule['full_text']
   field_value = rule['head']['record']['field_value']
 
@@ -51,7 +52,8 @@ def ValidateRuleAndGetTableName(rule: dict) -> str:
   if len(field_values) != 1 or field_values[0]['field'] != '*':
     raise bad_schema_exception.BadSchemaException(rule_text)
 
-  return conjuncts[0]['predicate']['predicate_name'].split('.')[1].lower()  # TODO: Validate schema of the called table.
+  predicate_name = conjuncts[0]['predicate']['predicate_name'].split('.')[1]  # TODO: Validate schema of the called table.
+  return predicate_name.lower() if lower_table_name else predicate_name
 
 
 class PostgresqlTypeRetrievalService:
@@ -66,7 +68,7 @@ class PostgresqlTypeRetrievalService:
     self.type_retriever.ExtractTypeInfo(self.connection_string)
 
   def ValidateParsedRulesAndGetTableNames(self) -> Dict[str, str]:
-    return {rule['head']['predicate_name']: ValidateRuleAndGetTableName(rule) for rule in self.parsed_rules}
+    return {rule['head']['predicate_name']: ValidateRuleAndGetTableName(rule, lower_table_name=True) for rule in self.parsed_rules}
 
   def RetrieveTypes(self, filename):
     filename = filename.replace('.l', '_schema.l')
@@ -100,14 +102,12 @@ HAVING table_name IN %s;''', (tuple(self.table_names.values()),))
 class BigQueryTypeRetrievalService:
   """The class is an entry point for type retrieval using bigquery."""
   def __init__(self, parsed_rules, predicate_names,
-               credentials='', project=''):
+               project='bigquery-logica'):
     predicate_names_as_set = set(predicate_names)
     self.parsed_rules = [r for r in parsed_rules if r['head']['predicate_name'] in predicate_names_as_set]
-    self.credentials = credentials
     self.project = project
     self.table_names = self.ValidateParsedRulesAndGetTableNames()
     self.type_retriever = bigquery_type_retriever.BigQueryTypeRetriever()
-    self.type_retriever.ExtractTypeInfo(self.connection_string)
 
   def ValidateParsedRulesAndGetTableNames(self) -> Dict[str, str]:
     return {rule['head']['predicate_name']: ValidateRuleAndGetTableName(rule) for rule in self.parsed_rules}
@@ -115,11 +115,20 @@ class BigQueryTypeRetrievalService:
   def RetrieveTypes(self, filename):
     filename = filename.replace('.l', '_schema.l')
 
-    client = bigquery.Client(credentials=self.credentials, project=self.project)
-    result = client.query() # todo query
-        # for each given table this SQL query returns json object
-        # where keys are names of columns in that table and values are corresponding types
-    columns = {table: columns for table, columns in result.to_dataframe()}
+    client = bigquery.Client(project=self.project)
+    job_config = bigquery.QueryJobConfig(
+      query_parameters=[
+        bigquery.ArrayQueryParameter("tables", "STRING", self.table_names),
+      ]
+    )
+    # for each given table this SQL query returns json object
+    # where keys are names of columns in that table and values are corresponding types
+    query = client.query('''
+SELECT table_name, JSON_OBJECT(ARRAY_AGG(column_name), ARRAY_AGG(data_type)) AS columns
+FROM logica_test.INFORMATION_SCHEMA.COLUMNS
+GROUP BY table_name
+HAVING table_name IN UNNEST(@tables);''', job_config)
+    columns = {table: json.loads(type) for table, type in query.to_dataframe().set_index('table_name').to_dict()['columns'].items()}
 
     resulting_rule_lines = []
 

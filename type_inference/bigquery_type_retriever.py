@@ -14,7 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from google.colab import bigquery
+import re
 
 if '.' not in __package__:
   from type_inference import bigquery_type_parser
@@ -25,41 +25,54 @@ else:
 class BigQueryTypeRetriever:
   """For all given types builds its string representation as composition of Logica's primitive types."""
   def __init__(self):
-    self.built_in_types = set()
-    self.user_defined_types = dict()
+    self.array_regexp = re.compile(r'ARRAY<(.*)>')
+    self.struct_regexp = re.compile(r'STRUCT<(.*)>')
     self.name_to_type_cache = dict()
-
-  def ExtractTypeInfo(self, credentials: str, project: str):
-    if self.built_in_types and self.user_defined_types:
-      return
-
-    client = bigquery.Client(credentials=credentials, project=project)
-    # this SQL query takes all types and returns them
-    # with boolean flag "is that type built in" and
-    # JSON array of its fields (null for primitive types)
-    types_info = client.query().to_dataframe() # todo query
-
-    for type, is_built_in, fields in types_info:
-        if is_built_in:
-            self.built_in_types.add(type)
-        else:
-            self.user_defined_types[type] = {field['field_name']: field['field_type'] for field in fields} if fields else {}
 
   def UnpackTypeWithCaching(self, type: str) -> str:
     if type not in self.name_to_type_cache:
       self.name_to_type_cache[type] = self.UnpackType(type)
 
     return self.name_to_type_cache[type]
-  
+
   def UnpackType(self, type: str) -> str:
-    if type.startswith('_'):
-      return '[%s]' % self.UnpackTypeWithCaching(type[1:])
-    
-    if type in self.built_in_types:
-      return bigquery_type_parser.BigQueryTypeToLogicaType(type)
-    
-    fields = self.user_defined_types[type]
-    fields = (f'{field_name}: {self.UnpackTypeWithCaching(field_type)}' for field_name, field_type in fields.items())
-    return '{%s}' % (', '.join(fields))
+    def ParseBigQueryStruct(type):
+      nesting_level = 0
+      start_index = 0
+      fields = {}
+      field_name = ''
 
+      for index, char in enumerate(type):
+        if char == '<':
+          nesting_level += 1
+        elif char == '>':
+          nesting_level -= 1
+        elif nesting_level == 0:
+          if char == ' ':
+            field_name = type[start_index:index].lstrip()
+            start_index = index + 1
+          elif char == ',':
+            fields[field_name] = type[start_index:index].lstrip()
+            start_index = index + 1
 
+      fields[field_name] = type[start_index:].lstrip()
+      return fields
+
+    result = bigquery_type_parser.BigQueryTypeToLogicaType(type)
+
+    if result:
+      return result
+
+    array_match = self.array_regexp.match(type)
+
+    if array_match:
+      return '[%s]' % self.UnpackTypeWithCaching(array_match.group(1))
+
+    struct_match = self.struct_regexp.match(type)
+    
+    if struct_match:
+      fields = ParseBigQueryStruct(struct_match.group(1))
+      fields = (f'{field_name}: {self.UnpackTypeWithCaching(field_type)}' for field_name, field_type in fields.items())
+      return '{%s}' % (', '.join(fields))
+
+    assert False, 'Unknown BigQuery type! %s' % type

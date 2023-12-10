@@ -14,9 +14,34 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-def BigQueryTypeToLogicaType(bq_type: str) -> str | None:
+BIGQUERY_TYPE_TO_LOGICA_TYPE = {
+  'BIGNUMERIC': 'Num',
+  'BOOL': 'Bool',
+  'BYTES': 'Str',
+  'DATE': 'Str',
+  'DATETIME': 'Str',
+  'FLOAT64': 'Num',
+  'GEOGRAPHY': 'Str',
+  'INT64': 'Num',
+  'INTERVAL': 'Str',
+  'JSON': 'Str',
+  'NUMERIC': 'Num',
+  'STRING': 'Str',
+  'TIME': 'Str',
+  'TIMESTAMP': 'Str'
+}
+
+def BigQueryTypeToLogicaType(bq_type: str):
   """Parses bq atomic type into logica type, drops parameter if needed."""
-  def TryParseParametrizedBigQueryTypeToLogicaType(bq_type: str) -> str | None:
-    pass
-  
-  pass
+  def TryParseParametrizedBigQueryTypeToLogicaType(bq_type: str):
+    if bq_type.startswith('BIGNUMERIC'):
+      return 'Num'
+    elif bq_type.startswith('BYTES'):
+      return 'Str'
+    elif bq_type.startswith('NUMERIC'):
+      return 'Num'
+    elif bq_type.startswith('STRING'):
+      return 'Str'
+    return None
+
+  return TryParseParametrizedBigQueryTypeToLogicaType(bq_type) or BIGQUERY_TYPE_TO_LOGICA_TYPE.get(bq_type)
