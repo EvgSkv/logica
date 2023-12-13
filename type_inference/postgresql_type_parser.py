@@ -14,76 +14,31 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-POSTGRES_TYPE_TO_LOGICA_TYPE = {
-  'boolean': 'Bool',
-  'bool': 'Bool',
-  'bigint': 'Num',
-  'int8': 'Num',
-  'bigserial': 'Num',
-  'serial8': 'Num',
-  'double precision': 'Num',
-  'float8': 'Num',
-  'integer': 'Num',
-  'int': 'Num',
-  'int4': 'Num',
-  'money': 'Num',
-  'real': 'Num',
-  'float4': 'Num',
-  'smallint': 'Num',
-  'int2': 'Num',
-  'smallserial': 'Num',
-  'serial2': 'Num',
-  'serial': 'Num',
-  'serial4': 'Num',
-  'varbit': 'Str',
-  'box': 'Str',
-  'bytea': 'Str',
-  'cidr': 'Str',
-  'circle': 'Str',
-  'date': 'Str',
-  'inet': 'Str',
-  'json': 'Str',
-  'jsonb': 'Str',
-  'line': 'Str',
-  'lseg': 'Str',
-  'macaddr': 'Str',
-  'path': 'Str',
-  'pg_lsn': 'Str',
-  'point': 'Str',
-  'polygon': 'Str',
-  'text': 'Str',
-  'timetz': 'Str',
-  'timestamptz': 'Str',
-  'tsquery': 'Str',
-  'tsvector': 'Str',
-  'txid_snapshot': 'Str',
-  'uuid': 'Str',
-  'xml': 'Str'
-}
+POSTGRES_NUM_TYPE_PREFIXES = [
+  'numeric',
+  'decimal',
+  'int',
+  'serial',
+  'bigint',
+  'bigserial',
+  'double precision',
+  'float',
+  'money',
+  'real',
+  'smallint',
+  'smallserial',
+]
 
 
 def PostgresTypeToLogicaType(pg_type: str):
   """Parses psql atomic type into logica type, drops parameter if needed."""
-  def TryParseParametrizedPostgresTypeToLogicaType(pg_type: str):
-    if pg_type.startswith('numeric'):
-      return 'Num'
-    elif pg_type.startswith('decimal'):
-      return 'Num'
-    elif pg_type.startswith('bit'):
-      return 'Str'
-    elif pg_type.startswith('char'):
-      return 'Str'
-    elif pg_type.startswith('varchar'):
-      return 'Str'
-    elif pg_type.startswith('interval'):
-      return 'Str'
-    elif pg_type.startswith('time'):
-      return 'Str'
-    return None
-
   type_in_lowercase = pg_type.lower()
 
-  if type_in_lowercase in POSTGRES_TYPE_TO_LOGICA_TYPE:
-    return POSTGRES_TYPE_TO_LOGICA_TYPE[type_in_lowercase]
-  else:
-    return TryParseParametrizedPostgresTypeToLogicaType(type_in_lowercase)
+  if type_in_lowercase.startswith('bool'):
+    return 'Bool'
+
+  for num_prefix in POSTGRES_NUM_TYPE_PREFIXES:
+    if type_in_lowercase.startswith(num_prefix):
+      return 'Num'
+
+  return 'Str'
