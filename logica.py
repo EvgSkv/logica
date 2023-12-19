@@ -238,7 +238,9 @@ def main(argv):
     except infer.TypeErrorCaughtException as type_error_exception:
       type_error_exception.ShowMessage()
       sys.exit(1)
-      
+    except parse.ParsingException as parsing_exception:
+      parsing_exception.ShowMessage()
+      sys.exit(1)
 
     if command == 'print':
       print(formatted_sql)
