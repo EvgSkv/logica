@@ -19,7 +19,7 @@ import psycopg2
 if '.' not in __package__:
   from type_inference import postgresql_type_parser
 else:
-  import postgresql_type_parser
+  from ..type_inference import postgresql_type_parser
 
 
 class PostgresqlTypeRetriever:

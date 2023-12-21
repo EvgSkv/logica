@@ -19,7 +19,7 @@ import re
 if '.' not in __package__:
   from type_inference import bigquery_type_parser
 else:
-  import bigquery_type_parser
+  from ..type_inference import bigquery_type_parser
 
 
 class BigQueryTypeRetriever:

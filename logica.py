@@ -219,8 +219,10 @@ def main(argv):
         parsed_rules, predicates_list).RetrieveTypes(filename)
       return 0
     elif engine == 'bigquery':
+      from google import auth
+      credentials, project = auth.default()
       type_retrieval_service.BigQueryTypeRetrievalService(
-        parsed_rules, predicates_list).RetrieveTypes(filename)
+        parsed_rules, predicates_list, credentials, project).RetrieveTypes(filename)
       return 0
     else:
       raise unsupported_engine_exception.UnsupportedEngineException(engine)
