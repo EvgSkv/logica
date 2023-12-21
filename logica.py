@@ -219,8 +219,15 @@ def main(argv):
         parsed_rules, predicates_list).RetrieveTypes(filename)
       return 0
     elif engine == 'bigquery':
-      from google import auth
-      credentials, project = auth.default()
+      from google import auth as terminal_auth
+      credentials, project = terminal_auth.default()
+      if not project:
+        from google.colab import auth as colab_auth
+        colab_auth.authenticate_user()
+        print("Please enter project_id to use for BigQuery queries.")
+        project = input()
+        print("project_id is set to %s" % project)
+        print("You can change it with logica.colab_logica.SetProject command.")
       type_retrieval_service.BigQueryTypeRetrievalService(
         parsed_rules, predicates_list, credentials, project).RetrieveTypes(filename)
       return 0
