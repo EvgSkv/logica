@@ -18,8 +18,10 @@ import re
 
 if '.' not in __package__:
   from type_inference import bigquery_type_parser
+  from type_inference import unknown_bigquery_type_exception
 else:
   import bigquery_type_parser
+  import unknown_bigquery_type_exception
 
 
 class BigQueryTypeRetriever:
@@ -69,10 +71,11 @@ class BigQueryTypeRetriever:
       return '[%s]' % self.UnpackTypeWithCaching(array_match.group(1))
 
     struct_match = self.struct_regexp.match(type)
-    
+
     if struct_match:
-      fields = ParseBigQueryStruct(struct_match.group(1))
-      fields = (f'{field_name}: {self.UnpackTypeWithCaching(field_type)}' for field_name, field_type in fields.items())
+      fields_dict = ParseBigQueryStruct(struct_match.group(1))
+      fields = (f'{field_name}: {self.UnpackTypeWithCaching(field_type)}'
+                for field_name, field_type in fields_dict.items())
       return '{%s}' % (', '.join(fields))
 
-    assert False, 'Unknown BigQuery type! %s' % type
+    raise unknown_bigquery_type_exception.UnknownBigQueryTypeException(type)

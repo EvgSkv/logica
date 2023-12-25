@@ -24,8 +24,7 @@ else:
   import type_retrieval_exception
 
 
-class UnsupportedEngineException(type_retrieval_exception.TypeRetrievalException):
-  def __init__(self, engine: str):
-    error(f'''{color.Format("[ {error}Error{end} ]")} Unsupported engine to build schema for: '{engine}'.
-          Currently supported engines: psql, bigquery.
+class UnknownBigQueryTypeException(type_retrieval_exception.TypeRetrievalException):
+  def __init__(self, type: str):
+    error(f'''{color.Format("[ {error}Error{end} ]")}'Unknown BigQuery type! Used type was {type}
           ''')

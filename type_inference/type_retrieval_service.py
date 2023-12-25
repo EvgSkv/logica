@@ -20,7 +20,6 @@ import psycopg2
 from google.cloud import bigquery
 
 if '.' not in __package__:
-  from common import color
   from type_inference import bad_schema_exception
   from type_inference import postgresql_type_retriever
   from type_inference import bigquery_type_retriever
@@ -104,13 +103,15 @@ class BigQueryTypeRetrievalService:
   def __init__(self, parsed_rules, predicate_names,
                project='bigquery-logica'):
     predicate_names_as_set = set(predicate_names)
-    self.parsed_rules = [r for r in parsed_rules if r['head']['predicate_name'] in predicate_names_as_set]
+    self.parsed_rules = [r for r in parsed_rules
+                         if r['head']['predicate_name'] in predicate_names_as_set]
     self.project = project
     self.table_names = self.ValidateParsedRulesAndGetTableNames()
     self.type_retriever = bigquery_type_retriever.BigQueryTypeRetriever()
 
   def ValidateParsedRulesAndGetTableNames(self) -> Dict[str, str]:
-    return {rule['head']['predicate_name']: ValidateRuleAndGetTableName(rule) for rule in self.parsed_rules}
+    return {rule['head']['predicate_name']: ValidateRuleAndGetTableName(rule)
+            for rule in self.parsed_rules}
 
   def RetrieveTypes(self, filename):
     filename = filename.replace('.l', '_schema.l')
@@ -128,16 +129,22 @@ SELECT table_name, JSON_OBJECT(ARRAY_AGG(column_name), ARRAY_AGG(data_type)) AS 
 FROM logica_test.INFORMATION_SCHEMA.COLUMNS
 GROUP BY table_name
 HAVING table_name IN UNNEST(@tables);''', job_config)
-    columns = {table: json.loads(type) for table, type in query.to_dataframe().set_index('table_name').to_dict()['columns'].items()}
+    data_by_table_name = query.to_dataframe().set_index('table_name')
+    columns_by_table_name = data_by_table_name.to_dict()['columns']
+    columns = {table: json.loads(type)
+               for table, type in columns_by_table_name}
 
     resulting_rule_lines = []
 
     for rule in self.parsed_rules:
       resulting_rule_lines.append(f'{rule["full_text"]},')
-      table_columns = columns[self.table_names[rule['head']['predicate_name']]]
-      fields = (f'{column}: {self.type_retriever.UnpackTypeWithCaching(udt_type)}' for column, udt_type in sorted(table_columns.items()))
+      table_name = self.table_names[rule['head']['predicate_name']]
+      table_columns = columns[table_name]
+      fields = (f'{column}: {self.type_retriever.UnpackTypeWithCaching(type)}'
+                for column, type in sorted(table_columns.items()))
 
-      var_name = rule['head']['record']['field_value'][0]['value']['expression']['variable']['var_name']
+      field_value = rule['head']['record']['field_value'][0]
+      var_name = field_value['value']['expression']['variable']['var_name']
       fields_line = ', '.join(fields)
       resulting_rule_lines.append('  %s ~ {%s};\n' % (var_name, fields_line))
 
