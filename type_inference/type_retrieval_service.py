@@ -136,7 +136,7 @@ FROM logica_test.INFORMATION_SCHEMA.COLUMNS
 GROUP BY table_name
 HAVING table_name IN UNNEST(@tables);''', job_config)
     data_by_table_name = query.to_dataframe().set_index('table_name')
-    columns_by_table_name = data_by_table_name.to_dict()['columns']
+    columns_by_table_name = data_by_table_name.to_dict()['columns'].items()
     columns = {table: json.loads(type)
                for table, type in columns_by_table_name}
 
