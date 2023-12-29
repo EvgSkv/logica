@@ -21,7 +21,7 @@ if '.' not in __package__:
   from type_inference import type_retrieval_exception
 else:
   from ..common import color
-  import type_retrieval_exception
+  from ..type_inference import type_retrieval_exception
 
 
 class BadSchemaException(type_retrieval_exception.TypeRetrievalException):

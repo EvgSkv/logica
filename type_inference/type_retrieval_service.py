@@ -16,17 +16,11 @@
 
 import json
 from typing import Dict
-import psycopg2
-from google.cloud import bigquery
 
 if '.' not in __package__:
   from type_inference import bad_schema_exception
-  from type_inference import postgresql_type_retriever
-  from type_inference import bigquery_type_retriever
 else:
-  import bad_schema_exception
-  import postgresql_type_retriever
-  import bigquery_type_retriever
+  from ..type_inference import bad_schema_exception
 
 
 def ValidateRuleAndGetTableName(rule: dict, lower_table_name: bool = False) -> str:
@@ -59,6 +53,10 @@ class PostgresqlTypeRetrievalService:
   """The class is an entry point for type retrieval using postgresql."""
   def __init__(self, parsed_rules, predicate_names,
                connection_string='dbname=logica user=logica password=logica host=127.0.0.1'):
+    if '.' not in __package__:
+      from type_inference import postgresql_type_retriever
+    else:
+      from ..type_inference import postgresql_type_retriever
     predicate_names_as_set = set(predicate_names)
     self.parsed_rules = [r for r in parsed_rules if r['head']['predicate_name'] in predicate_names_as_set]
     self.connection_string = connection_string
@@ -72,6 +70,7 @@ class PostgresqlTypeRetrievalService:
   def RetrieveTypes(self, filename):
     filename = filename.replace('.l', '_schema.l')
 
+    import psycopg2
     with psycopg2.connect(self.connection_string) as conn:
       with conn.cursor() as cursor:
         # for each given table this SQL query returns json object
@@ -101,11 +100,16 @@ HAVING table_name IN %s;''', (tuple(self.table_names.values()),))
 class BigQueryTypeRetrievalService:
   """The class is an entry point for type retrieval using bigquery."""
   def __init__(self, parsed_rules, predicate_names,
-               project='bigquery-logica'):
+               credentials=None, project='bigquery-logica'):
+    if '.' not in __package__:
+      from type_inference import bigquery_type_retriever
+    else:
+      from ..type_inference import bigquery_type_retriever
     predicate_names_as_set = set(predicate_names)
     self.parsed_rules = [r for r in parsed_rules
                          if r['head']['predicate_name'] in predicate_names_as_set]
     self.project = project
+    self.credentials = credentials
     self.table_names = self.ValidateParsedRulesAndGetTableNames()
     self.type_retriever = bigquery_type_retriever.BigQueryTypeRetriever()
 
@@ -116,7 +120,9 @@ class BigQueryTypeRetrievalService:
   def RetrieveTypes(self, filename):
     filename = filename.replace('.l', '_schema.l')
 
-    client = bigquery.Client(project=self.project)
+    from google.cloud import bigquery
+
+    client = bigquery.Client(credentials=self.credentials, project=self.project) # it works for us even if we don't give any credentials
     job_config = bigquery.QueryJobConfig(
       query_parameters=[
         bigquery.ArrayQueryParameter("tables", "STRING", self.table_names),

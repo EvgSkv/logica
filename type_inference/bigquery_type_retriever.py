@@ -20,8 +20,8 @@ if '.' not in __package__:
   from type_inference import bigquery_type_parser
   from type_inference import unknown_bigquery_type_exception
 else:
-  import bigquery_type_parser
-  import unknown_bigquery_type_exception
+  from ..type_inference import bigquery_type_parser
+  from ..type_inference import unknown_bigquery_type_exception
 
 
 class BigQueryTypeRetriever:
