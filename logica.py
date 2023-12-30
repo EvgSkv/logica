@@ -48,7 +48,8 @@ if __name__ == '__main__' and not __package__:
   from compiler import universe
   from parser_py import parse
   from type_inference.research import infer
-  from type_inference import type_retrieval_service
+  from type_inference import psql_type_retrieval_service
+  from type_inference import bq_type_retrieval_service
   from type_inference import unsupported_engine_exception
 else:
   from .common import color
@@ -58,7 +59,8 @@ else:
   from .compiler import universe
   from .parser_py import parse
   from .type_inference.research import infer
-  from .type_inference import type_retrieval_service
+  from .type_inference import psql_type_retrieval_service
+  from .type_inference import bq_type_retrieval_service
   from .type_inference import unsupported_engine_exception
 
 
@@ -215,8 +217,21 @@ def main(argv):
     logic_program = universe.LogicaProgram(parsed_rules, user_flags=user_flags)
     engine = logic_program.annotations.Engine()
     if engine == 'psql':
-      type_retrieval_service.PostgresqlTypeRetrievalService(
+      psql_type_retrieval_service.PostgresqlTypeRetrievalService(
         parsed_rules, predicates_list).RetrieveTypes(filename)
+      return 0
+    elif engine == 'bigquery':
+      from google import auth as terminal_auth
+      credentials, project = terminal_auth.default()
+      if not project:
+        from google.colab import auth as colab_auth
+        colab_auth.authenticate_user()
+        print("Please enter project_id to use for BigQuery queries.")
+        project = input()
+        print("project_id is set to %s" % project)
+        print("You can change it with logica.colab_logica.SetProject command.")
+      bq_type_retrieval_service.BigQueryTypeRetrievalService(
+        parsed_rules, predicates_list, credentials, project).RetrieveTypes(filename)
       return 0
     else:
       raise unsupported_engine_exception.UnsupportedEngineException(engine)
