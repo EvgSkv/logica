@@ -16,26 +16,21 @@
 
 import re
 
+from type_inference import bq_type_parser
+
+from . import bq_type_parser
+
 if '.' not in __package__:
-  from type_inference import bigquery_type_parser
-  from type_inference import unknown_bigquery_type_exception
+  from type_inference import type_retriever_base, unknown_bigquery_type_exception
 else:
-  from ..type_inference import bigquery_type_parser
-  from ..type_inference import unknown_bigquery_type_exception
+  from ..type_inference import type_retriever_base, unknown_bigquery_type_exception
 
 
-class BigQueryTypeRetriever:
-  """For all given types builds its string representation as composition of Logica's primitive types."""
+class BigQueryTypeRetriever(type_retriever_base.TypeRetrieverBase):
   def __init__(self):
+    super().__init__()
     self.array_regexp = re.compile(r'ARRAY<(.*)>')
     self.struct_regexp = re.compile(r'STRUCT<(.*)>')
-    self.name_to_type_cache = dict()
-
-  def UnpackTypeWithCaching(self, type: str) -> str:
-    if type not in self.name_to_type_cache:
-      self.name_to_type_cache[type] = self.UnpackType(type)
-
-    return self.name_to_type_cache[type]
 
   def UnpackType(self, type: str) -> str:
     def ParseBigQueryStruct(type):
@@ -60,7 +55,7 @@ class BigQueryTypeRetriever:
       fields[field_name] = type[start_index:].lstrip()
       return fields
 
-    result = bigquery_type_parser.BigQueryTypeToLogicaType(type)
+    result = bq_type_parser.BigQueryTypeToLogicaType(type)
 
     if result:
       return result
