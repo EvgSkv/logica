@@ -43,6 +43,7 @@ import sys
 if __name__ == '__main__' and not __package__:
   from common import color
   from common import sqlite3_logica
+  from common import psql_logica
   from compiler import functors
   from compiler import rule_translate
   from compiler import universe
@@ -54,6 +55,7 @@ if __name__ == '__main__' and not __package__:
 else:
   from .common import color
   from .common import sqlite3_logica
+  from .common import psql_logica
   from .compiler import functors
   from .compiler import rule_translate
   from .compiler import universe
@@ -216,9 +218,16 @@ def main(argv):
   if command == 'build_schema':
     logic_program = universe.LogicaProgram(parsed_rules, user_flags=user_flags)
     engine = logic_program.annotations.Engine()
+    running_from_colab = os.getenv('COLAB_RELEASE_TAG')
     if engine == 'psql':
-      psql_type_retrieval_service.PostgresqlTypeRetrievalService(
-        parsed_rules, predicates_list).RetrieveTypes(filename)
+      if running_from_colab:
+        service = psql_type_retrieval_service.PostgresqlTypeRetrievalService(
+        parsed_rules, predicates_list)
+      else:
+        connection = psql_logica.ConnectToPostgres('environment')
+        service = psql_type_retrieval_service.PostgresqlTypeRetrievalService(
+        parsed_rules, predicates_list, connection)
+      service.RetrieveTypes(filename)
       return 0
     elif engine == 'bigquery':
       from google import auth as terminal_auth
