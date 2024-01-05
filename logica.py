@@ -224,9 +224,9 @@ def main(argv):
         service = psql_type_retrieval_service.PostgresqlTypeRetrievalService(
         parsed_rules, predicates_list)
       else:
-        connection = psql_logica.ConnectToPostgres('environment')
+        connection_str = os.environ.get('LOGICA_PSQL_CONNECTION')
         service = psql_type_retrieval_service.PostgresqlTypeRetrievalService(
-        parsed_rules, predicates_list, connection)
+        parsed_rules, predicates_list, connection_str)
       service.RetrieveTypes(filename)
       return 0
     elif engine == 'bigquery':
