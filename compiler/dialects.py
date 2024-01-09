@@ -111,6 +111,7 @@ class SqLiteDialect(Dialect):
         'Greatest': 'MAX(%s)',
         'ToString': 'CAST(%s AS TEXT)',
         'DateAddDay': "DATE({0}, {1} || ' days')",
+        'DateDiffDay': "CAST(JULIANDAY({0}) - JULIANDAY({1}) AS INT64)"
     }
 
   def DecorateCombineRule(self, rule, var):
