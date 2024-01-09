@@ -109,6 +109,8 @@ class PredicateCall(LogicalTerm):
         return '%s? %s= %s' % (
           k, v.aggregating_operator, v.aggregated_expression
         )
+      if isinstance(v, Variable) and k == v.name:
+        return '%s:' % k
       return '%s: %s' % (k, v)
     assert self.distinct_denoted or not self.names_aggregated, (
       self.predicate_name, self.positional_args, self.named_args,
@@ -130,7 +132,7 @@ class PredicateCall(LogicalTerm):
 
   def __and__(self, other_conjunct):
     if isinstance(other_conjunct, Conjunction):
-      return Conjunction([self, other_conjunct.conjuncts])
+      return Conjunction([self] + other_conjunct.conjuncts)
     return Conjunction([self, other_conjunct])
 
   def __call__(self, *positional_args, **named_args):
@@ -140,6 +142,7 @@ class PredicateCall(LogicalTerm):
                           list(named_args.items()))
     return PredicateCall(self.predicate_name,
                          new_positional_args, new_named_args)
+
 
 class Subscript(LogicalTerm):
   def __init__(self, record, field):
@@ -153,17 +156,29 @@ class Rule:
   def __init__(self, head, body):
     self.head = head
     self.body = body
+    self.comment_before_rule : str = None
   
   def __str__(self):
+    if self.comment_before_rule:
+      comment = '# ' + '# '.join(self.comment_before_rule.split('\n')) + '\n'
+    else:
+      comment = ''
     if self.body:
-      return '%s :- %s' % (self.head, self.body) 
+      return '%s%s :- %s' % (comment, self.head, self.body) 
+    else:
+      return comment + str(self.head)
 
 class Conjunction(LogicalTerm):
   def __init__(self, conjuncts):
     self.conjuncts = conjuncts
   
   def __str__(self):
-    return ', '.join(map(str, self.conjuncts))
+    return '\n  ' + ',\n  '.join(map(str, self.conjuncts))
+
+  def __and__(self, other_conjunct):
+    if isinstance(other_conjunct, Conjunction):
+      return Conjunction(self.conjuncts + other_conjunct.conjuncts)
+    return Conjunction(self.conjuncts + [other_conjunct])
 
 class Variable(LogicalTerm):
   def __init__(self, name):
@@ -188,3 +203,14 @@ class Predicate:
   
   def __call__(self, *args, **named_args):
     return PredicateCall(self.predicate_name, args, named_args)
+
+class Program:
+  def __init__(self, rules):
+    self.rules = rules
+  
+  def AddRule(self, rule):
+    self.rules.append(rule)
+  
+  def __str__(self):
+    return ';\n\n'.join(map(str, self.rules))
+  

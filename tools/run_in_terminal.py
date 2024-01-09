@@ -106,7 +106,7 @@ def RunSQL(sql, engine, connection=None, is_final=False,
                     'for now.')
 
 
-def Run(filename, predicate_name):
+def Run(filename, predicate_name, output_format='artistic_table'):
   try:
     rules = parse.ParseFile(open(filename).read())['rule']
   except parse.ParsingException as parsing_exception:
@@ -134,5 +134,10 @@ def Run(filename, predicate_name):
     type_error_exception.ShowMessage()
     sys.exit(1)
 
-  artistic_table = sqlite3_logica.ArtisticTable(header, rows)
-  return artistic_table
+  if output_format == 'artistic_table':
+    artistic_table = sqlite3_logica.ArtisticTable(header, rows)
+    return artistic_table
+  elif output_format == 'header_rows':
+    return header, rows
+  else:
+    assert False, 'Unknown output format: %s' % output_format
