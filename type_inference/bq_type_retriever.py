@@ -21,9 +21,11 @@ from type_inference import bq_type_parser
 from . import bq_type_parser
 
 if '.' not in __package__:
-  from type_inference import type_retriever_base, unknown_bigquery_type_exception
+  from type_inference import type_retriever_base
+  from type_inference import unknown_bigquery_type_exception
 else:
-  from ..type_inference import type_retriever_base, unknown_bigquery_type_exception
+  from ..type_inference import type_retriever_base
+  from ..type_inference import unknown_bigquery_type_exception
 
 
 class BigQueryTypeRetriever(type_retriever_base.TypeRetrieverBase):

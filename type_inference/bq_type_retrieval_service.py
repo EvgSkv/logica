@@ -22,7 +22,8 @@ else:
   from ..type_inference import type_retrieval_service_base
 
 
-class BigQueryTypeRetrievalService(type_retrieval_service_base.TypeRetrievalServiceBase):
+class BigQueryTypeRetrievalService(
+  type_retrieval_service_base.TypeRetrievalServiceBase):
   """The class is an entry point for type retrieval using bigquery."""
   def __init__(self, parsed_rules, predicate_names,
                credentials=None, project='bigquery-logica'):
@@ -38,14 +39,17 @@ class BigQueryTypeRetrievalService(type_retrieval_service_base.TypeRetrievalServ
   def GetColumns(self):
     from google.cloud import bigquery
 
-    client = bigquery.Client(credentials=self.credentials, project=self.project) # it works for us even if we don't give any credentials
+    # it works for us even if we don't give any credentials
+    client = bigquery.Client(credentials=self.credentials, 
+                             project=self.project) 
     job_config = bigquery.QueryJobConfig(
       query_parameters=[
         bigquery.ArrayQueryParameter("tables", "STRING", self.table_names),
       ]
     )
     query = client.query('''
-SELECT table_name, JSON_OBJECT(ARRAY_AGG(column_name), ARRAY_AGG(data_type)) AS columns
+SELECT table_name, JSON_OBJECT(ARRAY_AGG(column_name), ARRAY_AGG(data_type)) 
+                   AS columns
 FROM logica_test.INFORMATION_SCHEMA.COLUMNS
 GROUP BY table_name
 HAVING table_name IN UNNEST(@tables);''', job_config)

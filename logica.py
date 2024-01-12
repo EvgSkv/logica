@@ -43,27 +43,21 @@ import sys
 if __name__ == '__main__' and not __package__:
   from common import color
   from common import sqlite3_logica
-  from common import psql_logica
   from compiler import functors
   from compiler import rule_translate
   from compiler import universe
   from parser_py import parse
   from type_inference.research import infer
-  from type_inference import psql_type_retrieval_service
-  from type_inference import bq_type_retrieval_service
-  from type_inference import unsupported_engine_exception
+  from type_inference import type_retrieval_service_discovery
 else:
   from .common import color
   from .common import sqlite3_logica
-  from .common import psql_logica
   from .compiler import functors
   from .compiler import rule_translate
   from .compiler import universe
   from .parser_py import parse
   from .type_inference.research import infer
-  from .type_inference import psql_type_retrieval_service
-  from .type_inference import bq_type_retrieval_service
-  from .type_inference import unsupported_engine_exception
+  from .type_inference import type_retrieval_service_discovery
 
 
 def ReadUserFlags(rules, argv):
@@ -218,32 +212,10 @@ def main(argv):
   if command == 'build_schema':
     logic_program = universe.LogicaProgram(parsed_rules, user_flags=user_flags)
     engine = logic_program.annotations.Engine()
-    running_from_colab = os.getenv('COLAB_RELEASE_TAG')
-    if engine == 'psql':
-      if running_from_colab:
-        service = psql_type_retrieval_service.PostgresqlTypeRetrievalService(
-        parsed_rules, predicates_list)
-      else:
-        connection_str = os.environ.get('LOGICA_PSQL_CONNECTION')
-        service = psql_type_retrieval_service.PostgresqlTypeRetrievalService(
-        parsed_rules, predicates_list, connection_str)
-      service.RetrieveTypes(filename)
-      return 0
-    elif engine == 'bigquery':
-      from google import auth as terminal_auth
-      credentials, project = terminal_auth.default()
-      if not project:
-        from google.colab import auth as colab_auth
-        colab_auth.authenticate_user()
-        print("Please enter project_id to use for BigQuery queries.")
-        project = input()
-        print("project_id is set to %s" % project)
-        print("You can change it with logica.colab_logica.SetProject command.")
-      bq_type_retrieval_service.BigQueryTypeRetrievalService(
-        parsed_rules, predicates_list, credentials, project).RetrieveTypes(filename)
-      return 0
-    else:
-      raise unsupported_engine_exception.UnsupportedEngineException(engine)
+    type_retrieval_service = type_retrieval_service_discovery\
+      .get_type_retrieval_service(engine, parsed_rules, predicates_list)
+    type_retrieval_service.RetrieveTypes(filename)
+    return 0
 
   for predicate in predicates_list:
     try:

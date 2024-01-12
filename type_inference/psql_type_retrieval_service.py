@@ -20,7 +20,8 @@ else:
   from ..type_inference import type_retrieval_service_base
 
 
-class PostgresqlTypeRetrievalService(type_retrieval_service_base.TypeRetrievalServiceBase):
+class PostgresqlTypeRetrievalService(
+  type_retrieval_service_base.TypeRetrievalServiceBase):
   """The class is an entry point for type retrieval using postgresql."""
   def __init__(self, parsed_rules, predicate_names,
                connection_string='dbname=logica user=logica password=logica host=127.0.0.1'):

@@ -44,4 +44,5 @@ def BigQueryTypeToLogicaType(bq_type: str):
       return 'Str'
     return None
 
-  return TryParseParametrizedBigQueryTypeToLogicaType(bq_type) or BIGQUERY_TYPE_TO_LOGICA_TYPE.get(bq_type)
+  return (TryParseParametrizedBigQueryTypeToLogicaType(bq_type) or 
+          BIGQUERY_TYPE_TO_LOGICA_TYPE.get(bq_type))
