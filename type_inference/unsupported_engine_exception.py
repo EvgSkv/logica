@@ -21,11 +21,11 @@ if '.' not in __package__:
   from type_inference import type_retrieval_exception
 else:
   from ..common import color
-  import type_retrieval_exception
+  from ..type_inference import type_retrieval_exception
 
 
 class UnsupportedEngineException(type_retrieval_exception.TypeRetrievalException):
   def __init__(self, engine: str):
     error(f'''{color.Format("[ {error}Error{end} ]")} Unsupported engine to build schema for: '{engine}'.
-          Currently supported engines: psql.
+          Currently supported engines: psql, bigquery.
           ''')
