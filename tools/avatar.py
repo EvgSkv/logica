@@ -153,7 +153,7 @@ class Subscript(LogicalTerm):
     return '%s.%s' % (self.record, self.field)
 
 class Rule:
-  def __init__(self, head, body):
+  def __init__(self, head: PredicateCall, body):
     self.head = head
     self.body = body
     self.comment_before_rule : str = None
@@ -179,6 +179,19 @@ class Conjunction(LogicalTerm):
     if isinstance(other_conjunct, Conjunction):
       return Conjunction(self.conjuncts + other_conjunct.conjuncts)
     return Conjunction(self.conjuncts + [other_conjunct])
+
+class Disjunction(LogicalTerm):
+  def __init__(self, disjuncts):
+    self.disjuncts = disjuncts
+
+  def __str__(self):
+    return '\n  ' + ' |\n  '.join(map(lambda x: '(%s)' % x, self.disjuncts))
+
+  def __or__(self, other_disjunct):
+    if isinstance(other_disjunct, Disjunction):
+      return Disjunction(self.disjuncts + other_disjunct.disjuncts)
+    return Disjunction(self.disjuncts + [other_disjunct])
+
 
 class Variable(LogicalTerm):
   def __init__(self, name):
