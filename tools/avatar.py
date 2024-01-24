@@ -81,6 +81,17 @@ class Literal(LogicalTerm):
       assert False, x
     return Render(self.value)
 
+  def AsJson(self):
+    value = self.value
+    if (isinstance(value, int) or
+        isinstance(value, float) or
+        isinstance(value, str)):
+      return value
+    if isinstance(value, list):
+      return [x.AsJson() for x in value]
+    if isinstance(value, dict):
+      return {k: v.AsJson() for k, v in value}
+    assert False
 
 class PredicateCall(LogicalTerm):
   def __init__(self, predicate_name,
