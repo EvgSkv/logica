@@ -114,26 +114,26 @@ def DisplayGraph(nodes, edges, options=None, width=640, height=480):
   html = GraphHtml(nodes, edges, options, width, height)
   display(HTML(html))
 
-def SimpleGraphFromList(edges):
+def SimpleGraphFromList(edges, options=None):
   nodes = list({n for e in edges for n in e})
   nodes_json = [{"id": n, "label": str(n)} for n in nodes]
   edges_json = [{"from": e[0], "to": e[1]} for e in edges]
-  DisplayGraph(nodes_json, edges_json)
+  DisplayGraph(nodes_json, edges_json, options=options)
 
-def SimpleGraph(p, source='col0', target='col1'):
+def SimpleGraph(p, source='col0', target='col1', options=None):
   edges = list(zip(p[source], p[target]))
-  SimpleGraphFromList(edges)
+  SimpleGraphFromList(edges, options=options)
 
-def DirectedGraphFromList(edges):
+def DirectedGraphFromList(edges, options=None):
   nodes = list({n for e in edges for n in e})
   nodes_json = [{"id": n, "label": str(n)} for n in nodes]
   edges_json = [{"from": e[0], "to": e[1], "arrows": "to"}
                 for e in edges]
-  DisplayGraph(nodes_json, edges_json)
+  DisplayGraph(nodes_json, edges_json, options=options)
 
-def DirectedGraph(p, source='col0', target='col1'):
+def DirectedGraph(p, source='col0', target='col1', options=None):
   edges = list(zip(p[source], p[target]))
-  DirectedGraphFromList(edges)
+  DirectedGraphFromList(edges, options=options)
 
 def Graph(nodes, edges, options=None, width=640, height=480):
   nodes_list = [dict(n) for _, n in nodes.iterrows()]
