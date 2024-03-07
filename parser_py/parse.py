@@ -1590,7 +1590,7 @@ def ParseFile(s, this_file_name=None, parsed_imports=None, import_chain=None,
         existing_prefixes.add(some_parsed_import['predicates_prefix'])
     parts = this_file_name.split('.')
     idx = -1
-    this_file_prefix = parts[idx] + '_'
+    this_file_prefix = parts[idx].capitalize() + '_'
     while this_file_prefix in existing_prefixes:
       idx -= 1
       assert idx > 0, (
