@@ -154,3 +154,8 @@ def Graph(nodes, edges, options=None, width=640, height=480):
   options_obj = {} if options is None else dict(options.iloc[0])
   Convert([options_obj])
   DisplayGraph(nodes_list, edges_list, options_obj, width, height)
+
+
+def HierarchicalOptions():
+  return {'layout': {'hierarchical': {'direction': 'UD',
+                                      'sortMethod': 'directed'}}}
