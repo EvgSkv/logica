@@ -999,14 +999,16 @@ class LogicaProgram(object):
     self.RunInjections(s, allocator)
     s.ElliminateInternalVariables(assert_full_ellimination=True)
     s.UnificationsToConstraints()
-    type_inference = infer.TypeInferenceForStructure(s, self.predicate_signatures)
-    type_inference.PerformInference()
-    error_checker = infer.TypeErrorChecker([type_inference.quazy_rule])
-    error_checker.CheckForError('raise')
-    # New types may arrive here when we have an injetible predicate with variables
-    # which specific record type depends on the inputs. 
-    self.required_type_definitions.update(type_inference.collector.definitions)
-    self.typing_preamble = infer.BuildPreamble(self.required_type_definitions)
+
+    if self.annotations.ShouldTypecheck():
+      type_inference = infer.TypeInferenceForStructure(s, self.predicate_signatures)
+      type_inference.PerformInference()
+      error_checker = infer.TypeErrorChecker([type_inference.quazy_rule])
+      error_checker.CheckForError('raise')
+      # New types may arrive here when we have an injetible predicate with variables
+      # which specific record type depends on the inputs. 
+      self.required_type_definitions.update(type_inference.collector.definitions)
+      self.typing_preamble = infer.BuildPreamble(self.required_type_definitions)
 
     if 'nil' in s.tables.values():
       if must_not_be_nil:
