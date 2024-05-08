@@ -25,6 +25,7 @@ if '.' not in __package__:
   from compiler.dialect_libraries import trino_library
   from compiler.dialect_libraries import presto_library
   from compiler.dialect_libraries import databricks_library
+  from compiler.dialect_libraries import duckdb_library
 else:
   from ..compiler.dialect_libraries import bq_library
   from ..compiler.dialect_libraries import psql_library
@@ -32,7 +33,7 @@ else:
   from ..compiler.dialect_libraries import trino_library
   from ..compiler.dialect_libraries import presto_library
   from ..compiler.dialect_libraries import databricks_library
-
+  from ..compiler.dialect_libraries import duckdb_library
 def Get(engine):
   return DIALECTS[engine]()
 
@@ -387,12 +388,72 @@ class Databricks(Dialect):
     def DecorateCombineRule(self, rule, var):
         return rule
 
+class DuckDB(Dialect):
+    """DuckDB dialect"""
+
+    def Name(self):
+      return 'DuckDB'
+
+    def BuiltInFunctions(self):
+      return {
+          'Set': 'DistinctListAgg({0})',
+          'Element': "JSON_EXTRACT({0}, '$[' || {1} || ']')",
+          'Range': ('(select json_group_array(n) from (with recursive t as'
+                    '(select 0 as n union all '
+                    'select n + 1 as n from t where n + 1 < {0}) '
+                    'select n from t) where n < {0})'),
+          'ValueOfUnnested': '{0}.value',
+          'List': 'JSON_GROUP_ARRAY({0})',
+          'Size': 'JSON_ARRAY_LENGTH({0})',
+          'Join': 'JOIN_STRINGS({0}, {1})',
+          'Count': 'COUNT(DISTINCT {0})',
+          'StringAgg': 'GROUP_CONCAT(%s)',
+          'Sort': 'SortList({0})',
+          'MagicalEntangle': 'MagicalEntangle({0}, {1})',
+          'Format': 'Printf(%s)',
+          'Least': 'MIN(%s)',
+          'Greatest': 'MAX(%s)',
+          'ToString': 'CAST(%s AS TEXT)',
+          'DateAddDay': "DATE({0}, {1} || ' days')",
+          'DateDiffDay': "CAST(JULIANDAY({0}) - JULIANDAY({1}) AS INT64)"
+      }
+
+    def DecorateCombineRule(self, rule, var):
+      return DecorateCombineRule(rule, var)
+
+    def InfixOperators(self):
+      return {
+          '++': '(%s) || (%s)',
+          '%' : '(%s) %% (%s)',
+          'in': 'IN_LIST(%s, %s)'
+      }
+
+    def Subscript(self, record, subscript, record_is_table):
+      if record_is_table:
+        return '%s.%s' % (record, subscript)
+      else:
+        return 'JSON_EXTRACT(%s, "$.%s")' % (record, subscript)
+    
+    def LibraryProgram(self):
+      return duckdb_library.library
+
+    def UnnestPhrase(self):
+      return 'JSON_EACH({0}) as {1}'
+
+    def ArrayPhrase(self):
+      return 'JSON_ARRAY(%s)'
+
+    def GroupBySpecBy(self):
+      return 'expr'
+
+
 DIALECTS = {
     'bigquery': BigQueryDialect,
     'sqlite': SqLiteDialect,
     'psql': PostgreSQL,
     'presto': Presto,
     'trino': Trino,
-    'databricks': Databricks
+    'databricks': Databricks,
+    'duckdb': DuckDB,
 }
 

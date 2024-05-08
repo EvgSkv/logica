@@ -42,6 +42,7 @@ import pandas
 
 from .parser_py import parse
 from .common import sqlite3_logica
+from .common import duckdb_logica
 
 BQ_READY = True  # By default.
 
@@ -172,6 +173,10 @@ def RunSQL(sql, engine, connection=None, is_final=False):
       return df
     else:
       psql_logica.PostgresExecute(sql, connection)
+  elif engine == 'duckdb':
+    import duckdb
+    print("\n"+sql)
+    duckdb.sql(sql).show()
   elif engine == 'sqlite':
     try:
       if is_final:
@@ -205,6 +210,12 @@ class SqliteRunner(object):
   
   # TODO: Sqlite runner should not be accepting an engine.
   def __call__(self, sql, engine, is_final):
+    return RunSQL(sql, engine, self.connection, is_final)
+
+class DuckdbRunner(object):
+  def __init__(self):
+    self.connection = sqlite3_logica.SqliteConnect()
+  def  __call__(self, sql, engine, is_final):
     return RunSQL(sql, engine, self.connection, is_final)
 
 
@@ -278,7 +289,6 @@ def Logica(line, cell, run_query):
 
   bar = TabBar(predicates + ['(Log)'])
   logs_idx = len(predicates)
-
   executions = []
   sub_bars = []
   ip = IPython.get_ipython()
@@ -313,6 +323,8 @@ def Logica(line, cell, run_query):
       sql_runner = SqliteRunner()
     elif engine == 'psql':
       sql_runner = PostgresRunner()
+    elif engine == 'duckdb':
+      sql_runner = DuckdbRunner() 
     elif engine == 'bigquery':
       EnsureAuthenticatedUser()
       sql_runner = RunSQL
