@@ -264,12 +264,25 @@ def main(argv):
         o = sqlite3_logica.RunSqlScript(statements_to_execute,
                                         format).encode()
       elif engine == 'psql':
-        p = subprocess.Popen(['psql', '--quiet'] +
-                             (['--csv'] if command == 'run_to_csv' else []),
-                             stdin=subprocess.PIPE, stdout=subprocess.PIPE)
-        commands = []
-        o, _ = p.communicate(
-            '\n'.join(commands + [formatted_sql]).encode())
+        connection_str = os.environ.get('LOGICA_PSQL_CONNECTION')
+        if connection_str:
+          connection_str = os.environ.get('LOGICA_PSQL_CONNECTION')
+          import psycopg2
+          from common import psql_logica
+          connection = psycopg2.connect(connection_str)
+          cursor = psql_logica.PostgresExecute(formatted_sql, connection)
+          rows = [list(map(psql_logica.DigestPsqlType, row))
+              
+                  for row in cursor.fetchall()]
+          o = sqlite3_logica.ArtisticTable([d[0] for d in cursor.description],
+                                           rows).encode()
+        else:
+          p = subprocess.Popen(['psql', '--quiet'] +
+                              (['--csv'] if command == 'run_to_csv' else []),
+                              stdin=subprocess.PIPE, stdout=subprocess.PIPE)
+          commands = []
+          o, _ = p.communicate(
+              '\n'.join(commands + [formatted_sql]).encode())
       elif engine == 'trino':
         a = logic_program.annotations.annotations['@Engine']['trino']
         params = GetTrinoParameters(a)
