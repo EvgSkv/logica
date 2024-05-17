@@ -257,6 +257,8 @@ class Annotations(object):
     # This change is intended for all engines in the future.
     if self.Engine() == 'psql':
       default_dataset = 'logica_home'
+    if self.Engine() == 'sqlite' and 'logica_home' in self.AttachedDatabases():
+      default_dataset = 'logica_home'
     return self.ExtractSingleton('@Dataset', default_dataset)
 
   def Engine(self):
