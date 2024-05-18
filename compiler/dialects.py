@@ -159,7 +159,8 @@ class PostgreSQL(Dialect):
         'Count': 'COUNT(DISTINCT {0})',
         'MagicalEntangle': '(CASE WHEN {1} = 0 THEN {0} ELSE NULL END)',
         'ArrayConcat': '{0} || {1}',
-        'Split': 'STRING_TO_ARRAY({0}, {1})'
+        'Split': 'STRING_TO_ARRAY({0}, {1})',
+        'AnyValue': '(ARRAY_AGG(%s))[1]'
       }
 
   def InfixOperators(self):

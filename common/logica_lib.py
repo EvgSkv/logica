@@ -17,6 +17,7 @@
 # Lint as: python3
 """Common utilities for Logica predicate compilation and execution."""
 
+import os
 import subprocess
 import sys
 
@@ -68,6 +69,17 @@ def RunQuery(sql,
              output_format='pretty', engine='bigquery'):
   """Run a SQL query on BigQuery."""
   settings = settings or {}
+  # if engine == 'psql' and os.environ.get('LOGICA_PSQL_CONNECTION'):
+  #   connection_str = os.environ.get('LOGICA_PSQL_CONNECTION')
+  #   import psycopg2
+  #   from common import psql_logica
+  #   connection = psycopg2.connect(connection_str)
+  #   cursor = psql_logica.PostgresExecute(sql, connection)
+  #   rows = [list(map(psql_logica.DigestPsqlType, row))
+        
+  #           for row in cursor.fetchall()]
+  #   return sqlite3_logica.ArtisticTable([d[0] for d in cursor.description],
+  #                                       rows)
   if engine == 'bigquery':
     p = subprocess.Popen(['bq', 'query',
                           '--use_legacy_sql=false',
