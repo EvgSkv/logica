@@ -49,8 +49,12 @@ contexts:
       scope: storage.type
     - match: '(?<=\.)[a-z]\w*'
       scope: markup.italic
-    - match: \b[A-Z]\w*\b
+    - match: '^[A-Z]\w*\b'
       scope: entity.name.function
+    - match: '@[A-Z]\w*\b'
+      scope: markup.italic ++ variable.function
+    - match: \b[A-Z]\w*\b
+      scope: variable.function
     - match: \d*\.\d+
       scope: constant.numeric
     - match: \d*
