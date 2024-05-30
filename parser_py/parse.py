@@ -42,6 +42,7 @@ OPENING_PARENTHESIS = list(CLOSE_TO_OPEN.values())
 
 VARIABLE_CHARS_SET = set(string.ascii_lowercase) | set('_') | set(string.digits)
 
+TOO_MUCH = 'too much'
 
 class HeritageAwareString(str):
   """A string that remembers who's substring it is."""
@@ -578,10 +579,16 @@ def ParseLiteral(s):
 
 def ParseInfix(s, operators=None, disallow_operators=None):
   """Parses an infix operator expression."""
-  operators = operators or [
+  if TOO_MUCH == 'fun':
+    user_defined_operators = ['---', '-+-', '-*-', '-/-', '-%-', '-^-',
+                              '\u25C7', '\u25CB', '\u2661']
+  else:
+    user_defined_operators = []
+
+  operators = operators or (user_defined_operators + [
       '||', '&&', '->', '==', '<=', '>=', '<', '>', '!=', '=', '~',
       ' in ', ' is not ', ' is ', '++?', '++', '+', '-', '*', '/', '%',
-      '^', '!']
+      '^', '!'])
   # We disallow ~ in expressions.
   disallow_operators = disallow_operators or []
   unary_operators = ['-', '!']
@@ -795,6 +802,8 @@ def ParseGenericCall(s, opening, closing):
             set(string.ascii_letters) |
             set(['@', '_', '.', '$', '{', '}', '+', '-', '`']) |
             set(string.digits))
+        if TOO_MUCH == 'fun':
+          good_chars |= set(['*', '^', '%', '/', '\u25C7', '\u25CB', '\u2661'])
         if ((idx > 0 and set(s[:idx]) <= good_chars) or
             s[:idx] == '!' or
             s[:idx] == '++?' or
