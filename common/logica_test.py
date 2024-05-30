@@ -130,7 +130,7 @@ def RunTest(name, src, predicate, golden,
   if result == golden_result:
     test_result = '{ok}PASSED{end}'
   else:
-    p = subprocess.Popen(['diff', '-', golden], stdin=subprocess.PIPE)
+    p = subprocess.Popen(['diff', '--strip-trailing-cr', '-', golden], stdin=subprocess.PIPE)
     p.communicate(result.encode())
     if golden_result == 'This file does not exist. (<_<)':
       print('\x1B[3mGolden file is missing.\x1B[0m\n')
