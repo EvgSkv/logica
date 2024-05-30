@@ -122,6 +122,13 @@ class ParsingException(Exception):
         color.Format('\n[ {error}Error{end} ] ') + str(self), file=stream)
 
 
+def EnactIncantations(main_code):
+  """Enabling experimental syntax features."""
+  global TOO_MUCH
+  if 'Signa inter verba conjugo, symbolum infixus evoco!' in main_code:
+    TOO_MUCH = 'fun'
+
+
 def FunctorSyntaxErrorMessage():
   return (
       'Incorrect syntax for functor call. '
@@ -1540,6 +1547,9 @@ class AggergationsAsExpressions(object):
 def ParseFile(s, this_file_name=None, parsed_imports=None, import_chain=None,
               import_root=None):
   """Parsing logica.Logica."""
+  if (this_file_name or 'main') == 'main':
+    # Enable experimental features if requested.
+    EnactIncantations(s)
   s = HeritageAwareString(RemoveComments(HeritageAwareString(s)))
   parsed_imports = parsed_imports or {}
   this_file_name = this_file_name or 'main'
