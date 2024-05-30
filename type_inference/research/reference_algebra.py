@@ -179,6 +179,8 @@ def IsFullyDefined(t):
     return False
   if t == 'Singular':
     return False
+  if t == 'Sequential':
+    return False
   if isinstance(t, str):
     return True
   if isinstance(t, BadType):
@@ -327,7 +329,7 @@ def Unify(a, b):
       b.target = Incompatible(b.target, a.target)
       return
     assert False
-  assert False, (a, type(a))
+  assert False, (a, type(a), b, type(b))
 
 
 def UnifyFriendlyRecords(a, b, record_type):
