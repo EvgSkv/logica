@@ -40,8 +40,8 @@ syntax match logicaVariable +[a-z][_a-zA-Z0-9$]*+
 syntax match logicaWildcard +_[_a-zA-Z0-9$]*+
 
 " Fields
-syntax match logicaField +\.[0-9a-zA-Z_$]\++
-syntax match logicaField +\.?[0-9a-zA-Z_$]\++
+syntax match logicaField +[0-9a-zA-Z_$]*:+
+syntax match logicaField +[0-9a-zA-Z_$]*[?]+
 
 " Integers
 syntax match logicaInteger +0\|[1-9][0-9]*+

@@ -24,11 +24,7 @@ else:
   from ..type_inference import type_retrieval_exception
 
 
-class BadSchemaException(type_retrieval_exception.TypeRetrievalException):
-  def __init__(self, predicate_text: str):
-    error(f'''{color.Format("[ {error}Error{end} ]")} 
-          Bad predicate to build schema for: '{predicate_text}'
-
-Schema can be built for predicates of the form:
-'<PredicateName>(..<name of row>) :- <name table>(..<name of row>);'
+class UnknownBigQueryTypeException(type_retrieval_exception.TypeRetrievalException):
+  def __init__(self, type: str):
+    error(f'''{color.Format("[ {error}Error{end} ]")}'Unknown BigQuery type! Used type was {type}
           ''')

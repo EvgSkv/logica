@@ -17,19 +17,16 @@
 import psycopg2
 
 if '.' not in __package__:
-  from common import color
-  from type_inference import postgresql_type_parser
+  from type_inference import type_retriever_base, psql_type_parser
 else:
-  from ..common import color
-  import postgresql_type_parser
+  from ..type_inference import type_retriever_base, psql_type_parser
 
 
-class PostgresqlTypeRetriever:
-  """For all given types builds its string representation as composition of Logica's primitive types."""
+class PostgresqlTypeRetriever(type_retriever_base.TypeRetrieverBase):
   def __init__(self):
+    super().__init__()
     self.built_in_types = set()
     self.user_defined_types = dict()
-    self.name_to_type_cache = dict()
 
   def ExtractTypeInfo(self, connection_string: str):
     if self.built_in_types and self.user_defined_types:
@@ -70,19 +67,13 @@ GROUP BY t.typname, n.nspname;''')
             self.built_in_types.add(type)
           else:
             self.user_defined_types[type] = {field['field_name']: field['field_type'] for field in fields} if fields else {}
-
-  def UnpackTypeWithCaching(self, type: str) -> str:
-    if type not in self.name_to_type_cache:
-      self.name_to_type_cache[type] = self.UnpackType(type)
-
-    return self.name_to_type_cache[type]
   
   def UnpackType(self, type: str) -> str:
     if type.startswith('_'):
       return '[%s]' % self.UnpackTypeWithCaching(type[1:])
     
     if type in self.built_in_types:
-      return postgresql_type_parser.PostgresTypeToLogicaType(type)
+      return psql_type_parser.PostgresTypeToLogicaType(type)
     
     fields = self.user_defined_types[type]
     fields = (f'{field_name}: {self.UnpackTypeWithCaching(field_type)}' for field_name, field_type in fields.items())

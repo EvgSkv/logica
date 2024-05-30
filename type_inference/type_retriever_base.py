@@ -14,21 +14,20 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from logging import error
-
-if '.' not in __package__:
-  from common import color
-  from type_inference import type_retrieval_exception
-else:
-  from ..common import color
-  from ..type_inference import type_retrieval_exception
+import abc
 
 
-class BadSchemaException(type_retrieval_exception.TypeRetrievalException):
-  def __init__(self, predicate_text: str):
-    error(f'''{color.Format("[ {error}Error{end} ]")} 
-          Bad predicate to build schema for: '{predicate_text}'
+class TypeRetrieverBase(abc.ABC):
+  """For all given types builds its string representation as composition of Logica's primitive types."""
+  def __init__(self):
+    self.name_to_type_cache = dict()
 
-Schema can be built for predicates of the form:
-'<PredicateName>(..<name of row>) :- <name table>(..<name of row>);'
-          ''')
+  def UnpackTypeWithCaching(self, type: str) -> str:
+    if type not in self.name_to_type_cache:
+      self.name_to_type_cache[type] = self.UnpackType(type)
+
+    return self.name_to_type_cache[type]
+
+  @abc.abstractmethod
+  def UnpackType(self, type: str) -> str:
+    """Returns string representation of the given type"""
