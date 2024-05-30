@@ -27,6 +27,7 @@ def TypesOfBultins():
     list_of_e = reference_algebra.TypeReference('Any')
     e = reference_algebra.TypeReference('Singular')
     reference_algebra.UnifyListElement(list_of_e, e)
+    sequential = reference_algebra.TypeReference('Sequential')
 
     types_of_predicate = {
         'Aggr': {
@@ -49,9 +50,9 @@ def TypesOfBultins():
           'logica_value': 'Bool'
         },
         '++': {
-          'left': 'Str',
-          'right': 'Str',
-          'logica_value': 'Str' 
+          'left': sequential,
+          'right': sequential,
+          'logica_value': sequential 
         },
         '+': {
             'left': 'Num',

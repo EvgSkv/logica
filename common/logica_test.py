@@ -17,6 +17,7 @@
 # Lint as: python3
 """Utilities for YotaQL tests."""
 
+import os
 import subprocess
 import json
 
@@ -121,13 +122,19 @@ def RunTest(name, src, predicate, golden,
   if overwrite:
     with open(golden, 'w') as w:
       w.write(result)
-  golden_result = open(golden).read()
+  if not os.path.isfile(golden):
+    golden_result = 'This file does not exist. (<_<)'
+  else:
+    golden_result = open(golden).read()
 
   if result == golden_result:
     test_result = '{ok}PASSED{end}'
   else:
-    p = subprocess.Popen(['diff', '-', golden], stdin=subprocess.PIPE)
+    p = subprocess.Popen(['diff', '--strip-trailing-cr', '-', golden], stdin=subprocess.PIPE)
     p.communicate(result.encode())
+    if golden_result == 'This file does not exist. (<_<)':
+      print('\x1B[3mGolden file is missing.\x1B[0m\n')
+
     test_result = '{error}FAILED{end}'
 
   print('\033[F\033[K' + color.Format('% 50s   %s' % (name, test_result)))
