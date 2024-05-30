@@ -59,7 +59,7 @@ class BigQueryDialect(Dialect):
 
   def InfixOperators(self):
     return {
-        '++': 'CONCAT(%s, %s)',
+        '++': '%s || %s',
     }
 
   def Subscript(self, record, subscript, record_is_table):
@@ -165,7 +165,7 @@ class PostgreSQL(Dialect):
 
   def InfixOperators(self):
     return {
-        '++': 'CONCAT(%s, %s)',
+        '++': '%s || %s',  # Works for strings and lists.
         'in': '%s = ANY(%s)'
     }
 

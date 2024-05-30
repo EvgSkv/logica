@@ -200,18 +200,20 @@ def Rank(x):
     return 0
   if x == 'Singular':
     return 1
-  if x == 'Num':
+  if x == 'Sequential':
     return 2
-  if x == 'Str':
+  if x == 'Num':
     return 3
-  if x == 'Bool':
+  if x == 'Str':
     return 4
-  if isinstance(x, list):
+  if x == 'Bool':
     return 5
-  if isinstance(x, OpenRecord):
+  if isinstance(x, list):
     return 6
-  if isinstance(x, ClosedRecord):
+  if isinstance(x, OpenRecord):
     return 7
+  if isinstance(x, ClosedRecord):
+    return 8
   assert False, 'Bad type: %s' % x
 
 
@@ -255,7 +257,21 @@ def Unify(a, b):
           Incompatible(a.target, b.target),
           Incompatible(b.target, a.target))
       return
+    if concrete_b == 'Sequential':
+      a.target = b
+      b.target = 'Str'
+      return
     a.target = b
+    return
+
+  if concrete_a == 'Sequential':
+    if concrete_b in ('Str', 'Sequential') or isinstance(concrete_b, list):
+      a.target = b
+      return
+    # Type error: a is incompatible with b.
+    a.target, b.target = (
+        Incompatible(a.target, b.target),
+        Incompatible(b.target, a.target))
     return
 
   if concrete_a in ('Num', 'Str', 'Bool'):

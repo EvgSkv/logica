@@ -54,6 +54,7 @@ def RunAll(test_presto=False, test_trino=False):
     RunTest("dialects/trino/joins_test")
     RunTest("dialects/trino/joins_test")
 
+  RunTest("bq_plusplus_test")
   RunTest("sqlite_functors_test")
 
   RunTest("import_root_test", import_root="integration_tests/import_tests")
@@ -91,7 +92,8 @@ def RunAll(test_presto=False, test_trino=False):
   RunTest("sqlite_reachability")
   RunTest("sqlite_element_test")
 
-  RunTest("psql_argmax2_combine_test");
+  RunTest("psql_plusplus_test")
+  RunTest("psql_argmax2_combine_test")
   RunTest("psql_game_test")
   RunTest("psql_explicit_typing_test")
   RunTest("psql_argmin_list_test")
