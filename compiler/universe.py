@@ -1022,7 +1022,7 @@ class LogicaProgram(object):
         # Calling compilation could result in type error, as
         # types coming from nil are not known.
         # Return a rule marked for deletion.
-        return '/* nil */ SELECT 42'
+        return '/* nil */ SELECT NIRVANA FROM (SELECT 42 AS NIRVANA) WHERE NIRVANA = 0'
 
     try:
       sql = s.AsSql(self.MakeSubqueryTranslator(allocator), self.flag_values)
