@@ -29,7 +29,7 @@ V(x) distinct :- M(a, b), x in [a,b];
 D(x, n) :- V(x), n += (1 :- M(x));
 
 Loss(x) :- D(x, n), n is null;
-Loss(x) :- D(x, n), num_wins += (1 :- M(x, y), Win(y)), num_wins >= n;
+Loss(x) :- D(x, n), num_wins += (1 :- M(x, y), Win(y)), ToInt64(num_wins) >= n;
 
 @Recursive(Win);
 Win(x) distinct :- M(x, y), Loss(y);
