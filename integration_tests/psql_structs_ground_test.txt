@@ -1,6 +1,6 @@
-   col0   
-----------
- machine
- universe
-(2 rows)
-
++----------+
+| col0     |
++----------+
+| machine  |
+| universe |
++----------+
