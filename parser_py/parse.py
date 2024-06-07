@@ -1494,6 +1494,8 @@ class AggergationsAsExpressions(object):
       return 'Agg+'
     if raw_operator == '++':
       return 'Agg++'
+    if raw_operator == '*':
+      return '`*`'
     return raw_operator
 
   @classmethod
