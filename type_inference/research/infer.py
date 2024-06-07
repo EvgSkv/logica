@@ -408,7 +408,7 @@ class TypeInferenceForRule:
         field_name = fv['field']
         reference_algebra.UnifyRecordField(
           record_type, field_name, field_type)
-      # print('>>>', node)
+        # print('>>>', node)
 
       node['type']['the_type'].CloseRecord()
 
@@ -669,6 +669,8 @@ class TypeCollector:
       t_rendering = reference_algebra.RenderType(t)
       self.type_map[t_rendering] = t
       node['type']['rendered_type'] = t_rendering
+      if 'combine' in node and reference_algebra.IsFullyDefined(t):
+        node['type']['combine_psql_type'] = self.PsqlType(t)
       if isinstance(t, dict) and reference_algebra.IsFullyDefined(t):
         node['type']['type_name'] = RecordTypeName(t_rendering)
       if isinstance(t, list) and reference_algebra.IsFullyDefined(t):

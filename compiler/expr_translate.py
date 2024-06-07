@@ -623,11 +623,17 @@ class QL(object):
         record_type=record_type)
 
     if 'combine' in expression:
-      return '(%s)' % (
+      combined_value = '(%s)' % (
           self.subquery_translator.TranslateRule(
               expression['combine'],
               self.vocabulary,
               is_combine=True))
+      if self.dialect.Name() == 'PostgreSQL':
+        # We need this for nirvana.
+        return 'CAST(%s AS %s)' % (combined_value,
+                                   expression['type']['combine_psql_type'])
+      return combined_value
+
 
     if 'implication' in expression:
       implication = expression['implication']

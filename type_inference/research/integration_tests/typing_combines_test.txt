@@ -143,6 +143,7 @@
          }
         },
         "type": {
+         "combine_psql_type": "numeric",
          "rendered_type": "Num",
          "the_type": "Num",
          "type_id": 4
@@ -283,6 +284,7 @@
          }
         },
         "type": {
+         "combine_psql_type": "text[]",
          "element_type_name": "text",
          "rendered_type": "[Str]",
          "the_type": [

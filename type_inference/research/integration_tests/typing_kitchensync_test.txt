@@ -940,6 +940,7 @@
          }
         },
         "type": {
+         "combine_psql_type": "logicarecord980116590[]",
          "element_type_name": "logicarecord980116590",
          "rendered_type": "[{item: Str, quantity: Str}]",
          "the_type": [

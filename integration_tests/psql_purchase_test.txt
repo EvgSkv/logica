@@ -1,11 +1,12 @@
-+----------------------------------------------+----------------------------------------------------------------------------------+----------
-           1 | {"(Soap,20,3)"}                              | {"(Soap,\"{Milk,Bread,Coffee,Firewood}\")"}                                      |       11
-           2 | {"(Milk,10,1)"}                              | {"(Milk,\"{Bread,Coffee}\")"}                                                    |       12
-           3 | {"(Bread,5,2)","(Coffee,7,1)"}               | {"(Coffee,{Bread})"}                                                             |       13
-           4 | {"(Soap,20,1)","(Firewood,15,5)"}            | {"(Soap,\"{Milk,Bread,Coffee,Firewood}\")","(Firewood,\"{Milk,Bread,Coffee}\")"} |       14
-           5 | {"(Milk,10,4)","(Bread,5,1)","(Coffee,7,2)"} | {"(Milk,\"{Bread,Coffee}\")","(Coffee,{Bread})"}                                 |       12
-           6 | {"(Soap,20,3)","(Firewood,15,1)"}            | {"(Soap,\"{Milk,Bread,Coffee,Firewood}\")","(Firewood,\"{Milk,Bread,Coffee}\")"} |       13
-           7 | {"(Milk,10,1)","(Bread,5,2)","(Coffee,7,1)"} | {"(Milk,\"{Bread,Coffee}\")","(Coffee,{Bread})"}                                 |       14
-           8 | {"(Soap,20,1)","(Firewood,15,5)"}            | {"(Soap,\"{Milk,Bread,Coffee,Firewood}\")","(Firewood,\"{Milk,Bread,Coffee}\")"} |       11
-(8 rows)
-
++-------------+----------------------------------------------+----------------------------------------------------------------------------------+----------+
+| purchase_id | items                                        | expensive_items                                                                  | buyer_id |
++-------------+----------------------------------------------+----------------------------------------------------------------------------------+----------+
+| 1           | {"(Soap,20,3)"}                              | {"(Soap,\"{Milk,Bread,Coffee,Firewood}\")"}                                      | 11       |
+| 2           | {"(Milk,10,1)"}                              | {"(Milk,\"{Bread,Coffee}\")"}                                                    | 12       |
+| 3           | {"(Bread,5,2)","(Coffee,7,1)"}               | {"(Coffee,{Bread})"}                                                             | 13       |
+| 4           | {"(Soap,20,1)","(Firewood,15,5)"}            | {"(Soap,\"{Milk,Bread,Coffee,Firewood}\")","(Firewood,\"{Milk,Bread,Coffee}\")"} | 14       |
+| 5           | {"(Milk,10,4)","(Bread,5,1)","(Coffee,7,2)"} | {"(Milk,\"{Bread,Coffee}\")","(Coffee,{Bread})"}                                 | 12       |
+| 6           | {"(Soap,20,3)","(Firewood,15,1)"}            | {"(Soap,\"{Milk,Bread,Coffee,Firewood}\")","(Firewood,\"{Milk,Bread,Coffee}\")"} | 13       |
+| 7           | {"(Milk,10,1)","(Bread,5,2)","(Coffee,7,1)"} | {"(Milk,\"{Bread,Coffee}\")","(Coffee,{Bread})"}                                 | 14       |
+| 8           | {"(Soap,20,1)","(Firewood,15,5)"}            | {"(Soap,\"{Milk,Bread,Coffee,Firewood}\")","(Firewood,\"{Milk,Bread,Coffee}\")"} | 11       |
++-------------+----------------------------------------------+----------------------------------------------------------------------------------+----------+
