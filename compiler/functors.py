@@ -439,8 +439,11 @@ class Functors(object):
       p = rule['head']['predicate_name']
       c = NilCounter()
       WalkWithTaboo(rule, c.CountNils,
-                    # Do not walk into predicate value literals.
-                    taboo=['the_predicate'])
+                    # Do not walk into:
+                    #   predicate value literals,
+                    #   combine expressions because they will be trivially
+                    #   null.
+                    taboo=['the_predicate', 'combine'])
       rules_per_predicate[p] = rules_per_predicate.get(p,0) + (
         c.nil_count == 0)
     return rules_per_predicate

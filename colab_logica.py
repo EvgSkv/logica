@@ -157,6 +157,12 @@ def ParseList(line):
     predicates = [p.strip() for p in line.split(',')]
   return predicates
 
+def ParseListAndMaybeFile(line):
+  if '>' in line:
+    predicate_list_str, storage_file = line.split('>')
+    return ParseList(predicate_list_str.strip()), storage_file.strip()
+  else:
+    return ParseList(line), None
 
 def RunSQL(sql, engine, connection=None, is_final=False):
   if engine == 'bigquery':
@@ -240,7 +246,7 @@ def ShowError(error_text):
 
 def Logica(line, cell, run_query):
   """Running Logica predicates and storing results."""
-  predicates = ParseList(line)
+  predicates, maybe_storage_file = ParseListAndMaybeFile(line)
   if not predicates:
     ShowError('No predicates to run.')
     return
@@ -285,6 +291,10 @@ def Logica(line, cell, run_query):
   for idx, predicate in enumerate(predicates):
     with bar.output_to(logs_idx):
       try:
+        if storage_file_name := maybe_storage_file:
+          with open(storage_file_name, 'w') as storage_file:
+            storage_file.write(cell)
+            print('\x1B[3mProgram saved to %s.\x1B[0m' % storage_file_name)
         sql = program.FormattedPredicateSql(predicate)
         executions.append(program.execution)
         ip.push({predicate + '_sql': sql})

@@ -114,26 +114,55 @@ def DisplayGraph(nodes, edges, options=None, width=640, height=480):
   html = GraphHtml(nodes, edges, options, width, height)
   display(HTML(html))
 
-def SimpleGraphFromList(edges, options=None):
-  nodes = list({n for e in edges for n in e})
-  nodes_json = [{"id": n, "label": str(n)} for n in nodes]
-  edges_json = [{"from": e[0], "to": e[1]} for e in edges]
+def MakeNode(n, node_colors):
+  node_colors = node_colors or {}
+  if n in node_colors:
+    return {'id': n, 'label': str(n), 'color': node_colors[n]}
+  return {'id': n, 'label': str(n)}
+
+def MakeEdge(e, extra=None):
+  extra = extra or {}
+  if len(e) == 2:
+    r = {"from": e[0], "to": e[1]}
+  elif len(e) == 3:
+    r = {"from": e[0], "to": e[1], "color": {"color": e[2]}}
+  else:
+    assert 'Bad edge: ' + str(e)
+  r.update(**extra)
+  return r
+
+def SimpleGraphFromList(edges, options=None, node_colors=None):
+  if node_colors is not None:
+    node_colors = dict(zip(node_colors['col0'], node_colors['logica_value']))
+  nodes = list({n for e in edges for n in e[:2]})
+  nodes_json = [MakeNode(n, node_colors) for n in nodes]
+  edges_json = [MakeEdge(e) for e in edges]
   DisplayGraph(nodes_json, edges_json, options=options)
 
-def SimpleGraph(p, source='col0', target='col1', options=None):
-  edges = list(zip(p[source], p[target]))
-  SimpleGraphFromList(edges, options=options)
+def SimpleGraph(p, source='col0', target='col1', options=None,
+                node_colors=None, edge_color_column=None):
+  if edge_color_column is None:
+    edges = list(zip(p[source], p[target]))
+  else:
+    edges = list(zip(p[source], p[target], p[edge_color_column]))
+  SimpleGraphFromList(edges, options=options, node_colors=node_colors)
 
-def DirectedGraphFromList(edges, options=None):
-  nodes = list({n for e in edges for n in e})
-  nodes_json = [{"id": n, "label": str(n)} for n in nodes]
-  edges_json = [{"from": e[0], "to": e[1], "arrows": "to"}
+def DirectedGraphFromList(edges, options=None, node_colors=None):
+  if node_colors is not None:
+    node_colors = dict(zip(node_colors['col0'], node_colors['logica_value']))
+  nodes = list({n for e in edges for n in e[:2]})
+  nodes_json = [MakeNode(n, node_colors) for n in nodes]
+  edges_json = [MakeEdge(e, {"arrows": "to"})
                 for e in edges]
   DisplayGraph(nodes_json, edges_json, options=options)
 
-def DirectedGraph(p, source='col0', target='col1', options=None):
-  edges = list(zip(p[source], p[target]))
-  DirectedGraphFromList(edges, options=options)
+def DirectedGraph(p, source='col0', target='col1', options=None,
+                  node_colors=None, edge_color_column=None):
+  if edge_color_column is None:
+    edges = list(zip(p[source], p[target]))
+  else:
+    edges = list(zip(p[source], p[target], p[edge_color_column]))
+  DirectedGraphFromList(edges, options=options, node_colors=node_colors)
 
 def Graph(nodes, edges, options=None, width=640, height=480):
   nodes_list = [dict(n) for _, n in nodes.iterrows()]
