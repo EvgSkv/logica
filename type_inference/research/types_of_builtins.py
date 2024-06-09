@@ -234,6 +234,10 @@ def TypesOfBultins():
         'Count': {
            0: 'Any',
            'logica_value': 'Num'
+        },
+        '1': {
+           0: x,
+           'logica_value': x
         }
     }
     types_of_predicate['<'] = types_of_predicate['<='] = types_of_predicate['>='] = types_of_predicate['>']
