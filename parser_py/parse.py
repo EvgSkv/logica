@@ -719,7 +719,8 @@ def ParseConciseCombine(s: HeritageAwareString):
       return {
           'left_hand_side': left_expr,
           'right_hand_side': {
-              'combine': right_expr
+              'combine': right_expr,
+              'expression_heritage': s
           }
       }
 
@@ -741,6 +742,21 @@ def ParseImplication(s):
       })
     last_else_parsed = ParseExpression(last_else)
     return {'if_then': result_if_thens, 'otherwise': last_else_parsed}
+
+
+def ParseUltraConciseCombine(s):
+  aggregation_call = ParseGenericCall(s, '{', '}')
+  if aggregation_call:
+    aggregating_function, multiset_rule_str = aggregation_call
+    _, value_body = SplitInOneOrTwo(multiset_rule_str, ':-')
+    if value_body:
+      value, body = value_body
+    else:
+      value = multiset_rule_str
+      body = None
+    parsed_expression = ParseExpression(value)
+    parsed_body = ParseConjunction(body, allow_singleton=True) if body else None
+    return BuildTreeForCombine(parsed_expression, aggregating_function, parsed_body, s)
 
 
 def ParseExpression(s):
@@ -768,6 +784,9 @@ def ActuallyParseExpression(s):
   v = ParseCall(s, is_aggregation_allowed=False)
   if v:
     return {'call': v}
+  v = ParseUltraConciseCombine(s)
+  if v:
+    return {'combine': v}
   v = ParseInfix(s, disallow_operators='~')
   if v:
     return {'call': v}
