@@ -630,6 +630,14 @@ class QL(object):
               is_combine=True))
       if self.dialect.Name() == 'PostgreSQL':
         # We need this for nirvana.
+        if 'combine_psql_type' not in expression['type']:
+          rendered_type = expression.get('type', {}).get('rendered_type', None)
+          raise self.exception_maker(color.Format(
+            'Aggregating expression needs type in PostgreSQL: {warning}{expr}{end} was '
+            'inferred only an incomplete type {warning}{type}{end}.', dict(
+              expr=expression['expression_heritage'],
+              type=rendered_type
+            )))
         return 'CAST(%s AS %s)' % (combined_value,
                                    expression['type']['combine_psql_type'])
       return combined_value

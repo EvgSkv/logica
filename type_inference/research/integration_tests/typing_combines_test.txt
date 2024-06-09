@@ -142,6 +142,7 @@
           }
          }
         },
+        "expression_heritage": "x += (a :- a in [1,2,3])",
         "type": {
          "combine_psql_type": "numeric",
          "rendered_type": "Num",
@@ -283,6 +284,7 @@
           }
          }
         },
+        "expression_heritage": "y List= (a :- a in [\"a\", \"b\"])",
         "type": {
          "combine_psql_type": "text[]",
          "element_type_name": "text",

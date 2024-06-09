@@ -939,6 +939,7 @@
           }
          }
         },
+        "expression_heritage": "overview List= (\n    {item:, quantity:} :-\n    quantity = (\n        if num > 9 then\n          \"large\"\n        else\n          \"small\"\n    ),\n    num > 5,\n    {item:, num:} in items\n  )",
         "type": {
          "combine_psql_type": "logicarecord980116590[]",
          "element_type_name": "logicarecord980116590",

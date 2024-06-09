@@ -229,6 +229,7 @@
           }
          }
         },
+        "expression_heritage": "x List= ({a:} :- a in [{z:}])",
         "type": {
          "combine_psql_type": "logicarecord350574256[]",
          "element_type_name": "logicarecord350574256",
