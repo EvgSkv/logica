@@ -71,12 +71,17 @@ def PsqlTypeAsDictionary(record):
 def PsqlTypeAsList(a):
   return list(map(DigestPsqlType, a))
 
-
+REMEMBERED_CONNECTION_STR = None
 def ConnectToPostgres(mode):
   import psycopg2
+  global REMEMBERED_CONNECTION_STR
   if mode == 'interactive':
-    print('Please enter PostgreSQL URL, or config in JSON format with fields host, database, user and password.')
-    connection_str = getpass.getpass()
+    if REMEMBERED_CONNECTION_STR:
+      connection_str = REMEMBERED_CONNECTION_STR
+    else:
+      print('Please enter PostgreSQL URL, or config in JSON format with fields host, database, user and password.')
+      connection_str = getpass.getpass()
+      REMEMBERED_CONNECTION_STR = connection_str
   elif mode == 'environment':
     connection_str = os.environ.get('LOGICA_PSQL_CONNECTION')
     assert connection_str, (
