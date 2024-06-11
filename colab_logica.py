@@ -98,7 +98,14 @@ def SetDbConnection(connection):
   global DB_CONNECTION
   DB_CONNECTION = connection
 
+REMEMBERED_PREVIOUS_MODE = None
 def ConnectToPostgres(mode='interactive'):
+  global REMEMBERED_PREVIOUS_MODE
+  if mode == 'reconnect':
+    mode = REMEMBERED_PREVIOUS_MODE
+    print('Reconnecting to Postgres.')
+  else:
+    REMEMBERED_PREVIOUS_MODE = mode
   connection = psql_logica.ConnectToPostgres(mode)
   SetDbConnection(connection)
   global DEFAULT_ENGINE
@@ -237,6 +244,10 @@ class PostgresRunner(object):
     self.connection = DB_CONNECTION
   
   def  __call__(self, sql, engine, is_final):
+    global DB_CONNECTION
+    if self.connection and self.connection.closed and REMEMBERED_PREVIOUS_MODE:
+      ConnectToPostgres('reconnect')
+      self.connection = DB_CONNECTION
     return RunSQL(sql, engine, self.connection, is_final)
 
 
