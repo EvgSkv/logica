@@ -139,13 +139,29 @@ def SimpleGraphFromList(edges, options=None, node_colors=None):
   edges_json = [MakeEdge(e) for e in edges]
   DisplayGraph(nodes_json, edges_json, options=options)
 
+def GraphFromListOfEdgeDicts(edges, node_colors, options):
+  if node_colors is not None:
+    node_colors = dict(zip(node_colors['col0'], node_colors['logica_value']))
+  nodes = list(set(n for e in edges for n in {e['from'], e['to']}))
+  nodes_json = [MakeNode(n, node_colors) for n in nodes]
+  DisplayGraph(nodes_json, edges, options=options)
+
 def SimpleGraph(p, source='col0', target='col1', options=None,
-                node_colors=None, edge_color_column=None):
-  if edge_color_column is None:
-    edges = list(zip(p[source], p[target]))
-  else:
-    edges = list(zip(p[source], p[target], p[edge_color_column]))
-  SimpleGraphFromList(edges, options=options, node_colors=node_colors)
+                node_colors=None, edge_color_column=None,
+                edge_width_column=None,
+                extra_edges_columns=None):
+  edges = []
+  extra_edges_columns = extra_edges_columns or []
+  for _, row in p.iterrows():
+    edge = {'from': str(row[source]), 'to': str(row[target])}
+    if edge_color_column:
+      edge['color'] = {'color': row[edge_color_column]}
+    if edge_width_column:
+      edge['width'] = float(row[edge_width_column])
+    for c in extra_edges_columns:
+      edge[c] = row[c]
+    edges.append(edge)
+  GraphFromListOfEdgeDicts(edges, node_colors, options=options)
 
 def DirectedGraphFromList(edges, options=None, node_colors=None):
   if node_colors is not None:
@@ -157,12 +173,17 @@ def DirectedGraphFromList(edges, options=None, node_colors=None):
   DisplayGraph(nodes_json, edges_json, options=options)
 
 def DirectedGraph(p, source='col0', target='col1', options=None,
-                  node_colors=None, edge_color_column=None):
-  if edge_color_column is None:
-    edges = list(zip(p[source], p[target]))
-  else:
-    edges = list(zip(p[source], p[target], p[edge_color_column]))
-  DirectedGraphFromList(edges, options=options, node_colors=node_colors)
+                  node_colors=None, edge_color_column=None, edge_width_column=None):
+  edges = []
+  for _, row in p.iterrows():
+    edge = {'from': str(row[source]), 'to': str(row[target])}
+    if edge_color_column:
+      edge['color'] = {'color': row[edge_color_column]}
+    if edge_width_column:
+      edge['width'] = float(row[edge_width_column])
+    edge['arrows'] = 'to'
+    edges.append(edge)
+  GraphFromListOfEdgeDicts(edges, node_colors, options=options)
 
 def Graph(nodes, edges, options=None, width=640, height=480):
   nodes_list = [dict(n) for _, n in nodes.iterrows()]

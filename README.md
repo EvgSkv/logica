@@ -145,18 +145,14 @@ Find prime numbers less than 30.
 
 Program `primes.l`:
 ```
-# Define natural numbers from 1 to 29.
-N(x) :- x in Range(30);
-# Define primes.
-Prime(prime: x) :-
-  N(x),
-  x > 1,
-  ~(
-    N(y),
-    y > 1,
-    y != x,
-    x % y == 0
-  );
+# Define numbers 1 to 30.
+Number(x + 1) :- x in Range(30);
+
+# Defining composite numbers.
+Composite(a * b) distinct :- Number(a), Number(b), a > 1, b > 1;
+
+# Defining primes as "not composite".
+Prime(n) distinct :- Number(n), n > 1, ~Composite(n);
 ```
 
 Running `primes.l`
