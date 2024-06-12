@@ -266,18 +266,14 @@ syntax is suited for it naturally. Here is a program finding prime numbers
 that are less than 100.
 
 <div class="code">
-# Define natural numbers from 0 to 99.
-N(x) :- x in Range(100);
-# Define primes.
-Prime(prime: x) :-
-  N(x),
-  x > 1,
-  ~(
-    N(y),
-    y > 1,
-    y != x,
-    x % y == 0
-  );
+  # Define numbers 1 to 30.
+  Number(x + 1) :- x in Range(30);
+  
+  # Defining composite numbers.
+  Composite(a * b) distinct :- Number(a), Number(b), a > 1, b > 1;
+  
+  # Defining primes as "not composite".
+  Prime(n) distinct :- Number(n), n > 1, ~Composite(n);
 </div>
 
 <p>
