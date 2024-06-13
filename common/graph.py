@@ -144,7 +144,13 @@ def GraphFromListOfEdgeDicts(edges, node_colors, options):
     node_colors = dict(zip(node_colors['col0'], node_colors['logica_value']))
   nodes = list(set(n for e in edges for n in {e['from'], e['to']}))
   nodes_json = [MakeNode(n, node_colors) for n in nodes]
-  DisplayGraph(nodes_json, edges, options=options)
+  extra_args = {}
+  if options:
+    if 'width' in options:
+      extra_args['width'] = options['width']
+    if 'height' in options:
+      extra_args['height'] = options['height']
+  DisplayGraph(nodes_json, edges, options=options, **extra_args)
 
 def SimpleGraph(p, source='col0', target='col1', options=None,
                 node_colors=None, edge_color_column=None,
