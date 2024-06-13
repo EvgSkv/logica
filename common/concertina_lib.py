@@ -90,7 +90,8 @@ class Concertina(object):
     self.Display()
 
   def RunOneAction(self):
-    self.UpdateDisplay()
+    # Probably updating display too often is only confusing.
+    # self.UpdateDisplay()
     one_action = self.actions_to_run[0]
     del self.actions_to_run[0]
     self.running_actions |= {one_action}
@@ -98,11 +99,12 @@ class Concertina(object):
     self.engine.Run(self.action[one_action].get('action', {}))
     self.running_actions -= {one_action}
     self.complete_actions |= {one_action}
-    self.UpdateDisplay()
+    # self.UpdateDisplay()
 
   def Run(self):
     while self.actions_to_run:
       self.RunOneAction()
+    self.UpdateDisplay()
 
   def ActionColor(self, a):
     if self.action[a].get('type') == 'data':
@@ -149,10 +151,14 @@ class Concertina(object):
           return '\033[1m\033[93m' + node + '\033[0m'
         elif self.display_mode == 'colab-text':
           return (
-            '<b>' + node + '</b>'
+            '<b>' + node + ' <= running</b>'
           )
         else:
           assert False, self.display_mode
+      elif node in self.complete_actions and self.display_mode == 'colab-text' and self.actions_to_run:
+        return (
+          '<span style="opacity: 0.6;">' + node + '</span>'
+        )
       else:
         return node
     nodes = []
