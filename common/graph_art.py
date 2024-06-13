@@ -27,6 +27,24 @@ class Graph(object):
       self.dependencies[b] += [a]
       self.dependants[a] += [b]
     self.SortNodes()
+    self.necessary_dependants = {n: set() for n in nodes}
+    self.necessary_dependants = {n: [] for n in nodes}
+    self.ComputeNecessaryDependencies()
+  
+  def ComputeNecessaryDependencies(self):
+    nodes = self.nodes
+    implied_dependencies = {n: set() for n in nodes}
+    necessary_dependencies = {n: set() for n in nodes}
+    for node in self.nodes:
+      for n in self.dependencies[node]:
+        implied_dependencies[node] |= implied_dependencies[n]
+      necessary_dependencies[node] = set(
+        set(self.dependencies[node]) - implied_dependencies[node])
+      implied_dependencies[node] |= set(self.dependencies[node])
+    self.necessary_dependencies = necessary_dependencies
+    for n, deps in self.necessary_dependencies.items():
+      for d in deps:
+        self.necessary_dependants[d] += [n]
 
   def SortNodes(self):
     placed = set()
@@ -54,7 +72,7 @@ class Graph(object):
       done_tracks = set()
       num_used_tracks = lambda: (
         0 if not busy_tracks else max(busy_tracks) + 1)
-      dependants = set(self.dependants[node])
+      dependants = set(self.necessary_dependants[node])
 
       # Adding carts towards all dependants.
       # TODO: Write this to be linear in len(self.dependants[node]).
@@ -69,7 +87,7 @@ class Graph(object):
 
       # Retracting carts arriving from dependencies.
       plot_tracks = num_used_tracks()
-      for d in self.dependencies[node]:
+      for d in self.necessary_dependencies[node]:
         track = carts[d, node]
         del carts[d, node]
         busy_tracks -= {track}
