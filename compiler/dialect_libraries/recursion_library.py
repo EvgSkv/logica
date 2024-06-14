@@ -58,3 +58,42 @@ def GetRenamingFunctor(member, root):
   B := B_recursive_head(A_recursive: A);
   """
   return '{0} := {0}_recursive_head({1}_recursive: {1});'.format(member, root)
+
+def GetFlatRecursionFunctor(depth, cover, direct_args_of):
+  """Doing the whole flat recursion.
+
+  Example.
+  # Original:
+  A() Max= 1;
+  B() Max= 1;
+  A() Max= A() + B();
+  B() Max= A() * B();
+
+  # Recursion unfolding functors:
+  A_fr0 := A_ROne(A_RZero: nil, B_RZero: nil);
+  A_fr1 := A_ROne(A_RZero: A_fr0, B_RZero: B_fr0);
+  A_fr2 := A_ROne(A_RZero: A_fr1, B_RZero: B_fr1);
+  A_fr3 := A_ROne(A_RZero: A_fr2, B_RZero: B_fr2);
+  A := A_fr3();
+  B_fr0 := B_ROne(A_RZero: nil, B_RZero: nil);
+  B_fr1 := B_ROne(A_RZero: A_fr0, B_RZero: B_fr0);
+  B_fr2 := B_ROne(A_RZero: A_fr1, B_RZero: B_fr1);
+  B_fr3 := B_ROne(A_RZero: A_fr2, B_RZero: B_fr2);
+  B := B_fr3();
+  """
+  result_rules = []
+  for p in sorted(cover):
+    for i in range(depth + 1):
+      args = []
+      for a in sorted(set(direct_args_of[p]) & cover):
+        v = 'nil'
+        if i > 0:
+          v = f'{a}_fr{i - 1}'
+        args.append(f'{a}_RZero: {v}')
+      args_str = ', '.join(args)
+      rule = f'{p}_fr{i} := {p}_ROne({args_str});'
+      result_rules.append(rule)
+    rule = f'{p} := {p}_fr{depth}();'
+    result_rules.append(rule)
+  program = '\n'.join(result_rules)
+  return program

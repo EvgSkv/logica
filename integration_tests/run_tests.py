@@ -70,6 +70,7 @@ def RunAll(test_presto=False, test_trino=False):
   RunTest("rec_small_cycle_test")
   RunTest("rec_cycle_test")
 
+  RunTest("sqlite_flat_recursion_test")
   RunTest("sqlite_winmove_test")
   RunTest("sqlite_shortest_path_test")
   RunTest("sqlite_records_test")
@@ -93,6 +94,7 @@ def RunAll(test_presto=False, test_trino=False):
   RunTest("sqlite_reachability")
   RunTest("sqlite_element_test")
 
+  RunTest("psql_flow_test")
   RunTest("psql_graph_coloring_test")
   RunTest("psql_win_move_test")
   RunTest("psql_plusplus_test")

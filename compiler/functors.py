@@ -363,43 +363,82 @@ class Functors(object):
     Walk(rules, ReplacePredicate)
     self.extended_rules.extend(rules)
     self.UpdateStructure(name)
+    
+  def UnfoldRecursivePredicateFlatFashion(self, cover, depth, rules):
+    visible = lambda p: '_MultBodyAggAux' not in p
+    simplified_cover = {c for c in cover if visible(c)}
+    direct_args_of = {c: [] for c in cover if visible(c)}
+    for p, args in self.direct_args_of.items():
+      if p in simplified_cover:
+        for a in args:
+          if a in cover:
+            if visible(a):
+              direct_args_of[p].append(a)
+            else:
+              for a2 in self.direct_args_of[a]:
+                if a2 in cover:
+                  direct_args_of[p].append(a2)
+    def ReplacePredicate(original, new):
+      def Replace(x):
+        if isinstance(x, dict) and 'predicate_name' in x:
+          if x['predicate_name'] == original:
+            x['predicate_name'] = new
+        return []
+      return Replace
+    for r in rules:
+      if r['head']['predicate_name'] in cover:
+        p = r['head']['predicate_name']
+        if visible(p):
+          r['head']['predicate_name'] = p + '_ROne'
+        for c in simplified_cover:
+          Walk(r, ReplacePredicate(c, c + '_RZero'))
+      elif (r['head']['predicate_name'][0] == '@' and
+            r['head']['predicate_name'] != '@Make'):
+        for c in cover:
+          Walk(r, ReplacePredicate(c, c + '_ROne'))
+
+    lib = recursion_library.GetFlatRecursionFunctor(depth,
+                                                    simplified_cover,
+                                                    direct_args_of)
+    lib_rules = parse.ParseFile(lib)['rule']
+    rules.extend(lib_rules)
+
 
   def UnfoldRecursivePredicate(self, predicate, cover, depth, rules):   
     """Unfolds recurive predicate.""" 
     new_predicate_name = predicate + '_recursive'
     new_predicate_head_name = predicate + '_recursive_head'
 
-    def ReplaceRecursivePredicate(x):
-      if isinstance(x, dict) and 'predicate_name' in x:
-        if x['predicate_name'] == predicate:
-          x['predicate_name'] = new_predicate_name
-      return []
-    def ReplaceRecursiveHeadPredicate(x):
-      if isinstance(x, dict) and 'predicate_name' in x:
-        if x['predicate_name'] == predicate:
-          x['predicate_name'] = new_predicate_head_name
-      return []
-    def ReplacerOfCoverMember(member):
+    def ReplacePredicate(original, new):
       def Replace(x):
         if isinstance(x, dict) and 'predicate_name' in x:
-          if x['predicate_name'] == member:
-            x['predicate_name'] = member + '_recursive_head'
+          if x['predicate_name'] == original:
+            x['predicate_name'] = new
         return []
       return Replace
+
+    def ReplacerOfRecursivePredicate():
+      return ReplacePredicate(predicate, new_predicate_name)
+
+    def ReplacerOfRecursiveHeadPredicate():
+      return ReplacePredicate(predicate, new_predicate_head_name)
+
+    def ReplacerOfCoverMember(member):
+      return ReplacePredicate(member, member + '_recursive_head')
 
     for r in rules:
       if r['head']['predicate_name'] == predicate:
         r['head']['predicate_name'] = new_predicate_head_name
-        Walk(r, ReplaceRecursivePredicate)
+        Walk(r, ReplacerOfRecursivePredicate())
         for c in cover - {predicate}:
           Walk(r, ReplacerOfCoverMember(c))
       elif r['head']['predicate_name'] in cover:
-        Walk(r, ReplaceRecursivePredicate)
+        Walk(r, ReplacerOfRecursivePredicate())
         for c in cover - {predicate}:
           Walk(r, ReplacerOfCoverMember(c))
       elif (r['head']['predicate_name'][0] == '@' and
             r['head']['predicate_name'] != '@Make'):
-        Walk(r, ReplaceRecursiveHeadPredicate)
+        Walk(r, ReplacerOfRecursiveHeadPredicate())
         for c in cover - {predicate}:
           Walk(r, ReplacerOfCoverMember(c))        
       else:
@@ -419,9 +458,14 @@ class Functors(object):
     """Unfolds all recursions."""
     should_recurse, my_cover = self.RecursiveAnalysis(depth_map)
     new_rules = copy.deepcopy(self.rules)
-    for p in should_recurse:
+    for p, style in should_recurse.items():
       depth = depth_map.get(p, {}).get('1', 8)
-      self.UnfoldRecursivePredicate(p, my_cover[p], depth, new_rules)
+      if style == 'vertical':
+        self.UnfoldRecursivePredicate(p, my_cover[p], depth, new_rules)
+      elif style == 'horizontal':
+        self.UnfoldRecursivePredicateFlatFashion(my_cover[p], depth, new_rules)
+      else:
+        assert False, 'Unknown recursion style:' + style
     return new_rules
 
   def CountSurvivingRules(self, rules):
@@ -448,6 +492,19 @@ class Functors(object):
         c.nil_count == 0)
     return rules_per_predicate
 
+  def IsCutOfCover(self, p, cover_leaf):
+    """Determining if p cuts the cover leaf into non-recursive state."""
+    stack = [(p, set())]
+    cover_leaf = set(cover_leaf)
+    while stack:
+      t, u = stack.pop()
+      if t in u:
+        return False
+      for x in cover_leaf & self.direct_args_of[t]:
+        if x != p:
+          stack.append((x, (u | {t})))
+    return True
+
   def RecursiveAnalysis(self, depth_map):
     """Finds recursive cycles and predicates that would unfold them."""
     # TODO: Select unfolding predicates to guarantee unfolding.
@@ -455,6 +512,7 @@ class Functors(object):
     covered = set()
     deep = set(depth_map)
     for p, args in self.args_of.items():
+      # TODO: We probably don't need _MultBodyAggAux exception.
       if p in args and p not in covered and '_MultBodyAggAux' not in p:
         c = {p}
         for p2 in args:
@@ -469,13 +527,15 @@ class Functors(object):
         my_cover[p] = c
 
     recursion_covered = set()
-    should_recurse = []
+    should_recurse = {}
     for c in cover:
       if c & deep:
         p = min(c & deep)
       else:
         p = min(c)
-      should_recurse.append(p)
+      if self.IsCutOfCover(p, c):
+        should_recurse[p] = 'vertical'
+      else:
+        should_recurse[p] = 'horizontal'
       recursion_covered |= my_cover[p]
-
     return should_recurse, my_cover
