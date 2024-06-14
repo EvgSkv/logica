@@ -160,7 +160,7 @@ class Concertina(object):
           '<span style="opacity: 0.6;">' + node + '</span>'
         )
       else:
-        return node
+        return node + ' ' * 15
     nodes = []
     edges = []
     for a in self.all_actions:
@@ -177,6 +177,7 @@ class Concertina(object):
       'width: fit-content;',
       'padding: 20px',
       'border-radius: 5px',
+      'min-width: 50em',
       'box-shadow: 1px 1px 3px rgba(0, 0, 0, 0.2)'])
     return HTML('<div style="%s"><pre>%s</pre></div>' % (
         style, self.AsTextPicture(updating=False)))
