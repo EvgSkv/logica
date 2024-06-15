@@ -133,7 +133,8 @@ def MakeEdge(e, extra=None):
 
 def SimpleGraphFromList(edges, options=None, node_colors=None):
   if node_colors is not None:
-    node_colors = dict(zip(node_colors['col0'], node_colors['logica_value']))
+    node_colors = dict(zip(map(str, node_colors['col0']),
+                           node_colors['logica_value']))
   nodes = list({n for e in edges for n in e[:2]})
   nodes_json = [MakeNode(n, node_colors) for n in nodes]
   edges_json = [MakeEdge(e) for e in edges]
@@ -141,7 +142,8 @@ def SimpleGraphFromList(edges, options=None, node_colors=None):
 
 def GraphFromListOfEdgeDicts(edges, node_colors, options):
   if node_colors is not None:
-    node_colors = dict(zip(node_colors['col0'], node_colors['logica_value']))
+    node_colors = dict(zip(map(str, node_colors['col0']),
+                           node_colors['logica_value']))
   nodes = list(set(n for e in edges for n in {e['from'], e['to']}))
   nodes_json = [MakeNode(n, node_colors) for n in nodes]
   extra_args = {}
@@ -171,7 +173,8 @@ def SimpleGraph(p, source='col0', target='col1', options=None,
 
 def DirectedGraphFromList(edges, options=None, node_colors=None):
   if node_colors is not None:
-    node_colors = dict(zip(node_colors['col0'], node_colors['logica_value']))
+    node_colors = dict(zip(map(str, node_colors['col0']),
+                           node_colors['logica_value']))
   nodes = list({n for e in edges for n in e[:2]})
   nodes_json = [MakeNode(n, node_colors) for n in nodes]
   edges_json = [MakeEdge(e, {"arrows": "to"})

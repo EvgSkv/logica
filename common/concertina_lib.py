@@ -29,6 +29,7 @@ class ConcertinaQueryEngine(object):
     self.final_result = {}
     self.sql_runner = sql_runner
     self.print_running_predicate = print_running_predicate
+    self.completion_time = {}
 
   def Run(self, action):
     assert action['launcher'] in ('query', 'none')
@@ -40,8 +41,9 @@ class ConcertinaQueryEngine(object):
       result = self.sql_runner(action['sql'], action['engine'],
                                is_final=(predicate in self.final_predicates))
       end = datetime.datetime.now()
+      self.completion_time[predicate] = int((end - start).total_seconds() * 1000)
       if self.print_running_predicate:
-        print(' (%d ms)' % int((end - start).total_seconds() * 1000))
+        print(' (%d ms)' % self.completion_time[predicate])
       if predicate in self.final_predicates:
         self.final_result[predicate] = result
 
@@ -157,10 +159,12 @@ class Concertina(object):
           assert False, self.display_mode
       elif node in self.complete_actions and self.display_mode == 'colab-text' and self.actions_to_run:
         return (
-          '<span style="opacity: 0.6;">' + node + '</span>'
+          '<span style="opacity: 0.6;">' + node +
+          ' (%d ms)' % self.engine.completion_time[node] + '</span>'
         )
       else:
-        return node + ' ' * 15
+        return node + (' (%d ms)' % self.engine.completion_time[node]
+                       if node in self.engine.completion_time else '')
     nodes = []
     edges = []
     for a in self.all_actions:
@@ -179,8 +183,18 @@ class Concertina(object):
       'border-radius: 5px',
       'min-width: 50em',
       'box-shadow: 1px 1px 3px rgba(0, 0, 0, 0.2)'])
-    return HTML('<div style="%s"><pre>%s</pre></div>' % (
-        style, self.AsTextPicture(updating=False)))
+    percent_complete = 100 * len(self.complete_actions) / len(self.all_actions)
+    progress_bar = (
+      '[' +
+      '#' * (len(self.complete_actions) * 30 // len(self.all_actions)) +
+      '.' * (30 - (len(self.complete_actions) * 30 // len(self.all_actions))) +
+      ']' + '  %.2f%% complete.' % percent_complete)
+    if len(self.complete_actions) == len(self.all_actions):
+      progress_bar = '[' + 'Execution complete.'.center(30, ' ') + ']'
+    return HTML('<div style="%s"><pre>%s</pre><pre>%s</pre></div>' % (
+        style,
+        self.AsTextPicture(updating=False),
+        progress_bar))
 
   def Display(self):
     if self.display_mode == 'colab':
@@ -297,7 +311,7 @@ def ExecuteLogicaProgram(logica_executions, sql_runner, sql_engine,
  
   engine = ConcertinaQueryEngine(
       final_predicates=final_predicates, sql_runner=sql_runner,
-      print_running_predicate=(display_mode != 'terminal'))
+      print_running_predicate=(display_mode == 'colab'))
 
   preambles = set(e.preamble for e in logica_executions)
   # Due to change of types from predicate to predicate preables are not
