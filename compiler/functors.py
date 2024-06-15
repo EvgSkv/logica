@@ -252,7 +252,7 @@ class Functors(object):
       if needs_building and not something_built:
         raise FunctorError('Could not resolve Make order.',
                            str(needs_building))
-    surviving_rules = self.CountSurvivingRules(self.extended_rules)
+    surviving_rules = self.RemoveRulesProvenToBeNil(self.extended_rules)
     for p, c in surviving_rules.items():
       if c == 0:
         raise FunctorError('All rules contain nil for predicate %s. '
@@ -468,28 +468,61 @@ class Functors(object):
         assert False, 'Unknown recursion style:' + style
     return new_rules
 
-  def CountSurvivingRules(self, rules):
-    rules_per_predicate = {}
+  def RemoveRulesProvenToBeNil(self, rules):
+    proven_to_be_nothing = set({'nil'})
+    def ReplacePredicate(original, new):
+      def Replace(x):
+        if isinstance(x, dict) and 'predicate_name' in x:
+          if x['predicate_name'] == original:
+            x['predicate_name'] = new
+        return []
+      return Replace
     class NilCounter:
       def __init__(self):
         self.nil_count  = 0
       def CountNils(self, node):
         if isinstance(node, dict):
           if 'predicate_name' in node:
-            if node['predicate_name'] == 'nil':
+            if node['predicate_name'] in proven_to_be_nothing:
               self.nil_count += 1
         return []
-    for rule in rules:
-      p = rule['head']['predicate_name']
-      c = NilCounter()
-      WalkWithTaboo(rule, c.CountNils,
-                    # Do not walk into:
-                    #   predicate value literals,
-                    #   combine expressions because they will be trivially
-                    #   null.
-                    taboo=['the_predicate', 'combine'])
-      rules_per_predicate[p] = rules_per_predicate.get(p,0) + (
-        c.nil_count == 0)
+    defined_predicates = {rule['head']['predicate_name']
+                          for rule in rules}
+    while True:
+      rules_per_predicate = {}
+      for rule in rules:
+        p = rule['head']['predicate_name']
+        c = NilCounter()
+        WalkWithTaboo(rule, c.CountNils,
+                      # Do not walk into:
+                      #   predicate value literals,
+                      #   combine expressions because they will be trivially
+                      #   null.
+                      taboo=['the_predicate', 'combine'])
+        rules_per_predicate[p] = rules_per_predicate.get(p,0) + (
+          c.nil_count == 0)
+      is_nothing = set()
+      for p in defined_predicates:
+        if rules_per_predicate[p] == 0:
+          is_nothing |= {p}
+      if is_nothing <= proven_to_be_nothing:
+        break
+      proven_to_be_nothing |= is_nothing
+    for p in proven_to_be_nothing - {'nil'}:
+      for rule in rules:
+        if rule['head']['predicate_name'] == p:
+          rule['head']['predicate_name'] = 'Nullified' + p
+        elif not rule['head']['predicate_name'].startswith('@'):
+          Walk(rule, ReplacePredicate(p, 'nil'))
+      if '_' not in p:
+        raise FunctorError(
+          color.Format(
+            'Predicate {warning}{p}{end} was proven to be empty. '
+            'Most likely initial base condition of recursion is missing, or '
+            'flat recursion is not given enough steps.',
+            {'p': p}), p)
+      del rules_per_predicate[p]
+    self.UpdateStructure(p)
     return rules_per_predicate
 
   def IsCutOfCover(self, p, cover_leaf):
