@@ -65,7 +65,7 @@ Flow(i, j) += v :-
     v > 0,
     e in path,
     i = e.x, j = e.y,
-    Constraint(!~ Opportunity(T()));
+    !~ Opportunity(T());
 
 FlowVis(i, j, arrows: "none", width: e, physics: false, color: "#eee") distinct :-
     G(i, j) = e, i < j, Flow(i, j) < 0.5, Flow(j, i) < 0.5;
