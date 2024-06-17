@@ -609,6 +609,10 @@ def ParseInfix(s, operators=None, disallow_operators=None):
       # a / b / c -> (a / b) / c
       left, right = (
           s[:parts[-2].stop - s.start], s[parts[-1].start - s.start:])
+      # Prefer doing specialcasing to introducing unary `!~`.
+      if op == '~' and len(left) > 0 and left[-1] =='!':
+        # This is !~.
+        continue
       left = Strip(left)
       right = Strip(right)
       if op in unary_operators and not left:
