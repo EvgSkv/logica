@@ -23,16 +23,20 @@ import sys
 
 if '.' not in __package__:
   from common import sqlite3_logica
+  from common import psql_logica
   from compiler import functors
   from compiler import rule_translate
   from compiler import universe
   from parser_py import parse
+  from type_inference.research import infer
 else:
   from ..common import sqlite3_logica
+  from ..common import psql_logica
   from ..compiler import functors
   from ..compiler import rule_translate
   from ..compiler import universe
   from ..parser_py import parse
+  from ..type_inference.research import infer
 
 
 def ParseOrExit(filename, import_root=None):
@@ -141,7 +145,13 @@ def RunQueryPandas(sql, engine, connection=None):
   if engine == 'bigquery':
     return connection.query(sql).to_dataframe()
   elif engine == 'psql':
-    return pandas.read_sql(sql, connection)
+    cursor = connection.cursor()
+    cursor.execute(sql)
+    rows = cursor.fetchall()
+    df = pandas.DataFrame(
+      rows, columns=[d[0] for d in cursor.description])
+    df = df.applymap(psql_logica.DigestPsqlType)
+    return df
   elif engine == 'sqlite':
     statements = parse.SplitRaw(sql, ';')[:-1]
     if len(statements) > 1:
@@ -159,3 +169,32 @@ def RunPredicateToPandas(filename, predicate,
   sql = p.FormattedPredicateSql(predicate)
   engine = p.annotations.Engine()
   return RunQueryPandas(sql, engine, connection=connection)
+
+def RunPredicateFromString(logica_string,
+                           predicate_name,
+                           connection=None,
+                           user_flags=None):
+  try:
+    rules = parse.ParseFile(logica_string)['rule']
+  except parse.ParsingException as parsing_exception:
+    parsing_exception.ShowMessage()
+    sys.exit(1)
+  
+  try:
+    program = universe.LogicaProgram(rules, user_flags=user_flags)
+    sql = program.FormattedPredicateSql(predicate_name)
+    engine = program.execution.annotations.Engine()
+  except rule_translate.RuleCompileException as rule_compilation_exception:
+    rule_compilation_exception.ShowMessage()
+    sys.exit(1)
+  except functors.FunctorError as functor_exception:
+    functor_exception.ShowMessage()
+    sys.exit(1)
+  except infer.TypeErrorCaughtException as type_error_exception:
+    type_error_exception.ShowMessage()
+    sys.exit(1)
+  except parse.ParsingException as parsing_exception:
+    parsing_exception.ShowMessage()
+    sys.exit(1)
+
+  return RunQueryPandas(sql, engine, connection)
