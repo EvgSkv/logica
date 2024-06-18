@@ -106,6 +106,15 @@ class Functors(object):
     self.args_of = {}
     self.creation_count = 0
     self.cached_calls = {}
+
+    try:
+      import numpy
+      numpy_is_here = True
+    except:
+      numpy_is_here = False
+    if numpy_is_here:
+      # This is faster sometimes.
+      self.NumpyBuildArgsOf()
     for p in self.predicates:
       self.ArgsOf(p)
 
@@ -117,7 +126,13 @@ class Functors(object):
     """Updates rules_of and args_of maps after extebded_rules update."""
     self.rules_of = parse.DefinedPredicatesRules(self.extended_rules)
     self.predicates = set(self.rules_of)
-    self.direct_args_of = self.BuildDirectArgsOf()
+    if new_predicate in self.rules_of:
+      self.direct_args_of[new_predicate] = self.BuildDirectArgsOfPredicate(
+        new_predicate)
+    for p in self.rules_of:
+      if p not in self.direct_args_of:
+        self.direct_args_of[p] = self.BuildDirectArgsOfPredicate(p)
+
     # Resetting args_of, to process the new predicates that were added.
     copied_args_of = self.CopyOfArgs()
     for predicate, args in copied_args_of.items():
@@ -125,6 +140,15 @@ class Functors(object):
         del self.args_of[predicate]
     for p in self.predicates:
       self.ArgsOf(p)
+    # Uncomment for debuggin:
+
+    # print('------------ Args Of:')
+    # for k, v in self.args_of.items():
+    #   print(k, '->', v)
+    # print('Direct args Of:')
+    # for k, v in self.direct_args_of.items():
+    #   print(k, '->', v)
+
 
   def ParseMakeInstruction(self, predicate, instruction):
     """Parses Make instruction from syntax tree."""
@@ -150,22 +174,53 @@ class Functors(object):
     """Factored for profiling."""
     return Walk(x, act)
 
-  def BuildDirectArgsOf(self):
-    """Builds a map of direct arguments of a functor."""
+  def BuildDirectArgsOfPredicate(self, functor):
+    args = set()
+    rules = self.rules_of[functor]
     def ExtractPredicateName(x):
       if isinstance(x, dict) and 'predicate_name' in x:
         return [x['predicate_name']]
       return []
+    for rule in rules:
+      if 'body' in rule:
+        args |= self.BuildDirectArgsOfWalk(rule['body'], ExtractPredicateName)
+      args |= self.BuildDirectArgsOfWalk(rule['head']['record'],
+                                          ExtractPredicateName)
+    return args
+
+  def BuildDirectArgsOf(self):
+    """Builds a map of direct arguments of a functor."""
     direct_args_of = {}
-    for functor, rules in self.rules_of.items():
-      args = set()
-      for rule in rules:
-        if 'body' in rule:
-          args |= self.BuildDirectArgsOfWalk(rule['body'], ExtractPredicateName)
-        args |= self.BuildDirectArgsOfWalk(rule['head']['record'],
-                                           ExtractPredicateName)
-      direct_args_of[functor] = args
+    for functor in self.rules_of:
+      direct_args_of[functor] = self.BuildDirectArgsOfPredicate(functor)
     return direct_args_of
+
+  def NumpyBuildArgsOf(self):
+    import numpy
+    interesting_predicates = set(self.direct_args_of)
+    directly_called_by = numpy.zeros(
+      (len(interesting_predicates),
+       len(interesting_predicates)))
+    interesting_predicates_list = list(sorted(interesting_predicates))
+    ipi = {  # Interesting predicate index.
+      p: i for i, p in enumerate(interesting_predicates_list)}
+    for p, args in self.direct_args_of.items():
+      for a in args:
+        if a in interesting_predicates:
+          directly_called_by[ipi[a], ipi[p]] = 1
+    a = directly_called_by
+    while True:
+      aa = (((a @ a) + a) > 0) * 1
+      if (a == aa).all():
+        break
+      a = aa
+    for i, p in enumerate(interesting_predicates_list):
+      self.args_of[p] = set(self.direct_args_of[p])
+      for j, v in enumerate(a[:, i]):
+        if v:
+          q = interesting_predicates_list[j]
+          self.args_of[p].add(q)
+          self.args_of[p] |= self.direct_args_of[q]
 
   def ArgsOf(self, functor):
     """Arguments of functor. Retrieving from cache, or computing."""
@@ -549,7 +604,7 @@ class Functors(object):
       if p in args and p not in covered and '_MultBodyAggAux' not in p:
         c = {p}
         for p2 in args:
-          if p in self.args_of[p2]:
+          if p2 in self.args_of and p in self.args_of[p2]:
             c.add(p2)
         cover.append(c)
         covered |= c
