@@ -62,23 +62,90 @@ class Concertina(object):
     return 'Concertina_%d' % cls.DISPLAY_COUNT
 
   def SortActions(self):
+    # Sorting so that:
+    # 1. Order respects dependency.
+    # 2. Iterations come together.
     actions_to_assign = {a['name'] for a in self.config}
     complete = set()
     result = []
+    assigning_iteration = None
     while actions_to_assign:
       remains = len(actions_to_assign)
-      for a in list(actions_to_assign):
-        if complete >= set(self.action[a]["requires"]):
+      if assigning_iteration:
+        eligible = actions_to_assign & self.iteration_actions[assigning_iteration]
+      else:
+        eligible = actions_to_assign
+      for a in list(eligible):
+        if complete >= set(self.action_requires[a]):
           result.append(a)
+          if a in self.action_iteration:
+            if assigning_iteration:
+              assert assigning_iteration == self.action_iteration[a]
+            assigning_iteration = self.action_iteration[a]
           complete |= {a}
           actions_to_assign -= {a}
+          if assigning_iteration:
+            if not (self.iteration_actions[assigning_iteration] & actions_to_assign):
+              assigning_iteration = None
+
       if len(actions_to_assign) == remains:
         assert False, "Could not schedule: %s" % self.config
     return result
-      
-  def __init__(self, config, engine, display_mode='colab'):
+
+  def UnderstandIterations(self):
+    # Building maps from iteration to its actions and back.
+    # Computing requirements ensuring that everything that iteration depends
+    # on comes before it.
+    self.action_iteration = {
+      predicate: iteration
+      for iteration in self.iterations
+      for predicate in self.iterations[iteration]['predicates']
+      if predicate in self.action}
+    self.iteration_repetitions = {
+      iteration: self.iterations[iteration]['repetitions']
+      for iteration in self.iterations}
+    self.action_iterations_complete = {
+      p: 0
+      for iteration in self.iteration_repetitions
+      for p in self.iterations[iteration]['predicates']
+    }
+    self.iteration_actions = {
+      iteration: set(self.iterations[iteration]['predicates'])
+      for iteration in self.iterations
+    }
+    self.half_iteration_actions = {}
+    for iteration in self.iterations:
+      predicates = self.iterations[iteration]['predicates']
+      assert len(predicates) % 2 == 0, predicates
+      self.half_iteration_actions[iteration+'_upper'] = set(predicates[:(len(predicates) // 2)])
+      self.half_iteration_actions[iteration+'_lower'] = set(predicates[(len(predicates) // 2):])
+    self.action_half_iteration = {}
+    for hi, ps in self.half_iteration_actions.items():
+      for p in ps:
+        self.action_half_iteration[p] = hi
+
+    self.action_requires = {a: set(self.action[a]['requires'])
+                            for a in self.action}
+
+    half_iteration_requires = {i: set() for i in self.half_iteration_actions}
+    for a in self.action_requires:
+      if a in self.action_iteration:
+        half_iteration_requires[self.action_half_iteration[a]] |= self.action_requires[a]
+
+    for iteration, requires in half_iteration_requires.items():
+      for predicate in self.half_iteration_actions[iteration]:
+        if predicate in self.action:
+          self.action_requires[predicate] |= (half_iteration_requires[iteration] -
+                                              self.half_iteration_actions[iteration])
+
+  def __init__(self, config, engine, display_mode='colab', iterations=None):
     self.config = config
+    self.iterations = iterations or {}
+    self.action_iteration = None
+    self.iteration_repetitions = None
+    self.action_requires = {}
     self.action = {a["name"]: a for a in self.config}
+    self.UnderstandIterations()
     self.actions_to_run = self.SortActions()
     self.engine = engine
     assert len(self.action) == len(self.config)
@@ -91,6 +158,22 @@ class Concertina(object):
     self.display_id = self.GetDisplayId()
     self.Display()
 
+  def UpdateStateForIterativeAction(self, one_action):
+    # Marking action as complete, or incrementing its repetion count.
+    # When incrementing repetion then cycling the iteration actions.
+    self.action_iterations_complete[one_action] += 1
+    if (self.action_iterations_complete[one_action] >=
+        self.iteration_repetitions[self.action_iteration[one_action]]):
+      self.complete_actions |= {one_action}
+    else:
+      i = 0
+      while (i < len(self.actions_to_run) and 
+              self.actions_to_run[i] in self.action_iteration and
+              self.action_iteration[self.actions_to_run[i]] ==
+              self.action_iteration[one_action]):
+        i += 1
+      self.actions_to_run[i:i] = [one_action]
+
   def RunOneAction(self):
     # Probably updating display too often is only confusing.
     # self.UpdateDisplay()
@@ -100,7 +183,10 @@ class Concertina(object):
     self.UpdateDisplay()
     self.engine.Run(self.action[one_action].get('action', {}))
     self.running_actions -= {one_action}
-    self.complete_actions |= {one_action}
+    if one_action not in self.action_iterations_complete:
+      self.complete_actions |= {one_action}
+    else:
+      self.UpdateStateForIterativeAction(one_action)
     # self.UpdateDisplay()
 
   def Run(self):
@@ -148,9 +234,16 @@ class Concertina(object):
   def AsNodesAndEdges(self):
     """Nodes and edges to display in terminal."""
     def ColoredNode(node):
+      if node in self.action_iteration:
+        maybe_iteration_info = ' %d / %d' % (
+          self.action_iterations_complete[node],
+          self.iteration_repetitions[self.action_iteration[node]]
+        )
+      else:
+        maybe_iteration_info = ' ' * 10
       if node in self.running_actions:
         if self.display_mode == 'terminal':
-          return '\033[1m\033[93m' + node + '\033[0m'
+          return '\033[1m\033[93m' + node + maybe_iteration_info + '\033[0m'
         elif self.display_mode == 'colab-text':
           return (
             '<b>' + node + ' <= running</b>'
@@ -163,8 +256,13 @@ class Concertina(object):
           ' (%d ms)' % self.engine.completion_time[node] + '</span>'
         )
       else:
-        return node + (' (%d ms)' % self.engine.completion_time[node]
-                       if node in self.engine.completion_time else '')
+        if node in self.complete_actions:
+          suffix = ' (%d ms)' % self.engine.completion_time[node]
+        else:
+          suffix = ''
+        suffix += maybe_iteration_info
+        return node + suffix
+
     nodes = []
     edges = []
     for a in self.all_actions:
@@ -284,11 +382,13 @@ def ExecuteLogicaProgram(logica_executions, sql_runner, sql_engine,
   dependency_edges = set()
   data_dependency_edges = set()
   final_predicates = {e.main_predicate for e in logica_executions}
-  
+  iterations = {}
   for e in logica_executions:
     p_table_to_export_map, p_dependency_edges, p_data_dependency_edges = (
         e.table_to_export_map, e.dependency_edges, e.data_dependency_edges
     )
+    for iteration in e.iterations:
+      iterations[iteration] = e.iterations[iteration]
     for p in final_predicates:
       if e.main_predicate != p and p in e.table_to_export_map:
         p_table_to_export_map, p_dependency_edges, p_data_dependency_edges = (
@@ -323,6 +423,8 @@ def ExecuteLogicaProgram(logica_executions, sql_runner, sql_engine,
     if preamble:
       sql_runner(preamble, sql_engine, is_final=False)
 
-  concertina = Concertina(config, engine, display_mode=display_mode)
+  concertina = Concertina(config, engine,
+                          iterations=iterations,
+                          display_mode=display_mode)
   concertina.Run()
   return engine.final_result
