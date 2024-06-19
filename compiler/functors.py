@@ -527,7 +527,11 @@ class Functors(object):
         self.UnfoldRecursivePredicateFlatFashion(
           my_cover[p], depth, new_rules,
           iterative=(style=='iterative_horizontal'),
-          ignition_steps=depth_map.get(p, {}).get('ignition', 4))
+          # Ignition is my_cover[p] * 3 because it may take my_cover[p] steps
+          # to propagate dependency. So we have initial stage, iteration and final
+          # propagation to outputs. Plus 5 to cover small numbers.
+          ignition_steps=depth_map.get(p, {}).get('ignition',
+                                                  len(my_cover[p]) * 3 + 5))
       else:
         assert False, 'Unknown recursion style:' + style
     return new_rules
@@ -630,7 +634,11 @@ class Functors(object):
         p = min(c & deep)
       else:
         p = min(c)
-      if depth_map.get(p, {}).get('iterative'):
+      # Iterate if explicitly requested or unspecified
+      # and number of steps is greater than 20.
+      if (depth_map.get(p, {}).get('iterative') or
+          depth_map.get(p, {}).get('iterative', True) == True and
+          depth_map.get(p, {}).get('1', 8) > 20):
         should_recurse[p] = 'iterative_horizontal'
       elif self.IsCutOfCover(p, c):
         should_recurse[p] = 'vertical'
