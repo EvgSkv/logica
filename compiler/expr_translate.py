@@ -260,8 +260,12 @@ class QL(object):
     suffix = ('::' + element_type_name + '[]'
               if self.dialect.Name() == 'PostgreSQL'
               else '')
+    array_phrase = self.dialect.ArrayPhrase()
+    if self.convert_to_json:
+      array_phrase = '[%s]'
+      suffix = ''
     return (
-      self.dialect.ArrayPhrase() %
+      array_phrase %
       self.ListLiteralInternals(literal)) + suffix
 
   def BoolLiteral(self, literal):

@@ -97,3 +97,70 @@ def GetFlatRecursionFunctor(depth, cover, direct_args_of):
     result_rules.append(rule)
   program = '\n'.join(result_rules)
   return program
+
+def GetFlatIterativeRecursionFunctor(depth, cover, direct_args_of,
+                                     ignition_steps):
+  """Doing the whole flat recursion.
+
+  Example.
+  # Original:
+  A() Max= 1;
+  B() Max= 1;
+  A() Max= A() + B();
+  B() Max= A() * B();
+
+  # Recursion unfolding functors:
+  A_ifr0 := A_ROne(A_RZero: nil, B_RZero: nil);
+  A_ifr1 := A_ROne(A_RZero: A_ifr0, B_RZero: B_ifr0);
+  A_ifr2 := A_ROne(A_RZero: A_ifr1, B_RZero: B_ifr1);
+  A_ifr3 := A_ROne(A_RZero: A_ifr2, B_RZero: B_ifr2);
+  @Ground(A_ifr0);
+  @Ground(A_ifr1);
+  @Ground(A_ifr2, A_ifr0);
+  @Ground(A_ifr3);
+  A := A_ifr3();
+  B_ifr0 := B_ROne(A_RZero: nil, B_RZero: nil);
+  B_ifr1 := B_ROne(A_RZero: A_ifr0, B_RZero: B_ifr0);
+  B_ifr2 := B_ROne(A_RZero: A_ifr1, B_RZero: B_ifr1);
+  B_ifr3 := B_ROne(A_RZero: A_ifr2, B_RZero: B_ifr2);
+  @Ground(B_ifr0);
+  @Ground(B_ifr1);
+  @Ground(B_ifr2, B_ifr0);
+  @Ground(B_ifr3);
+  B := B_ifr3();
+  @Iteration(IterateA, predicates: ["A_ifr1", "A_ifr2", "B_ifr1", "B_ifr2"], repetitions: 4);
+  """
+  result_rules = []
+  iterate_over_upper_half = []
+  iterate_over_lower_half = []
+  inset = ignition_steps // 2
+  for p in sorted(cover):
+    for i in range(ignition_steps):
+      args = []
+      for a in sorted(set(direct_args_of[p]) & cover):
+        v = 'nil'
+        if i > 0:
+          v = f'{a}_ifr{i - 1}'
+        args.append(f'{a}_RZero: {v}')
+      args_str = ', '.join(args)
+      rule = f'{p}_ifr{i} := {p}_ROne({args_str});'
+      result_rules.append(rule)
+      if i != ignition_steps - inset: 
+        result_rules.append(f'@Ground({p}_ifr{i});')
+      else:
+        result_rules.append(f'@Ground({p}_ifr{i}, {p}_ifr{i - 2});')
+
+    iterate_over_upper_half += [f'{p}_ifr{ignition_steps - inset - 1}']
+    iterate_over_lower_half += [f'{p}_ifr{ignition_steps - inset}']
+
+    rule = f'{p} := {p}_ifr{ignition_steps - 1}();'
+
+    result_rules.append(rule)
+
+  iterate_over = iterate_over_upper_half + iterate_over_lower_half
+  iterate_over_str = ', '.join('"%s"' % p for p in iterate_over)
+  rule = f'@Iteration(Iterate{min(cover)}, predicates: [{iterate_over_str}], repetitions: {depth // 2});'
+  result_rules.append(rule)
+
+  program = '\n'.join(result_rules)
+  return program

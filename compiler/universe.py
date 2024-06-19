@@ -92,6 +92,7 @@ class Logica(object):
     self.main_predicate = None
     self.used_predicates = []
     self.dependencies_of = None
+    self.iterations = None
 
   def AddDefine(self, define):
     self.defines.append(define)
@@ -131,7 +132,7 @@ class Annotations(object):
       '@Limit', '@OrderBy', '@Ground', '@Flag', '@DefineFlag',
       '@NoInject', '@Make', '@CompileAsTvf', '@With', '@NoWith',
       '@CompileAsUdf', '@ResetFlagValue', '@Dataset', '@AttachDatabase',
-      '@Engine', '@Recursive'
+      '@Engine', '@Recursive', '@Iteration'
   ]
 
   def __init__(self, rules, user_flags):
@@ -235,6 +236,23 @@ class Annotations(object):
     return 'CREATE TEMP TABLE FUNCTION %s(%s) AS ' % (predicate_name,
                                                       signature)
 
+  def Iterations(self):
+    result = {}
+    for iteration_name, args in self.annotations['@Iteration'].items():
+      if 'predicates' not in args:
+        raise rule_translate.RuleCompileException(
+          'Iteration must specify list of predicates.',
+          self.annotations['@Iteration'][iteration_name]['__rule_text']
+        )
+      if 'repetitions' not in args:
+        raise rule_translate.RuleCompileException(
+          'Iteration must specify number of repetitions.',
+          self.annotations['@Iteration'][iteration_name]['__rule_text']
+        )
+      result[iteration_name] = {'predicates': args['predicates'],
+                                'repetitions': args['repetitions']}
+    return result
+
   def LimitOf(self, predicate_name):
     """Limit of the query corresponding to the predicate as per annotation."""
     if predicate_name not in self.annotations['@Limit']:
@@ -301,6 +319,14 @@ class Annotations(object):
       return None
     annotation = self.annotations['@Ground'][predicate_name]
     table_name = annotation.get('1', self.Dataset() + '.' + predicate_name)
+    if 'predicate_name' in table_name:
+      other_ground = self.Ground(table_name['predicate_name'])
+      if other_ground:
+        table_name = other_ground.table_name
+      else:
+        raise rule_translate.RuleCompileException(
+          'Predicate grounded to a non-grounded predicate.',
+          self.annotations['@Ground'][predicate_name]['__rule_text'])
     overwrite = annotation.get('overwrite', True)
     return Ground(table_name=table_name, overwrite=overwrite)
 
@@ -820,6 +846,7 @@ class LogicaProgram(object):
                                                                [])
     self.execution.dependencies_of = self.functors.args_of
     self.execution.dialect = dialects.Get(self.annotations.Engine())
+    self.execution.iterations = self.annotations.Iterations()
   
   def UpdateExecutionWithTyping(self):
     if self.execution.dialect.Name() == 'PostgreSQL':

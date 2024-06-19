@@ -419,7 +419,8 @@ class Functors(object):
     self.extended_rules.extend(rules)
     self.UpdateStructure(name)
     
-  def UnfoldRecursivePredicateFlatFashion(self, cover, depth, rules):
+  def UnfoldRecursivePredicateFlatFashion(self, cover, depth, rules,
+                                          iterative, ignition_steps):
     visible = lambda p: '_MultBodyAggAux' not in p
     simplified_cover = {c for c in cover if visible(c)}
     direct_args_of = {c: [] for c in cover if visible(c)}
@@ -452,9 +453,14 @@ class Functors(object):
         for c in cover:
           Walk(r, ReplacePredicate(c, c + '_ROne'))
 
-    lib = recursion_library.GetFlatRecursionFunctor(depth,
-                                                    simplified_cover,
-                                                    direct_args_of)
+    if iterative:
+      lib = recursion_library.GetFlatIterativeRecursionFunctor(
+        depth, simplified_cover, direct_args_of,
+        ignition_steps)
+    else:
+      lib = recursion_library.GetFlatRecursionFunctor(
+        depth, simplified_cover, direct_args_of)
+
     lib_rules = parse.ParseFile(lib)['rule']
     rules.extend(lib_rules)
 
@@ -517,8 +523,11 @@ class Functors(object):
       depth = depth_map.get(p, {}).get('1', 8)
       if style == 'vertical':
         self.UnfoldRecursivePredicate(p, my_cover[p], depth, new_rules)
-      elif style == 'horizontal':
-        self.UnfoldRecursivePredicateFlatFashion(my_cover[p], depth, new_rules)
+      elif style == 'horizontal' or style == 'iterative_horizontal':
+        self.UnfoldRecursivePredicateFlatFashion(
+          my_cover[p], depth, new_rules,
+          iterative=(style=='iterative_horizontal'),
+          ignition_steps=depth_map.get(p, {}).get('ignition', 4))
       else:
         assert False, 'Unknown recursion style:' + style
     return new_rules
@@ -621,7 +630,9 @@ class Functors(object):
         p = min(c & deep)
       else:
         p = min(c)
-      if self.IsCutOfCover(p, c):
+      if depth_map.get(p, {}).get('iterative'):
+        should_recurse[p] = 'iterative_horizontal'
+      elif self.IsCutOfCover(p, c):
         should_recurse[p] = 'vertical'
       else:
         should_recurse[p] = 'horizontal'
