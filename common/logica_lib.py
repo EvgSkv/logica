@@ -170,10 +170,15 @@ def RunPredicateToPandas(filename, predicate,
   engine = p.annotations.Engine()
   return RunQueryPandas(sql, engine, connection=connection)
 
-def RunPredicateFromString(logica_string,
-                           predicate_name,
-                           connection=None,
-                           user_flags=None):
+
+class SqlReceiver:
+  def __init__(self):
+    self.sql = None
+
+
+def CompilePredicateFromString(logica_string,
+                               predicate_name,
+                               user_flags=None):
   try:
     rules = parse.ParseFile(logica_string)['rule']
   except parse.ParsingException as parsing_exception:
@@ -196,5 +201,17 @@ def RunPredicateFromString(logica_string,
   except parse.ParsingException as parsing_exception:
     parsing_exception.ShowMessage()
     sys.exit(1)
+  return sql, engine
+
+
+def RunPredicateFromString(logica_string,
+                           predicate_name,
+                           connection=None,
+                           user_flags=None,
+                           sql_receiver: SqlReceiver = None):
+  sql, engine = CompilePredicateFromString(logica_string, predicate_name,
+                                           user_flags)
+  if sql_receiver:
+    sql_receiver.sql = sql
 
   return RunQueryPandas(sql, engine, connection)
