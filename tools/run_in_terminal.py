@@ -106,7 +106,8 @@ def RunSQL(sql, engine, connection=None, is_final=False,
                     'for now.')
 
 
-def Run(filename, predicate_name, output_format='artistic_table'):
+def Run(filename, predicate_name,
+        output_format='artistic_table', display_mode='terminal'):
   try:
     rules = parse.ParseFile(open(filename).read())['rule']
   except parse.ParsingException as parsing_exception:
@@ -123,7 +124,7 @@ def Run(filename, predicate_name, output_format='artistic_table'):
 
     (header, rows) = concertina_lib.ExecuteLogicaProgram(
         [program.execution], SqlRunner(engine), engine,
-        display_mode='terminal')[predicate_name]
+        display_mode=display_mode)[predicate_name]
   except rule_translate.RuleCompileException as rule_compilation_exception:
     rule_compilation_exception.ShowMessage()
     sys.exit(1)

@@ -20,7 +20,7 @@ from common import logica_test
 
 
 def RunTest(name, src=None, golden=None, predicate=None,
-            user_flags=None, import_root=None):
+            user_flags=None, import_root=None, use_concertina=False):
   """Run one test from this folder with TestManager."""
   src = src or (name + ".l")
   golden = golden or (name + ".txt")
@@ -31,7 +31,8 @@ def RunTest(name, src=None, golden=None, predicate=None,
       golden="integration_tests/" + golden,
       predicate=predicate,
       user_flags=user_flags,
-      import_root=import_root)
+      import_root=import_root,
+      use_concertina=use_concertina)
 
 
 def RunAll(test_presto=False, test_trino=False):
@@ -70,6 +71,7 @@ def RunAll(test_presto=False, test_trino=False):
   RunTest("rec_small_cycle_test")
   RunTest("rec_cycle_test")
 
+  RunTest("sqlite_deep_recursion_test", use_concertina=True)
   RunTest("sqlite_nil_test")
   RunTest("sqlite_flat_recursion_test")
   RunTest("sqlite_winmove_test")

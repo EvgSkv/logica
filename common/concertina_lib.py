@@ -69,6 +69,7 @@ class Concertina(object):
     complete = set()
     result = []
     assigning_iteration = None
+    exit_for = False
     while actions_to_assign:
       remains = len(actions_to_assign)
       if assigning_iteration:
@@ -82,11 +83,15 @@ class Concertina(object):
             if assigning_iteration:
               assert assigning_iteration == self.action_iteration[a]
             assigning_iteration = self.action_iteration[a]
+            exit_for = True
           complete |= {a}
           actions_to_assign -= {a}
           if assigning_iteration:
             if not (self.iteration_actions[assigning_iteration] & actions_to_assign):
               assigning_iteration = None
+          if exit_for:
+            exit_for = False
+            break
 
       if len(actions_to_assign) == remains:
         assert False, "Could not schedule: %s" % self.config
@@ -152,7 +157,7 @@ class Concertina(object):
     self.all_actions = {a["name"] for a in self.config}
     self.complete_actions = set()
     self.running_actions = set()
-    assert display_mode in ('colab', 'terminal', 'colab-text'), (
+    assert display_mode in ('colab', 'terminal', 'colab-text', 'silent'), (
       'Unrecognized display mode: %s' % display_mode)
     self.display_mode = display_mode
     self.display_id = self.GetDisplayId()
@@ -302,6 +307,8 @@ class Concertina(object):
     elif self.display_mode == 'colab-text':
       display(self.StateAsSimpleHTML(),
               display_id=self.display_id)
+    elif self.display_mode == 'silent':
+      pass  # Nothing to display.
     else:
       assert 'Unexpected mode:', self.display_mode
 
@@ -314,6 +321,8 @@ class Concertina(object):
       update_display(
         self.StateAsSimpleHTML(),
         display_id=self.display_id)
+    elif self.display_mode == 'silent':
+      pass  # Nothing to display.
     else:
       assert 'Unexpected mode:', self.display_mode
 
