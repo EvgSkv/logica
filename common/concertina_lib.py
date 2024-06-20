@@ -234,7 +234,9 @@ class Concertina(object):
     def AsArtGraph():
       nodes, edges = self.AsNodesAndEdges()
       return graph_art.Graph(nodes, edges)
-    return AsArtGraph().GetPicture(updating=updating)
+    extra_lines = self.ProgressBar().split('\n')
+    return AsArtGraph().GetPicture(updating=updating,
+                                   extra_lines=extra_lines)
 
   def AsNodesAndEdges(self):
     """Nodes and edges to display in terminal."""
@@ -278,6 +280,31 @@ class Concertina(object):
         edges.append([prerequisite_node, a_node])
     return nodes, edges
 
+  def AnalyzeWorkState(self):
+    total_work = 0
+    complete_work = 0
+    for a in self.all_actions:
+      if a in self.action_iteration:
+        num_repetitions = self.iteration_repetitions[self.action_iteration[a]]
+        total_work += num_repetitions
+        complete_work += self.action_iterations_complete[a]
+      else:
+        total_work += 1
+        complete_work += (a in self.complete_actions)
+    return total_work, complete_work
+
+  def ProgressBar(self):
+    total_work, complete_work = self.AnalyzeWorkState()
+    percent_complete = 100 * complete_work / total_work
+    progress_bar = (
+      '[' +
+      '#' * (complete_work * 30 // total_work) +
+      '.' * (30 - (complete_work * 30 // total_work)) +
+      ']' + '  %.2f%% complete.' % percent_complete)
+    if total_work == complete_work:
+      progress_bar = '[' + 'Execution complete.'.center(30, ' ') + ']'
+    return progress_bar
+
   def StateAsSimpleHTML(self):      
     style = ';'.join([
       'border: 1px solid rgba(0, 0, 0, 0.3)',
@@ -286,18 +313,10 @@ class Concertina(object):
       'border-radius: 5px',
       'min-width: 50em',
       'box-shadow: 1px 1px 3px rgba(0, 0, 0, 0.2)'])
-    percent_complete = 100 * len(self.complete_actions) / len(self.all_actions)
-    progress_bar = (
-      '[' +
-      '#' * (len(self.complete_actions) * 30 // len(self.all_actions)) +
-      '.' * (30 - (len(self.complete_actions) * 30 // len(self.all_actions))) +
-      ']' + '  %.2f%% complete.' % percent_complete)
-    if len(self.complete_actions) == len(self.all_actions):
-      progress_bar = '[' + 'Execution complete.'.center(30, ' ') + ']'
     return HTML('<div style="%s"><pre>%s</pre><pre>%s</pre></div>' % (
         style,
         self.AsTextPicture(updating=False),
-        progress_bar))
+        self.ProgressBar()))
 
   def Display(self):
     if self.display_mode == 'colab':
