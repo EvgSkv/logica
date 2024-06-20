@@ -19,6 +19,7 @@ import json
 import os
 import re
 from decimal import Decimal
+import sqlite3
 
 if '.' not in __package__:
   from type_inference.research import infer
@@ -92,3 +93,8 @@ def ConnectToPostgres(mode):
 
   connection.autocommit = True
   return connection
+
+
+def SqliteConnect():
+  con = sqlite3.connect(':memory:')
+  return con

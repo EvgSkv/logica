@@ -24,37 +24,33 @@ Arrow(left, right) = arrow :-
 
 PrintToConsole(message) :- 1 == SqlExpr("PrintToConsole({message})", {message:});
 
-ArgMin(arr) = Element(
-    SqlExpr("ArgMin({a}, {v}, 1)", {a:, v:}), 0) :- Arrow(a, v) == arr;
+ArgMin(arr) = SqlExpr(
+    "argmin({a}, {v})", {a:, v:}) :- Arrow(a, v) == arr;
 
-ArgMax(arr) = Element(
-    SqlExpr("ArgMax({a}, {v}, 1)", {a:, v:}), 0) :- Arrow(a, v) == arr;
+ArgMax(arr) = SqlExpr(
+    "argmax({a}, {v})", {a:, v:}) :- Arrow(a, v) == arr;
 
-ArgMinK(arr, k) = 
-    SqlExpr("ArgMin({a}, {v}, {k})", {a:, v:, k:}) :-
-  Arrow(a, v) == arr;
+ArgMaxK(a, l) = SqlExpr(
+  "(array_agg({arg} order by {value} desc))[1:{lim}]",
+  {arg: a.arg, value: a.value, lim: l});
 
-ArgMaxK(arr, k) =
-    SqlExpr("ArgMax({a}, {v}, {k})", {a:, v:, k:}) :- Arrow(a, v) == arr;
+ArgMinK(a, l) = SqlExpr(
+  "(array_agg({arg} order by {value}))[1:{lim}]",
+  {arg: a.arg, value: a.value, lim: l});
 
 Array(arr) =
-    SqlExpr("ArgMin({v}, {a}, null)", {a:, v:}) :- Arrow(a, v) == arr; 
+    SqlExpr("ArgMin({v}, {a})", {a:, v:}) :- Arrow(a, v) == arr; 
 
-ReadFile(filename) = SqlExpr("ReadFile({filename})", {filename:});
+RecordAsJson(r) = SqlExpr(
+  "ROW_TO_JSON({r})", {r:});
 
-ReadJson(filename) = ReadFile(filename);
+Fingerprint(s) = SqlExpr("('x' || substr(md5({s}), 1, 16))::bit(64)::bigint", {s:});
 
-WriteFile(filename, content:) = SqlExpr("WriteFile({filename}, {content})",
-                                        {filename:, content:});
+ReadFile(filename) = SqlExpr("pg_read_file({filename})", {filename:});
 
-Fingerprint(s) = SqlExpr("Fingerprint({s})", {s:});
+Chr(x) = SqlExpr("Chr({x})", {x:});
 
-Intelligence(command) = SqlExpr("Intelligence({command})", {command:});
-
-AssembleRecord(field_values) = SqlExpr("AssembleRecord({field_values})", {field_values:});
-
-DisassembleRecord(record) = SqlExpr("DisassembleRecord({record})", {record:});
-
-Char(code) = SqlExpr("CHAR({code})", {code:});
+Num(a) = a;
+Str(a) = a;
 
 """

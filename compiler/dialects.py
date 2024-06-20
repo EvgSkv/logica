@@ -397,19 +397,19 @@ class DuckDB(Dialect):
     def BuiltInFunctions(self):
       return {
           'Set': 'DistinctListAgg({0})',
-          'Element': "JSON_EXTRACT({0}, '$[' || {1} || ']')",
+          'Element': "array_extract({0},  {1}+1)",
           'Range': ('(select json_group_array(n) from (with recursive t as'
                     '(select 0 as n union all '
                     'select n + 1 as n from t where n + 1 < {0}) '
                     'select n from t) where n < {0})'),
-          'ValueOfUnnested': '{0}.value',
-          'List': 'JSON_GROUP_ARRAY({0})',
+          'ValueOfUnnested': '{0}',
+          'List': '[{0}]',
           'Size': 'JSON_ARRAY_LENGTH({0})',
           'Join': 'JOIN_STRINGS({0}, {1})',
           'Count': 'COUNT(DISTINCT {0})',
           'StringAgg': 'GROUP_CONCAT(%s)',
           'Sort': 'SortList({0})',
-          'MagicalEntangle': 'MagicalEntangle({0}, {1})',
+          'MagicalEntangle': '{0}',
           'Format': 'Printf(%s)',
           'Least': 'MIN(%s)',
           'Greatest': 'MAX(%s)',
@@ -432,16 +432,16 @@ class DuckDB(Dialect):
       if record_is_table:
         return '%s.%s' % (record, subscript)
       else:
-        return 'JSON_EXTRACT(%s, "$.%s")' % (record, subscript)
-    
+        return '(%s)' % (record)
+
     def LibraryProgram(self):
       return duckdb_library.library
 
     def UnnestPhrase(self):
-      return 'JSON_EACH({0}) as {1}'
+      return 'unnest({0}) as {1}'
 
     def ArrayPhrase(self):
-      return 'JSON_ARRAY(%s)'
+      return '[%s]'
 
     def GroupBySpecBy(self):
       return 'expr'
