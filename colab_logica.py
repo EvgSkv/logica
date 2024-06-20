@@ -39,6 +39,7 @@ from IPython.display import display
 import os
 
 import pandas
+import duckdb
 
 from .parser_py import parse
 from .common import sqlite3_logica
@@ -174,9 +175,7 @@ def RunSQL(sql, engine, connection=None, is_final=False):
     else:
       psql_logica.PostgresExecute(sql, connection)
   elif engine == 'duckdb':
-    import duckdb
-    print("\n"+sql)
-    duckdb.sql(sql).show()
+    return duckdb.sql(sql).df()
   elif engine == 'sqlite':
     try:
       if is_final:
@@ -214,7 +213,7 @@ class SqliteRunner(object):
 
 class DuckdbRunner(object):
   def __init__(self):
-    self.connection = sqlite3_logica.SqliteConnect()
+    self.connection = duckdb_logica.SqliteConnect()
   def  __call__(self, sql, engine, is_final):
     return RunSQL(sql, engine, self.connection, is_final)
 
@@ -274,7 +273,6 @@ def Logica(line, cell, run_query):
   except infer.TypeErrorCaughtException as e:
     e.ShowMessage()
     return
-
   engine = program.annotations.Engine()
 
   if engine == 'bigquery' and not BQ_READY:
@@ -319,6 +317,8 @@ def Logica(line, cell, run_query):
                 color.Warn(predicate + '_sql'))
 
   with bar.output_to(logs_idx):
+    print(sql)
+    # print(program)
     if engine == 'sqlite':
       sql_runner = SqliteRunner()
     elif engine == 'psql':
@@ -331,7 +331,7 @@ def Logica(line, cell, run_query):
     else:
       raise Exception('Logica only supports BigQuery, PostgreSQL and SQLite '
                       'for now.')   
-    try:                  
+    try:
       result_map = concertina_lib.ExecuteLogicaProgram(
         executions, sql_runner=sql_runner, sql_engine=engine,
         display_mode=DISPLAY_MODE)
