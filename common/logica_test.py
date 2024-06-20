@@ -24,11 +24,13 @@ import json
 if '.' not in __package__:
   from common import color
   from common import logica_lib
+  from tools import run_in_terminal
   from type_inference.research import infer
   from parser_py import parse
 else:
   from ..common import color
   from ..common import logica_lib
+  from ..tools import run_in_terminal
   from ..type_inference.research import infer
   from ..parser_py import parse
 
@@ -53,12 +55,12 @@ class TestManager(object):
 
   @classmethod
   def RunTest(cls, name, src, predicate, golden, user_flags,
-              import_root=None):
+              import_root=None, use_concertina=False):
     if cls.RUN_ONLY and name not in cls.RUN_ONLY:
       return
     RunTest(name, src, predicate, golden, user_flags,
             cls.GOLDEN_RUN, cls.ANNOUNCE_TESTS,
-            import_root)
+            import_root, use_concertina)
 
   @classmethod
   def RunTypesTest(cls, name, src=None, golden=None):
@@ -105,16 +107,19 @@ def RunTypesTest(name, src=None, golden=None,
 def RunTest(name, src, predicate, golden,
             user_flags=None,
             overwrite=False, announce=False,
-            import_root=None):
+            import_root=None, use_concertina=False):
   """Run one test."""
   if announce:
     print('Running test:', name)
   test_result = '{warning}RUNNING{end}'
   print(color.Format('% 50s   %s' % (name, test_result)))
 
-  result = logica_lib.RunPredicate(src, predicate,
-                                   user_flags=user_flags,
-                                   import_root=import_root)
+  if use_concertina:
+    result = run_in_terminal.Run(src, predicate, display_mode='silent')
+  else:
+    result = logica_lib.RunPredicate(src, predicate,
+                                    user_flags=user_flags,
+                                    import_root=import_root)
   # Hacky way to remove query that BQ prints.
   if '+---' in result[200:]:
     result = result[result.index('+---'):]

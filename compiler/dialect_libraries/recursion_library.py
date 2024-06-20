@@ -159,7 +159,7 @@ def GetFlatIterativeRecursionFunctor(depth, cover, direct_args_of,
 
   iterate_over = iterate_over_upper_half + iterate_over_lower_half
   iterate_over_str = ', '.join('"%s"' % p for p in iterate_over)
-  rule = f'@Iteration(Iterate{min(cover)}, predicates: [{iterate_over_str}], repetitions: {depth // 2});'
+  rule = f'@Iteration(Iterate{min(cover)}, predicates: [{iterate_over_str}], repetitions: {(depth + 1 - ignition_steps) // 2 + 1});'
   result_rules.append(rule)
 
   program = '\n'.join(result_rules)

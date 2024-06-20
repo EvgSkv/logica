@@ -524,14 +524,16 @@ class Functors(object):
       if style == 'vertical':
         self.UnfoldRecursivePredicate(p, my_cover[p], depth, new_rules)
       elif style == 'horizontal' or style == 'iterative_horizontal':
+        ignition = len(my_cover[p]) * 3 + 4
+        if ignition % 2 == depth % 2:
+          ignition += 1
         self.UnfoldRecursivePredicateFlatFashion(
           my_cover[p], depth, new_rules,
           iterative=(style=='iterative_horizontal'),
           # Ignition is my_cover[p] * 3 because it may take my_cover[p] steps
           # to propagate dependency. So we have initial stage, iteration and final
           # propagation to outputs. Plus 5 to cover small numbers.
-          ignition_steps=depth_map.get(p, {}).get('ignition',
-                                                  len(my_cover[p]) * 3 + 5))
+          ignition_steps=depth_map.get(p, {}).get('ignition', ignition))
       else:
         assert False, 'Unknown recursion style:' + style
     return new_rules
