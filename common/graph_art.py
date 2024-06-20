@@ -126,8 +126,9 @@ class Graph(object):
     # Producing a condenced 
     return tracks_image[::2]
 
-  def GetPicture(self, updating):
-    picture = '\n'.join(self.SimulateDelivery())
+  def GetPicture(self, updating, extra_lines=None):
+    extra_lines = extra_lines or []
+    picture = '\n'.join(self.SimulateDelivery() + extra_lines)
     if updating:
       prefix = '\033[F' * len(picture.split('\n'))
     else:
