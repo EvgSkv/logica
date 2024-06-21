@@ -246,7 +246,7 @@ class QL(object):
     return str(literal['number'])
 
   def StrLiteral(self, literal):
-    if self.dialect.Name() in ["PostgreSQL", "Presto", "Trino", "SqLite"]:
+    if self.dialect.Name() in ["PostgreSQL", "Presto", "Trino", "SqLite", "DuckDB"]:
       # TODO: Do this safely.
       return '\'%s\'' % (literal['the_string'].replace("'", "''"))
 
@@ -354,6 +354,12 @@ class QL(object):
         for f_v in sorted(record['field_value'],
                           key=lambda x: StrIntKey(x['field'])))
       return 'ROW(%s)::%s' % (args, record_type)
+    if self.dialect.Name() == 'DuckDB':
+       arguments_str = ', '.join(
+          "%s: %s" % (f_v['field'],
+                      self.ConvertToSql(f_v['value']['expression']) )
+          for f_v in record['field_value'])
+       return '{%s}' % arguments_str
     return 'STRUCT(%s)' % arguments_str
 
   def GenericSqlExpression(self, record):
