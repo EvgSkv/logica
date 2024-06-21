@@ -264,7 +264,10 @@ class Concertina(object):
         )
       else:
         if node in self.complete_actions:
-          suffix = ' (%d ms)' % self.engine.completion_time[node]
+          if node not in self.engine.completion_time:
+            suffix = ' (input data)'
+          else:
+            suffix = ' (%d ms)' % self.engine.completion_time[node]
         else:
           suffix = ''
         suffix += maybe_iteration_info
@@ -313,10 +316,9 @@ class Concertina(object):
       'border-radius: 5px',
       'min-width: 50em',
       'box-shadow: 1px 1px 3px rgba(0, 0, 0, 0.2)'])
-    return HTML('<div style="%s"><pre>%s</pre><pre>%s</pre></div>' % (
+    return HTML('<div style="%s"><pre>%s</pre></div>' % (
         style,
-        self.AsTextPicture(updating=False),
-        self.ProgressBar()))
+        self.AsTextPicture(updating=False)))
 
   def Display(self):
     if self.display_mode == 'colab':
