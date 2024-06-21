@@ -662,6 +662,7 @@ class TypeCollector:
     self.psql_type_definition = {}
     self.definitions = []
     self.typing_preamble = ''
+    self.psql_type_cache = {}
 
   def ActPopulatingTypeMap(self, node):
     if 'type' in node:
@@ -671,6 +672,8 @@ class TypeCollector:
       node['type']['rendered_type'] = t_rendering
       if 'combine' in node and reference_algebra.IsFullyDefined(t):
         node['type']['combine_psql_type'] = self.PsqlType(t)
+      if reference_algebra.IsFullyDefined(t):
+        self.psql_type_cache[t_rendering] = self.PsqlType(t)
       if isinstance(t, dict) and reference_algebra.IsFullyDefined(t):
         node['type']['type_name'] = RecordTypeName(t_rendering)
       if isinstance(t, list) and reference_algebra.IsFullyDefined(t):
