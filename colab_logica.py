@@ -39,9 +39,11 @@ from IPython.display import display
 import os
 
 import pandas
+import duckdb
 
 from .parser_py import parse
 from .common import sqlite3_logica
+from .common import duckdb_logica
 
 BQ_READY = True  # By default.
 
@@ -185,6 +187,11 @@ def RunSQL(sql, engine, connection=None, is_final=False):
       return df
     else:
       psql_logica.PostgresExecute(sql, connection)
+  elif engine == 'duckdb':
+    if is_final:
+      return duckdb.sql(sql).df()
+    else:
+      duckdb.sql(sql)
   elif engine == 'sqlite':
     try:
       if is_final:
@@ -218,6 +225,12 @@ class SqliteRunner(object):
   
   # TODO: Sqlite runner should not be accepting an engine.
   def __call__(self, sql, engine, is_final):
+    return RunSQL(sql, engine, self.connection, is_final)
+
+class DuckdbRunner(object):
+  def __init__(self):
+    self.connection = duckdb_logica.SqliteConnect()
+  def  __call__(self, sql, engine, is_final):
     return RunSQL(sql, engine, self.connection, is_final)
 
 
@@ -280,7 +293,6 @@ def Logica(line, cell, run_query):
   except infer.TypeErrorCaughtException as e:
     e.ShowMessage()
     return
-
   engine = program.annotations.Engine()
 
   if engine == 'bigquery' and not BQ_READY:
@@ -295,7 +307,6 @@ def Logica(line, cell, run_query):
 
   bar = TabBar(predicates + ['(Log)'])
   logs_idx = len(predicates)
-
   executions = []
   sub_bars = []
   ip = IPython.get_ipython()
@@ -334,13 +345,15 @@ def Logica(line, cell, run_query):
       sql_runner = SqliteRunner()
     elif engine == 'psql':
       sql_runner = PostgresRunner()
+    elif engine == 'duckdb':
+      sql_runner = DuckdbRunner() 
     elif engine == 'bigquery':
       EnsureAuthenticatedUser()
       sql_runner = RunSQL
     else:
       raise Exception('Logica only supports BigQuery, PostgreSQL and SQLite '
                       'for now.')   
-    try:                  
+    try:
       result_map = concertina_lib.ExecuteLogicaProgram(
         executions, sql_runner=sql_runner, sql_engine=engine,
         display_mode=DISPLAY_MODE)
