@@ -820,7 +820,22 @@ class LogicaProgram(object):
                            dialect=self.execution.dialect)
     value_sql = ql.ConvertToSql(s.select['logica_value'])
 
-    sql = 'CREATE TEMP FUNCTION {name}({signature}) AS ({value})'.format(
+    # TODO: Move this to dialects.py.
+    if self.execution.annotations.Engine() == 'psql':
+      vartype = lambda varname: (
+        self.typing_engine.collector.psql_type_cache[
+          s.select[varname]['type']['rendered_type']])
+      sql = ('DROP FUNCTION IF EXISTS {name}; '
+             'CREATE OR REPLACE FUNCTION {name}({signature}) '
+             'RETURNS {value_type} AS $$ select ({value}) '
+             '$$ language sql'.format(
+              name=name,
+              signature=', '.join('%s %s' % (v, vartype(v))
+                                  for v in variables),
+              value_type=vartype('logica_value'),
+              value=value_sql))
+    else:
+      sql = 'CREATE TEMP FUNCTION {name}({signature}) AS ({value})'.format(
         name=name,
         signature=', '.join('%s ANY TYPE' % v for v in variables),
         value=value_sql)

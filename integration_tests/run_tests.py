@@ -97,6 +97,7 @@ def RunAll(test_presto=False, test_trino=False):
   RunTest("sqlite_reachability")
   RunTest("sqlite_element_test")
 
+  RunTest("psql_udf_test")
   RunTest("psql_flow_test")
   RunTest("psql_graph_coloring_test")
   RunTest("psql_win_move_test")
