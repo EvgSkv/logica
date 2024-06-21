@@ -320,8 +320,6 @@ def Logica(line, cell, run_query):
                 color.Warn(predicate + '_sql'))
 
   with bar.output_to(logs_idx):
-    print(sql)
-    # print(program)
     if engine == 'sqlite':
       sql_runner = SqliteRunner()
     elif engine == 'psql':
