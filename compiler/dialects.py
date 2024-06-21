@@ -398,18 +398,18 @@ class DuckDB(Dialect):
       return {
           'Set': 'DistinctListAgg({0})',
           'Element': "array_extract({0},  {1}+1)",
-          'Range': ('(select json_group_array(n) from (with recursive t as'
+          'Range': ('(select [n] from (with recursive t as'
                     '(select 0 as n union all '
                     'select n + 1 as n from t where n + 1 < {0}) '
                     'select n from t) where n < {0})'),
-          'ValueOfUnnested': '{0}',
+          'ValueOfUnnested': '{0}.unnested_pod',
           'List': '[{0}]',
           'Size': 'JSON_ARRAY_LENGTH({0})',
           'Join': 'JOIN_STRINGS({0}, {1})',
           'Count': 'COUNT(DISTINCT {0})',
           'StringAgg': 'GROUP_CONCAT(%s)',
           'Sort': 'SortList({0})',
-          'MagicalEntangle': '{0}',
+          'MagicalEntangle': '(CASE WHEN {1} = 0 THEN {0} ELSE NULL END)',
           'Format': 'Printf(%s)',
           'Least': 'MIN(%s)',
           'Greatest': 'MAX(%s)',
@@ -429,16 +429,13 @@ class DuckDB(Dialect):
       }
 
     def Subscript(self, record, subscript, record_is_table):
-      if record_is_table:
-        return '%s.%s' % (record, subscript)
-      else:
-        return '(%s)' % (record)
+      return '%s.%s' % (record, subscript)
 
     def LibraryProgram(self):
       return duckdb_library.library
 
     def UnnestPhrase(self):
-      return 'unnest({0}) as {1}'
+      return '(select unnest({0}) as unnested_pod) as {1}'
 
     def ArrayPhrase(self):
       return '[%s]'

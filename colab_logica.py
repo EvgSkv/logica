@@ -175,7 +175,10 @@ def RunSQL(sql, engine, connection=None, is_final=False):
     else:
       psql_logica.PostgresExecute(sql, connection)
   elif engine == 'duckdb':
-    return duckdb.sql(sql).df()
+    if is_final:
+      return duckdb.sql(sql).df()
+    else:
+      duckdb.sql(sql)
   elif engine == 'sqlite':
     try:
       if is_final:

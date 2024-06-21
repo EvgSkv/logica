@@ -31,12 +31,12 @@ ArgMax(arr) = SqlExpr(
     "argmax({a}, {v})", {a:, v:}) :- Arrow(a, v) == arr;
 
 ArgMaxK(a, l) = SqlExpr(
-  "(array_agg({arg} order by {value} desc))[1:{lim}]",
-  {arg: a.arg, value: a.value, lim: l});
+  "(array_agg({arg_1} order by {value_1} desc))[1:{lim}]",
+  {arg_1: a.arg, value_1: a.value, lim: l});
 
 ArgMinK(a, l) = SqlExpr(
-  "(array_agg({arg} order by {value}))[1:{lim}]",
-  {arg: a.arg, value: a.value, lim: l});
+  "(array_agg({arg_1} order by {value_1}))[1:{lim}]",
+  {arg_1: a.arg, value_1: a.value, lim: l});
 
 Array(arr) =
     SqlExpr("ArgMin({v}, {a})", {a:, v:}) :- Arrow(a, v) == arr; 
