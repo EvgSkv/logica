@@ -929,6 +929,13 @@ def ParseProposition(s):
   c = ParseConjunction(s, allow_singleton=False)
   if len(str_conjuncts) > 1:
     return {'conjunction': c}
+  if TOO_MUCH == 'fun':
+    c = ParsePropositionalEquivalence(s)
+    if c:
+      return {'conjunction': {'conjunct': [c]}}
+    c = ParsePropositionalImplication(s)
+    if c:
+      return {'conjunction': {'conjunct': [c]}}
 
   c = ParseImplication(s)
   if c:
@@ -980,6 +987,45 @@ def ParseDisjunction(s):
   return {'disjunct': disjuncts}
 
 
+def ParsePropositionalImplication(s):
+  str_implicants = Split(s, '=>')
+  if len(str_implicants) != 2:
+    return None
+  condition_str, consequence_str = str_implicants
+  condition = ParseProposition(condition_str)
+  consequence = ParseProposition(consequence_str)
+  return PropositionalImplication(s, str_implicants[1], condition, consequence)
+
+
+def PropositionalImplication(s, consequence_str, condition, consequence):
+  def EnsureConjunction(x):
+    if 'conjunction' in x:
+      return x
+    return {'conjunction': {'conjunct': [x]}}
+  if 'conjunction' in condition:
+    conjuncts = condition['conjunction']['conjunct']
+  else:
+    conjuncts = [condition]
+  conjuncts += [NegationTree(consequence_str, EnsureConjunction(consequence))]
+  return NegationTree(
+    s, {'conjunction': {'conjunct': conjuncts}})
+
+
+def ParsePropositionalEquivalence(s):
+  str_equivalents = Split(s, '<=>')
+  if len(str_equivalents) != 2:
+    return None
+  left_str, right_str = str_equivalents
+  left1 = ParseProposition(left_str)
+  right1 = ParseProposition(right_str)
+  # Each object must be distinct for later rewrites not to be confused.
+  left2 = ParseProposition(left_str)
+  right2 = ParseProposition(right_str)
+  return {'conjunction': {'conjunct': [
+    PropositionalImplication(s, right_str, left1, right1),
+    PropositionalImplication(s, left_str, right2, left2)]}}
+
+
 def ParseNegationExpression(s: HeritageAwareString):
   proposition = ParseNegation(s)
   if not proposition:
@@ -1003,7 +1049,9 @@ def ParseNegation(s: HeritageAwareString):
   negated_proposition = {
       'conjunction': ParseConjunction(negated, allow_singleton=True)
   }
+  return NegationTree(s, negated_proposition)
 
+def NegationTree(s, negated_proposition):
   number_one = {
       'literal': {
           'the_number': {
