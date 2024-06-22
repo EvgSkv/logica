@@ -38,8 +38,9 @@ ArgMinK(a, l) = SqlExpr(
   "(array_agg({arg_1} order by {value_1}))[1:{lim}]",
   {arg_1: a.arg, value_1: a.value, lim: l});
 
-Array(arr) =
-    SqlExpr("ArgMin({v}, {a})", {a:, v:}) :- Arrow(a, v) == arr; 
+Array(a) = SqlExpr(
+  "ARRAY_AGG({value} order by {arg})",
+  {arg: a.arg, value: a.value});
 
 RecordAsJson(r) = SqlExpr(
   "ROW_TO_JSON({r})", {r:});
@@ -52,5 +53,12 @@ Chr(x) = SqlExpr("Chr({x})", {x:});
 
 Num(a) = a;
 Str(a) = a;
+
+NaturalHash(x) = ToInt64(SqlExpr("hash(cast({x} as string)) // cast(2 as ubigint)", {x:}));
+
+# This is unsafe to use because due to the way Logica compiles this number
+# will be unique for each use of the variable, which can be a pain to debug.
+# It is OK to use it as long as you undertand and are OK with the difficulty.
+UnsafeToUseUniqueNumber() = SqlExpr("nextval('eternal_logical_sequence')", {});
 
 """

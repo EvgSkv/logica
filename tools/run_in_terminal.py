@@ -42,7 +42,7 @@ else:
 class SqlRunner(object):
   def __init__(self, engine):
     self.engine = engine
-    assert engine in ['sqlite', 'bigquery', 'psql']
+    assert engine in ['sqlite', 'bigquery', 'psql', 'duckdb']
     if engine == 'sqlite':
       self.connection = sqlite3_logica.SqliteConnect()
     else:
@@ -58,7 +58,8 @@ class SqlRunner(object):
       credentials, project = None, None
     if engine == 'psql':
       self.connection = psql_logica.ConnectToPostgres('environment')
-
+    if engine == 'duckdb':
+      self.connection = None  # No connection needed!
     self.bq_credentials = credentials
     self.bq_project = project
   
@@ -101,6 +102,14 @@ def RunSQL(sql, engine, connection=None, is_final=False,
       print(sql)
       print("Error while executing SQL:\n%s" % e)
       raise e
+  elif engine == 'duckdb':
+    import duckdb
+    if is_final:
+      df = duckdb.sql(sql).df()
+      return list(df.columns), df.values.tolist()
+    else:
+      duckdb.sql(sql)
+    
   else:
     raise Exception('Logica only supports BigQuery, PostgreSQL and SQLite '
                     'for now.')

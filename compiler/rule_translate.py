@@ -81,10 +81,11 @@ def HeadToSelect(head):
   return (select, aggregated_vars)
 
 
-def AllMentionedVariables(x, dive_in_combines=False):
+def AllMentionedVariables(x, dive_in_combines=False, this_is_select=False):
   """Extracting all variables mentioned in an expression."""
   r = []
-  if isinstance(x, dict) and 'variable' in x:
+  # In select there can be a variable named variable.
+  if isinstance(x, dict) and 'variable' in x and not this_is_select:
     r.append(x['variable']['var_name'])
   if isinstance(x, list):
     for v in x:
@@ -249,7 +250,7 @@ class RuleStructure(object):
 
   def AllVariables(self):
     r = set()
-    r |= AllMentionedVariables(self.select)
+    r |= AllMentionedVariables(self.select, this_is_select=True)
     r |= AllMentionedVariables(self.vars_unification)
     r |= AllMentionedVariables(self.constraints)
     r |= AllMentionedVariables(self.unnestings)

@@ -24,8 +24,9 @@ T(4);
 @With(R);
 R(x, l) :- T(x), l == (if x == 2 || x == 3 then [x] else []);
 
-P1(x, y) :- T(x), y List= x;
-P2(x, col1? List= y) distinct :- T(x), y in [1,2,3,4], R(x, l), ~(y in l);
+P1(x, y) :- T(x), y Array= x -> x;
+P2(x, col1? Array= y -> y) distinct :- T(x), y in [1,2,3,4], R(x, l), ~(y in l);
 
+@OrderBy(Test, "col0", "col1");
 Test("test1", x, y) :- P1(x, y);
 Test("test2", x, y) :- P2(x, y);
