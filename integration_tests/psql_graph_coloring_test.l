@@ -22,9 +22,11 @@
 -+-(left:x, right:y) = ToString(x) ++ ":" ++ ToString(y);
 G("a" -+- i, "a" -+- (i + 1)) :- i in Range(6);
 
+@Recursive(L, 8, iterative: true);
 L(1, 1, 2, 1) distinct;
 L(x, y, x * 2, y) distinct :- L(a, b, x, y);
 L(x, y, x, y * 3) distinct :- L(a, b, x, y);
+
 G("b" -+- x -+- y, "b" -+- x1 -+- y1) :- L(x, y, x1, y1), x < 6, y < 6;
 
 E(a, b) :- G(a, b) | G(b, a);
@@ -34,6 +36,7 @@ E(a, b) :- G(a, b) | G(b, a);
 # Finding connected components.
 #
 
+@Recursive(ComponentOf, 25);
 ComponentOf(x) Min= x :- E(x);
 ComponentOf(x) Min= ComponentOf(y) :- E(x, y);
 

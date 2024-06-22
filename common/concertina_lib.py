@@ -145,6 +145,8 @@ class Concertina(object):
 
   def __init__(self, config, engine, display_mode='colab', iterations=None):
     self.config = config
+    self.recent_display_update_seconds = 0
+    self.display_update_period = 0.0000000001
     self.iterations = iterations or {}
     self.action_iteration = None
     self.iteration_repetitions = None
@@ -197,7 +199,7 @@ class Concertina(object):
   def Run(self):
     while self.actions_to_run:
       self.RunOneAction()
-    self.UpdateDisplay()
+    self.UpdateDisplay(final=True)
 
   def ActionColor(self, a):
     if self.action[a].get('type') == 'data':
@@ -258,9 +260,12 @@ class Concertina(object):
         else:
           assert False, self.display_mode
       elif node in self.complete_actions and self.display_mode == 'colab-text' and self.actions_to_run:
+        if node not in self.engine.completion_time:
+          suffix = ' (input data)'
+        else:
+          suffix = ' (%d ms)' % self.engine.completion_time[node]
         return (
-          '<span style="opacity: 0.6;">' + node +
-          ' (%d ms)' % self.engine.completion_time[node] + '</span>'
+          '<span style="opacity: 0.6;">' + node + suffix + '</span>'
         )
       else:
         if node in self.complete_actions:
@@ -305,7 +310,7 @@ class Concertina(object):
       '.' * (30 - (complete_work * 30 // total_work)) +
       ']' + '  %.2f%% complete.' % percent_complete)
     if total_work == complete_work:
-      progress_bar = '[' + 'Execution complete.'.center(30, ' ') + ']'
+      progress_bar = '[' + 'Execution complete.'.center(30, ' ') + ']' + ' ' * 30
     return progress_bar
 
   def StateAsSimpleHTML(self):      
@@ -333,7 +338,18 @@ class Concertina(object):
     else:
       assert 'Unexpected mode:', self.display_mode
 
-  def UpdateDisplay(self):
+  def UpdateDisplay(self, final=False):
+    # This is now it's done, right?
+    now = (datetime.datetime.now() -
+           datetime.datetime(1, 12, 25)).total_seconds()
+    # Trying to have the state on if the process fails at early step.
+    self.display_update_period = min(0.5, self.display_update_period * 1.2)
+    if (now - self.recent_display_update_seconds <
+        self.display_update_period and
+        not final):
+      # Avoid frequent display updates slowing down execution.
+      return
+    self.recent_display_update_seconds = now
     if self.display_mode == 'colab':
       update_display(self.AsGraphViz(), display_id=self.display_id)
     elif self.display_mode == 'terminal':

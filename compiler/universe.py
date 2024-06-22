@@ -163,6 +163,11 @@ class Annotations(object):
           '-- Initializing PostgreSQL environment.\n'
           'set client_min_messages to warning;\n'
           'create schema if not exists logica_home;\n\n')
+    elif self.Engine() == 'duckdb':
+      preamble += (
+          '-- Initializing DuckDB environment.\n'
+          'create schema if not exists logica_home;\n'
+          'create sequence if not exists eternal_logical_sequence;\n\n')
     return preamble
 
   def BuildFlagValues(self):
@@ -273,7 +278,7 @@ class Annotations(object):
   def Dataset(self):
     default_dataset = 'logica_test'
     # This change is intended for all engines in the future.
-    if self.Engine() == 'psql':
+    if self.Engine() in ['psql', 'duckdb']:
       default_dataset = 'logica_home'
     if self.Engine() == 'sqlite' and 'logica_home' in self.AttachedDatabases():
       default_dataset = 'logica_home'
@@ -296,7 +301,7 @@ class Annotations(object):
     
     engine_annotation = list(self.annotations['@Engine'].values())[0]
     if 'type_checking' not in engine_annotation:
-      if engine == 'psql':
+      if engine in ['psql', 'duckdb']:
         return True
       else:
         return False
@@ -590,7 +595,13 @@ class LogicaProgram(object):
   def UnfoldRecursion(self, rules):
     annotations = Annotations(rules, {})
     f = functors.Functors(rules)
-    return f.UnfoldRecursions(annotations.annotations.get('@Recursive', {}))
+    depth_map = annotations.annotations.get('@Recursive', {})
+    # Annotations are not ready at this point.
+    # if (self.execution.annotations.Engine() == 'duckdb'):
+    #   for p in depth_map:
+    #     # DuckDB struggles with long querries.
+    #     depth_map[p]['iterative'] = True
+    return f.UnfoldRecursions(depth_map)
 
   def BuildUdfs(self):
     """Build UDF definitions."""

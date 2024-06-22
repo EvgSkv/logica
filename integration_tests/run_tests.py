@@ -20,7 +20,8 @@ from common import logica_test
 
 
 def RunTest(name, src=None, golden=None, predicate=None,
-            user_flags=None, import_root=None, use_concertina=False):
+            user_flags=None, import_root=None,
+            use_concertina=False, duckify_psql=False):
   """Run one test from this folder with TestManager."""
   src = src or (name + ".l")
   golden = golden or (name + ".txt")
@@ -32,7 +33,8 @@ def RunTest(name, src=None, golden=None, predicate=None,
       predicate=predicate,
       user_flags=user_flags,
       import_root=import_root,
-      use_concertina=use_concertina)
+      use_concertina=use_concertina,
+      duckify_psql=duckify_psql)
 
 
 def RunAll(test_presto=False, test_trino=False):
@@ -96,6 +98,30 @@ def RunAll(test_presto=False, test_trino=False):
   RunTest("sqlite_composite_test")
   RunTest("sqlite_reachability")
   RunTest("sqlite_element_test")
+
+  RunTest("duckdb_purchase_test",
+          src="psql_purchase_test.l",
+          duckify_psql=True, use_concertina=True)
+  RunTest("duckdb_pair_test",
+          src="psql_pair_test.l",
+          duckify_psql=True, use_concertina=True)
+  RunTest("duckdb_combine_test",
+          src="psql_combine_test.l",
+          duckify_psql=True, use_concertina=True)
+  RunTest("duckdb_recursion_test",
+          src="psql_recursion_test.l",
+          duckify_psql=True, use_concertina=True)
+  RunTest("duckdb_flow_test",
+          src="psql_flow_test.l",
+          duckify_psql=True, use_concertina=True)
+  RunTest("duckdb_graph_coloring_test",
+          src="psql_graph_coloring_test.l",
+          duckify_psql=True, use_concertina=True)
+
+  # There are not UDFs in DuckDB.
+  #   RunTest("duckdb_udf_test",
+  #           src="psql_udf_test.l",
+  #           duckify_psql=True, use_concertina=True)
 
   RunTest("psql_udf_test")
   RunTest("psql_flow_test")

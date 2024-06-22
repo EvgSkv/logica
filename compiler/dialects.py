@@ -399,12 +399,8 @@ class DuckDB(Dialect):
       return {
           'Set': 'DistinctListAgg({0})',
           'Element': "array_extract({0},  {1}+1)",
-          'Range': ('(select [n] from (with recursive t as'
-                    '(select 0 as n union all '
-                    'select n + 1 as n from t where n + 1 < {0}) '
-                    'select n from t) where n < {0})'),
+          'Range': 'Range({0})',
           'ValueOfUnnested': '{0}.unnested_pod',
-          'List': '[{0}]',
           'Size': 'JSON_ARRAY_LENGTH({0})',
           'Join': 'JOIN_STRINGS({0}, {1})',
           'Count': 'COUNT(DISTINCT {0})',
@@ -412,8 +408,8 @@ class DuckDB(Dialect):
           'Sort': 'SortList({0})',
           'MagicalEntangle': '(CASE WHEN {1} = 0 THEN {0} ELSE NULL END)',
           'Format': 'Printf(%s)',
-          'Least': 'MIN(%s)',
-          'Greatest': 'MAX(%s)',
+          'Least': 'LEAST(%s)',
+          'Greatest': 'GREATEST(%s)',
           'ToString': 'CAST(%s AS TEXT)',
           'DateAddDay': "DATE({0}, {1} || ' days')",
           'DateDiffDay': "CAST(JULIANDAY({0}) - JULIANDAY({1}) AS INT64)"
