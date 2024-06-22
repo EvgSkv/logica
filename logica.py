@@ -259,6 +259,12 @@ def main(argv):
           [preamble] + defines_and_exports + [main_predicate_sql])
         o = sqlite3_logica.RunSqlScript(statements_to_execute,
                                         format).encode()
+      elif engine == 'duckdb':
+        import duckdb
+        df = duckdb.sql(formatted_sql).df()
+        o = sqlite3_logica.ArtisticTable(list(df.columns),
+                                         df.values
+                                         .tolist()).encode()
       elif engine == 'psql':
         connection_str = os.environ.get('LOGICA_PSQL_CONNECTION')
         if connection_str:
