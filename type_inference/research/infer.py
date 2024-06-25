@@ -733,7 +733,7 @@ class TypeCollector:
     elif self.dialect == 'duckdb':
       wrap = lambda n, d: (
         f"-- Logica type: {n}\n" +
-        f"drop type if exists {n}; {d}\n"
+        f"drop type if exists {n} cascade; {d}\n"
       )
     else:
       assert False, 'Unknown psql dialect: ' + self.dialect

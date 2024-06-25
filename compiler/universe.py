@@ -187,7 +187,7 @@ class Annotations(object):
           '-- Initializing DuckDB environment.\n'
           'create schema if not exists logica_home;\n'
           '-- Empty record, has to have a field by DuckDB syntax.\n'
-          'drop type if exists logicarecord893574736; create type logicarecord893574736 as struct(nirvana numeric);\n'
+          'drop type if exists logicarecord893574736 cascade; create type logicarecord893574736 as struct(nirvana numeric);\n'
           'create sequence if not exists eternal_logical_sequence;\n\n')
     return preamble
 
