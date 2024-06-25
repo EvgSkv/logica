@@ -258,7 +258,7 @@ class QL(object):
 
   def ListLiteral(self, literal, element_type_name):
     suffix = ('::' + element_type_name + '[]'
-              if self.dialect.Name() == 'PostgreSQL'
+              if self.dialect.IsPostgreSQLish()
               else '')
     array_phrase = self.dialect.ArrayPhrase()
     if self.convert_to_json:

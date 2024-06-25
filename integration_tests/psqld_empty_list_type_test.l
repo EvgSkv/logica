@@ -15,14 +15,9 @@
 
 @Engine("psql");
 
-F(x) --> 2 * x;
-G(x, y) --> List{{a: x * y, b: i} :- i in Range(y + 1)};
+@Ground(T);
+T() = t :- t ~ [{f: Num}], t = [];
 
-S(a, b) --> (if a is null then b else "(" ++ a ++ ":" ++ b ++ ")");
-@BareAggregation(BareA, semigroup: S);
-A(x) = a :- a = BareA(x), a ~ S();
+Q() Sum= t.f :- t in T();
 
-@OrderBy(Test, "col0", "col1");
-Test(i, j, F(i), G(i, j),
-     A{ c :- c in [ToString(i), "a", "b", "c", ToString(j)] }) :-
-  i in Range(3), j in Range(4);
+Test() = Q();

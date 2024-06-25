@@ -102,11 +102,30 @@ class Logica(object):
         self.custom_udf_definitions[f]
         for f in self.dependencies_of[predicate_name]
         if f in self.custom_udf_definitions]))
+    needed_semigroups = []
+    for f in self.dependencies_of[predicate_name]:
+      if f in self.custom_aggregation_semigroup:
+        semigroup = (
+          self.custom_udf_definitions[self.custom_aggregation_semigroup[f]])
+        needed_semigroups.append(semigroup)
+        if semigroup in needed_udfs:
+          needed_udfs.remove(semigroup)
+    needed_udfs = needed_semigroups + needed_udfs
     return '\n'.join(needed_udfs)
 
   def NeededUdfDefinitions(self):
-    return list(sorted([self.custom_udf_definitions[f]
-            for f in self.used_predicates if f in self.custom_udf_definitions]))
+    needed_udfs = list(sorted([
+      self.custom_udf_definitions[f]
+      for f in self.used_predicates if f in self.custom_udf_definitions]))
+    needed_semigroups = set()
+    for f in self.used_predicates:
+      if f in self.custom_aggregation_semigroup:
+        semigroup_definition = self.custom_udf_definitions[self.custom_aggregation_semigroup[f]]
+        needed_semigroups.add(semigroup_definition)
+        if semigroup_definition in needed_udfs:
+          needed_udfs.remove(semigroup_definition)  # Will come as a semigroup.
+    needed_udfs = list(needed_semigroups) + needed_udfs
+    return needed_udfs
 
   def FullPreamble(self):
     return '\n'.join([self.flags_comment] + [self.preamble] + self.defines)
@@ -132,7 +151,7 @@ class Annotations(object):
       '@Limit', '@OrderBy', '@Ground', '@Flag', '@DefineFlag',
       '@NoInject', '@Make', '@CompileAsTvf', '@With', '@NoWith',
       '@CompileAsUdf', '@ResetFlagValue', '@Dataset', '@AttachDatabase',
-      '@Engine', '@Recursive', '@Iteration'
+      '@Engine', '@Recursive', '@Iteration', '@BareAggregation'
   ]
 
   def __init__(self, rules, user_flags):
@@ -167,6 +186,8 @@ class Annotations(object):
       preamble += (
           '-- Initializing DuckDB environment.\n'
           'create schema if not exists logica_home;\n'
+          '-- Empty record, has to have a field by DuckDB syntax.\n'
+          'drop type if exists logicarecord893574736; create type logicarecord893574736 as struct(nirvana numeric);\n'
           'create sequence if not exists eternal_logical_sequence;\n\n')
     return preamble
 
@@ -537,6 +558,8 @@ class LogicaProgram(object):
     # Dictionary custom_udfs maps function name to a format string to use
     # in queries.
     self.custom_udfs = collections.OrderedDict()
+    self.custom_udf_psql_type = {}
+    self.custom_aggregation_semigroup = {}
     # Dictionary custom_udf_definitions maps function name to SQL defining the
     # function.
     self.custom_udf_definitions = collections.OrderedDict()
@@ -620,6 +643,31 @@ class LogicaProgram(object):
         if not remove_udfs:
           self.custom_udfs[f] = application
           self.custom_udf_definitions[f] = sql
+    for f in self.annotations.annotations['@BareAggregation']:
+      if not remove_udfs:  # Not sure what this is.
+        d = self.annotations.annotations['@BareAggregation'][f]
+        if 'semigroup' not in d:
+          raise rule_translate.RuleCompileException(
+              color.Format(
+                  'Semigroup not specified for '
+                  'aggregation {warning}{f}{end}.',
+                  dict(f=f)), self.annotations.annotations['@BareAggregation'][f]['__rule_text'])
+        semigroup = d['semigroup']['predicate_name']
+        self.custom_udfs[f] = f + '({col0})'
+        if semigroup not in self.custom_udf_psql_type:
+          raise rule_translate.RuleCompileException(
+              color.Format(
+                  'Semigroup not defined as a UDF for '
+                  'aggregation {warning}{f}{end}.',
+                  dict(f=f)), self.annotations.annotations['@BareAggregation'][f]['__rule_text'])
+        self.custom_udf_definitions[f] = (
+          'CREATE AGGREGATE %s (%s) ( '
+          '  sfunc = %s, '
+          '  stype = %s);' % (f,
+                              self.custom_udf_psql_type[semigroup],
+                              semigroup,
+                              self.custom_udf_psql_type[semigroup]))
+        self.custom_aggregation_semigroup[f] = semigroup
 
   def NewNamesAllocator(self):
     return rule_translate.NamesAllocator(custom_udfs=self.custom_udfs)
@@ -631,7 +679,8 @@ class LogicaProgram(object):
       TypeInferenceError if there are any type errors.
     """
     rules = [r for _, r in self.rules]
-    typing_engine = infer.TypesInferenceEngine(rules)
+    typing_engine = infer.TypesInferenceEngine(
+        rules, dialect=self.annotations.Engine())
     typing_engine.InferTypes()
     self.typing_engine = typing_engine
     type_error_checker = infer.TypeErrorChecker(rules)
@@ -836,7 +885,7 @@ class LogicaProgram(object):
       vartype = lambda varname: (
         self.typing_engine.collector.psql_type_cache[
           s.select[varname]['type']['rendered_type']])
-      sql = ('DROP FUNCTION IF EXISTS {name}; '
+      sql = ('DROP FUNCTION IF EXISTS {name} CASCADE; '
              'CREATE OR REPLACE FUNCTION {name}({signature}) '
              'RETURNS {value_type} AS $$ select ({value}) '
              '$$ language sql'.format(
@@ -845,6 +894,7 @@ class LogicaProgram(object):
                                   for v in variables),
               value_type=vartype('logica_value'),
               value=value_sql))
+      self.custom_udf_psql_type[name] = vartype('logica_value')
     else:
       sql = 'CREATE TEMP FUNCTION {name}({signature}) AS ({value})'.format(
         name=name,
@@ -867,6 +917,7 @@ class LogicaProgram(object):
     self.execution.annotations = self.annotations
     self.execution.custom_udfs = self.custom_udfs
     self.execution.custom_udf_definitions = self.custom_udf_definitions
+    self.execution.custom_aggregation_semigroup = self.custom_aggregation_semigroup
     self.execution.main_predicate = main_predicate
     self.execution.used_predicates = self.functors.args_of.get(main_predicate,
                                                                [])
@@ -875,7 +926,7 @@ class LogicaProgram(object):
     self.execution.iterations = self.annotations.Iterations()
   
   def UpdateExecutionWithTyping(self):
-    if self.execution.dialect.Name() == 'PostgreSQL':
+    if self.execution.dialect.IsPostgreSQLish():
       self.execution.preamble += '\n' + self.typing_preamble
 
   def FormattedPredicateSql(self, name, allocator=None):
@@ -1056,14 +1107,16 @@ class LogicaProgram(object):
     s.UnificationsToConstraints()
 
     if self.annotations.ShouldTypecheck():
-      type_inference = infer.TypeInferenceForStructure(s, self.predicate_signatures)
+      type_inference = infer.TypeInferenceForStructure(
+          s, self.predicate_signatures, dialect=self.annotations.Engine())
       type_inference.PerformInference()
       error_checker = infer.TypeErrorChecker([type_inference.quazy_rule])
       error_checker.CheckForError('raise')
       # New types may arrive here when we have an injetible predicate with variables
       # which specific record type depends on the inputs. 
       self.required_type_definitions.update(type_inference.collector.definitions)
-      self.typing_preamble = infer.BuildPreamble(self.required_type_definitions)
+      self.typing_preamble = infer.BuildPreamble(self.required_type_definitions,
+                                                 dialect=self.annotations.Engine())
 
     if 'nil' in s.tables.values():
       if must_not_be_nil:

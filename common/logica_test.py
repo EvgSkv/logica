@@ -86,7 +86,7 @@ def RunTypesTest(name, src=None, golden=None,
     parsing_exception.ShowMessage()
     sys.exit(1)
 
-  typing_engine = infer.TypesInferenceEngine(parsed_rules)
+  typing_engine = infer.TypesInferenceEngine(parsed_rules, dialect='psql')
   typing_engine.InferTypes()
   result = json.dumps(parsed_rules, sort_keys=True, indent=' ')
 
