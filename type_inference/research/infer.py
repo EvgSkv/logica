@@ -150,7 +150,7 @@ def ActRecallingTypes(node):
     )
 
 class TypesInferenceEngine:
-  def __init__(self, parsed_rules):
+  def __init__(self, parsed_rules, dialect):
     self.parsed_rules = parsed_rules
     self.predicate_argumets_types = {}
     self.dependencies = BuildDependencies(self.parsed_rules)
@@ -159,9 +159,10 @@ class TypesInferenceEngine:
     self.predicate_signature = types_of_builtins.TypesOfBultins()
     self.typing_preamble = None
     self.collector = None
+    self.dialect = dialect
 
   def CollectTypes(self):
-    collector = TypeCollector(self.parsed_rules)
+    collector = TypeCollector(self.parsed_rules, self.dialect)
     collector.CollectTypes()
     self.typing_preamble = collector.typing_preamble
     self.collector = collector
@@ -488,11 +489,12 @@ def RenderPredicateSignature(predicate_name, signature):
 
 
 class TypeInferenceForStructure:
-  def __init__(self, structure, signatures):
+  def __init__(self, structure, signatures, dialect):
     self.structure = structure
     self.signatures = signatures
     self.collector = None
     self.quazy_rule = None
+    self.dialect = dialect
 
   def PerformInference(self):
     quazy_rule = self.BuildQuazyRule()
@@ -504,7 +506,7 @@ class TypeInferenceForStructure:
     Walk(quazy_rule, ActRecallingTypes)
 
     Walk(quazy_rule, ConcretizeTypes)
-    collector = TypeCollector([quazy_rule])
+    collector = TypeCollector([quazy_rule], self.dialect)
     collector.CollectTypes()
     self.collector = collector
 
@@ -655,7 +657,7 @@ def RecordTypeName(type_render):
   return 'logicarecord%d' % (Fingerprint(type_render) % 1000000000)
 
 class TypeCollector:
-  def __init__(self, parsed_rules):
+  def __init__(self, parsed_rules, dialect):
     self.parsed_rules = parsed_rules
     self.type_map = {}
     self.psql_struct_type_name = {}
@@ -663,6 +665,7 @@ class TypeCollector:
     self.definitions = []
     self.typing_preamble = ''
     self.psql_type_cache = {}
+    self.dialect = dialect
 
   def ActPopulatingTypeMap(self, node):
     if 'type' in node:
@@ -714,17 +717,37 @@ class TypeCollector:
         for f, v in sorted(self.type_map[t].items(),
                            key=reference_algebra.StrIntKey)
       )
-      self.psql_type_definition[t] = f'create type %s as (%s);' % (
-        self.psql_struct_type_name[t], args)
+      dialect_interjection = ''
+      if self.dialect == 'duckdb':
+        dialect_interjection = 'struct'
+      self.psql_type_definition[t] = f'create type %s as %s(%s);' % (
+        self.psql_struct_type_name[t],
+        dialect_interjection,
+        args)
 
-    wrap = lambda n, d: (
-      f"-- Logica type: {n}\n" +
-      f"if not exists (select 'I(am) :- I(think)' from pg_type where typname = '{n}') then {d} end if;"
-    )
+    if self.dialect in ['psql', 'sqlite', 'bigquery']:
+      wrap = lambda n, d: (
+        f"-- Logica type: {n}\n" +
+        f"if not exists (select 'I(am) :- I(think)' from pg_type where typname = '{n}') then {d} end if;"
+      )
+    elif self.dialect == 'duckdb':
+      wrap = lambda n, d: (
+        f"-- Logica type: {n}\n" +
+        f"drop type if exists {n}; {d}\n"
+      )
+    else:
+      assert False, 'Unknown psql dialect: ' + self.dialect
+    
     self.definitions = {
       t: wrap(self.psql_struct_type_name[t], self.psql_type_definition[t])
-      for t in sorted(self.psql_struct_type_name, key=len)}
-    self.typing_preamble = BuildPreamble(self.definitions)
+      for t in sorted(self.psql_struct_type_name, key=len)
+      if self.psql_struct_type_name[t] not in ['logicarecord893574736']}
+    self.typing_preamble = BuildPreamble(self.definitions, self.dialect)
 
-def BuildPreamble(definitions):
+def BuildPreamble(definitions, dialect):
+  if dialect in ['psql', 'sqlite', 'bigquery']:
     return 'DO $$\nBEGIN\n' + '\n'.join(definitions.values()) + '\nEND $$;\n'
+  elif dialect == 'duckdb':
+    return '\n'.join(definitions.values())
+  else:
+    assert False, 'Unknown psql dialect: ' + dialect

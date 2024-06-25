@@ -186,6 +186,8 @@ class Annotations(object):
       preamble += (
           '-- Initializing DuckDB environment.\n'
           'create schema if not exists logica_home;\n'
+          '-- Empty record, has to have a field by DuckDB syntax.\n'
+          'drop type if exists logicarecord893574736; create type logicarecord893574736 as struct(nirvana numeric);\n'
           'create sequence if not exists eternal_logical_sequence;\n\n')
     return preamble
 
@@ -677,7 +679,8 @@ class LogicaProgram(object):
       TypeInferenceError if there are any type errors.
     """
     rules = [r for _, r in self.rules]
-    typing_engine = infer.TypesInferenceEngine(rules)
+    typing_engine = infer.TypesInferenceEngine(
+        rules, dialect=self.annotations.Engine())
     typing_engine.InferTypes()
     self.typing_engine = typing_engine
     type_error_checker = infer.TypeErrorChecker(rules)
@@ -923,7 +926,7 @@ class LogicaProgram(object):
     self.execution.iterations = self.annotations.Iterations()
   
   def UpdateExecutionWithTyping(self):
-    if self.execution.dialect.Name() == 'PostgreSQL':
+    if self.execution.dialect.IsPostgreSQLish():
       self.execution.preamble += '\n' + self.typing_preamble
 
   def FormattedPredicateSql(self, name, allocator=None):
@@ -1104,14 +1107,16 @@ class LogicaProgram(object):
     s.UnificationsToConstraints()
 
     if self.annotations.ShouldTypecheck():
-      type_inference = infer.TypeInferenceForStructure(s, self.predicate_signatures)
+      type_inference = infer.TypeInferenceForStructure(
+          s, self.predicate_signatures, dialect=self.annotations.Engine())
       type_inference.PerformInference()
       error_checker = infer.TypeErrorChecker([type_inference.quazy_rule])
       error_checker.CheckForError('raise')
       # New types may arrive here when we have an injetible predicate with variables
       # which specific record type depends on the inputs. 
       self.required_type_definitions.update(type_inference.collector.definitions)
-      self.typing_preamble = infer.BuildPreamble(self.required_type_definitions)
+      self.typing_preamble = infer.BuildPreamble(self.required_type_definitions,
+                                                 dialect=self.annotations.Engine())
 
     if 'nil' in s.tables.values():
       if must_not_be_nil:

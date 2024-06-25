@@ -35,6 +35,14 @@ def RunTest(name, src=None, golden=None, predicate=None,
       import_root=import_root,
       use_concertina=use_concertina,
       duckify_psql=duckify_psql)
+  if not duckify_psql and name.startswith('psqld_'):
+    # Yay! Recursion!
+    RunTest('duck_' + name, src,
+            golden.replace('_test', '_duck_test'),
+            predicate,
+            user_flags, import_root,
+            use_concertina=True,
+            duckify_psql=True)
 
 
 def RunAll(test_presto=False, test_trino=False):
@@ -72,6 +80,8 @@ def RunAll(test_presto=False, test_trino=False):
 
   RunTest("rec_small_cycle_test")
   RunTest("rec_cycle_test")
+
+  RunTest("psqld_empty_list_type_test")
 
   RunTest("sqlite_deep_recursion_test", use_concertina=True)
   RunTest("sqlite_nil_test")

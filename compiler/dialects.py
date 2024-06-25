@@ -48,6 +48,8 @@ class Dialect(object):
   def PredicateLiteral(self, predicate_name):
     return "'predicate_name:%s'" % predicate_name
 
+  def IsPostgreSQLish(self):
+    return False
 
 class BigQueryDialect(Dialect):
   """BigQuery SQL dialect."""
@@ -190,6 +192,9 @@ class PostgreSQL(Dialect):
   
   def MaybeCascadingDeletionWord(self):
     return ' CASCADE'  # Need to cascade in PSQL.
+  
+  def IsPostgreSQLish(self):
+    return True
 
 
 class Trino(Dialect):
@@ -402,7 +407,7 @@ class DuckDB(Dialect):
           'Range': 'Range({0})',
           'ValueOfUnnested': '{0}.unnested_pod',
           'Size': 'JSON_ARRAY_LENGTH({0})',
-          'Join': 'JOIN_STRINGS({0}, {1})',
+          'Join': 'ARRAY_TO_STRING({0}, {1})',
           'Count': 'COUNT(DISTINCT {0})',
           'StringAgg': 'GROUP_CONCAT(%s)',
           'Sort': 'SortList({0})',
@@ -439,6 +444,9 @@ class DuckDB(Dialect):
 
     def GroupBySpecBy(self):
       return 'expr'
+    
+    def IsPostgreSQLish(self):
+      return True
 
 
 DIALECTS = {
