@@ -235,7 +235,9 @@ class QL(object):
       return f.format(*args_list)
 
   def Infix(self, op, args):
-    return op % (args['left'], args['right'])
+    if '%s' in op:
+      return op % (args['left'], args['right'])
+    return op.format(**args)
 
   def Subscript(self, record, subscript, record_is_table):
     if isinstance(subscript, int):
@@ -256,7 +258,14 @@ class QL(object):
     return ', '.join([self.ConvertToSql(e)
                       for e in literal['element']])
 
-  def ListLiteral(self, literal, element_type_name):
+  def ListLiteral(self, literal, element_type_name,
+                  full_expression):  # <-- for error.
+    internals = self.ListLiteralInternals(literal)
+    if self.dialect.IsPostgreSQLish() and not element_type_name:
+        raise self.exception_maker(
+          'Type is needed, but not determined for %s. Please give hints with ~ operator!' %
+          color.Warn(full_expression['expression_heritage']))
+
     suffix = ('::' + element_type_name + '[]'
               if self.dialect.IsPostgreSQLish()
               else '')
@@ -264,9 +273,7 @@ class QL(object):
     if self.convert_to_json:
       array_phrase = '[%s]'
       suffix = ''
-    return (
-      array_phrase %
-      self.ListLiteralInternals(literal)) + suffix
+    return (array_phrase % internals) + suffix
 
   def BoolLiteral(self, literal):
     return literal['the_bool']
@@ -507,7 +514,7 @@ class QL(object):
               'Array needs type in PostgreSQL: '
               '{warning}{the_list}{end}.', dict(
                   the_list=expression['expression_heritage'])))  
-        return self.ListLiteral(the_list, element_type)
+        return self.ListLiteral(the_list, element_type, expression)
       if 'the_bool' in literal:
         return self.BoolLiteral(literal['the_bool'])
       if 'the_null' in literal:

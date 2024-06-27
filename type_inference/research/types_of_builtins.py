@@ -238,6 +238,16 @@ def TypesOfBultins():
         '1': {
            0: x,
            'logica_value': x
+        },
+        'Least': {
+           0: x,
+           1: x,
+           'logica_value': x
+        },
+        'Greatest': {
+           0: x,
+           1: x,
+           'logica_value': x
         }
     }
     types_of_predicate['<'] = types_of_predicate['<='] = types_of_predicate['>='] = types_of_predicate['>']
