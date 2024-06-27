@@ -402,11 +402,10 @@ class DuckDB(Dialect):
 
     def BuiltInFunctions(self):
       return {
-          'Set': 'DistinctListAgg({0})',
           'Element': "array_extract({0},  {1}+1)",
           'Range': 'Range({0})',
           'ValueOfUnnested': '{0}.unnested_pod',
-          'Size': 'JSON_ARRAY_LENGTH({0})',
+          'Size': 'LEN({0})',
           'Join': 'ARRAY_TO_STRING({0}, {1})',
           'Count': 'COUNT(DISTINCT {0})',
           'StringAgg': 'GROUP_CONCAT(%s)',
@@ -427,7 +426,7 @@ class DuckDB(Dialect):
       return {
           '++': '(%s) || (%s)',
           '%' : '(%s) %% (%s)',
-          'in': 'IN_LIST(%s, %s)'
+          'in': 'list_contains({right}, {left})'
       }
 
     def Subscript(self, record, subscript, record_is_table):
