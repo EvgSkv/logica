@@ -751,3 +751,12 @@ def BuildPreamble(definitions, dialect):
     return '\n'.join(definitions.values())
   else:
     assert False, 'Unknown psql dialect: ' + dialect
+
+def ArgumentNames(signature):
+  result = []
+  for v in signature:
+    if isinstance(v, int):
+      result.append('col%d' % v)
+    else:
+      result.append(v)
+  return result

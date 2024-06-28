@@ -728,9 +728,35 @@ class LogicaProgram(object):
       if n == predicate_name:
         yield r
 
+  def CheckOrderByClause(self, name):
+    if name not in self.predicate_signatures:
+      return
+    if not self.annotations.OrderBy(name):
+      return
+    order_by_columns = set()
+    for c in self.annotations.OrderBy(name):
+      if c in ['desc', 'asc']:
+        continue
+      parts = c.split(' ')
+      col = parts[0]
+      order_by_columns.add(col)
+    actual_columns = set(infer.ArgumentNames(self.predicate_signatures[name]))
+    if '*' in actual_columns:
+      # TODO: Analyze this properly. For now no evidence of error observed.
+      return
+    lacking_columns = ', '.join(set(order_by_columns) - set(actual_columns))
+    if lacking_columns:
+      raise rule_translate.RuleCompileException(
+          color.Format(
+              'Predicate {warning}{name}{end} is ordered by '
+              'columns {warning}{columns}{end} '
+              'which it lacks.', dict(name=name, columns=lacking_columns)),
+              self.annotations.annotations['@OrderBy'][name]['__rule_text'])
+
   def PredicateSql(self, name, allocator=None, external_vocabulary=None):
     """Producing SQL for a predicate."""
     # Load proto if necessary.
+    self.CheckOrderByClause(name)
     rules = list(self.GetPredicateRules(name))
     if len(rules) == 1:
       [rule] = rules

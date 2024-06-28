@@ -402,7 +402,7 @@ class DuckDB(Dialect):
 
     def BuiltInFunctions(self):
       return {
-          'Element': "array_extract({0},  {1}+1)",
+          'Element': "array_extract({0},  CAST({1}+1 AS BIGINT))",
           'Range': 'Range({0})',
           'ValueOfUnnested': '{0}.unnested_pod',
           'Size': 'LEN({0})',
