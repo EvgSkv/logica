@@ -239,9 +239,12 @@ class Annotations(object):
     return result
 
   def AttachDatabaseStatements(self):
-    return '\n'.join(
-        'ATTACH DATABASE \'%s\' AS %s;' % (v, k)
-        for k, v in self.AttachedDatabases().items())
+    lines = []
+    for k, v in self.AttachedDatabases().items():
+      if self.Engine() == 'duckdb':
+        lines.append('DETACH DATABASE IF EXISTS %s;' % k)
+      lines.append('ATTACH DATABASE \'%s\' AS %s;' % (v, k))
+    return '\n'.join(lines)
 
   def CompileAsUdf(self, predicate_name):
     result = predicate_name in self.annotations['@CompileAsUdf']
