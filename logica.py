@@ -261,10 +261,9 @@ def main(argv):
                                         format).encode()
       elif engine == 'duckdb':
         import duckdb
-        df = duckdb.sql(formatted_sql).df()
-        o = sqlite3_logica.ArtisticTable(list(df.columns),
-                                         df.values
-                                         .tolist()).encode()
+        cur = duckdb.sql(formatted_sql)
+        o = sqlite3_logica.ArtisticTable(cur.columns,
+                                         cur.fetchall()).encode()
       elif engine == 'psql':
         connection_str = os.environ.get('LOGICA_PSQL_CONNECTION')
         if connection_str:
