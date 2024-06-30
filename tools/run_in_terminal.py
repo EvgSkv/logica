@@ -105,8 +105,9 @@ def RunSQL(sql, engine, connection=None, is_final=False,
   elif engine == 'duckdb':
     import duckdb
     if is_final:
-      df = duckdb.sql(sql).df()
-      return list(df.columns), df.values.tolist()
+      import duckdb
+      cur = duckdb.sql(sql)
+      return cur.columns, cur.fetchall()
     else:
       duckdb.sql(sql)
     

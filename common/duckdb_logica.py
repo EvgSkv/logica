@@ -14,9 +14,5 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from decimal import Decimal
-import sqlite3
-
-def SqliteConnect():
-  con = sqlite3.connect(':memory:')
-  return con
+# Keeping the placeholder, but we may never needed.
+# DuckDB is too easy to connect!

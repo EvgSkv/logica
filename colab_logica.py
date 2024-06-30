@@ -189,9 +189,16 @@ def RunSQL(sql, engine, connection=None, is_final=False):
       psql_logica.PostgresExecute(sql, connection)
   elif engine == 'duckdb':
     if is_final:
-      return duckdb.sql(sql).df()
+      df = connection.sql(sql).df()
+      for c in df.columns:
+        if df.dtypes[c] == 'float64':
+          if df[c].isna().values.any():
+            return df
+          if set(df[c] - df[c].astype(int)) == {0.0}:
+            df[c] = df[c].astype(int)
+      return df
     else:
-      duckdb.sql(sql)
+      connection.sql(sql)
   elif engine == 'sqlite':
     try:
       if is_final:
@@ -229,7 +236,11 @@ class SqliteRunner(object):
 
 class DuckdbRunner(object):
   def __init__(self):
-    self.connection = duckdb_logica.SqliteConnect()
+    global DB_CONNECTION
+    if not DB_CONNECTION:
+      DB_CONNECTION = duckdb.connect()
+    self.connection = DB_CONNECTION
+
   def  __call__(self, sql, engine, is_final):
     return RunSQL(sql, engine, self.connection, is_final)
 
