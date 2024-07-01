@@ -181,7 +181,9 @@ class Annotations(object):
       preamble += (
           '-- Initializing PostgreSQL environment.\n'
           'set client_min_messages to warning;\n'
-          'create schema if not exists logica_home;\n\n')
+          'create schema if not exists logica_home;\n'
+          '-- Empty logica type: logicarecord893574736;\n'
+          "DO $$ BEGIN if not exists (select 'I(am) :- I(think)' from pg_type where typname = 'logicarecord893574736') then create type logicarecord893574736 as (nirvana numeric); end if; END $$;\n\n")
     elif self.Engine() == 'duckdb':
       preamble += (
           '-- Initializing DuckDB environment.\n'
