@@ -196,6 +196,9 @@ class Annotations(object):
       else:
         preamble += (
           'create sequence if not exists eternal_logical_sequence;\n\n')
+      if self.annotations['@Engine']['duckdb'].get('threads'):
+        threads = int(self.annotations['@Engine']['duckdb'].get('threads'))
+        preamble += 'set threads to %d;\n' % threads
     return preamble
 
   def BuildFlagValues(self):
