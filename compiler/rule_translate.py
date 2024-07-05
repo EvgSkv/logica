@@ -77,6 +77,9 @@ def HeadToSelect(head):
     else:
       assert 'expression' in v, 'Bad select value: %s' % str(v)
       select[k] = v['expression']  # <=> v as k
+  # Allowing predicates with no arguments.
+  if not select:
+    select['atom'] = {'literal': {'the_string': {'the_string': 'yes'}}}
 
   return (select, aggregated_vars)
 
