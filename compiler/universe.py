@@ -47,7 +47,8 @@ else:
 PredicateInfo = collections.namedtuple('PredicateInfo',
                                        ['embeddable'])
 Ground = collections.namedtuple('Ground',
-                                ['table_name', 'overwrite'])
+                                ['table_name', 'overwrite',
+                                 'copy_to_file'])
 
 xrange = range
 
@@ -367,7 +368,13 @@ class Annotations(object):
           'Predicate grounded to a non-grounded predicate.',
           self.annotations['@Ground'][predicate_name]['__rule_text'])
     overwrite = annotation.get('overwrite', True)
-    return Ground(table_name=table_name, overwrite=overwrite)
+    copy_to_file = annotation.get('copy_to_file', None)
+    if copy_to_file and self.Engine() != 'duckdb':
+      raise rule_translate.RuleCompileException(
+        'Copying to file is only supported on DuckDB engine.',
+        self.annotations['@Ground'][predicate_name]['__rule_text'])
+    return Ground(table_name=table_name, overwrite=overwrite,
+                  copy_to_file=copy_to_file)
 
   def ForceWith(self, predicate_name):
     """Return true if the predicate has been explicitly marked @With."""
@@ -1240,11 +1247,15 @@ class SubqueryTranslator(object):
           'DROP TABLE IF EXISTS %s%s;\n' % ((
               ground.table_name if ground.overwrite else '',
               self.execution.dialect.MaybeCascadingDeletionWord())))
+      maybe_copy = ''
+      if ground.copy_to_file:
+        maybe_copy = f'COPY {ground.table_name} TO {ground.copy_to_file};\n'
       export_statement = (
           maybe_drop_table +
           'CREATE TABLE {name} AS {dependency_sql}'.format(
               name=ground.table_name,
-              dependency_sql=FormatSql(dependency_sql)))
+              dependency_sql=FormatSql(dependency_sql)) +
+          maybe_copy)
 
       export_statement = self.program.UseFlagsAsParameters(export_statement)
       # It's cheap to store a string multiple times in Python, as it's stored
