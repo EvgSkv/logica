@@ -109,6 +109,9 @@ def RunAll(test_presto=False, test_trino=False):
   RunTest("sqlite_reachability")
   RunTest("sqlite_element_test")
 
+  RunTest("duckdb_stop_test",
+          src="duckdb_stop_test.l",
+          use_concertina=True)
   RunTest("duckdb_purchase_test",
           src="psql_purchase_test.l",
           duckify_psql=True, use_concertina=True)

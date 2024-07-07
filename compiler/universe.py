@@ -290,7 +290,8 @@ class Annotations(object):
           self.annotations['@Iteration'][iteration_name]['__rule_text']
         )
       result[iteration_name] = {'predicates': args['predicates'],
-                                'repetitions': args['repetitions']}
+                                'repetitions': args['repetitions'],
+                                'stop_signal': args.get('stop_signal')}
     return result
 
   def LimitOf(self, predicate_name):
@@ -1249,7 +1250,7 @@ class SubqueryTranslator(object):
               self.execution.dialect.MaybeCascadingDeletionWord())))
       maybe_copy = ''
       if ground.copy_to_file:
-        maybe_copy = f'COPY {ground.table_name} TO {ground.copy_to_file};\n'
+        maybe_copy = f'COPY {ground.table_name} TO \'{ground.copy_to_file}\';\n'
       export_statement = (
           maybe_drop_table +
           'CREATE TABLE {name} AS {dependency_sql}'.format(
