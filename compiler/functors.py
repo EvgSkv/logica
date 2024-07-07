@@ -420,7 +420,7 @@ class Functors(object):
     self.UpdateStructure(name)
     
   def UnfoldRecursivePredicateFlatFashion(self, cover, depth, rules,
-                                          iterative, ignition_steps):
+                                          iterative, ignition_steps, stop):
     visible = lambda p: '_MultBodyAggAux' not in p
     simplified_cover = {c for c in cover if visible(c)}
     direct_args_of = {c: [] for c in cover if visible(c)}
@@ -456,7 +456,7 @@ class Functors(object):
     if iterative:
       lib = recursion_library.GetFlatIterativeRecursionFunctor(
         depth, simplified_cover, direct_args_of,
-        ignition_steps)
+        ignition_steps, stop)
     else:
       lib = recursion_library.GetFlatRecursionFunctor(
         depth, simplified_cover, direct_args_of)
@@ -515,6 +515,12 @@ class Functors(object):
       rename_lib_rules = parse.ParseFile(rename_lib)['rule']
       rules.extend(rename_lib_rules)
 
+  def GetStop(self, depth_map, p):
+    stop = depth_map.get(p, {}).get('stop')
+    if isinstance(stop, dict):
+      stop = stop['predicate_name']
+    return stop
+
   def UnfoldRecursions(self, depth_map):
     """Unfolds all recursions."""
     should_recurse, my_cover = self.RecursiveAnalysis(depth_map)
@@ -527,13 +533,21 @@ class Functors(object):
         ignition = len(my_cover[p]) * 3 + 4
         if ignition % 2 == depth % 2:
           ignition += 1
+        stop = self.GetStop(depth_map, p)
+        if stop and stop not in my_cover[p]:
+          raise FunctorError(
+            color.Format(
+              'Recursive predicate {warning}{p}{end} uses stop signal that '
+              'does not exist or is outside of the recurvisve component.',
+              {'p': p}), p)
         self.UnfoldRecursivePredicateFlatFashion(
           my_cover[p], depth, new_rules,
           iterative=(style=='iterative_horizontal'),
           # Ignition is my_cover[p] * 3 because it may take my_cover[p] steps
           # to propagate dependency. So we have initial stage, iteration and final
           # propagation to outputs. Plus 5 to cover small numbers.
-          ignition_steps=depth_map.get(p, {}).get('ignition', ignition))
+          ignition_steps=depth_map.get(p, {}).get('ignition', ignition),
+          stop=stop)
       else:
         assert False, 'Unknown recursion style:' + style
     return new_rules
@@ -647,4 +661,11 @@ class Functors(object):
       else:
         should_recurse[p] = 'horizontal'
       recursion_covered |= my_cover[p]
+    # Tried adding stop signal to recursive component, but it feels
+    # unnatural.
+    # if p in should_recurse:
+    #   if stop := self.GetStop(depth_map, p):
+    #     my_cover[p].add(stop)
+    #     my_cover[stop] = my_cover[p]
+    # print('my cover:', my_cover)
     return should_recurse, my_cover

@@ -14,6 +14,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import time
+
 def GetRecursionFunctor(depth):
   """Returns functor that unfolds recursion.
 
@@ -99,7 +101,7 @@ def GetFlatRecursionFunctor(depth, cover, direct_args_of):
   return program
 
 def GetFlatIterativeRecursionFunctor(depth, cover, direct_args_of,
-                                     ignition_steps):
+                                     ignition_steps, stop):
   """Doing the whole flat recursion.
 
   Example.
@@ -134,6 +136,11 @@ def GetFlatIterativeRecursionFunctor(depth, cover, direct_args_of,
   iterate_over_upper_half = []
   iterate_over_lower_half = []
   inset = ignition_steps // 2
+  stop_file_name = ''
+  if stop:
+    stop_file_name = '/tmp/logical_stop_%s_%s.json' % (
+      str(time.time()).replace('.', ''),
+      stop)
   for p in sorted(cover):
     for i in range(ignition_steps):
       args = []
@@ -145,10 +152,16 @@ def GetFlatIterativeRecursionFunctor(depth, cover, direct_args_of,
       args_str = ', '.join(args)
       rule = f'{p}_ifr{i} := {p}_ROne({args_str});'
       result_rules.append(rule)
-      if i != ignition_steps - inset: 
-        result_rules.append(f'@Ground({p}_ifr{i});')
+      if stop and stop == p:
+        maybe_copy_to_file = ', copy_to_file: "%s"' % stop_file_name
       else:
-        result_rules.append(f'@Ground({p}_ifr{i}, {p}_ifr{i - 2});')
+        maybe_copy_to_file = ''
+      if i != ignition_steps - inset: 
+        result_rules.append(
+          f'@Ground({p}_ifr{i}{maybe_copy_to_file});')
+      else:
+        result_rules.append(
+          f'@Ground({p}_ifr{i}, {p}_ifr{i - 2}{maybe_copy_to_file});')
 
     iterate_over_upper_half += [f'{p}_ifr{ignition_steps - inset - 1}']
     iterate_over_lower_half += [f'{p}_ifr{ignition_steps - inset}']
@@ -159,7 +172,10 @@ def GetFlatIterativeRecursionFunctor(depth, cover, direct_args_of,
 
   iterate_over = iterate_over_upper_half + iterate_over_lower_half
   iterate_over_str = ', '.join('"%s"' % p for p in iterate_over)
-  rule = f'@Iteration(Iterate{min(cover)}, predicates: [{iterate_over_str}], repetitions: {(depth + 1 - ignition_steps) // 2 + 1});'
+  maybe_stop = ''
+  if stop:
+    maybe_stop = ', stop_signal: "%s"' % stop_file_name
+  rule = f'@Iteration(Iterate{min(cover)}, predicates: [{iterate_over_str}], repetitions: {(depth + 1 - ignition_steps) // 2 + 1}{maybe_stop});'
   result_rules.append(rule)
 
   program = '\n'.join(result_rules)

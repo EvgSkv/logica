@@ -1,6 +1,7 @@
 """Concertina: small Python Workflow execution handler."""
 
 import datetime
+import os
 
 try:
   import graphviz
@@ -94,7 +95,10 @@ class Concertina(object):
             break
 
       if len(actions_to_assign) == remains:
-        assert False, "Could not schedule: %s" % self.config
+        assert False, "Could not schedule: %s from %s, \n%s" % (
+          actions_to_assign,
+          "\n".join(map(str, self.config)),
+          self.action_requires)
     return result
 
   def UnderstandIterations(self):
@@ -116,6 +120,10 @@ class Concertina(object):
     }
     self.iteration_actions = {
       iteration: set(self.iterations[iteration]['predicates'])
+      for iteration in self.iterations
+    }
+    self.iteration_stop_signal = {
+      iteration: self.iterations[iteration]['stop_signal']
       for iteration in self.iterations
     }
     self.half_iteration_actions = {}
@@ -152,6 +160,7 @@ class Concertina(object):
     self.iteration_repetitions = None
     self.action_requires = {}
     self.action = {a["name"]: a for a in self.config}
+    self.action_stopped = set()
     self.UnderstandIterations()
     self.actions_to_run = self.SortActions()
     self.engine = engine
@@ -165,6 +174,21 @@ class Concertina(object):
     self.display_id = self.GetDisplayId()
     self.Display()
 
+  def ActionIterationStopSignal(self, action):
+    return self.iteration_stop_signal[self.action_iteration[action]]
+  
+  def ActionIterationWantsToStopBySignal(self, action):
+    signal = self.ActionIterationStopSignal(action)
+    if not signal:
+      return False
+    if not os.path.isfile(signal):
+      return False
+    with open(signal) as f:
+      s = f.read()
+      if s:
+        return True
+      return False
+
   def UpdateStateForIterativeAction(self, one_action):
     # Marking action as complete, or incrementing its repetion count.
     # When incrementing repetion then cycling the iteration actions.
@@ -172,6 +196,9 @@ class Concertina(object):
     if (self.action_iterations_complete[one_action] >=
         self.iteration_repetitions[self.action_iteration[one_action]]):
       self.complete_actions |= {one_action}
+    elif self.ActionIterationWantsToStopBySignal(one_action):
+      self.complete_actions |= {one_action}
+      self.action_stopped |= {one_action}
     else:
       i = 0
       while (i < len(self.actions_to_run) and 
@@ -248,6 +275,8 @@ class Concertina(object):
           self.action_iterations_complete[node],
           self.iteration_repetitions[self.action_iteration[node]]
         )
+        if node in self.action_stopped:
+          maybe_iteration_info += ' / stop.'
       else:
         maybe_iteration_info = ' ' * 10
       if node in self.running_actions:
@@ -295,7 +324,10 @@ class Concertina(object):
       if a in self.action_iteration:
         num_repetitions = self.iteration_repetitions[self.action_iteration[a]]
         total_work += num_repetitions
-        complete_work += self.action_iterations_complete[a]
+        if a in self.complete_actions:
+          complete_work += num_repetitions
+        else:
+          complete_work += self.action_iterations_complete[a]
       else:
         total_work += 1
         complete_work += (a in self.complete_actions)
