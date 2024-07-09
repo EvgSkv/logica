@@ -174,7 +174,7 @@ $ logica primes.l run Prime
 +-------+
 ```
 
-### Cities with largest beer variety.
+### Cities with largest beer variety
 
 Let's use beer variety dataset from [plotly](https://github.com/plotly/datasets/blob/master/beers.csv).
 
