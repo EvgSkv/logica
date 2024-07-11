@@ -54,6 +54,13 @@ Chr(x) = SqlExpr("Chr({x})", {x:});
 Num(a) = a;
 Str(a) = a;
 
+Epoch(a) = epoch :-
+  epoch = SqlExpr("epoch_ns({a})", {a:}) / 1000000000,
+  a ~ Time, 
+  epoch ~ Num;
+TimeDiffSeconds(a, b) = Epoch(SqlExpr("{a} - {b}", {a:, b:}));
+ToTime(a) = SqlExpr("cast({a} as timestamp)", {a:});
+
 NaturalHash(x) = ToInt64(SqlExpr("hash(cast({x} as string)) // cast(2 as ubigint)", {x:}));
 
 # This is unsafe to use because due to the way Logica compiles this number
