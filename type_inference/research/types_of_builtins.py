@@ -77,6 +77,9 @@ def TypesOfBultins():
             0: 'Str',
             'logica_value': 'Str'
         },
+        'Time': {
+            'logica_value': 'Time'
+        },
         'Agg+': {
             0: 'Num',
             'logica_value': 'Num'
@@ -248,6 +251,9 @@ def TypesOfBultins():
            0: x,
            1: x,
            'logica_value': x
+        },
+        'CurrentTimestamp': {
+           'logica_value': 'Time'
         }
     }
     types_of_predicate['<'] = types_of_predicate['<='] = types_of_predicate['>='] = types_of_predicate['>']

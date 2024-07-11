@@ -174,6 +174,49 @@ $ logica primes.l run Prime
 +-------+
 ```
 
+### Cities with largest beer variety
+
+Let's use beer variety dataset from [plotly](https://github.com/plotly/datasets/blob/master/beers.csv).
+
+Let us find top 5 states with largest variety of beers. In each state we will pick city with the largest
+variety in the state.
+
+Program `beer.l`:
+
+```
+@Engine("duckdb");
+
+@Ground(Beer);
+Beer(..r) :- 
+    `('https://github.com/plotly/datasets/blob/master/beers.csv?raw=true')`(..r);
+
+BeersInState(state) += 1 :- Beer(state:);
+BeersInCity(state, city) += 1 :- Beer(state:, city:);
+
+ArgMax5(x) = ArgMaxK(x, 5);
+BestCityForBeer(state:, city:,
+                city_beers: BeersInCity(state, city),
+                state_beers: BeersInState(state)) :-
+    state in ArgMax5{s -> BeersInState(s)},
+    city = ArgMax{c -> BeersInCity(state, c)};
+```
+
+Running `beer.l`:
+
+```
+# logica beer.l run BestCityForBeer
++-------+--------------+------------+-------------+
+| state | city         | city_beers | state_beers |
++-------+--------------+------------+-------------+
+| IN    | Indianapolis | 43         | 139         |
+| CO    | Boulder      | 41         | 265         |
+| CA    | San Diego    | 42         | 183         |
+| TX    | Austin       | 25         | 130         |
+| MI    | Grand Rapids | 66         | 162         |
++-------+--------------+------------+-------------+
+```
+
+<!--
 ### News mentions
 
 Who was mentioned in the news in 2020 the most?
@@ -211,7 +254,7 @@ $ logica mentions.l run Mentions
 
 Note that cities of Los Angeles and Las Vegas are mentioned in this table due to known
 missclasification issue in the GDELT data analysis.
-
+--> 
 ## Feedback
 
 Feel free to create [github issues](https://github.com/EvgSkv/logica/issues)

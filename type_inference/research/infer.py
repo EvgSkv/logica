@@ -416,7 +416,7 @@ class TypeInferenceForRule:
   def ActMindingTypingPredicateLiterals(self, node):
     if 'type' in node and 'literal' in node and 'the_predicate' in node['literal']:
       predicate_name = node['literal']['the_predicate']['predicate_name']
-      if predicate_name in ['Str', 'Num', 'Bool']:
+      if predicate_name in ['Str', 'Num', 'Bool', 'Time']:
         reference_algebra.Unify(node['type']['the_type'],
                                 reference_algebra.TypeReference(predicate_name))
 
@@ -700,6 +700,8 @@ class TypeCollector:
       return 'numeric'
     if t == 'Bool':
       return 'bool'
+    if t == 'Time':
+      return 'timestamp'
     if isinstance(t, dict):
       return RecordTypeName(reference_algebra.RenderType(t))
     if isinstance(t, list):

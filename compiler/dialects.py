@@ -416,7 +416,9 @@ class DuckDB(Dialect):
           'Greatest': 'GREATEST(%s)',
           'ToString': 'CAST(%s AS TEXT)',
           'DateAddDay': "DATE({0}, {1} || ' days')",
-          'DateDiffDay': "CAST(JULIANDAY({0}) - JULIANDAY({1}) AS INT64)"
+          'DateDiffDay': "CAST(JULIANDAY({0}) - JULIANDAY({1}) AS INT64)",
+          'CurrentTimestamp': 'GET_CURRENT_TIMESTAMP()',
+          'TimeAdd': '{0} + to_microseconds(cast(1000000 * {1} as int64))'
       }
 
     def DecorateCombineRule(self, rule, var):

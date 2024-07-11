@@ -210,12 +210,14 @@ def Rank(x):
     return 4
   if x == 'Bool':
     return 5
-  if isinstance(x, list):
+  if x == 'Time':
     return 6
-  if isinstance(x, OpenRecord):
+  if isinstance(x, list):
     return 7
-  if isinstance(x, ClosedRecord):
+  if isinstance(x, OpenRecord):
     return 8
+  if isinstance(x, ClosedRecord):
+    return 9
   assert False, 'Bad type: %s' % x
 
 
@@ -276,7 +278,7 @@ def Unify(a, b):
         Incompatible(b.target, a.target))
     return
 
-  if concrete_a in ('Num', 'Str', 'Bool'):
+  if concrete_a in ('Num', 'Str', 'Bool', 'Time'):
     if concrete_a == concrete_b:
       return  # It's all fine.
     # Type error: a is incompatible with b.
