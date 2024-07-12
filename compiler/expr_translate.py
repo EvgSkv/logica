@@ -645,7 +645,7 @@ class QL(object):
               expression['combine'],
               self.vocabulary,
               is_combine=True))
-      if self.dialect.Name() == 'PostgreSQL':
+      if self.dialect.Name() == 'PostgreSQL' and False:
         # We need this for nirvana.
         if 'combine_psql_type' not in expression['type']:
           rendered_type = expression.get('type', {}).get('rendered_type', None)
