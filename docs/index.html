@@ -257,7 +257,7 @@ NameCountByYear(name:, year:) += number :-
 # For each year pick the most popular.
 TopNameByYear(year) ArgMax= name -> NameCountByYear(name:, year:);
 
-# Accumulate most popular name into a table, droppig the year.
+# Accumulate most popular name into a table, dropping the year.
 PopularName(name: TopNameByYear());
 </div>
 
