@@ -337,6 +337,15 @@ class Functors(object):
                             '@NoInject']:
         continue
       for rule in rules:
+        if ('literal' not in
+            rule['head']['record']['field_value'][0]['value']['expression'] or
+            'the_predicate' not in
+            rule['head']['record']['field_value'][0]['value']['expression'][
+              'literal']):
+          raise FunctorError('This annotation requires predicate symbol '
+                             'as the first positional argument.',
+                             rule['full_text'])
+
         if rule['head']['record']['field_value'][0]['value']['expression'][
             'literal']['the_predicate']['predicate_name'] in predicates:
           result.append(rule)
