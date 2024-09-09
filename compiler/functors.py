@@ -108,6 +108,7 @@ class Functors(object):
     self.cached_calls = {}
 
     try:
+      # This import takes about 500ms.
       import numpy
       numpy_is_here = True
     except:
@@ -530,16 +531,23 @@ class Functors(object):
       stop = stop['predicate_name']
     return stop
 
-  def UnfoldRecursions(self, depth_map):
+  def UnfoldRecursions(self, depth_map, default_iterative, default_depth):
     """Unfolds all recursions."""
-    should_recurse, my_cover = self.RecursiveAnalysis(depth_map)
+    should_recurse, my_cover = self.RecursiveAnalysis(
+      depth_map, default_iterative, default_depth)
     new_rules = copy.deepcopy(self.rules)
     for p, style in should_recurse.items():
-      depth = depth_map.get(p, {}).get('1', 8)
+      depth = depth_map.get(p, {}).get('1', default_depth)
       if style == 'vertical':
         self.UnfoldRecursivePredicate(p, my_cover[p], depth, new_rules)
       elif style == 'horizontal' or style == 'iterative_horizontal':
-        ignition = len(my_cover[p]) * 3 + 4
+        # Old ad-hoc formula:
+        # ignition = len(my_cover[p]) * 3 + 4
+        # Calculation of ignition:
+        #   len(cover) to fill all predicates,
+        #   + 2 for iterations
+        #   + 1 for final step.
+        ignition = len(my_cover[p]) + 3
         if ignition % 2 == depth % 2:
           ignition += 1
         stop = self.GetStop(depth_map, p)
@@ -631,7 +639,7 @@ class Functors(object):
           stack.append((x, (u | {t})))
     return True
 
-  def RecursiveAnalysis(self, depth_map):
+  def RecursiveAnalysis(self, depth_map, default_iterative, default_depth):
     """Finds recursive cycles and predicates that would unfold them."""
     # TODO: Select unfolding predicates to guarantee unfolding.
     cover = []
@@ -661,9 +669,9 @@ class Functors(object):
         p = min(c)
       # Iterate if explicitly requested or unspecified
       # and number of steps is greater than 20.
-      if (depth_map.get(p, {}).get('iterative') or
+      if (depth_map.get(p, {}).get('iterative', default_iterative) or
           depth_map.get(p, {}).get('iterative', True) == True and
-          depth_map.get(p, {}).get('1', 8) > 20):
+          depth_map.get(p, {}).get('1', default_depth) > 20):
         should_recurse[p] = 'iterative_horizontal'
       elif self.IsCutOfCover(p, c):
         should_recurse[p] = 'vertical'

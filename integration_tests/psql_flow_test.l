@@ -40,7 +40,7 @@ V() = x distinct :- x in [i, j], G(i, j);
 @Ground(Opportunity);
 @Ground(ActivePath);
 @OrderBy(Test, "col0", "col1");
-@Recursive(Flow, 20);
+@Recursive(Flow, 20, iterative: false);
 
 Flow(i, j) += 0 :- G(i, j);
 

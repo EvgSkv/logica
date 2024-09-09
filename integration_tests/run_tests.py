@@ -109,6 +109,8 @@ def RunAll(test_presto=False, test_trino=False):
   RunTest("sqlite_reachability")
   RunTest("sqlite_element_test")
 
+  RunTest("duckdb_iteration_closure_test",
+          use_concertina=True)
   RunTest("duckdb_stop_test",
           src="duckdb_stop_test.l",
           use_concertina=True)
@@ -138,7 +140,8 @@ def RunAll(test_presto=False, test_trino=False):
 
   RunTest("psql_udf_test")
   RunTest("psql_flow_test")
-  RunTest("psql_graph_coloring_test")
+  RunTest("psql_graph_coloring_test",
+          use_concertina=True)
   RunTest("psql_win_move_test")
   RunTest("psql_plusplus_test")
   RunTest("psql_argmax2_combine_test")
