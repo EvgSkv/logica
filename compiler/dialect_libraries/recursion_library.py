@@ -135,7 +135,8 @@ def GetFlatIterativeRecursionFunctor(depth, cover, direct_args_of,
   result_rules = []
   iterate_over_upper_half = []
   iterate_over_lower_half = []
-  inset = ignition_steps // 2
+  # inset = ignition_steps // 2
+  inset = 2
   stop_file_name = ''
   if stop:
     stop_file_name = '/tmp/logical_stop_%s_%s.json' % (

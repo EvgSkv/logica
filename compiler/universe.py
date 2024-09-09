@@ -645,7 +645,15 @@ class LogicaProgram(object):
     #   for p in depth_map:
     #     # DuckDB struggles with long querries.
     #     depth_map[p]['iterative'] = True
-    return f.UnfoldRecursions(depth_map)
+    quacks_like_a_duck = (
+      annotations.annotations.get(
+        '@Engine', {}).get('duckdb', None) is not None)
+    default_iterative = False
+    default_depth = 8
+    if quacks_like_a_duck:
+      default_iterative = True
+      default_depth = 32
+    return f.UnfoldRecursions(depth_map, default_iterative, default_depth)
 
   def BuildUdfs(self):
     """Build UDF definitions."""
@@ -976,6 +984,23 @@ class LogicaProgram(object):
     if self.execution.dialect.IsPostgreSQLish():
       self.execution.preamble += '\n' + self.typing_preamble
 
+  def PerformIterationClosure(self, allocator):
+    """Iteration closure of current execution.
+    
+    If one predicates of the iteration runs, then all of them must run.
+    """
+    participating_predicates = list(
+      self.execution.table_to_defined_table_map.keys())
+    translator = self.MakeSubqueryTranslator(allocator)
+    for iteration in self.execution.iterations.values():
+      for p in participating_predicates:
+        iteration_predicates = set(iteration['predicates'])
+        if p in iteration_predicates:
+          for d in iteration_predicates:
+            # We are not doing anything with the resulting SQL,
+            # as we only need the execution state updated.
+            translator.TranslateTable(d, None)
+
   def FormattedPredicateSql(self, name, allocator=None):
     """Printing top-level formatted SQL statement with defines and exports."""
     self.InitializeExecution(name)
@@ -990,6 +1015,7 @@ class LogicaProgram(object):
       sql = self.FunctionSql(name, allocator)
     else:
       sql = self.PredicateSql(name, allocator)
+    self.PerformIterationClosure(allocator)
 
     self.UpdateExecutionWithTyping()
 
