@@ -289,7 +289,6 @@ Loading Logical program...
                   regularized_desire_balance = desire_balance * 0.05 + regularized_desire_balance * 0.95;
                 }
                 if (desire_balance > 4 + 2 * (1.0 - speed_of_time) &&  // slow down if queue grows.
-                    compilation_balance == 0 &&
                     regularized_desire_balance > 1 /* once we've proven computer is fast, keep speed */) {
                   speed_of_time = speed_of_time * 0.9;
                   console.log('Machine is too slow. Slowing to ', speed_of_time)
