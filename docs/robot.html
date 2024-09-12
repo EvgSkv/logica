@@ -298,6 +298,9 @@ Loading Logical program...
                   interval_of_timeStep = setInterval(timeStep, 5 / speed_of_time);
                   interval_of_requestDesire2 = setInterval(requestDesire2, 50 / speed_of_time);
                 }
+                if (desire_balance_threshold > 4) {
+                    desire_balance_threshold -= 0.1;
+                }
 
                 let drive_turn_str = worker_response.get('result').split('\n')[3].split('|');
                 let drive_turn = {drive: parseFloat(drive_turn_str[1]), turn: parseFloat(drive_turn_str[2])};
