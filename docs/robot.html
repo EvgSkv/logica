@@ -288,9 +288,10 @@ Loading Logical program...
                 if (regularized_desire_balance > 1) {
                   regularized_desire_balance = desire_balance * 0.05 + regularized_desire_balance * 0.95;
                 }
-                if (desire_balance > 4 + 2 * (1.0 - speed_of_time) &&  // slow down if queue grows.
+                if (desire_balance > desire_balance_threshold &&  // slow down if queue grows.
                     regularized_desire_balance > 1 /* once we've proven computer is fast, keep speed */) {
                   speed_of_time = speed_of_time * 0.9;
+                  desire_balance_threshold = desire_balance + 2
                   console.log('Machine is too slow. Slowing to ', speed_of_time)
                   clearInterval(interval_of_timeStep);
                   clearInterval(interval_of_requestDesire2);
@@ -681,6 +682,7 @@ ${execution_result.get('error_context')}
         }
 
         let speed_of_time = 1.0;
+        let desire_balance_threshold = 4;
         setTimeout(digest, 7000);
         let interval_of_timeStep = setInterval(timeStep, 5);
         let interval_of_requestDesire2 = setInterval(requestDesire2, 50);
