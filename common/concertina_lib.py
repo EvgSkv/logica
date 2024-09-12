@@ -247,15 +247,24 @@ class Concertina(object):
     return 'box'
 
   def AsGraphViz(self):
+    def NodeText(node):
+      if node in self.action_iteration:
+        maybe_iteration_info = ' %d / %d' % (
+          self.action_iterations_complete[node],
+          self.iteration_repetitions[self.action_iteration[node]]
+        )
+        if node in self.action_stopped:
+          maybe_iteration_info += ' / stop.'
+      return node + maybe_iteration_info
     g = graphviz.Digraph('Concertina')
     for a in self.all_actions:
       color = self.ActionColor(a)
       shape = self.ActionShape(a)
       styles = ['filled']
 
-      g.node(a, shape=shape, fillcolor=color, style='filled,rounded', color='gray34')
+      g.node(NodeText(a), shape=shape, fillcolor=color, style='filled,rounded', color='gray34')
       for prerequisite in self.action[a]['requires']:
-        g.edge(prerequisite, a)
+        g.edge(NodeText(prerequisite), NodeText(a))
 
     return g
 
