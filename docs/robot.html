@@ -192,6 +192,8 @@ Loading Logical program...
                 }
             });
 
+            let desire_balance = 0;
+            let regularized_desire_balance = 10;
             function requestDesire2() {
                 if (theSQL == 'BROKEN') {
                     return;
@@ -225,6 +227,7 @@ Loading Logical program...
                     type: 'run_sql',
                     sql: theSQL.replace(/\*\*\*/g, radarData).replace(/\+\+\+/g, robot.memory).replace(/@@@/g, spellData)
                 });
+                desire_balance += 1;
             }
             function requestDesire() {
                 let radarStatement = robot.radar_beams.map(
@@ -246,9 +249,16 @@ Loading Logical program...
                 backlogCount += 1;
                 console.log('Backlog:', backlogCount);
             }
+            let compilation_balance = 0;
             function digest() {
+                if (regularized_desire_balance > 1.0 && regularized_desire_balance != 10) {
+                  let output=document.getElementById('robot_output')
+                  output.innerHTML = 'Robot not ready. Please try again in 10 seconds.';
+                  return;
+                }
                 theProgram = 'SpellBearing(bearing: ToFloat64(ab[0]), distance:ToFloat64(ab[1])) :- x in Split(data, ","), ab = Split(x, "~"), SpellData(data); RadarBeam(direction: dir, distance: d) :- x in Split(data, ";"), ab = Split(x, "~"), dir == ToFloat64(ab[0]), d = ToFloat64(ab[1]), RadarData(data); RadarData("***"); Memory("+++"); SpellData("@@@");\n' + document.getElementById("robot_code").innerText;
                 worker.postMessage({type: 'compile_predicate', predicate: thePredicate, program: theProgram})
+                compilation_balance += 1;
             };
             var thePredicate = 'RobotDesire';
             var theProgram = 'RobotDesire(drive: 0, turn: 1);'
@@ -269,9 +279,25 @@ Loading Logical program...
                     }
                     theSQL = worker_response.get('result');
                     console.log(theSQL);
+                    compilation_balance -= 1;
                     return;
                 }
                 outputResult(worker_response);
+
+                desire_balance -= 1;
+                if (regularized_desire_balance > 1) {
+                  regularized_desire_balance = desire_balance * 0.05 + regularized_desire_balance * 0.95;
+                }
+                if (desire_balance > 4 + 2 * (1.0 - speed_of_time) &&  // slow down if queue grows.
+                    compilation_balance == 0 &&
+                    regularized_desire_balance > 1 /* once we've proven computer is fast, keep speed */) {
+                  speed_of_time = speed_of_time * 0.9;
+                  console.log('Machine is too slow. Slowing to ', speed_of_time)
+                  clearInterval(interval_of_timeStep);
+                  clearInterval(interval_of_requestDesire2);
+                  interval_of_timeStep = setInterval(timeStep, 5 / speed_of_time);
+                  interval_of_requestDesire2 = setInterval(requestDesire2, 50 / speed_of_time);
+                }
 
                 let drive_turn_str = worker_response.get('result').split('\n')[3].split('|');
                 let drive_turn = {drive: parseFloat(drive_turn_str[1]), turn: parseFloat(drive_turn_str[2])};
@@ -655,9 +681,10 @@ ${execution_result.get('error_context')}
             setTimeout(() => {p.classList.remove('animated_flip');}, 1000);
         }
 
+        let speed_of_time = 1.0;
         setTimeout(digest, 7000);
-        setInterval(timeStep, 5);
-        setInterval(requestDesire2, 50);
+        let interval_of_timeStep = setInterval(timeStep, 5);
+        let interval_of_requestDesire2 = setInterval(requestDesire2, 50);
 
     </script>
 </body>    
