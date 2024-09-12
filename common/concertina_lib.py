@@ -255,6 +255,8 @@ class Concertina(object):
         )
         if node in self.action_stopped:
           maybe_iteration_info += ' / stop.'
+      else:
+        maybe_iteration_info = ''
       return node + maybe_iteration_info
     g = graphviz.Digraph('Concertina')
     for a in self.all_actions:
