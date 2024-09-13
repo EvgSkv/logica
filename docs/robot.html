@@ -275,6 +275,12 @@ Loading Logical program...
                         setTimeout(() => {console.log('Called here!'); outputResult(worker_response)}, 100);
                         //outputResult(worker_response);
                         theSQL = 'BROKEN';
+                        if (worker_response.get('error_message') == 'Compiler is not ready.') {
+                            compile_attempt += 1;
+                            setTimeout(() => {console.log('Trying to compile again.'); digest();}, 100);
+                            worker_response.set('error_message',
+                                                worker_response.get('error_message') + ' / Attempt ' + compile_attempt)
+                        }
                         return;
                     }
                     theSQL = worker_response.get('result');
@@ -686,7 +692,8 @@ ${execution_result.get('error_context')}
 
         let speed_of_time = 1.0;
         let desire_balance_threshold = 4;
-        setTimeout(digest, 15000);
+        let compile_attempt = 0;
+        setTimeout(digest, 1000);
         let interval_of_timeStep = setInterval(timeStep, 5);
         let interval_of_requestDesire2 = setInterval(requestDesire2, 50);
 
