@@ -55,7 +55,13 @@ self.onmessage = function(event) {
         console.log('Compiling predicate...');
         let program = data.program;
         let predicate = data.predicate;
-        let result = self.compile_predicate(program, predicate).toJs();
+        let result = new Map();
+        result.set('result', 'select \'hi\';')
+        result.set('status', 'error')
+        result.set('error_message', 'Compiler is not ready.')
+        if (self.compile_predicate) {
+          result = self.compile_predicate(program, predicate).toJs();
+        }
         result.set('type', 'compile_predicate');
         console.log(result);
         self.postMessage(result);
