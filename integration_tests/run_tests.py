@@ -108,6 +108,7 @@ def RunAll(test_presto=False, test_trino=False):
   RunTest("sqlite_composite_test")
   RunTest("sqlite_reachability")
   RunTest("sqlite_element_test")
+  RunTest("sqlite_functor_over_constant_test")
 
   RunTest("duckdb_iteration_closure_test",
           use_concertina=True)
