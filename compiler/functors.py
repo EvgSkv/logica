@@ -106,6 +106,7 @@ class Functors(object):
     self.args_of = {}
     self.creation_count = 0
     self.cached_calls = {}
+    self.constant_literal_function = {}
 
     try:
       # This import takes about 500ms.
@@ -118,6 +119,13 @@ class Functors(object):
       self.NumpyBuildArgsOf()
     for p in self.predicates:
       self.ArgsOf(p)
+
+  def GetConstantFunction(self, value):
+    if result := self.constant_literal_function.get(value):
+      return result
+    self.constant_literal_function[value] = (
+      'LogicaCompilerConstant%d' % len(self.constant_literal_function))
+    return self.constant_literal_function[value]
 
   def CopyOfArgs(self):
     """Copying args is separated for profiling."""
@@ -162,10 +170,16 @@ class Functors(object):
     applicant = instruction['1']['predicate_name']
     args_map = {}
     for arg_name, arg_value_dict in instruction['2'].items():
-      if (not isinstance(arg_value_dict, dict) or
-          'predicate_name' not in arg_value_dict):
+      if (
+           (not isinstance(arg_value_dict, dict) or
+            'predicate_name' not in arg_value_dict) and
+           not isinstance(arg_value_dict, int) and
+           not isinstance(arg_value_dict, str)):
         raise FunctorError(error_message, predicate)
-      args_map[arg_name] = arg_value_dict['predicate_name']
+      if isinstance(arg_value_dict, dict):
+        args_map[arg_name] = arg_value_dict['predicate_name']
+      else:
+        args_map[arg_name] = self.GetConstantFunction(arg_value_dict)
     return predicate, applicant, args_map
 
   def Describe(self):
@@ -309,6 +323,16 @@ class Functors(object):
         raise FunctorError('Could not resolve Make order.',
                            str(needs_building))
     surviving_rules = self.RemoveRulesProvenToBeNil(self.extended_rules)
+
+    for value, function in self.constant_literal_function.items():
+      if isinstance(value, int):
+        self.extended_rules.append(parse.ParseRule(parse.HeritageAwareString('%s() = %d') %
+                                   (function, value)))
+      elif isinstance(value, str):
+        self.extended_rules.append(parse.ParseRule(parse.HeritageAwareString('%s() = "%s"') %
+                                   (function, value)))
+      else:
+        assert False, str((value, function))
     for p, c in surviving_rules.items():
       if c == 0:
         raise FunctorError('All rules contain nil for predicate %s. '
