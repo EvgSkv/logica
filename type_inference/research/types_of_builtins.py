@@ -254,6 +254,13 @@ def TypesOfBultins():
         },
         'CurrentTimestamp': {
            'logica_value': 'Time'
+        },
+        'Coalesce': {
+           0: x,
+           1: x,
+           2: x,
+           3: x,
+           'logica_value': x
         }
     }
     types_of_predicate['<'] = types_of_predicate['<='] = types_of_predicate['>='] = types_of_predicate['>']
