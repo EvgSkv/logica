@@ -246,12 +246,17 @@ class Concertina(object):
         return 'diamond'
     return 'box'
 
+  def IterationRepetitionsSymbol(self, iteration):
+    if self.iteration_repetitions[iteration] > 1000000:
+      return '∞'
+    return '%d' % self.iteration_repetitions[iteration]
+
   def AsGraphViz(self):
     def NodeText(node):
       if node in self.action_iteration:
-        maybe_iteration_info = ' %d / %d' % (
+        maybe_iteration_info = ' %d / %s' % (
           self.action_iterations_complete[node],
-          self.iteration_repetitions[self.action_iteration[node]]
+          self.IterationRepetitionsSymbol(self.action_iteration[node])
         )
         if node in self.action_stopped:
           maybe_iteration_info += ' / stop.'
@@ -282,9 +287,9 @@ class Concertina(object):
     """Nodes and edges to display in terminal."""
     def ColoredNode(node):
       if node in self.action_iteration:
-        maybe_iteration_info = ' %d / %d' % (
+        maybe_iteration_info = ' %d / %s' % (
           self.action_iterations_complete[node],
-          self.iteration_repetitions[self.action_iteration[node]]
+          self.IterationRepetitionsSymbol(self.action_iteration[node])
         )
         if node in self.action_stopped:
           maybe_iteration_info += ' / stop.'
