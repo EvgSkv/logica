@@ -1028,7 +1028,9 @@ class LogicaProgram(object):
           for d in iteration_predicates:
             # We are not doing anything with the resulting SQL,
             # as we only need the execution state updated.
-            translator.TranslateTable(d, None)
+            # We don't have actual dependency on top of stack, so we
+            # do not add any dependency edge.
+            translator.TranslateTable(d, None, edge_needed=False)
 
   def FormattedPredicateSql(self, name, allocator=None):
     """Printing top-level formatted SQL statement with defines and exports."""
@@ -1274,11 +1276,13 @@ class SubqueryTranslator(object):
     self.allocator = allocator
     self.execution = execution
 
-  def TranslateTableAttachedToFile(self, table, ground, external_vocabulary):
+  def TranslateTableAttachedToFile(self, table, ground, external_vocabulary,
+                                   edge_needed=True):
     """Translates file-attached table. Appends exports and defines."""
-    self.execution.dependency_edges.append((
-        table,
-        self.execution.workflow_predicates_stack[-1]))
+    if edge_needed:
+      self.execution.dependency_edges.append((
+          table,
+          self.execution.workflow_predicates_stack[-1]))
     if table in self.execution.table_to_defined_table_map:
       return self.execution.table_to_defined_table_map[table]
     table_name = ground.table_name
@@ -1358,14 +1362,14 @@ class SubqueryTranslator(object):
       return table[2:-2]
     return table
 
-  def TranslateTable(self, table, external_vocabulary):
+  def TranslateTable(self, table, external_vocabulary, edge_needed=True):
     """Translating table to an SQL string in the FROM cause."""
     if table in self.program.table_aliases:
       return self.program.table_aliases[table]
     ground = self.program.annotations.Ground(table)
     if ground:
       return self.TranslateTableAttachedToFile(
-          table, ground, external_vocabulary)
+          table, ground, external_vocabulary, edge_needed)
     if table in self.program.defined_predicates:
       if self.program.execution.With(table):
         return self.TranslateWithedTable(table)
