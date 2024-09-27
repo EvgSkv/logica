@@ -635,11 +635,33 @@ class LogicaProgram(object):
                   'Either all rules of a predicate must be distinct denoted '
                   'or none. Predicate {warning}{p}{end} violates it.',
                   dict(p=p)), r['full_text'])
-  
+
+  def InscribeOrbits(self, rules, depth_map):
+    """Writes satellites from annotation to a field in the body."""
+    # Satellites are written to master and master is written to
+    # satellites. You are responsible for those whom you tamed.
+    master = {}
+    for p, args in depth_map.items():
+      for s in args.get('satellites', []):
+        master[s['predicate_name']] = p
+    for r in rules:
+      p = r['head']['predicate_name']
+      if p in depth_map:
+        if 'satellites' not in depth_map[p]:
+          continue
+        if 'body' not in r:
+          r['body'] = {'conjunction': {'conjunct': []}}
+        r['body']['conjunction']['satellites'] = depth_map[p]['satellites']
+      if p in master:
+        if 'body' not in r:
+          r['body'] = {'conjunction': {'conjunct': []}}
+        r['body']['conjunction']['satellites'] = [{'predicate_name': master[p]}]
+
   def UnfoldRecursion(self, rules):
     annotations = Annotations(rules, {})
-    f = functors.Functors(rules)
     depth_map = annotations.annotations.get('@Recursive', {})
+    self.InscribeOrbits(rules, depth_map)
+    f = functors.Functors(rules)
     # Annotations are not ready at this point.
     # if (self.execution.annotations.Engine() == 'duckdb'):
     #   for p in depth_map:

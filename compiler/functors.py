@@ -622,8 +622,9 @@ class Functors(object):
                       # Do not walk into:
                       #   predicate value literals,
                       #   combine expressions because they will be trivially
-                      #   null.
-                      taboo=['the_predicate', 'combine'])
+                      #     null,
+                      #   lists of satelites.
+                      taboo=['the_predicate', 'combine', 'satellites'])
         rules_per_predicate[p] = rules_per_predicate.get(p,0) + (
           c.nil_count == 0)
       is_nothing = set()

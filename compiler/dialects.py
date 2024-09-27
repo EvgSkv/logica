@@ -415,6 +415,7 @@ class DuckDB(Dialect):
           'Least': 'LEAST(%s)',
           'Greatest': 'GREATEST(%s)',
           'ToString': 'CAST(%s AS TEXT)',
+          'ToFloat64': 'CAST(%s AS DOUBLE)',
           'DateAddDay': "DATE({0}, {1} || ' days')",
           'DateDiffDay': "CAST(JULIANDAY({0}) - JULIANDAY({1}) AS INT64)",
           'CurrentTimestamp': 'GET_CURRENT_TIMESTAMP()',
