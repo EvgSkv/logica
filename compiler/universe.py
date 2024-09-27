@@ -642,8 +642,15 @@ class LogicaProgram(object):
     # satellites. You are responsible for those whom you tamed.
     master = {}
     for p, args in depth_map.items():
+      satellite_names = []
       for s in args.get('satellites', []):
         master[s['predicate_name']] = p
+        satellite_names.append(s['predicate_name'])
+      if stop_predicate := args.get('stop', None):
+        if stop_predicate['predicate_name'] not in satellite_names:
+          if 'satellites' not in args:
+            args['satellites'] = []
+          args['satellites'] += [stop_predicate]
     for r in rules:
       p = r['head']['predicate_name']
       if p in depth_map:
