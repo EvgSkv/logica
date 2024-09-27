@@ -187,7 +187,11 @@ def main(argv):
     return 0
 
   if command == 'infer_types':
-    typing_engine = infer.TypesInferenceEngine(parsed_rules)
+    # This disallows getting types of program with type errors.
+    # logic_program = universe.LogicaProgram(parsed_rules)
+    # TODO: Find a way to get engine from program. But it should not matter
+    # for inference. It only patters for compiling.
+    typing_engine = infer.TypesInferenceEngine(parsed_rules, "psql")
     typing_engine.InferTypes()
     # print(parsed_rules)
     print(json.dumps(parsed_rules, sort_keys=True, indent=' '))

@@ -426,6 +426,9 @@ class TypeInferenceForRule:
       for e in node['literal']['the_list']['element']:
         reference_algebra.UnifyListElement(
           list_type, e['type']['the_type'])
+      else:
+        reference_algebra.UnifyListElement(
+          list_type, reference_algebra.TypeReference('Any'))
 
   def ActMindingInclusion(self, node):
     if 'inclusion' in node:
