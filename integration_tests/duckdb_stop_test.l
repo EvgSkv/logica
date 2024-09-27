@@ -15,10 +15,10 @@
 
 @Engine("duckdb");
 
-@Recursive(N, 100, stop: S);
-N() = 0 :- ~S() || true;
+@Recursive(N, -1, stop: S);
+N() = 0 :- ~N();
 N() = N() + 1;
 
 S("yes") :- N() > 10;
 
-Test(!~ (N() > 10), !~ (N() < 20));
+Test(!~ (N() > 10), !~ (N() < 20), Array{n -> n :- n = N()});
