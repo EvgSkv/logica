@@ -692,6 +692,8 @@ class Functors(object):
         p = min(c & deep)
       else:
         p = min(c)
+      if depth_map.get(p, {}).get('1', default_depth) == -1:
+        depth_map[p]['1'] = 1000000000
       # Iterate if explicitly requested or unspecified
       # and number of steps is greater than 20.
       if (depth_map.get(p, {}).get('iterative', default_iterative) or
