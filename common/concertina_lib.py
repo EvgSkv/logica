@@ -158,6 +158,10 @@ class Concertina(object):
     self.iterations = iterations or {}
     self.action_iteration = None
     self.iteration_repetitions = None
+    # Set of signals that were seen requesting a stop.
+    # Once signal requests a stop, we have to stop whole iteration as some
+    # process are already down.
+    self.wrench_in_gears = set()
     self.action_requires = {}
     self.action = {a["name"]: a for a in self.config}
     self.action_stopped = set()
@@ -181,11 +185,14 @@ class Concertina(object):
     signal = self.ActionIterationStopSignal(action)
     if not signal:
       return False
+    if signal in self.wrench_in_gears:
+      return True
     if not os.path.isfile(signal):
       return False
     with open(signal) as f:
       s = f.read()
       if s:
+        self.wrench_in_gears |= {signal}
         return True
       return False
 
