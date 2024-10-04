@@ -507,6 +507,9 @@ def ParseVariable(s: HeritageAwareString):
 def ParseNumber(s: HeritageAwareString):
   if s[-1:] == 'u':
     s = s[:-1]
+  # Parsing infinity as -1 for recursion depth.
+  if s == '∞':
+    return {'number': '-1'}
   try:
     float(s)
   except ValueError:
