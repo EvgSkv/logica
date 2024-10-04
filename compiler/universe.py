@@ -664,9 +664,17 @@ class LogicaProgram(object):
           r['body'] = {'conjunction': {'conjunct': []}}
         r['body']['conjunction']['satellites'] = [{'predicate_name': master[p]}]
 
+  def AddAutoStop(self, depth_map):
+    for k in depth_map:
+      if ('1' in depth_map[k] and
+          depth_map[k]['1'] == -1 and
+          'stop' not in depth_map[k]):
+        depth_map[k]['stop'] = {'predicate_name': 'Stop' + k}
+
   def UnfoldRecursion(self, rules):
     annotations = Annotations(rules, {})
     depth_map = annotations.annotations.get('@Recursive', {})
+    self.AddAutoStop(depth_map)
     self.InscribeOrbits(rules, depth_map)
     f = functors.Functors(rules)
     # Annotations are not ready at this point.

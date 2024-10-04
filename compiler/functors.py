@@ -578,9 +578,16 @@ class Functors(object):
         if stop and stop not in my_cover[p]:
           raise FunctorError(
             color.Format(
-              'Recursive predicate {warning}{p}{end} uses stop signal that '
-              'does not exist or is outside of the recurvisve component.',
-              {'p': p}), p)
+              'Recursive predicate {warning}{p}{end} uses stop signal '
+              '{warning}{stop}{end} that '
+              'does not exist or is outside of the recurvisve component.'
+              ' This means that {warning}{stop}{end} does not depend '
+              'on {warning}{p}{end} which means it would not change over '
+              'iteration. There is a bug in rules, or you need to specify '
+              '{warning}satellites{end} of {warning}{p}{end} which should run '
+              'in the iteration as well and which {warning}{stop}{end} '
+              'monitors.',
+              {'p': p, 'stop': stop}), p)
         self.UnfoldRecursivePredicateFlatFashion(
           my_cover[p], depth, new_rules,
           iterative=(style=='iterative_horizontal'),
