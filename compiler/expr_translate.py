@@ -479,6 +479,9 @@ class QL(object):
     if 'literal' in expression and 'the_string' in expression['literal']:
       # To calm down PSQL:
       return f"({self.ConvertToSql(expression)} || '')"
+    if 'literal' in expression and 'the_number' in expression['literal']:
+      # To calm down DuckDB:
+      return f"{self.ConvertToSql(expression)} + 0"
     return self.ConvertToSql(expression)
 
   def ExpressionIsTable(self, expression):
