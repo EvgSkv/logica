@@ -1861,6 +1861,7 @@
            ]
           }
          },
+         "expression_heritage": " ArgMin= path -> Size(path.path)",
          "type": {
           "rendered_type": "{path: [Str]}",
           "the_type": {
@@ -1871,7 +1872,8 @@
           "type_id": 1,
           "type_name": "logicarecord808144452"
          }
-        }
+        },
+        "expression_heritage": " ArgMin= path -> Size(path.path)"
        }
       }
      }

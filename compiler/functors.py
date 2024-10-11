@@ -359,7 +359,7 @@ class Functors(object):
     result = []
     for annotation, rules in self.rules_of.items():
       if annotation not in ['@Limit', '@OrderBy', '@Ground',
-                            '@NoInject']:
+                            '@NoInject', '@Iteration']:
         continue
       for rule in rules:
         if ('literal' not in

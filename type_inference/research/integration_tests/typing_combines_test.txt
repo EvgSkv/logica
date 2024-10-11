@@ -129,12 +129,14 @@
                   ]
                  }
                 },
+                "expression_heritage": "x += (a :- a in [1,2,3])",
                 "type": {
                  "rendered_type": "Num",
                  "the_type": "Num",
                  "type_id": 5
                 }
-               }
+               },
+               "expression_heritage": "x += (a :- a in [1,2,3])"
               }
              }
             }
@@ -268,6 +270,7 @@
                   ]
                  }
                 },
+                "expression_heritage": "y List= (a :- a in [\"a\", \"b\"])",
                 "type": {
                  "element_type_name": "text",
                  "rendered_type": "[Str]",
@@ -276,7 +279,8 @@
                  ],
                  "type_id": 11
                 }
-               }
+               },
+               "expression_heritage": "y List= (a :- a in [\"a\", \"b\"])"
               }
              }
             }

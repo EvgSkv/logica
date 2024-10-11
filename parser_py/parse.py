@@ -474,7 +474,8 @@ def ParseRecordInternals(s,
                   'value': {
                       'aggregation': {
                           'operator': operator,
-                          'argument': ParseExpression(expression)
+                          'argument': ParseExpression(expression),
+                          'expression_heritage': value
                       }
                   }
               })
@@ -652,7 +653,8 @@ def BuildTreeForCombine(parsed_expression, operator, parsed_body, full_text):
       'value': {
           'aggregation': {
               'operator': operator,
-              'argument': parsed_expression
+              'argument': parsed_expression,
+              'expression_heritage': full_text
           }
       }
   }
@@ -1083,7 +1085,8 @@ def NegationTree(s, negated_proposition):
                                           'value': {
                                               'aggregation': {
                                                   'operator': 'Min',
-                                                  'argument': number_one
+                                                  'argument': number_one,
+                                                  'expression_heritage': s
                                               }
                                           }
                                       }]
@@ -1158,7 +1161,8 @@ def ParseHeadCall(s):
       'value': {
           'aggregation': {
               'operator': operator_str,
-              'argument': ParseExpression(expression_str)
+              'argument': ParseExpression(expression_str),
+              'expression_heritage': post_call_str
           }
       }
   }
@@ -1374,6 +1378,14 @@ class MultiBodyAggregation(object):
   """This is a namespace for multi-body-aggregation processing functions."""
 
   SUFFIX = '_MultBodyAggAux'
+  @classmethod
+  def StripHeritage(cls, field_values):
+    """Removing hertiage for comparison."""
+    result = copy.deepcopy(field_values)
+    for fv in result:
+      if 'aggregation' in fv['value']:
+        del fv['value']['aggregation']['expression_heritage']
+    return result
 
   @classmethod
   def Rewrite(cls, rules):
@@ -1393,7 +1405,8 @@ class MultiBodyAggregation(object):
         aggregation, new_rule = cls.SplitAggregation(rule)
         if name in aggregation_field_values_per_predicate:
           expected_aggregation = aggregation_field_values_per_predicate[name]
-          if expected_aggregation != aggregation:
+          strip = cls.StripHeritage
+          if strip(expected_aggregation) != strip(aggregation):
             raise ParsingException(
                 'Signature differs for bodies of >>%s<<. '
                 'Signatures observed: >>%s<<' % (name,
@@ -1468,7 +1481,8 @@ class MultiBodyAggregation(object):
                         'variable': {
                             'var_name': field_value['field']
                         }
-                    }
+                    },
+                    'expression_heritage': field_value['value']['aggregation']['expression_heritage']
                 }
             }
         }
@@ -1587,7 +1601,8 @@ class AggergationsAsExpressions(object):
                     }
                 ]
             }
-        }
+        },
+        'expression_heritage': a['expression_heritage']
     }
 
   @classmethod
