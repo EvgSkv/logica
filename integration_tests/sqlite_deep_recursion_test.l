@@ -17,8 +17,10 @@
 
 @Engine("sqlite");
 
+S() = 0;
+
 @Recursive(N, 1000);
-N() = 0;
+N() = S();
 N() = N() + 1;
 
 @Recursive(N30, 30);
@@ -29,7 +31,11 @@ N30() = N30() + 1;
 N29() = 0;
 N29() = N29() + 1;
 
+SM() = 100;
+M := N(S: SM);
+
 @OrderBy(Test, "col0");
+Test("M") Max= M();
 Test("N") Max= N();
 Test("N30") Max= N30();
 Test("N29") Max= N29();
