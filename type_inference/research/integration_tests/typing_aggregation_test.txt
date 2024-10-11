@@ -122,12 +122,14 @@
            ]
           }
          },
+         "expression_heritage": "+= t",
          "type": {
           "rendered_type": "Num",
           "the_type": "Num",
           "type_id": 2
          }
-        }
+        },
+        "expression_heritage": "+= t"
        }
       }
      }

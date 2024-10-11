@@ -209,6 +209,7 @@
                   ]
                  }
                 },
+                "expression_heritage": "x List= ({a:} :- a in [{z:}])",
                 "type": {
                  "element_type_name": "logicarecord350574256",
                  "rendered_type": "[{a: {z: Num}}]",
@@ -221,7 +222,8 @@
                  ],
                  "type_id": 6
                 }
-               }
+               },
+               "expression_heritage": "x List= ({a:} :- a in [{z:}])"
               }
              }
             }

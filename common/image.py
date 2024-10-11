@@ -63,7 +63,7 @@ def Animate(spacetime,
   r = numpy.zeros(field_shape)
   img = pyplot.imshow(r.T, cmap=cmap, vmin=vmin, vmax=vmax)
 
-  num_frames = max(spacetime[column_t])
+  num_frames = max(spacetime[column_t]) + 1
   def Update(frame):
     if show_progress:
       total = 40

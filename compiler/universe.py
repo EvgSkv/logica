@@ -289,7 +289,8 @@ class Annotations(object):
           'Iteration must specify number of repetitions.',
           self.annotations['@Iteration'][iteration_name]['__rule_text']
         )
-      result[iteration_name] = {'predicates': args['predicates'],
+      predicates = [p['predicate_name'] for p in args['predicates']]
+      result[iteration_name] = {'predicates': predicates,
                                 'repetitions': args['repetitions'],
                                 'stop_signal': args.get('stop_signal')}
     return result
