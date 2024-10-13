@@ -140,6 +140,9 @@ def RunQueryPandas(sql, engine, connection=None):
   import pandas
   if connection is None and engine == 'sqlite':
     connection = sqlite3_logica.SqliteConnect()
+  if connection is None and engine == 'duckdb':
+    import duckdb
+    connection = duckdb.connect()
   if connection is None:
     assert False, 'Connection is required for engines other than SQLite.'
   if engine == 'bigquery':
@@ -152,6 +155,9 @@ def RunQueryPandas(sql, engine, connection=None):
       rows, columns=[d[0] for d in cursor.description])
     df = df.applymap(psql_logica.DigestPsqlType)
     return df
+  elif engine == 'duckdb':
+    import duckdb
+    return connection.sql(sql).df()
   elif engine == 'sqlite':
     statements = parse.SplitRaw(sql, ';')[:-1]
     if len(statements) > 1:
