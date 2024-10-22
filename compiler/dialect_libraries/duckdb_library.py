@@ -68,4 +68,11 @@ NaturalHash(x) = ToInt64(SqlExpr("hash(cast({x} as string)) // cast(2 as ubigint
 # It is OK to use it as long as you undertand and are OK with the difficulty.
 UnsafeToUseUniqueNumber() = SqlExpr("nextval('eternal_logical_sequence')", {});
 
+# Danger is immanent to life.
+UniqueNumber() = SqlExpr("nextval('eternal_logical_sequence')", {});
+
+# Aggregation that concatenates list.
+# Doing via SqlExpr as Logica for now prohibits list of lists.
+# TODO: We should allow list of lists in DuckDB.
+MergeList(e) = SqlExpr("flatten(array_agg({e}))", {e:});
 """

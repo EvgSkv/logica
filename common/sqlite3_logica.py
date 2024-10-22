@@ -217,8 +217,12 @@ def UserError(error_text):
 def Fingerprint(s):
   return int(hashlib.md5(str(s).encode()).hexdigest()[:16], 16) - (1 << 63)
 
-def SqliteConnect():
-  con = sqlite3.connect(':memory:')
+def SqliteConnect(database=':memory:'):
+  con = sqlite3.connect(database)
+  ExtendConnectionWithLogicaFunctions(con)
+  return con
+
+def ExtendConnectionWithLogicaFunctions(con):
   con.create_aggregate('ArgMin', 3, ArgMin)
   con.create_aggregate('ArgMax', 3, ArgMax)
   con.create_aggregate('DistinctListAgg', 1, DistinctListAgg)
@@ -251,7 +255,6 @@ def SqliteConnect():
   con.create_function('AssembleRecord', 1, AssembleRecord)
   con.create_function('DisassembleRecord', 1, DisassembleRecord)
   sqlite3.enable_callback_tracebacks(True)
-  return con
 
 
 def RunSqlScript(statements, output_format):

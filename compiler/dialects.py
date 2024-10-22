@@ -419,7 +419,8 @@ class DuckDB(Dialect):
           'DateAddDay': "DATE({0}, {1} || ' days')",
           'DateDiffDay': "CAST(JULIANDAY({0}) - JULIANDAY({1}) AS INT64)",
           'CurrentTimestamp': 'GET_CURRENT_TIMESTAMP()',
-          'TimeAdd': '{0} + to_microseconds(cast(1000000 * {1} as int64))'
+          'TimeAdd': '{0} + to_microseconds(cast(1000000 * {1} as int64))',
+          'Rand': 'RANDOM(%s)'
       }
 
     def DecorateCombineRule(self, rule, var):
