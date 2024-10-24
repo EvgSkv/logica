@@ -157,6 +157,7 @@ class PostgreSQL(Dialect):
         'RangeOf' : '(SELECT ARRAY_AGG(x) FROM GENERATE_SERIES(0, ARRAY_LENGTH({0}, 1) - 1) as x)',
         'ToString': 'CAST(%s AS TEXT)',
         'ToInt64': 'CAST(%s AS BIGINT)',
+        'ToFloat64': 'CAST(%s AS double precision)',
         'Element': '({0})[{1} + 1]',
         'Size': 'COALESCE(ARRAY_LENGTH({0}, 1), 0)',
         'Count': 'COUNT(DISTINCT {0})',
