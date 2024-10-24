@@ -39,9 +39,11 @@ from IPython.display import display
 import os
 
 import pandas
+import duckdb
 
 from .parser_py import parse
 from .common import sqlite3_logica
+from .common import duckdb_logica
 
 BQ_READY = True  # By default.
 
@@ -98,7 +100,14 @@ def SetDbConnection(connection):
   global DB_CONNECTION
   DB_CONNECTION = connection
 
+REMEMBERED_PREVIOUS_MODE = None
 def ConnectToPostgres(mode='interactive'):
+  global REMEMBERED_PREVIOUS_MODE
+  if mode == 'reconnect':
+    mode = REMEMBERED_PREVIOUS_MODE
+    print('Reconnecting to Postgres.')
+  else:
+    REMEMBERED_PREVIOUS_MODE = mode
   connection = psql_logica.ConnectToPostgres(mode)
   SetDbConnection(connection)
   global DEFAULT_ENGINE
@@ -157,6 +166,12 @@ def ParseList(line):
     predicates = [p.strip() for p in line.split(',')]
   return predicates
 
+def ParseListAndMaybeFile(line):
+  if '>' in line:
+    predicate_list_str, storage_file = line.split('>')
+    return ParseList(predicate_list_str.strip()), storage_file.strip()
+  else:
+    return ParseList(line), None
 
 def RunSQL(sql, engine, connection=None, is_final=False):
   if engine == 'bigquery':
@@ -172,6 +187,18 @@ def RunSQL(sql, engine, connection=None, is_final=False):
       return df
     else:
       psql_logica.PostgresExecute(sql, connection)
+  elif engine == 'duckdb':
+    if is_final:
+      df = connection.sql(sql).df()
+      for c in df.columns:
+        if df.dtypes[c] == 'float64':
+          if df[c].isna().values.any():
+            return df
+          if set(df[c] - df[c].astype(int)) == {0.0}:
+            df[c] = df[c].astype(int)
+      return df
+    else:
+      connection.sql(sql)
   elif engine == 'sqlite':
     try:
       if is_final:
@@ -207,11 +234,27 @@ class SqliteRunner(object):
   def __call__(self, sql, engine, is_final):
     return RunSQL(sql, engine, self.connection, is_final)
 
+class DuckdbRunner(object):
+  def __init__(self):
+    global DB_CONNECTION
+    if not DB_CONNECTION:
+      DB_CONNECTION = duckdb.connect()
+    self.connection = DB_CONNECTION
+
+  def  __call__(self, sql, engine, is_final):
+    return RunSQL(sql, engine, self.connection, is_final)
+
 
 class PostgresRunner(object):
   def __init__(self):
     global DB_CONNECTION
     global DB_ENGINE
+    if not DB_CONNECTION:
+      try:
+        ConnectToLocalPostgres()  
+      except:
+        pass
+
     if not DB_CONNECTION:
       print("Assuming this is running on Google CoLab in a temporary")
       print("environment.")
@@ -225,6 +268,10 @@ class PostgresRunner(object):
     self.connection = DB_CONNECTION
   
   def  __call__(self, sql, engine, is_final):
+    global DB_CONNECTION
+    if self.connection and self.connection.closed and REMEMBERED_PREVIOUS_MODE:
+      ConnectToPostgres('reconnect')
+      self.connection = DB_CONNECTION
     return RunSQL(sql, engine, self.connection, is_final)
 
 
@@ -234,7 +281,7 @@ def ShowError(error_text):
 
 def Logica(line, cell, run_query):
   """Running Logica predicates and storing results."""
-  predicates = ParseList(line)
+  predicates, maybe_storage_file = ParseListAndMaybeFile(line)
   if not predicates:
     ShowError('No predicates to run.')
     return
@@ -257,7 +304,6 @@ def Logica(line, cell, run_query):
   except infer.TypeErrorCaughtException as e:
     e.ShowMessage()
     return
-
   engine = program.annotations.Engine()
 
   if engine == 'bigquery' and not BQ_READY:
@@ -272,13 +318,16 @@ def Logica(line, cell, run_query):
 
   bar = TabBar(predicates + ['(Log)'])
   logs_idx = len(predicates)
-
   executions = []
   sub_bars = []
   ip = IPython.get_ipython()
   for idx, predicate in enumerate(predicates):
     with bar.output_to(logs_idx):
       try:
+        if storage_file_name := maybe_storage_file:
+          with open(storage_file_name, 'w') as storage_file:
+            storage_file.write(cell)
+            print('\x1B[3mProgram saved to %s.\x1B[0m' % storage_file_name)
         sql = program.FormattedPredicateSql(predicate)
         executions.append(program.execution)
         ip.push({predicate + '_sql': sql})
@@ -307,13 +356,15 @@ def Logica(line, cell, run_query):
       sql_runner = SqliteRunner()
     elif engine == 'psql':
       sql_runner = PostgresRunner()
+    elif engine == 'duckdb':
+      sql_runner = DuckdbRunner() 
     elif engine == 'bigquery':
       EnsureAuthenticatedUser()
       sql_runner = RunSQL
     else:
       raise Exception('Logica only supports BigQuery, PostgreSQL and SQLite '
                       'for now.')   
-    try:                  
+    try:
       result_map = concertina_lib.ExecuteLogicaProgram(
         executions, sql_runner=sql_runner, sql_engine=engine,
         display_mode=DISPLAY_MODE)
@@ -336,6 +387,19 @@ def Logica(line, cell, run_query):
         else:
           print('The query was not run.')
       print(' ') # To activate the tabbar.
+
+
+def ConnectToLocalPostgres():
+  import psycopg2
+  connection = psycopg2.connect(host='localhost', database='logica', user='logica', password='logica')
+  connection.autocommit = True
+
+  print('Connected.')
+  global DEFAULT_ENGINE
+  global DB_CONNECTION
+  DEFAULT_ENGINE = 'psql'
+  DB_CONNECTION = connection
+
 
 def PostgresJumpStart():
   # Install postgresql server.
@@ -377,12 +441,4 @@ colab_logica.SetDbConnection(connection)
     return
   print('Installation succeeded. Connecting...')
   # Connect to the database.
-  import psycopg2
-  connection = psycopg2.connect(host='localhost', database='logica', user='logica', password='logica')
-  connection.autocommit = True
-
-  print('Connected.')
-  global DEFAULT_ENGINE
-  global DB_CONNECTION
-  DEFAULT_ENGINE = 'psql'
-  DB_CONNECTION = connection
+  ConnectToLocalPostgres()

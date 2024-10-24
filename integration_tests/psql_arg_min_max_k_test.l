@@ -35,5 +35,5 @@ TestArgMinK() ArgMin2= {payload:, v:} -> v :- Data(v:, payload:);
 
 @OrderBy(Test, "arg_opt");
 Test(opt: "Max", arg_opt: TestArgMax(), arg_opt_k:  TestArgMaxK());
-Test(opt: "Max", arg_opt: TestArgMin(), arg_opt_k:  TestArgMinK());
+Test(opt: "Min", arg_opt: TestArgMin(), arg_opt_k:  TestArgMinK());
 

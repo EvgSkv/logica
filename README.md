@@ -24,21 +24,26 @@ a language created at Google earlier.
 ## Why?
 
 Logica is for engineers, data scientists and other specialists who want to use
-logic programming syntax when writing queries and pipelines to run on
-[BigQuery](https://cloud.google.com/bigquery).
+logic programming syntax when writing queries and pipelines for databases and datawarehouses.
+Logica programs run on
+[BigQuery](https://cloud.google.com/bigquery), [Postgres](https://postgresql.org) and [SQLite](https://www.sqlite.org/).
 
-Logica compiles to StandardSQL and gives you access to the power of BigQuery
-engine with the convenience of logic programming syntax. This is useful because
-BigQuery is magnitudes more powerful than state of the art native
-logic programming engines.
+Logica compiles to SQL and gives you access to the power of SQL ecosystem
+with the convenience of logic programming syntax. 
+
+This is useful because
+SQL enginers are magnitudes more powerful than state of the art native
+logic programming engines. For example, BigQuery is a distributed datawarehouse and thus logic programs written
+in Logica can be easily parallelized onto thousands of servers. Postgres and SQLite are among most popular databases, they are
+capable of processing substantial volumes of data right on your machine.
 
 We encourage you to try Logica, especially if
 
 *   you already use logic programming and need more computational power, **or**
-*   you use SQL, but feel unsatisfied about its readability, **or**
+*   you already have data in BigQuery, PostgreSQL or SQLite, **or**
 *   you want to learn logic programming and apply it to processing of Big Data.
 
-In the future we plan to support more SQL dialects and engines.
+Support for more SQL dialects and engines is coming in the future.
 
 ## I have not heard of logic programming. What is it?
 
@@ -140,18 +145,14 @@ Find prime numbers less than 30.
 
 Program `primes.l`:
 ```
-# Define natural numbers from 1 to 29.
-N(x) :- x in Range(30);
-# Define primes.
-Prime(prime: x) :-
-  N(x),
-  x > 1,
-  ~(
-    N(y),
-    y > 1,
-    y != x,
-    x % y == 0
-  );
+# Define numbers 1 to 30.
+Number(x + 1) :- x in Range(30);
+
+# Defining composite numbers.
+Composite(a * b) distinct :- Number(a), Number(b), a > 1, b > 1;
+
+# Defining primes as "not composite".
+Prime(n) distinct :- Number(n), n > 1, ~Composite(n);
 ```
 
 Running `primes.l`
@@ -173,6 +174,49 @@ $ logica primes.l run Prime
 +-------+
 ```
 
+### Cities with largest beer variety
+
+Let's use beer variety dataset from [plotly](https://github.com/plotly/datasets/blob/master/beers.csv).
+
+Let us find top 5 states with largest variety of beers. In each state we will pick city with the largest
+variety in the state.
+
+Program `beer.l`:
+
+```
+@Engine("duckdb");
+
+@Ground(Beer);
+Beer(..r) :- 
+    `('https://github.com/plotly/datasets/blob/master/beers.csv?raw=true')`(..r);
+
+BeersInState(state) += 1 :- Beer(state:);
+BeersInCity(state, city) += 1 :- Beer(state:, city:);
+
+ArgMax5(x) = ArgMaxK(x, 5);
+BestCityForBeer(state:, city:,
+                city_beers: BeersInCity(state, city),
+                state_beers: BeersInState(state)) :-
+    state in ArgMax5{s -> BeersInState(s)},
+    city = ArgMax{c -> BeersInCity(state, c)};
+```
+
+Running `beer.l`:
+
+```
+# logica beer.l run BestCityForBeer
++-------+--------------+------------+-------------+
+| state | city         | city_beers | state_beers |
++-------+--------------+------------+-------------+
+| IN    | Indianapolis | 43         | 139         |
+| CO    | Boulder      | 41         | 265         |
+| CA    | San Diego    | 42         | 183         |
+| TX    | Austin       | 25         | 130         |
+| MI    | Grand Rapids | 66         | 162         |
++-------+--------------+------------+-------------+
+```
+
+<!--
 ### News mentions
 
 Who was mentioned in the news in 2020 the most?
@@ -210,7 +254,7 @@ $ logica mentions.l run Mentions
 
 Note that cities of Los Angeles and Las Vegas are mentioned in this table due to known
 missclasification issue in the GDELT data analysis.
-
+--> 
 ## Feedback
 
 Feel free to create [github issues](https://github.com/EvgSkv/logica/issues)

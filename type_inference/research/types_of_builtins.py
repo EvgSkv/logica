@@ -27,6 +27,7 @@ def TypesOfBultins():
     list_of_e = reference_algebra.TypeReference('Any')
     e = reference_algebra.TypeReference('Singular')
     reference_algebra.UnifyListElement(list_of_e, e)
+    sequential = reference_algebra.TypeReference('Sequential')
 
     types_of_predicate = {
         'Aggr': {
@@ -45,12 +46,13 @@ def TypesOfBultins():
         },
         '~': {
           'left': x,
-          'right': x 
+          'right': x,
+          'logica_value': 'Bool'
         },
         '++': {
-          'left': 'Str',
-          'right': 'Str',
-          'logica_value': 'Str' 
+          'left': sequential,
+          'right': sequential,
+          'logica_value': sequential 
         },
         '+': {
             'left': 'Num',
@@ -75,6 +77,9 @@ def TypesOfBultins():
             0: 'Str',
             'logica_value': 'Str'
         },
+        'Time': {
+            'logica_value': 'Time'
+        },
         'Agg+': {
             0: 'Num',
             'logica_value': 'Num'
@@ -82,6 +87,10 @@ def TypesOfBultins():
         'List': {
             0: e,
             'logica_value': list_of_e
+        },
+        'Set': {
+            0: e,
+            'logica_value': list_of_e 
         },
         '->': {
            'left': x,
@@ -128,13 +137,21 @@ def TypesOfBultins():
            0: x,
            'logica_value': x
         },
+        'Sum': {
+           0: 'Num',
+           'logica_value': 'Num'
+        },
+        'Avg': {
+           0: 'Num',
+           'logica_value': 'Num'
+        },
         'Max': {
            0: x,
-           'logica_value': y
+           'logica_value': x
         },
         'Array': {
            0: reference_algebra.ClosedRecord({'arg': x, 'value': e}),
-           'logica_value': e
+           'logica_value': [e]
         },
         'ValueOfUnnested': {
            0: x,
@@ -202,10 +219,48 @@ def TypesOfBultins():
            1: 'Any', 2: 'Any', 3: 'Any', 4: 'Any', 5: 'Any', 6: 'Any',
            'logica_value': 'Str'
         },
+        'Split': {
+           0: 'Str',
+           1: 'Str',
+           'logica_value': ['Str']
+        },
         'Element': {
            0: list_of_e,
            1: 'Num',
            'logica_value': e
+        },
+        'MagicalEntangle': {
+           0: x,
+           1: 'Any',
+           'logica_value': x
+        },
+        'Count': {
+           0: 'Any',
+           'logica_value': 'Num'
+        },
+        '1': {
+           0: x,
+           'logica_value': x
+        },
+        'Least': {
+           0: x,
+           1: x,
+           'logica_value': x
+        },
+        'Greatest': {
+           0: x,
+           1: x,
+           'logica_value': x
+        },
+        'CurrentTimestamp': {
+           'logica_value': 'Time'
+        },
+        'Coalesce': {
+           0: x,
+           1: x,
+           2: x,
+           3: x,
+           'logica_value': x
         }
     }
     types_of_predicate['<'] = types_of_predicate['<='] = types_of_predicate['>='] = types_of_predicate['>']

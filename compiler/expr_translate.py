@@ -57,9 +57,6 @@ class QL(object):
       'DateAddDay': 'DATE_ADD({0}, INTERVAL {1} DAY)',
       'DateDiffDay': 'DATE_DIFF({0}, {1}, DAY)',
       'Element': '{0}[OFFSET({1})]',
-      'Enumerate': ('ARRAY(SELECT STRUCT('
-                    'ROW_NUMBER() OVER () AS n, x AS element) '
-                    'FROM UNNEST(%s) as x)'),
       'IsNull': '(%s IS NULL)',
       'Join': 'ARRAY_TO_STRING(%s)',
       'Like': '({0} LIKE {1})',
@@ -238,7 +235,9 @@ class QL(object):
       return f.format(*args_list)
 
   def Infix(self, op, args):
-    return op % (args['left'], args['right'])
+    if '%s' in op:
+      return op % (args['left'], args['right'])
+    return op.format(**args)
 
   def Subscript(self, record, subscript, record_is_table):
     if isinstance(subscript, int):
@@ -249,7 +248,7 @@ class QL(object):
     return str(literal['number'])
 
   def StrLiteral(self, literal):
-    if self.dialect.Name() in ["PostgreSQL", "Presto", "Trino", "SqLite"]:
+    if self.dialect.Name() in ["PostgreSQL", "Presto", "Trino", "SqLite", "DuckDB"]:
       # TODO: Do this safely.
       return '\'%s\'' % (literal['the_string'].replace("'", "''"))
 
@@ -259,13 +258,22 @@ class QL(object):
     return ', '.join([self.ConvertToSql(e)
                       for e in literal['element']])
 
-  def ListLiteral(self, literal, element_type_name):
+  def ListLiteral(self, literal, element_type_name,
+                  full_expression):  # <-- for error.
+    internals = self.ListLiteralInternals(literal)
+    if self.dialect.IsPostgreSQLish() and not element_type_name:
+        raise self.exception_maker(
+          'Type is needed, but not determined for %s. Please give hints with ~ operator!' %
+          color.Warn(full_expression['expression_heritage']))
+
     suffix = ('::' + element_type_name + '[]'
-              if self.dialect.Name() == 'PostgreSQL'
+              if self.dialect.IsPostgreSQLish()
               else '')
-    return (
-      self.dialect.ArrayPhrase() %
-      self.ListLiteralInternals(literal)) + suffix
+    array_phrase = self.dialect.ArrayPhrase()
+    if self.convert_to_json:
+      array_phrase = '[%s]'
+      suffix = ''
+    return (array_phrase % internals) + suffix
 
   def BoolLiteral(self, literal):
     return literal['the_bool']
@@ -299,7 +307,7 @@ class QL(object):
       return self.ConvertToSql({'record': {'field_value': [
         {'field': k,
           'value': MakeSubscript(variable['var_name'], k)}
-        for k in sorted(expression_type)
+        for k in sorted(expression_type, key=StrIntKey)
       ]}})
     return expr    
 
@@ -350,8 +358,15 @@ class QL(object):
       assert record_type, json.dumps(record, indent=' ')
       args = ', '.join(
         self.ConvertToSql(f_v['value']['expression'])
-        for f_v in sorted(record['field_value'], key=lambda x: x['field']))
+        for f_v in sorted(record['field_value'],
+                          key=lambda x: StrIntKey(x['field'])))
       return 'ROW(%s)::%s' % (args, record_type)
+    if self.dialect.Name() == 'DuckDB':
+       arguments_str = ', '.join(
+          "%s: %s" % (f_v['field'],
+                      self.ConvertToSql(f_v['value']['expression']) )
+          for f_v in record['field_value'])
+       return '{%s}' % arguments_str
     return 'STRUCT(%s)' % arguments_str
 
   def GenericSqlExpression(self, record):
@@ -464,6 +479,9 @@ class QL(object):
     if 'literal' in expression and 'the_string' in expression['literal']:
       # To calm down PSQL:
       return f"({self.ConvertToSql(expression)} || '')"
+    if 'literal' in expression and 'the_number' in expression['literal']:
+      # To calm down DuckDB:
+      return f"{self.ConvertToSql(expression)} + 0"
     return self.ConvertToSql(expression)
 
   def ExpressionIsTable(self, expression):
@@ -499,7 +517,7 @@ class QL(object):
               'Array needs type in PostgreSQL: '
               '{warning}{the_list}{end}.', dict(
                   the_list=expression['expression_heritage'])))  
-        return self.ListLiteral(the_list, element_type)
+        return self.ListLiteral(the_list, element_type, expression)
       if 'the_bool' in literal:
         return self.BoolLiteral(literal['the_bool'])
       if 'the_null' in literal:
@@ -625,11 +643,25 @@ class QL(object):
         record_type=record_type)
 
     if 'combine' in expression:
-      return '(%s)' % (
+      combined_value = '(%s)' % (
           self.subquery_translator.TranslateRule(
               expression['combine'],
               self.vocabulary,
               is_combine=True))
+      if self.dialect.Name() == 'PostgreSQL':
+        # We need this for nirvana.
+        if 'combine_psql_type' not in expression['type']:
+          rendered_type = expression.get('type', {}).get('rendered_type', None)
+          raise self.exception_maker(color.Format(
+            'Aggregating expression needs type in PostgreSQL: {warning}{expr}{end} was '
+            'inferred only an incomplete type {warning}{type}{end}.', dict(
+              expr=expression['expression_heritage'],
+              type=rendered_type
+            )))
+        return 'CAST(%s AS %s)' % (combined_value,
+                                   expression['type']['combine_psql_type'])
+      return combined_value
+
 
     if 'implication' in expression:
       implication = expression['implication']
@@ -643,3 +675,10 @@ class QL(object):
     assert False, (
         'Logica bug: expression %s failed to compile for unknown reason.' %
         str(expression))
+
+def StrIntKey(k):
+  if isinstance(k, str):
+    return k
+  if isinstance(k, int):
+    return '%03d' % k
+  assert False, 'x:%s' % str(k)  

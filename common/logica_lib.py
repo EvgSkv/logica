@@ -17,21 +17,26 @@
 # Lint as: python3
 """Common utilities for Logica predicate compilation and execution."""
 
+import os
 import subprocess
 import sys
 
 if '.' not in __package__:
   from common import sqlite3_logica
+  from common import psql_logica
   from compiler import functors
   from compiler import rule_translate
   from compiler import universe
   from parser_py import parse
+  from type_inference.research import infer
 else:
   from ..common import sqlite3_logica
+  from ..common import psql_logica
   from ..compiler import functors
   from ..compiler import rule_translate
   from ..compiler import universe
   from ..parser_py import parse
+  from ..type_inference.research import infer
 
 
 def ParseOrExit(filename, import_root=None):
@@ -68,6 +73,17 @@ def RunQuery(sql,
              output_format='pretty', engine='bigquery'):
   """Run a SQL query on BigQuery."""
   settings = settings or {}
+  if engine == 'psql' and os.environ.get('LOGICA_PSQL_CONNECTION'):
+    connection_str = os.environ.get('LOGICA_PSQL_CONNECTION')
+    import psycopg2
+    from common import psql_logica
+    connection = psycopg2.connect(connection_str)
+    cursor = psql_logica.PostgresExecute(sql, connection)
+    rows = [list(map(psql_logica.DigestPsqlType, row))
+        
+            for row in cursor.fetchall()]
+    return sqlite3_logica.ArtisticTable([d[0] for d in cursor.description],
+                                        rows)
   if engine == 'bigquery':
     p = subprocess.Popen(['bq', 'query',
                           '--use_legacy_sql=false',
@@ -124,12 +140,24 @@ def RunQueryPandas(sql, engine, connection=None):
   import pandas
   if connection is None and engine == 'sqlite':
     connection = sqlite3_logica.SqliteConnect()
+  if connection is None and engine == 'duckdb':
+    import duckdb
+    connection = duckdb.connect()
   if connection is None:
     assert False, 'Connection is required for engines other than SQLite.'
   if engine == 'bigquery':
     return connection.query(sql).to_dataframe()
   elif engine == 'psql':
-    return pandas.read_sql(sql, connection)
+    cursor = connection.cursor()
+    cursor.execute(sql)
+    rows = cursor.fetchall()
+    df = pandas.DataFrame(
+      rows, columns=[d[0] for d in cursor.description])
+    df = df.applymap(psql_logica.DigestPsqlType)
+    return df
+  elif engine == 'duckdb':
+    import duckdb
+    return connection.sql(sql).df()
   elif engine == 'sqlite':
     statements = parse.SplitRaw(sql, ';')[:-1]
     if len(statements) > 1:
@@ -147,3 +175,49 @@ def RunPredicateToPandas(filename, predicate,
   sql = p.FormattedPredicateSql(predicate)
   engine = p.annotations.Engine()
   return RunQueryPandas(sql, engine, connection=connection)
+
+
+class SqlReceiver:
+  def __init__(self):
+    self.sql = None
+
+
+def CompilePredicateFromString(logica_string,
+                               predicate_name,
+                               user_flags=None):
+  try:
+    rules = parse.ParseFile(logica_string)['rule']
+  except parse.ParsingException as parsing_exception:
+    parsing_exception.ShowMessage()
+    sys.exit(1)
+  
+  try:
+    program = universe.LogicaProgram(rules, user_flags=user_flags)
+    sql = program.FormattedPredicateSql(predicate_name)
+    engine = program.execution.annotations.Engine()
+  except rule_translate.RuleCompileException as rule_compilation_exception:
+    rule_compilation_exception.ShowMessage()
+    sys.exit(1)
+  except functors.FunctorError as functor_exception:
+    functor_exception.ShowMessage()
+    sys.exit(1)
+  except infer.TypeErrorCaughtException as type_error_exception:
+    type_error_exception.ShowMessage()
+    sys.exit(1)
+  except parse.ParsingException as parsing_exception:
+    parsing_exception.ShowMessage()
+    sys.exit(1)
+  return sql, engine
+
+
+def RunPredicateFromString(logica_string,
+                           predicate_name,
+                           connection=None,
+                           user_flags=None,
+                           sql_receiver: SqlReceiver = None):
+  sql, engine = CompilePredicateFromString(logica_string, predicate_name,
+                                           user_flags)
+  if sql_receiver:
+    sql_receiver.sql = sql
+
+  return RunQueryPandas(sql, engine, connection)

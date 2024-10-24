@@ -42,7 +42,7 @@ else:
 class SqlRunner(object):
   def __init__(self, engine):
     self.engine = engine
-    assert engine in ['sqlite', 'bigquery', 'psql']
+    assert engine in ['sqlite', 'bigquery', 'psql', 'duckdb']
     if engine == 'sqlite':
       self.connection = sqlite3_logica.SqliteConnect()
     else:
@@ -58,7 +58,8 @@ class SqlRunner(object):
       credentials, project = None, None
     if engine == 'psql':
       self.connection = psql_logica.ConnectToPostgres('environment')
-
+    if engine == 'duckdb':
+      self.connection = None  # No connection needed!
     self.bq_credentials = credentials
     self.bq_project = project
   
@@ -101,12 +102,22 @@ def RunSQL(sql, engine, connection=None, is_final=False,
       print(sql)
       print("Error while executing SQL:\n%s" % e)
       raise e
+  elif engine == 'duckdb':
+    import duckdb
+    if is_final:
+      import duckdb
+      cur = duckdb.sql(sql)
+      return cur.columns, cur.fetchall()
+    else:
+      duckdb.sql(sql)
+    
   else:
     raise Exception('Logica only supports BigQuery, PostgreSQL and SQLite '
                     'for now.')
 
 
-def Run(filename, predicate_name):
+def Run(filename, predicate_name,
+        output_format='artistic_table', display_mode='terminal'):
   try:
     rules = parse.ParseFile(open(filename).read())['rule']
   except parse.ParsingException as parsing_exception:
@@ -123,7 +134,7 @@ def Run(filename, predicate_name):
 
     (header, rows) = concertina_lib.ExecuteLogicaProgram(
         [program.execution], SqlRunner(engine), engine,
-        display_mode='terminal')[predicate_name]
+        display_mode=display_mode)[predicate_name]
   except rule_translate.RuleCompileException as rule_compilation_exception:
     rule_compilation_exception.ShowMessage()
     sys.exit(1)
@@ -134,5 +145,10 @@ def Run(filename, predicate_name):
     type_error_exception.ShowMessage()
     sys.exit(1)
 
-  artistic_table = sqlite3_logica.ArtisticTable(header, rows)
-  return artistic_table
+  if output_format == 'artistic_table':
+    artistic_table = sqlite3_logica.ArtisticTable(header, rows)
+    return artistic_table
+  elif output_format == 'header_rows':
+    return header, rows
+  else:
+    assert False, 'Unknown output format: %s' % output_format

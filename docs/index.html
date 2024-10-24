@@ -266,18 +266,14 @@ syntax is suited for it naturally. Here is a program finding prime numbers
 that are less than 100.
 
 <div class="code">
-# Define natural numbers from 0 to 99.
-N(x) :- x in Range(100);
-# Define primes.
-Prime(prime: x) :-
-  N(x),
-  x > 1,
-  ~(
-    N(y),
-    y > 1,
-    y != x,
-    x % y == 0
-  );
+  # Define numbers 1 to 30.
+  Number(x + 1) :- x in Range(30);
+  
+  # Defining composite numbers.
+  Composite(a * b) distinct :- Number(a), Number(b), a > 1, b > 1;
+  
+  # Defining primes as "not composite".
+  Prime(n) distinct :- Number(n), n > 1, ~Composite(n);
 </div>
 
 <p>
@@ -329,7 +325,8 @@ via BigQuery.
 Logica is for engineers, data scientists and other specialists who 
 need to perform complex data processing and analysis.
 Queries and pipelines written in Logica can run on
-<a href="https://cloud.google.com/bigquery">BigQuery</a> and <a href="https://sqlite.org/index.html">SQLite</a> engines.
+<a href="https://cloud.google.com/bigquery">BigQuery</a>, <a href="https://sqlite.org/index.html">SQLite</a>
+and <a href="https://www.postgresql.org/">PostgreSQL</a> engines.
 Information stored in these systems is thus available in Logica.
 
 
@@ -347,11 +344,11 @@ We encourage you to try Logica, especially if
 
 <ul>
   <li>   you already use logic programming and need more computational power, or </li>
-  <li>   you use SQL, but feel unsatisfied about its readability, or </li>
+  <li>   you already have data in BigQuery, PostgreSQL or SQLite, or </li>
   <li>   you want to learn logic programming and apply it to processing of Big Data.</li>
 </ul>
 
-Among other engines, there is partial support for Trino and Postgres.
+Among other engines, there is partial support for Trino and Databricks.
 Contributions to improve this support are
 <a href="https://github.com/EvgSkv/logica/discussions">very welcome</a>!
 

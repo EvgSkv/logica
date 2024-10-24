@@ -42,6 +42,7 @@ OPENING_PARENTHESIS = list(CLOSE_TO_OPEN.values())
 
 VARIABLE_CHARS_SET = set(string.ascii_lowercase) | set('_') | set(string.digits)
 
+TOO_MUCH = 'too much'
 
 class HeritageAwareString(str):
   """A string that remembers who's substring it is."""
@@ -119,6 +120,13 @@ class ParsingException(Exception):
                             after=after)), file=stream)
     print(
         color.Format('\n[ {error}Error{end} ] ') + str(self), file=stream)
+
+
+def EnactIncantations(main_code):
+  """Enabling experimental syntax features."""
+  global TOO_MUCH
+  if 'Signa inter verba conjugo, symbolum infixus evoco!' in main_code:
+    TOO_MUCH = 'fun'
 
 
 def FunctorSyntaxErrorMessage():
@@ -466,7 +474,8 @@ def ParseRecordInternals(s,
                   'value': {
                       'aggregation': {
                           'operator': operator,
-                          'argument': ParseExpression(expression)
+                          'argument': ParseExpression(expression),
+                          'expression_heritage': value
                       }
                   }
               })
@@ -499,6 +508,9 @@ def ParseVariable(s: HeritageAwareString):
 def ParseNumber(s: HeritageAwareString):
   if s[-1:] == 'u':
     s = s[:-1]
+  # Parsing infinity as -1 for recursion depth.
+  if s == '∞':
+    return {'number': '-1'}
   try:
     float(s)
   except ValueError:
@@ -576,14 +588,24 @@ def ParseLiteral(s):
     return {'the_predicate': v}
 
 
-def ParseInfix(s, operators=None):
+def ParseInfix(s, operators=None, disallow_operators=None):
   """Parses an infix operator expression."""
-  operators = operators or [
+  if TOO_MUCH == 'fun':
+    user_defined_operators = ['---', '-+-', '-*-', '-/-', '-%-', '-^-',
+                              '\u25C7', '\u25CB', '\u2661']
+  else:
+    user_defined_operators = []
+
+  operators = operators or (user_defined_operators + [
       '||', '&&', '->', '==', '<=', '>=', '<', '>', '!=', '=', '~',
       ' in ', ' is not ', ' is ', '++?', '++', '+', '-', '*', '/', '%',
-      '^', '!']
+      '^', '!'])
+  # We disallow ~ in expressions.
+  disallow_operators = disallow_operators or []
   unary_operators = ['-', '!']
   for op in operators:
+    if op in disallow_operators:
+      continue
     parts = SplitRaw(s, op)
     if len(parts) > 1:
       # Right is the rightmost operand and left are all the other operands.
@@ -591,6 +613,10 @@ def ParseInfix(s, operators=None):
       # a / b / c -> (a / b) / c
       left, right = (
           s[:parts[-2].stop - s.start], s[parts[-1].start - s.start:])
+      # Prefer doing specialcasing to introducing unary `!~`.
+      if op == '~' and len(left) > 0 and left[-1] =='!':
+        # This is !~.
+        continue
       left = Strip(left)
       right = Strip(right)
       if op in unary_operators and not left:
@@ -627,7 +653,8 @@ def BuildTreeForCombine(parsed_expression, operator, parsed_body, full_text):
       'value': {
           'aggregation': {
               'operator': operator,
-              'argument': parsed_expression
+              'argument': parsed_expression,
+              'expression_heritage': full_text
           }
       }
   }
@@ -701,7 +728,8 @@ def ParseConciseCombine(s: HeritageAwareString):
       return {
           'left_hand_side': left_expr,
           'right_hand_side': {
-              'combine': right_expr
+              'combine': right_expr,
+              'expression_heritage': s
           }
       }
 
@@ -723,6 +751,21 @@ def ParseImplication(s):
       })
     last_else_parsed = ParseExpression(last_else)
     return {'if_then': result_if_thens, 'otherwise': last_else_parsed}
+
+
+def ParseUltraConciseCombine(s):
+  aggregation_call = ParseGenericCall(s, '{', '}')
+  if aggregation_call:
+    aggregating_function, multiset_rule_str = aggregation_call
+    _, value_body = SplitInOneOrTwo(multiset_rule_str, ':-')
+    if value_body:
+      value, body = value_body
+    else:
+      value = multiset_rule_str
+      body = None
+    parsed_expression = ParseExpression(value)
+    parsed_body = ParseConjunction(body, allow_singleton=True) if body else None
+    return BuildTreeForCombine(parsed_expression, aggregating_function, parsed_body, s)
 
 
 def ParseExpression(s):
@@ -750,7 +793,10 @@ def ActuallyParseExpression(s):
   v = ParseCall(s, is_aggregation_allowed=False)
   if v:
     return {'call': v}
-  v = ParseInfix(s)
+  v = ParseUltraConciseCombine(s)
+  if v:
+    return {'combine': v}
+  v = ParseInfix(s, disallow_operators='~')
   if v:
     return {'call': v}
   v = ParseSubscript(s)
@@ -791,6 +837,8 @@ def ParseGenericCall(s, opening, closing):
             set(string.ascii_letters) |
             set(['@', '_', '.', '$', '{', '}', '+', '-', '`']) |
             set(string.digits))
+        if TOO_MUCH == 'fun':
+          good_chars |= set(['*', '^', '%', '/', '\u25C7', '\u25CB', '\u2661'])
         if ((idx > 0 and set(s[:idx]) <= good_chars) or
             s[:idx] == '!' or
             s[:idx] == '++?' or
@@ -886,6 +934,13 @@ def ParseProposition(s):
   c = ParseConjunction(s, allow_singleton=False)
   if len(str_conjuncts) > 1:
     return {'conjunction': c}
+  if TOO_MUCH == 'fun':
+    c = ParsePropositionalEquivalence(s)
+    if c:
+      return {'conjunction': {'conjunct': [c]}}
+    c = ParsePropositionalImplication(s)
+    if c:
+      return {'conjunction': {'conjunct': [c]}}
 
   c = ParseImplication(s)
   if c:
@@ -937,6 +992,45 @@ def ParseDisjunction(s):
   return {'disjunct': disjuncts}
 
 
+def ParsePropositionalImplication(s):
+  str_implicants = Split(s, '=>')
+  if len(str_implicants) != 2:
+    return None
+  condition_str, consequence_str = str_implicants
+  condition = ParseProposition(condition_str)
+  consequence = ParseProposition(consequence_str)
+  return PropositionalImplication(s, str_implicants[1], condition, consequence)
+
+
+def PropositionalImplication(s, consequence_str, condition, consequence):
+  def EnsureConjunction(x):
+    if 'conjunction' in x:
+      return x
+    return {'conjunction': {'conjunct': [x]}}
+  if 'conjunction' in condition:
+    conjuncts = condition['conjunction']['conjunct']
+  else:
+    conjuncts = [condition]
+  conjuncts += [NegationTree(consequence_str, EnsureConjunction(consequence))]
+  return NegationTree(
+    s, {'conjunction': {'conjunct': conjuncts}})
+
+
+def ParsePropositionalEquivalence(s):
+  str_equivalents = Split(s, '<=>')
+  if len(str_equivalents) != 2:
+    return None
+  left_str, right_str = str_equivalents
+  left1 = ParseProposition(left_str)
+  right1 = ParseProposition(right_str)
+  # Each object must be distinct for later rewrites not to be confused.
+  left2 = ParseProposition(left_str)
+  right2 = ParseProposition(right_str)
+  return {'conjunction': {'conjunct': [
+    PropositionalImplication(s, right_str, left1, right1),
+    PropositionalImplication(s, left_str, right2, left2)]}}
+
+
 def ParseNegationExpression(s: HeritageAwareString):
   proposition = ParseNegation(s)
   if not proposition:
@@ -960,7 +1054,9 @@ def ParseNegation(s: HeritageAwareString):
   negated_proposition = {
       'conjunction': ParseConjunction(negated, allow_singleton=True)
   }
+  return NegationTree(s, negated_proposition)
 
+def NegationTree(s, negated_proposition):
   number_one = {
       'literal': {
           'the_number': {
@@ -989,7 +1085,8 @@ def ParseNegation(s: HeritageAwareString):
                                           'value': {
                                               'aggregation': {
                                                   'operator': 'Min',
-                                                  'argument': number_one
+                                                  'argument': number_one,
+                                                  'expression_heritage': s
                                               }
                                           }
                                       }]
@@ -1064,7 +1161,8 @@ def ParseHeadCall(s):
       'value': {
           'aggregation': {
               'operator': operator_str,
-              'argument': ParseExpression(expression_str)
+              'argument': ParseExpression(expression_str),
+              'expression_heritage': post_call_str
           }
       }
   }
@@ -1154,8 +1252,10 @@ def ParseRule(s: HeritageAwareString) -> Dict:
               'distinct_denoted': True}
   if len(parts) == 2:
     body = parts[1]
-    result['body'] = {'conjunction': ParseConjunction(body,
-                                                      allow_singleton=True)}
+    result['body'] = ParseProposition(body)
+    # Old style, which has incorrect priority of logical operands:
+    # result['body'] = {'conjunction': ParseConjunction(body,
+    #                                                   allow_singleton=True)}
   result['full_text'] = s  # For error messages.
   return result
 
@@ -1278,6 +1378,14 @@ class MultiBodyAggregation(object):
   """This is a namespace for multi-body-aggregation processing functions."""
 
   SUFFIX = '_MultBodyAggAux'
+  @classmethod
+  def StripHeritage(cls, field_values):
+    """Removing hertiage for comparison."""
+    result = copy.deepcopy(field_values)
+    for fv in result:
+      if 'aggregation' in fv['value']:
+        del fv['value']['aggregation']['expression_heritage']
+    return result
 
   @classmethod
   def Rewrite(cls, rules):
@@ -1297,7 +1405,8 @@ class MultiBodyAggregation(object):
         aggregation, new_rule = cls.SplitAggregation(rule)
         if name in aggregation_field_values_per_predicate:
           expected_aggregation = aggregation_field_values_per_predicate[name]
-          if expected_aggregation != aggregation:
+          strip = cls.StripHeritage
+          if strip(expected_aggregation) != strip(aggregation):
             raise ParsingException(
                 'Signature differs for bodies of >>%s<<. '
                 'Signatures observed: >>%s<<' % (name,
@@ -1372,7 +1481,8 @@ class MultiBodyAggregation(object):
                         'variable': {
                             'var_name': field_value['field']
                         }
-                    }
+                    },
+                    'expression_heritage': field_value['value']['aggregation']['expression_heritage']
                 }
             }
         }
@@ -1451,7 +1561,7 @@ class DisjunctiveNormalForm(object):
     result = []
     for conjuncts in dnf:
       new_rule = copy.deepcopy(rule)
-      new_rule['body']['conjunction']['conjunct'] = copy.deepcopy(conjuncts)
+      new_rule['body'] = {'conjunction': {'conjunct': copy.deepcopy(conjuncts)}}
       result.append(new_rule)
     return result
 
@@ -1472,6 +1582,8 @@ class AggergationsAsExpressions(object):
       return 'Agg+'
     if raw_operator == '++':
       return 'Agg++'
+    if raw_operator == '*':
+      return '`*`'
     return raw_operator
 
   @classmethod
@@ -1489,7 +1601,8 @@ class AggergationsAsExpressions(object):
                     }
                 ]
             }
-        }
+        },
+        'expression_heritage': a['expression_heritage']
     }
 
   @classmethod
@@ -1525,6 +1638,9 @@ class AggergationsAsExpressions(object):
 def ParseFile(s, this_file_name=None, parsed_imports=None, import_chain=None,
               import_root=None):
   """Parsing logica.Logica."""
+  if (this_file_name or 'main') == 'main':
+    # Enable experimental features if requested.
+    EnactIncantations(s)
   s = HeritageAwareString(RemoveComments(HeritageAwareString(s)))
   parsed_imports = parsed_imports or {}
   this_file_name = this_file_name or 'main'
@@ -1584,7 +1700,7 @@ def ParseFile(s, this_file_name=None, parsed_imports=None, import_chain=None,
         existing_prefixes.add(some_parsed_import['predicates_prefix'])
     parts = this_file_name.split('.')
     idx = -1
-    this_file_prefix = parts[idx] + '_'
+    this_file_prefix = parts[idx].capitalize() + '_'
     while this_file_prefix in existing_prefixes:
       idx -= 1
       assert idx > 0, (

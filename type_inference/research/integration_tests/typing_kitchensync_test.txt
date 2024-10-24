@@ -920,6 +920,7 @@
                   ]
                  }
                 },
+                "expression_heritage": "overview List= (\n    {item:, quantity:} :-\n    quantity = (\n        if num > 9 then\n          \"large\"\n        else\n          \"small\"\n    ),\n    num > 5,\n    {item:, num:} in items\n  )",
                 "type": {
                  "element_type_name": "logicarecord980116590",
                  "rendered_type": "[{item: Str, quantity: Str}]",
@@ -931,7 +932,8 @@
                  ],
                  "type_id": 7
                 }
-               }
+               },
+               "expression_heritage": "overview List= (\n    {item:, quantity:} :-\n    quantity = (\n        if num > 9 then\n          \"large\"\n        else\n          \"small\"\n    ),\n    num > 5,\n    {item:, num:} in items\n  )"
               }
              }
             }
@@ -939,7 +941,9 @@
           }
          }
         },
+        "expression_heritage": "overview List= (\n    {item:, quantity:} :-\n    quantity = (\n        if num > 9 then\n          \"large\"\n        else\n          \"small\"\n    ),\n    num > 5,\n    {item:, num:} in items\n  )",
         "type": {
+         "combine_psql_type": "logicarecord980116590[]",
          "element_type_name": "logicarecord980116590",
          "rendered_type": "[{item: Str, quantity: Str}]",
          "the_type": [

@@ -48,6 +48,7 @@ if __name__ == '__main__' and not __package__:
   from compiler import universe
   from parser_py import parse
   from type_inference.research import infer
+  from type_inference import type_retrieval_service_discovery
 else:
   from .common import color
   from .common import sqlite3_logica
@@ -56,6 +57,7 @@ else:
   from .compiler import universe
   from .parser_py import parse
   from .type_inference.research import infer
+  from .type_inference import type_retrieval_service_discovery
 
 
 def ReadUserFlags(rules, argv):
@@ -149,7 +151,7 @@ def main(argv):
   command = argv[2]
 
   commands = ['parse', 'print', 'run', 'run_to_csv', 'run_in_terminal',
-              'infer_types', 'show_signatures']
+              'infer_types', 'show_signatures', 'build_schema']
 
   if command not in commands:
     print(color.Format('Unknown command {warning}{command}{end}. '
@@ -160,8 +162,12 @@ def main(argv):
     print('File not found: %s' % filename, file=sys.stderr)
     return 1
 
+  # This has to be before reading program.
   if command == 'run_in_terminal':
-    from tools import run_in_terminal
+    if __name__ == '__main__' and not __package__:
+      from tools import run_in_terminal
+    else:
+      from .tools import run_in_terminal
     artistic_table = run_in_terminal.Run(filename, predicates)
     print(artistic_table)
     return
@@ -181,7 +187,11 @@ def main(argv):
     return 0
 
   if command == 'infer_types':
-    typing_engine = infer.TypesInferenceEngine(parsed_rules)
+    # This disallows getting types of program with type errors.
+    # logic_program = universe.LogicaProgram(parsed_rules)
+    # TODO: Find a way to get engine from program. But it should not matter
+    # for inference. It only patters for compiling.
+    typing_engine = infer.TypesInferenceEngine(parsed_rules, "psql")
     typing_engine.InferTypes()
     # print(parsed_rules)
     print(json.dumps(parsed_rules, sort_keys=True, indent=' '))
@@ -199,9 +209,18 @@ def main(argv):
     print(logic_program.typing_engine.ShowPredicateTypes())
     return 0
 
+  predicates_list = predicates.split(',')
+
   user_flags = ReadUserFlags(parsed_rules, argv[4:])
 
-  predicates_list = predicates.split(',')
+  if command == 'build_schema':
+    logic_program = universe.LogicaProgram(parsed_rules, user_flags=user_flags)
+    engine = logic_program.annotations.Engine()
+    type_retrieval_service = type_retrieval_service_discovery\
+      .get_type_retrieval_service(engine, parsed_rules, predicates_list)
+    type_retrieval_service.RetrieveTypes(filename)
+    return 0
+
   for predicate in predicates_list:
     try:
       logic_program = universe.LogicaProgram(
@@ -219,7 +238,9 @@ def main(argv):
     except infer.TypeErrorCaughtException as type_error_exception:
       type_error_exception.ShowMessage()
       sys.exit(1)
-      
+    except parse.ParsingException as parsing_exception:
+      parsing_exception.ShowMessage()
+      sys.exit(1)
 
     if command == 'print':
       print(formatted_sql)
@@ -242,13 +263,31 @@ def main(argv):
           [preamble] + defines_and_exports + [main_predicate_sql])
         o = sqlite3_logica.RunSqlScript(statements_to_execute,
                                         format).encode()
+      elif engine == 'duckdb':
+        import duckdb
+        cur = duckdb.sql(formatted_sql)
+        o = sqlite3_logica.ArtisticTable(cur.columns,
+                                         cur.fetchall()).encode()
       elif engine == 'psql':
-        p = subprocess.Popen(['psql', '--quiet'] +
-                             (['--csv'] if command == 'run_to_csv' else []),
-                             stdin=subprocess.PIPE, stdout=subprocess.PIPE)
-        commands = []
-        o, _ = p.communicate(
-            '\n'.join(commands + [formatted_sql]).encode())
+        connection_str = os.environ.get('LOGICA_PSQL_CONNECTION')
+        if connection_str:
+          connection_str = os.environ.get('LOGICA_PSQL_CONNECTION')
+          import psycopg2
+          from common import psql_logica
+          connection = psycopg2.connect(connection_str)
+          cursor = psql_logica.PostgresExecute(formatted_sql, connection)
+          rows = [list(map(psql_logica.DigestPsqlType, row))
+              
+                  for row in cursor.fetchall()]
+          o = sqlite3_logica.ArtisticTable([d[0] for d in cursor.description],
+                                           rows).encode()
+        else:
+          p = subprocess.Popen(['psql', '--quiet'] +
+                              (['--csv'] if command == 'run_to_csv' else []),
+                              stdin=subprocess.PIPE, stdout=subprocess.PIPE)
+          commands = []
+          o, _ = p.communicate(
+              '\n'.join(commands + [formatted_sql]).encode())
       elif engine == 'trino':
         a = logic_program.annotations.annotations['@Engine']['trino']
         params = GetTrinoParameters(a)

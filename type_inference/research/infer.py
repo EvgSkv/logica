@@ -95,6 +95,10 @@ def ExpressionsIterator(node):
     if f in node:
       yield node[f]
   
+  # For inference in structures.
+  if 'constraints' in node:
+    for x in node['constraints']:
+      yield x
   if 'record' in node and 'field_value' not in node['record']:
   # if 'record' in node and 'expression_heritage' in node:
     yield node['record']
@@ -146,7 +150,7 @@ def ActRecallingTypes(node):
     )
 
 class TypesInferenceEngine:
-  def __init__(self, parsed_rules):
+  def __init__(self, parsed_rules, dialect):
     self.parsed_rules = parsed_rules
     self.predicate_argumets_types = {}
     self.dependencies = BuildDependencies(self.parsed_rules)
@@ -155,9 +159,10 @@ class TypesInferenceEngine:
     self.predicate_signature = types_of_builtins.TypesOfBultins()
     self.typing_preamble = None
     self.collector = None
+    self.dialect = dialect
 
   def CollectTypes(self):
-    collector = TypeCollector(self.parsed_rules)
+    collector = TypeCollector(self.parsed_rules, self.dialect)
     collector.CollectTypes()
     self.typing_preamble = collector.typing_preamble
     self.collector = collector
@@ -404,14 +409,14 @@ class TypeInferenceForRule:
         field_name = fv['field']
         reference_algebra.UnifyRecordField(
           record_type, field_name, field_type)
-      # print('>>>', node)
+        # print('>>>', node)
 
       node['type']['the_type'].CloseRecord()
 
   def ActMindingTypingPredicateLiterals(self, node):
     if 'type' in node and 'literal' in node and 'the_predicate' in node['literal']:
       predicate_name = node['literal']['the_predicate']['predicate_name']
-      if predicate_name in ['Str', 'Num', 'Bool']:
+      if predicate_name in ['Str', 'Num', 'Bool', 'Time']:
         reference_algebra.Unify(node['type']['the_type'],
                                 reference_algebra.TypeReference(predicate_name))
 
@@ -421,6 +426,9 @@ class TypeInferenceForRule:
       for e in node['literal']['the_list']['element']:
         reference_algebra.UnifyListElement(
           list_type, e['type']['the_type'])
+      else:
+        reference_algebra.UnifyListElement(
+          list_type, reference_algebra.TypeReference('Any'))
 
   def ActMindingInclusion(self, node):
     if 'inclusion' in node:
@@ -484,13 +492,16 @@ def RenderPredicateSignature(predicate_name, signature):
 
 
 class TypeInferenceForStructure:
-  def __init__(self, structure, signatures):
+  def __init__(self, structure, signatures, dialect):
     self.structure = structure
     self.signatures = signatures
     self.collector = None
+    self.quazy_rule = None
+    self.dialect = dialect
 
   def PerformInference(self):
     quazy_rule = self.BuildQuazyRule()
+    self.quazy_rule = quazy_rule
     Walk(quazy_rule, ActRememberingTypes)
     Walk(quazy_rule, ActClearingTypes)
     inferencer = TypeInferenceForRule(quazy_rule, self.signatures)
@@ -498,7 +509,7 @@ class TypeInferenceForStructure:
     Walk(quazy_rule, ActRecallingTypes)
 
     Walk(quazy_rule, ConcretizeTypes)
-    collector = TypeCollector([quazy_rule])
+    collector = TypeCollector([quazy_rule], self.dialect)
     collector.CollectTypes()
     self.collector = collector
 
@@ -649,13 +660,15 @@ def RecordTypeName(type_render):
   return 'logicarecord%d' % (Fingerprint(type_render) % 1000000000)
 
 class TypeCollector:
-  def __init__(self, parsed_rules):
+  def __init__(self, parsed_rules, dialect):
     self.parsed_rules = parsed_rules
     self.type_map = {}
     self.psql_struct_type_name = {}
     self.psql_type_definition = {}
     self.definitions = []
     self.typing_preamble = ''
+    self.psql_type_cache = {}
+    self.dialect = dialect
 
   def ActPopulatingTypeMap(self, node):
     if 'type' in node:
@@ -663,6 +676,10 @@ class TypeCollector:
       t_rendering = reference_algebra.RenderType(t)
       self.type_map[t_rendering] = t
       node['type']['rendered_type'] = t_rendering
+      if 'combine' in node and reference_algebra.IsFullyDefined(t):
+        node['type']['combine_psql_type'] = self.PsqlType(t)
+      if reference_algebra.IsFullyDefined(t):
+        self.psql_type_cache[t_rendering] = self.PsqlType(t)
       if isinstance(t, dict) and reference_algebra.IsFullyDefined(t):
         node['type']['type_name'] = RecordTypeName(t_rendering)
       if isinstance(t, list) and reference_algebra.IsFullyDefined(t):
@@ -686,6 +703,8 @@ class TypeCollector:
       return 'numeric'
     if t == 'Bool':
       return 'bool'
+    if t == 'Time':
+      return 'timestamp'
     if isinstance(t, dict):
       return RecordTypeName(reference_algebra.RenderType(t))
     if isinstance(t, list):
@@ -695,22 +714,54 @@ class TypeCollector:
 
   def BuildPsqlDefinitions(self):
     for t in self.psql_struct_type_name:
-      arg_name = lambda x: x if isinstance(x, str) else 'col%d' % x
+      arg_name = lambda x: (
+        '"cast"' if x == 'cast'  # Escaping keyword.
+        else (x if isinstance(x, str) else 'col%d' % x))
       args = ', '.join(
         arg_name(f) + ' ' + self.PsqlType(v)
-        for f, v in sorted(self.type_map[t].items())
+        for f, v in sorted(self.type_map[t].items(),
+                           key=reference_algebra.StrIntKey)
       )
-      self.psql_type_definition[t] = f'create type %s as (%s);' % (
-        self.psql_struct_type_name[t], args)
+      dialect_interjection = ''
+      if self.dialect == 'duckdb':
+        dialect_interjection = 'struct'
+      self.psql_type_definition[t] = f'create type %s as %s(%s);' % (
+        self.psql_struct_type_name[t],
+        dialect_interjection,
+        args)
 
-    wrap = lambda n, d: (
-      f"-- Logica type: {n}\n" +
-      f"if not exists (select 'I(am) :- I(think)' from pg_type where typname = '{n}') then {d} end if;"
-    )
+    if self.dialect in ['psql', 'sqlite', 'bigquery']:
+      wrap = lambda n, d: (
+        f"-- Logica type: {n}\n" +
+        f"if not exists (select 'I(am) :- I(think)' from pg_type where typname = '{n}') then {d} end if;"
+      )
+    elif self.dialect == 'duckdb':
+      wrap = lambda n, d: (
+        f"-- Logica type: {n}\n" +
+        f"drop type if exists {n} cascade; {d}\n"
+      )
+    else:
+      assert False, 'Unknown psql dialect: ' + self.dialect
+    
     self.definitions = {
       t: wrap(self.psql_struct_type_name[t], self.psql_type_definition[t])
-      for t in sorted(self.psql_struct_type_name, key=len)}
-    self.typing_preamble = BuildPreamble(self.definitions)
+      for t in sorted(self.psql_struct_type_name, key=len)
+      if self.psql_struct_type_name[t] not in ['logicarecord893574736']}
+    self.typing_preamble = BuildPreamble(self.definitions, self.dialect)
 
-def BuildPreamble(definitions):
+def BuildPreamble(definitions, dialect):
+  if dialect in ['psql', 'sqlite', 'bigquery']:
     return 'DO $$\nBEGIN\n' + '\n'.join(definitions.values()) + '\nEND $$;\n'
+  elif dialect == 'duckdb':
+    return '\n'.join(definitions.values())
+  else:
+    assert False, 'Unknown psql dialect: ' + dialect
+
+def ArgumentNames(signature):
+  result = []
+  for v in signature:
+    if isinstance(v, int):
+      result.append('col%d' % v)
+    else:
+      result.append(v)
+  return result

@@ -47,7 +47,8 @@ else:
 PredicateInfo = collections.namedtuple('PredicateInfo',
                                        ['embeddable'])
 Ground = collections.namedtuple('Ground',
-                                ['table_name', 'overwrite'])
+                                ['table_name', 'overwrite',
+                                 'copy_to_file'])
 
 xrange = range
 
@@ -92,6 +93,7 @@ class Logica(object):
     self.main_predicate = None
     self.used_predicates = []
     self.dependencies_of = None
+    self.iterations = None
 
   def AddDefine(self, define):
     self.defines.append(define)
@@ -101,11 +103,30 @@ class Logica(object):
         self.custom_udf_definitions[f]
         for f in self.dependencies_of[predicate_name]
         if f in self.custom_udf_definitions]))
+    needed_semigroups = []
+    for f in self.dependencies_of[predicate_name]:
+      if f in self.custom_aggregation_semigroup:
+        semigroup = (
+          self.custom_udf_definitions[self.custom_aggregation_semigroup[f]])
+        needed_semigroups.append(semigroup)
+        if semigroup in needed_udfs:
+          needed_udfs.remove(semigroup)
+    needed_udfs = needed_semigroups + needed_udfs
     return '\n'.join(needed_udfs)
 
   def NeededUdfDefinitions(self):
-    return list(sorted([self.custom_udf_definitions[f]
-            for f in self.used_predicates if f in self.custom_udf_definitions]))
+    needed_udfs = list(sorted([
+      self.custom_udf_definitions[f]
+      for f in self.used_predicates if f in self.custom_udf_definitions]))
+    needed_semigroups = set()
+    for f in self.used_predicates:
+      if f in self.custom_aggregation_semigroup:
+        semigroup_definition = self.custom_udf_definitions[self.custom_aggregation_semigroup[f]]
+        needed_semigroups.add(semigroup_definition)
+        if semigroup_definition in needed_udfs:
+          needed_udfs.remove(semigroup_definition)  # Will come as a semigroup.
+    needed_udfs = list(needed_semigroups) + needed_udfs
+    return needed_udfs
 
   def FullPreamble(self):
     return '\n'.join([self.flags_comment] + [self.preamble] + self.defines)
@@ -131,7 +152,7 @@ class Annotations(object):
       '@Limit', '@OrderBy', '@Ground', '@Flag', '@DefineFlag',
       '@NoInject', '@Make', '@CompileAsTvf', '@With', '@NoWith',
       '@CompileAsUdf', '@ResetFlagValue', '@Dataset', '@AttachDatabase',
-      '@Engine', '@Recursive'
+      '@Engine', '@Recursive', '@Iteration', '@BareAggregation'
   ]
 
   def __init__(self, rules, user_flags):
@@ -161,7 +182,24 @@ class Annotations(object):
       preamble += (
           '-- Initializing PostgreSQL environment.\n'
           'set client_min_messages to warning;\n'
-          'create schema if not exists logica_home;\n\n')
+          'create schema if not exists logica_home;\n'
+          '-- Empty logica type: logicarecord893574736;\n'
+          "DO $$ BEGIN if not exists (select 'I(am) :- I(think)' from pg_type where typname = 'logicarecord893574736') then create type logicarecord893574736 as (nirvana numeric); end if; END $$;\n\n")
+    elif self.Engine() == 'duckdb':
+      preamble += (
+          '-- Initializing DuckDB environment.\n'
+          'create schema if not exists logica_home;\n'
+          '-- Empty record, has to have a field by DuckDB syntax.\n'
+          'drop type if exists logicarecord893574736 cascade; create type logicarecord893574736 as struct(nirvana numeric);\n'
+      )
+      if self.annotations['@Engine']['duckdb'].get('motherduck'):
+        preamble += '\n'  # Sequences are not supported in MotherDuck.
+      else:
+        preamble += (
+          'create sequence if not exists eternal_logical_sequence;\n\n')
+      if self.annotations['@Engine']['duckdb'].get('threads'):
+        threads = int(self.annotations['@Engine']['duckdb'].get('threads'))
+        preamble += 'set threads to %d;\n' % threads
     return preamble
 
   def BuildFlagValues(self):
@@ -212,9 +250,12 @@ class Annotations(object):
     return result
 
   def AttachDatabaseStatements(self):
-    return '\n'.join(
-        'ATTACH DATABASE \'%s\' AS %s;' % (v, k)
-        for k, v in self.AttachedDatabases().items())
+    lines = []
+    for k, v in self.AttachedDatabases().items():
+      if self.Engine() == 'duckdb':
+        lines.append('DETACH DATABASE IF EXISTS %s;' % k)
+      lines.append('ATTACH DATABASE \'%s\' AS %s;' % (v, k))
+    return '\n'.join(lines)
 
   def CompileAsUdf(self, predicate_name):
     result = predicate_name in self.annotations['@CompileAsUdf']
@@ -234,6 +275,25 @@ class Annotations(object):
     signature = ', '.join('%s ANY TABLE' % a for a in arguments)
     return 'CREATE TEMP TABLE FUNCTION %s(%s) AS ' % (predicate_name,
                                                       signature)
+
+  def Iterations(self):
+    result = {}
+    for iteration_name, args in self.annotations['@Iteration'].items():
+      if 'predicates' not in args:
+        raise rule_translate.RuleCompileException(
+          'Iteration must specify list of predicates.',
+          self.annotations['@Iteration'][iteration_name]['__rule_text']
+        )
+      if 'repetitions' not in args:
+        raise rule_translate.RuleCompileException(
+          'Iteration must specify number of repetitions.',
+          self.annotations['@Iteration'][iteration_name]['__rule_text']
+        )
+      predicates = [p['predicate_name'] for p in args['predicates']]
+      result[iteration_name] = {'predicates': predicates,
+                                'repetitions': args['repetitions'],
+                                'stop_signal': args.get('stop_signal')}
+    return result
 
   def LimitOf(self, predicate_name):
     """Limit of the query corresponding to the predicate as per annotation."""
@@ -255,7 +315,9 @@ class Annotations(object):
   def Dataset(self):
     default_dataset = 'logica_test'
     # This change is intended for all engines in the future.
-    if self.Engine() == 'psql':
+    if self.Engine() in ['psql', 'duckdb']:
+      default_dataset = 'logica_home'
+    if self.Engine() == 'sqlite' and 'logica_home' in self.AttachedDatabases():
       default_dataset = 'logica_home'
     return self.ExtractSingleton('@Dataset', default_dataset)
 
@@ -276,7 +338,7 @@ class Annotations(object):
     
     engine_annotation = list(self.annotations['@Engine'].values())[0]
     if 'type_checking' not in engine_annotation:
-      if engine == 'psql':
+      if engine in ['psql', 'duckdb']:
         return True
       else:
         return False
@@ -299,8 +361,22 @@ class Annotations(object):
       return None
     annotation = self.annotations['@Ground'][predicate_name]
     table_name = annotation.get('1', self.Dataset() + '.' + predicate_name)
+    if 'predicate_name' in table_name:
+      other_ground = self.Ground(table_name['predicate_name'])
+      if other_ground:
+        table_name = other_ground.table_name
+      else:
+        raise rule_translate.RuleCompileException(
+          'Predicate grounded to a non-grounded predicate.',
+          self.annotations['@Ground'][predicate_name]['__rule_text'])
     overwrite = annotation.get('overwrite', True)
-    return Ground(table_name=table_name, overwrite=overwrite)
+    copy_to_file = annotation.get('copy_to_file', None)
+    if copy_to_file and self.Engine() != 'duckdb':
+      raise rule_translate.RuleCompileException(
+        'Copying to file is only supported on DuckDB engine.',
+        self.annotations['@Ground'][predicate_name]['__rule_text'])
+    return Ground(table_name=table_name, overwrite=overwrite,
+                  copy_to_file=copy_to_file)
 
   def ForceWith(self, predicate_name):
     """Return true if the predicate has been explicitly marked @With."""
@@ -504,6 +580,8 @@ class LogicaProgram(object):
     # Dictionary custom_udfs maps function name to a format string to use
     # in queries.
     self.custom_udfs = collections.OrderedDict()
+    self.custom_udf_psql_type = {}
+    self.custom_aggregation_semigroup = {}
     # Dictionary custom_udf_definitions maps function name to SQL defining the
     # function.
     self.custom_udf_definitions = collections.OrderedDict()
@@ -526,6 +604,7 @@ class LogicaProgram(object):
       predicate_name = rule['head']['predicate_name']
       self.defined_predicates.add(predicate_name)
       self.rules.append((predicate_name, rule))
+    self.CheckDistinctConsistency()
     # We need to recompute annotations, because 'Make' created more rules and
     # annotations.
     self.annotations = Annotations(extended_rules, self.user_flags)
@@ -543,10 +622,76 @@ class LogicaProgram(object):
     # Function compilation may have added irrelevant defines:
     self.execution = None
 
+  def CheckDistinctConsistency(self):
+    is_distinct = {}
+    for p, r in self.rules:
+      distinct_before = is_distinct.get(p, None)
+      distinct_here = 'distinct_denoted' in r
+      if distinct_before is None:
+        is_distinct[p] = distinct_here
+      else:
+        if distinct_before != distinct_here:
+          raise rule_translate.RuleCompileException(
+              color.Format(
+                  'Either all rules of a predicate must be distinct denoted '
+                  'or none. Predicate {warning}{p}{end} violates it.',
+                  dict(p=p)), r['full_text'])
+
+  def InscribeOrbits(self, rules, depth_map):
+    """Writes satellites from annotation to a field in the body."""
+    # Satellites are written to master and master is written to
+    # satellites. You are responsible for those whom you tamed.
+    master = {}
+    for p, args in depth_map.items():
+      satellite_names = []
+      for s in args.get('satellites', []):
+        master[s['predicate_name']] = p
+        satellite_names.append(s['predicate_name'])
+      if stop_predicate := args.get('stop', None):
+        if stop_predicate['predicate_name'] not in satellite_names:
+          if 'satellites' not in args:
+            args['satellites'] = []
+          args['satellites'] += [stop_predicate]
+    for r in rules:
+      p = r['head']['predicate_name']
+      if p in depth_map:
+        if 'satellites' not in depth_map[p]:
+          continue
+        if 'body' not in r:
+          r['body'] = {'conjunction': {'conjunct': []}}
+        r['body']['conjunction']['satellites'] = depth_map[p]['satellites']
+      if p in master:
+        if 'body' not in r:
+          r['body'] = {'conjunction': {'conjunct': []}}
+        r['body']['conjunction']['satellites'] = [{'predicate_name': master[p]}]
+
+  def AddAutoStop(self, depth_map):
+    for k in depth_map:
+      if ('1' in depth_map[k] and
+          depth_map[k]['1'] == -1 and
+          'stop' not in depth_map[k]):
+        depth_map[k]['stop'] = {'predicate_name': 'Stop' + k}
+
   def UnfoldRecursion(self, rules):
     annotations = Annotations(rules, {})
+    depth_map = annotations.annotations.get('@Recursive', {})
+    self.AddAutoStop(depth_map)
+    self.InscribeOrbits(rules, depth_map)
     f = functors.Functors(rules)
-    return f.UnfoldRecursions(annotations.annotations.get('@Recursive', {}))
+    # Annotations are not ready at this point.
+    # if (self.execution.annotations.Engine() == 'duckdb'):
+    #   for p in depth_map:
+    #     # DuckDB struggles with long querries.
+    #     depth_map[p]['iterative'] = True
+    quacks_like_a_duck = (
+      annotations.annotations.get(
+        '@Engine', {}).get('duckdb', None) is not None)
+    default_iterative = False
+    default_depth = 8
+    if quacks_like_a_duck:
+      default_iterative = True
+      default_depth = 32
+    return f.UnfoldRecursions(depth_map, default_iterative, default_depth)
 
   def BuildUdfs(self):
     """Build UDF definitions."""
@@ -565,6 +710,31 @@ class LogicaProgram(object):
         if not remove_udfs:
           self.custom_udfs[f] = application
           self.custom_udf_definitions[f] = sql
+    for f in self.annotations.annotations['@BareAggregation']:
+      if not remove_udfs:  # Not sure what this is.
+        d = self.annotations.annotations['@BareAggregation'][f]
+        if 'semigroup' not in d:
+          raise rule_translate.RuleCompileException(
+              color.Format(
+                  'Semigroup not specified for '
+                  'aggregation {warning}{f}{end}.',
+                  dict(f=f)), self.annotations.annotations['@BareAggregation'][f]['__rule_text'])
+        semigroup = d['semigroup']['predicate_name']
+        self.custom_udfs[f] = f + '({col0})'
+        if semigroup not in self.custom_udf_psql_type:
+          raise rule_translate.RuleCompileException(
+              color.Format(
+                  'Semigroup not defined as a UDF for '
+                  'aggregation {warning}{f}{end}.',
+                  dict(f=f)), self.annotations.annotations['@BareAggregation'][f]['__rule_text'])
+        self.custom_udf_definitions[f] = (
+          'CREATE AGGREGATE %s (%s) ( '
+          '  sfunc = %s, '
+          '  stype = %s);' % (f,
+                              self.custom_udf_psql_type[semigroup],
+                              semigroup,
+                              self.custom_udf_psql_type[semigroup]))
+        self.custom_aggregation_semigroup[f] = semigroup
 
   def NewNamesAllocator(self):
     return rule_translate.NamesAllocator(custom_udfs=self.custom_udfs)
@@ -576,7 +746,8 @@ class LogicaProgram(object):
       TypeInferenceError if there are any type errors.
     """
     rules = [r for _, r in self.rules]
-    typing_engine = infer.TypesInferenceEngine(rules)
+    typing_engine = infer.TypesInferenceEngine(
+        rules, dialect=self.annotations.Engine())
     typing_engine.InferTypes()
     self.typing_engine = typing_engine
     type_error_checker = infer.TypeErrorChecker(rules)
@@ -624,21 +795,45 @@ class LogicaProgram(object):
       if n == predicate_name:
         yield r
 
+  def CheckOrderByClause(self, name):
+    if name not in self.predicate_signatures:
+      return
+    if not self.annotations.OrderBy(name):
+      return
+    order_by_columns = set()
+    for c in self.annotations.OrderBy(name):
+      if c in ['desc', 'asc']:
+        continue
+      parts = c.split(' ')
+      col = parts[0]
+      order_by_columns.add(col)
+    actual_columns = set(infer.ArgumentNames(self.predicate_signatures[name]))
+    if '*' in actual_columns:
+      # TODO: Analyze this properly. For now no evidence of error observed.
+      return
+    lacking_columns = ', '.join(set(order_by_columns) - set(actual_columns))
+    if lacking_columns:
+      raise rule_translate.RuleCompileException(
+          color.Format(
+              'Predicate {warning}{name}{end} is ordered by '
+              'columns {warning}{columns}{end} '
+              'which it lacks.', dict(name=name, columns=lacking_columns)),
+              self.annotations.annotations['@OrderBy'][name]['__rule_text'])
+
   def PredicateSql(self, name, allocator=None, external_vocabulary=None):
     """Producing SQL for a predicate."""
     # Load proto if necessary.
+    self.CheckOrderByClause(name)
     rules = list(self.GetPredicateRules(name))
     if len(rules) == 1:
       [rule] = rules
       result = (
-          self.SingleRuleSql(rule, allocator, external_vocabulary) +
+          self.SingleRuleSql(rule, allocator, external_vocabulary,
+                             must_not_be_nil=True) +
           self.annotations.OrderByClause(name) +
           self.annotations.LimitClause(name))
-      if result.startswith('/* nil */'):
-        raise rule_translate.RuleCompileException(
-          'Single rule is nil for predicate %s. '
-          'Recursion unfolding failed.' % color.Warn(name),
-          rule['full_text'])
+      # Exception should be raised by SingleRuleSql.
+      assert not result.startswith('/* nil */')
       return result
     elif len(rules) > 1:
       rules_sql = []
@@ -778,7 +973,23 @@ class LogicaProgram(object):
                            dialect=self.execution.dialect)
     value_sql = ql.ConvertToSql(s.select['logica_value'])
 
-    sql = 'CREATE TEMP FUNCTION {name}({signature}) AS ({value})'.format(
+    # TODO: Move this to dialects.py.
+    if self.execution.annotations.Engine() == 'psql':
+      vartype = lambda varname: (
+        self.typing_engine.collector.psql_type_cache[
+          s.select[varname]['type']['rendered_type']])
+      sql = ('DROP FUNCTION IF EXISTS {name} CASCADE; '
+             'CREATE OR REPLACE FUNCTION {name}({signature}) '
+             'RETURNS {value_type} AS $$ select ({value}) '
+             '$$ language sql'.format(
+              name=name,
+              signature=', '.join('%s %s' % (v, vartype(v))
+                                  for v in variables),
+              value_type=vartype('logica_value'),
+              value=value_sql))
+      self.custom_udf_psql_type[name] = vartype('logica_value')
+    else:
+      sql = 'CREATE TEMP FUNCTION {name}({signature}) AS ({value})'.format(
         name=name,
         signature=', '.join('%s ANY TYPE' % v for v in variables),
         value=value_sql)
@@ -799,15 +1010,36 @@ class LogicaProgram(object):
     self.execution.annotations = self.annotations
     self.execution.custom_udfs = self.custom_udfs
     self.execution.custom_udf_definitions = self.custom_udf_definitions
+    self.execution.custom_aggregation_semigroup = self.custom_aggregation_semigroup
     self.execution.main_predicate = main_predicate
     self.execution.used_predicates = self.functors.args_of.get(main_predicate,
                                                                [])
     self.execution.dependencies_of = self.functors.args_of
     self.execution.dialect = dialects.Get(self.annotations.Engine())
+    self.execution.iterations = self.annotations.Iterations()
   
   def UpdateExecutionWithTyping(self):
-    if self.execution.dialect.Name() == 'PostgreSQL':
+    if self.execution.dialect.IsPostgreSQLish():
       self.execution.preamble += '\n' + self.typing_preamble
+
+  def PerformIterationClosure(self, allocator):
+    """Iteration closure of current execution.
+    
+    If one predicates of the iteration runs, then all of them must run.
+    """
+    participating_predicates = list(
+      self.execution.table_to_defined_table_map.keys())
+    translator = self.MakeSubqueryTranslator(allocator)
+    for iteration in self.execution.iterations.values():
+      for p in participating_predicates:
+        iteration_predicates = set(iteration['predicates'])
+        if p in iteration_predicates:
+          for d in iteration_predicates:
+            # We are not doing anything with the resulting SQL,
+            # as we only need the execution state updated.
+            # We don't have actual dependency on top of stack, so we
+            # do not add any dependency edge.
+            translator.TranslateTable(d, None, edge_needed=False)
 
   def FormattedPredicateSql(self, name, allocator=None):
     """Printing top-level formatted SQL statement with defines and exports."""
@@ -823,6 +1055,7 @@ class LogicaProgram(object):
       sql = self.FunctionSql(name, allocator)
     else:
       sql = self.PredicateSql(name, allocator)
+    self.PerformIterationClosure(allocator)
 
     self.UpdateExecutionWithTyping()
 
@@ -970,7 +1203,7 @@ class LogicaProgram(object):
 
   def SingleRuleSql(self, rule,
                     allocator=None, external_vocabulary=None,
-                    is_combine=False):
+                    is_combine=False, must_not_be_nil=False):
     """Producing SQL for a given rule in the program."""
     allocator = allocator or self.NewNamesAllocator()
     r = rule
@@ -985,12 +1218,30 @@ class LogicaProgram(object):
     self.RunInjections(s, allocator)
     s.ElliminateInternalVariables(assert_full_ellimination=True)
     s.UnificationsToConstraints()
-    type_inference = infer.TypeInferenceForStructure(s, self.predicate_signatures)
-    type_inference.PerformInference()
-    # New types may arrive here when we have an injetible predicate with variables
-    # which specific record type depends on the inputs. 
-    self.required_type_definitions.update(type_inference.collector.definitions)
-    self.typing_preamble = infer.BuildPreamble(self.required_type_definitions)
+
+    if self.annotations.ShouldTypecheck():
+      type_inference = infer.TypeInferenceForStructure(
+          s, self.predicate_signatures, dialect=self.annotations.Engine())
+      type_inference.PerformInference()
+      error_checker = infer.TypeErrorChecker([type_inference.quazy_rule])
+      error_checker.CheckForError('raise')
+      # New types may arrive here when we have an injetible predicate with variables
+      # which specific record type depends on the inputs. 
+      self.required_type_definitions.update(type_inference.collector.definitions)
+      self.typing_preamble = infer.BuildPreamble(self.required_type_definitions,
+                                                 dialect=self.annotations.Engine())
+
+    if 'nil' in s.tables.values():
+      if must_not_be_nil:
+        raise rule_translate.RuleCompileException(
+          'Single rule is nil for predicate %s. '
+          'Recursion unfolding failed.' % color.Warn(s.this_predicate_name),
+          rule['full_text'])
+      else:
+        # Calling compilation could result in type error, as
+        # types coming from nil are not known.
+        # Return a rule marked for deletion.
+        return '/* nil */ SELECT NULL FROM (SELECT 42 AS MONAD) AS NIRVANA WHERE MONAD = 0'
 
     try:
       sql = s.AsSql(self.MakeSubqueryTranslator(allocator), self.flag_values)
@@ -1001,6 +1252,7 @@ class LogicaProgram(object):
             s.full_rule_text)
       else:
         raise runtime_error
+    # TODO: Should this be removed?
     if 'nil' in s.tables.values():
       # Mark rule for deletion.
       sql = '/* nil */' + sql
@@ -1033,11 +1285,13 @@ class SubqueryTranslator(object):
     self.allocator = allocator
     self.execution = execution
 
-  def TranslateTableAttachedToFile(self, table, ground, external_vocabulary):
+  def TranslateTableAttachedToFile(self, table, ground, external_vocabulary,
+                                   edge_needed=True):
     """Translates file-attached table. Appends exports and defines."""
-    self.execution.dependency_edges.append((
-        table,
-        self.execution.workflow_predicates_stack[-1]))
+    if edge_needed:
+      self.execution.dependency_edges.append((
+          table,
+          self.execution.workflow_predicates_stack[-1]))
     if table in self.execution.table_to_defined_table_map:
       return self.execution.table_to_defined_table_map[table]
     table_name = ground.table_name
@@ -1062,11 +1316,15 @@ class SubqueryTranslator(object):
           'DROP TABLE IF EXISTS %s%s;\n' % ((
               ground.table_name if ground.overwrite else '',
               self.execution.dialect.MaybeCascadingDeletionWord())))
+      maybe_copy = ''
+      if ground.copy_to_file:
+        maybe_copy = f'COPY {ground.table_name} TO \'{ground.copy_to_file}\';\n'
       export_statement = (
           maybe_drop_table +
           'CREATE TABLE {name} AS {dependency_sql}'.format(
               name=ground.table_name,
-              dependency_sql=FormatSql(dependency_sql)))
+              dependency_sql=FormatSql(dependency_sql)) +
+          maybe_copy)
 
       export_statement = self.program.UseFlagsAsParameters(export_statement)
       # It's cheap to store a string multiple times in Python, as it's stored
@@ -1113,14 +1371,14 @@ class SubqueryTranslator(object):
       return table[2:-2]
     return table
 
-  def TranslateTable(self, table, external_vocabulary):
+  def TranslateTable(self, table, external_vocabulary, edge_needed=True):
     """Translating table to an SQL string in the FROM cause."""
     if table in self.program.table_aliases:
       return self.program.table_aliases[table]
     ground = self.program.annotations.Ground(table)
     if ground:
       return self.TranslateTableAttachedToFile(
-          table, ground, external_vocabulary)
+          table, ground, external_vocabulary, edge_needed)
     if table in self.program.defined_predicates:
       if self.program.execution.With(table):
         return self.TranslateWithedTable(table)
@@ -1151,9 +1409,10 @@ def InjectStructure(target, source):
 
 def RecursionError():
   return color.Format(
-      'The rule appears to use recursion. '
-      '{warning}Recursion{end} is neither supported by '
-      'Logica nor by StandardSQL.')
+      'Recursion in this rule is {warning}too deep{end}. It is running '
+      'over Python defualt recursion limit. If this is intentional use '
+      '{warning}sys.setrecursionlimit(10000){end} command in your '
+      'notebook, or script.')
 
 
 def RaiseCompilerError(message, context):

@@ -1,0 +1,65 @@
+%YAML 1.2
+---
+#!/usr/bin/python
+#
+# Copyright 2020 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+# http://www.sublimetext.com/docs/syntax.html
+name: Logica
+file_extensions:
+  - l
+scope: source.logica
+contexts:
+  main:
+    - match: \"\"\"
+      push:
+        - meta_scope: string.quoted
+        - match: \"\"\"
+          pop: true
+    - match: \".*?\"
+      scope: string.quoted
+    - match: '/\*'
+      push:
+        - meta_scope: comment.block
+        - match: '\*/'
+          pop: true
+    - match: '#.*'
+      scope: comment.line
+    - match: \b(if|then|else|distinct|in|is|import|as|not)\b
+      scope: keyword.control
+    - match: \b(null|true|false)\b
+      scope: constant.language
+    - match: ':-|:=|\+=|=='
+      scope: meta.keyword.operator
+    - match: '\*|\+|/|%'
+      scope: meta.keyword.operator
+    - match: '(?<=:=\s)\b[A-Za-z_][A-Za-z0-9_]*\b'
+      scope: storage.type
+    - match: '(?<=\.)[a-z]\w*'
+      scope: markup.italic
+    - match: '^[A-Z]\w*\b'
+      scope: entity.name.function
+    - match: '@[A-Z]\w*\b'
+      scope: markup.italic ++ variable.function
+    - match: \b[A-Z]\w*\b
+      scope: variable.function
+    - match: \d*\.\d+
+      scope: constant.numeric
+    - match: \d*
+      scope: constant.numeric
+    - match: '\w+*:'
+      scope: variable.parameter
+    - match: \w*
+      scope: variable.other

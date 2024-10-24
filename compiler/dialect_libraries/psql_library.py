@@ -17,7 +17,6 @@
 library = """
 ->(left:, right:) = {arg: left, value: right};
 `=`(left:, right:) = right :- left == right;
-`~`(left:, right:);  # No action. Compiler unifies types.
 
 ArgMin(a) = (SqlExpr("(ARRAY_AGG({arg} order by {value}))[1]",
                      {arg: {argpod: a.arg}, value: a.value})).argpod;
@@ -42,6 +41,10 @@ RecordAsJson(r) = SqlExpr(
   "ROW_TO_JSON({r})", {r:});
 
 Fingerprint(s) = SqlExpr("('x' || substr(md5({s}), 1, 16))::bit(64)::bigint", {s:});
+
+ReadFile(filename) = SqlExpr("pg_read_file({filename})", {filename:});
+
+Chr(x) = SqlExpr("Chr({x})", {x:});
 
 Num(a) = a;
 Str(a) = a;

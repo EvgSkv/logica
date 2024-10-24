@@ -58,6 +58,18 @@ class ArgMin:
     return json.dumps([x[1] for x in sorted(self.result)])
 
 
+class TakeFirst:
+  """Taking first of values seen."""
+  def __init__(self):
+    self.result = None
+
+  def step(self, new_value):
+    self.result = self.result or new_value
+  
+  def finalize(self):
+    return self.result
+
+
 class ArgMax:
   """ArgMax user defined aggregate function."""
   def __init__(self):
@@ -205,12 +217,17 @@ def UserError(error_text):
 def Fingerprint(s):
   return int(hashlib.md5(str(s).encode()).hexdigest()[:16], 16) - (1 << 63)
 
-def SqliteConnect():
-  con = sqlite3.connect(':memory:')
+def SqliteConnect(database=':memory:'):
+  con = sqlite3.connect(database)
+  ExtendConnectionWithLogicaFunctions(con)
+  return con
+
+def ExtendConnectionWithLogicaFunctions(con):
   con.create_aggregate('ArgMin', 3, ArgMin)
   con.create_aggregate('ArgMax', 3, ArgMax)
   con.create_aggregate('DistinctListAgg', 1, DistinctListAgg)
   con.create_aggregate('ARRAY_CONCAT_AGG', 1, ArrayConcatAgg)
+  con.create_aggregate('ANY_VALUE', 1, TakeFirst)
   con.create_function('PrintToConsole', 1, PrintToConsole)
   con.create_function('ARRAY_CONCAT', 2, ArrayConcat)
   con.create_function('JOIN_STRINGS', 2, Join)
@@ -238,7 +255,6 @@ def SqliteConnect():
   con.create_function('AssembleRecord', 1, AssembleRecord)
   con.create_function('DisassembleRecord', 1, DisassembleRecord)
   sqlite3.enable_callback_tracebacks(True)
-  return con
 
 
 def RunSqlScript(statements, output_format):

@@ -20,7 +20,8 @@ from common import logica_test
 
 
 def RunTest(name, src=None, golden=None, predicate=None,
-            user_flags=None, import_root=None):
+            user_flags=None, import_root=None,
+            use_concertina=False, duckify_psql=False):
   """Run one test from this folder with TestManager."""
   src = src or (name + ".l")
   golden = golden or (name + ".txt")
@@ -31,7 +32,17 @@ def RunTest(name, src=None, golden=None, predicate=None,
       golden="integration_tests/" + golden,
       predicate=predicate,
       user_flags=user_flags,
-      import_root=import_root)
+      import_root=import_root,
+      use_concertina=use_concertina,
+      duckify_psql=duckify_psql)
+  if not duckify_psql and name.startswith('psqld_'):
+    # Yay! Recursion!
+    RunTest('duck_' + name, src,
+            golden.replace('_test', '_duck_test'),
+            predicate,
+            user_flags, import_root,
+            use_concertina=True,
+            duckify_psql=True)
 
 
 def RunAll(test_presto=False, test_trino=False):
@@ -54,6 +65,7 @@ def RunAll(test_presto=False, test_trino=False):
     RunTest("dialects/trino/joins_test")
     RunTest("dialects/trino/joins_test")
 
+  RunTest("bq_plusplus_test")
   RunTest("sqlite_functors_test")
 
   RunTest("import_root_test", import_root="integration_tests/import_tests")
@@ -69,6 +81,12 @@ def RunAll(test_presto=False, test_trino=False):
   RunTest("rec_small_cycle_test")
   RunTest("rec_cycle_test")
 
+  RunTest("psqld_empty_list_type_test")
+
+  RunTest("sqlite_deep_recursion_test", use_concertina=True)
+  RunTest("sqlite_nil_test")
+  RunTest("sqlite_flat_recursion_test")
+  RunTest("sqlite_winmove_test")
   RunTest("sqlite_shortest_path_test")
   RunTest("sqlite_records_test")
   RunTest("sqlite_is_test")
@@ -90,7 +108,46 @@ def RunAll(test_presto=False, test_trino=False):
   RunTest("sqlite_composite_test")
   RunTest("sqlite_reachability")
   RunTest("sqlite_element_test")
+  RunTest("sqlite_functor_over_constant_test")
 
+  RunTest("duckdb_smoothed_winmove_test",
+          use_concertina=True)
+  RunTest("duckdb_iteration_closure_test",
+          use_concertina=True)
+  RunTest("duckdb_stop_test",
+          src="duckdb_stop_test.l",
+          use_concertina=True)
+  RunTest("duckdb_purchase_test",
+          src="psql_purchase_test.l",
+          duckify_psql=True, use_concertina=True)
+  RunTest("duckdb_pair_test",
+          src="psql_pair_test.l",
+          duckify_psql=True, use_concertina=True)
+  RunTest("duckdb_combine_test",
+          src="psql_combine_test.l",
+          duckify_psql=True, use_concertina=True)
+  RunTest("duckdb_recursion_test",
+          src="psql_recursion_test.l",
+          duckify_psql=True, use_concertina=True)
+  RunTest("duckdb_flow_test",
+          src="psql_flow_test.l",
+          duckify_psql=True, use_concertina=True)
+  RunTest("duckdb_graph_coloring_test",
+          src="psql_graph_coloring_test.l",
+          duckify_psql=True, use_concertina=True)
+
+  # There are not UDFs in DuckDB.
+  #   RunTest("duckdb_udf_test",
+  #           src="psql_udf_test.l",
+  #           duckify_psql=True, use_concertina=True)
+
+  RunTest("psql_udf_test")
+  RunTest("psql_flow_test")
+  RunTest("psql_graph_coloring_test",
+          use_concertina=True)
+  RunTest("psql_win_move_test")
+  RunTest("psql_plusplus_test")
+  RunTest("psql_argmax2_combine_test")
   RunTest("psql_game_test")
   RunTest("psql_explicit_typing_test")
   RunTest("psql_argmin_list_test")

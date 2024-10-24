@@ -80,6 +80,20 @@ def Walk(x, act):
   return r
 
 
+def WalkWithTaboo(x, act, taboo):
+  """Walking over a dictionary of lists, modifying and/or collecting info."""
+  r = set()
+  r |= set(act(x))
+  if isinstance(x, list):
+    for v in x:
+      r |= WalkWithTaboo(v, act, taboo)
+  if isinstance(x, dict):
+    for k in x:
+      if k not in taboo:
+        r |= WalkWithTaboo(x[k], act, taboo)
+  return r
+
+
 class Functors(object):
   """A class for creating new functors."""
 
@@ -92,8 +106,26 @@ class Functors(object):
     self.args_of = {}
     self.creation_count = 0
     self.cached_calls = {}
+    self.constant_literal_function = {}
+
+    try:
+      # This import takes about 500ms.
+      import numpy
+      numpy_is_here = True
+    except:
+      numpy_is_here = False
+    if numpy_is_here:
+      # This is faster sometimes.
+      self.NumpyBuildArgsOf()
     for p in self.predicates:
       self.ArgsOf(p)
+
+  def GetConstantFunction(self, value):
+    if result := self.constant_literal_function.get(value):
+      return result
+    self.constant_literal_function[value] = (
+      'LogicaCompilerConstant%d' % len(self.constant_literal_function))
+    return self.constant_literal_function[value]
 
   def CopyOfArgs(self):
     """Copying args is separated for profiling."""
@@ -103,7 +135,13 @@ class Functors(object):
     """Updates rules_of and args_of maps after extebded_rules update."""
     self.rules_of = parse.DefinedPredicatesRules(self.extended_rules)
     self.predicates = set(self.rules_of)
-    self.direct_args_of = self.BuildDirectArgsOf()
+    if new_predicate in self.rules_of:
+      self.direct_args_of[new_predicate] = self.BuildDirectArgsOfPredicate(
+        new_predicate)
+    for p in self.rules_of:
+      if p not in self.direct_args_of:
+        self.direct_args_of[p] = self.BuildDirectArgsOfPredicate(p)
+
     # Resetting args_of, to process the new predicates that were added.
     copied_args_of = self.CopyOfArgs()
     for predicate, args in copied_args_of.items():
@@ -111,6 +149,15 @@ class Functors(object):
         del self.args_of[predicate]
     for p in self.predicates:
       self.ArgsOf(p)
+    # Uncomment for debuggin:
+
+    # print('------------ Args Of:')
+    # for k, v in self.args_of.items():
+    #   print(k, '->', v)
+    # print('Direct args Of:')
+    # for k, v in self.direct_args_of.items():
+    #   print(k, '->', v)
+
 
   def ParseMakeInstruction(self, predicate, instruction):
     """Parses Make instruction from syntax tree."""
@@ -123,10 +170,16 @@ class Functors(object):
     applicant = instruction['1']['predicate_name']
     args_map = {}
     for arg_name, arg_value_dict in instruction['2'].items():
-      if (not isinstance(arg_value_dict, dict) or
-          'predicate_name' not in arg_value_dict):
+      if (
+           (not isinstance(arg_value_dict, dict) or
+            'predicate_name' not in arg_value_dict) and
+           not isinstance(arg_value_dict, int) and
+           not isinstance(arg_value_dict, str)):
         raise FunctorError(error_message, predicate)
-      args_map[arg_name] = arg_value_dict['predicate_name']
+      if isinstance(arg_value_dict, dict):
+        args_map[arg_name] = arg_value_dict['predicate_name']
+      else:
+        args_map[arg_name] = self.GetConstantFunction(arg_value_dict)
     return predicate, applicant, args_map
 
   def Describe(self):
@@ -136,22 +189,53 @@ class Functors(object):
     """Factored for profiling."""
     return Walk(x, act)
 
-  def BuildDirectArgsOf(self):
-    """Builds a map of direct arguments of a functor."""
+  def BuildDirectArgsOfPredicate(self, functor):
+    args = set()
+    rules = self.rules_of[functor]
     def ExtractPredicateName(x):
       if isinstance(x, dict) and 'predicate_name' in x:
         return [x['predicate_name']]
       return []
+    for rule in rules:
+      if 'body' in rule:
+        args |= self.BuildDirectArgsOfWalk(rule['body'], ExtractPredicateName)
+      args |= self.BuildDirectArgsOfWalk(rule['head']['record'],
+                                          ExtractPredicateName)
+    return args
+
+  def BuildDirectArgsOf(self):
+    """Builds a map of direct arguments of a functor."""
     direct_args_of = {}
-    for functor, rules in self.rules_of.items():
-      args = set()
-      for rule in rules:
-        if 'body' in rule:
-          args |= self.BuildDirectArgsOfWalk(rule['body'], ExtractPredicateName)
-        args |= self.BuildDirectArgsOfWalk(rule['head']['record'],
-                                           ExtractPredicateName)
-      direct_args_of[functor] = args
+    for functor in self.rules_of:
+      direct_args_of[functor] = self.BuildDirectArgsOfPredicate(functor)
     return direct_args_of
+
+  def NumpyBuildArgsOf(self):
+    import numpy
+    interesting_predicates = set(self.direct_args_of)
+    directly_called_by = numpy.zeros(
+      (len(interesting_predicates),
+       len(interesting_predicates)))
+    interesting_predicates_list = list(sorted(interesting_predicates))
+    ipi = {  # Interesting predicate index.
+      p: i for i, p in enumerate(interesting_predicates_list)}
+    for p, args in self.direct_args_of.items():
+      for a in args:
+        if a in interesting_predicates:
+          directly_called_by[ipi[a], ipi[p]] = 1
+    a = directly_called_by
+    while True:
+      aa = (((a @ a) + a) > 0) * 1
+      if (a == aa).all():
+        break
+      a = aa
+    for i, p in enumerate(interesting_predicates_list):
+      self.args_of[p] = set(self.direct_args_of[p])
+      for j, v in enumerate(a[:, i]):
+        if v:
+          q = interesting_predicates_list[j]
+          self.args_of[p].add(q)
+          self.args_of[p] |= self.direct_args_of[q]
 
   def ArgsOf(self, functor):
     """Arguments of functor. Retrieving from cache, or computing."""
@@ -238,6 +322,22 @@ class Functors(object):
       if needs_building and not something_built:
         raise FunctorError('Could not resolve Make order.',
                            str(needs_building))
+    surviving_rules = self.RemoveRulesProvenToBeNil(self.extended_rules)
+
+    for value, function in self.constant_literal_function.items():
+      if isinstance(value, int):
+        self.extended_rules.append(parse.ParseRule(parse.HeritageAwareString('%s() = %d') %
+                                   (function, value)))
+      elif isinstance(value, str):
+        self.extended_rules.append(parse.ParseRule(parse.HeritageAwareString('%s() = "%s"') %
+                                   (function, value)))
+      else:
+        assert False, str((value, function))
+    for p, c in surviving_rules.items():
+      if c == 0:
+        raise FunctorError('All rules contain nil for predicate %s. '
+                           'Recursion unfolding failed.' % color.Warn(p), p)
+
     if False:
       with open('/tmp/functors.dot', 'w') as w:
         w.write('digraph Functors {\n')
@@ -259,9 +359,18 @@ class Functors(object):
     result = []
     for annotation, rules in self.rules_of.items():
       if annotation not in ['@Limit', '@OrderBy', '@Ground',
-                            '@NoInject']:
+                            '@NoInject', '@Iteration']:
         continue
       for rule in rules:
+        if ('literal' not in
+            rule['head']['record']['field_value'][0]['value']['expression'] or
+            'the_predicate' not in
+            rule['head']['record']['field_value'][0]['value']['expression'][
+              'literal']):
+          raise FunctorError('This annotation requires predicate symbol '
+                             'as the first positional argument.',
+                             rule['full_text'])
+
         if rule['head']['record']['field_value'][0]['value']['expression'][
             'literal']['the_predicate']['predicate_name'] in predicates:
           result.append(rule)
@@ -343,43 +452,88 @@ class Functors(object):
     Walk(rules, ReplacePredicate)
     self.extended_rules.extend(rules)
     self.UpdateStructure(name)
+    
+  def UnfoldRecursivePredicateFlatFashion(self, cover, depth, rules,
+                                          iterative, ignition_steps, stop):
+    visible = lambda p: '_MultBodyAggAux' not in p
+    simplified_cover = {c for c in cover if visible(c)}
+    direct_args_of = {c: [] for c in cover if visible(c)}
+    for p, args in self.direct_args_of.items():
+      if p in simplified_cover:
+        for a in args:
+          if a in cover:
+            if visible(a):
+              direct_args_of[p].append(a)
+            else:
+              for a2 in self.direct_args_of[a]:
+                if a2 in cover:
+                  direct_args_of[p].append(a2)
+    def ReplacePredicate(original, new):
+      def Replace(x):
+        if isinstance(x, dict) and 'predicate_name' in x:
+          if x['predicate_name'] == original:
+            x['predicate_name'] = new
+        return []
+      return Replace
+    for r in rules:
+      if r['head']['predicate_name'] in cover:
+        p = r['head']['predicate_name']
+        if visible(p):
+          r['head']['predicate_name'] = p + '_ROne'
+        for c in simplified_cover:
+          Walk(r, ReplacePredicate(c, c + '_RZero'))
+      elif (r['head']['predicate_name'][0] == '@' and
+            r['head']['predicate_name'] != '@Make'):
+        for c in cover:
+          Walk(r, ReplacePredicate(c, c + '_ROne'))
+
+    if iterative:
+      lib = recursion_library.GetFlatIterativeRecursionFunctor(
+        depth, simplified_cover, direct_args_of,
+        ignition_steps, stop)
+    else:
+      lib = recursion_library.GetFlatRecursionFunctor(
+        depth, simplified_cover, direct_args_of)
+
+    lib_rules = parse.ParseFile(lib)['rule']
+    rules.extend(lib_rules)
+
 
   def UnfoldRecursivePredicate(self, predicate, cover, depth, rules):   
     """Unfolds recurive predicate.""" 
     new_predicate_name = predicate + '_recursive'
     new_predicate_head_name = predicate + '_recursive_head'
 
-    def ReplaceRecursivePredicate(x):
-      if isinstance(x, dict) and 'predicate_name' in x:
-        if x['predicate_name'] == predicate:
-          x['predicate_name'] = new_predicate_name
-      return []
-    def ReplaceRecursiveHeadPredicate(x):
-      if isinstance(x, dict) and 'predicate_name' in x:
-        if x['predicate_name'] == predicate:
-          x['predicate_name'] = new_predicate_head_name
-      return []
-    def ReplacerOfCoverMember(member):
+    def ReplacePredicate(original, new):
       def Replace(x):
         if isinstance(x, dict) and 'predicate_name' in x:
-          if x['predicate_name'] == member:
-            x['predicate_name'] = member + '_recursive_head'
+          if x['predicate_name'] == original:
+            x['predicate_name'] = new
         return []
       return Replace
+
+    def ReplacerOfRecursivePredicate():
+      return ReplacePredicate(predicate, new_predicate_name)
+
+    def ReplacerOfRecursiveHeadPredicate():
+      return ReplacePredicate(predicate, new_predicate_head_name)
+
+    def ReplacerOfCoverMember(member):
+      return ReplacePredicate(member, member + '_recursive_head')
 
     for r in rules:
       if r['head']['predicate_name'] == predicate:
         r['head']['predicate_name'] = new_predicate_head_name
-        Walk(r, ReplaceRecursivePredicate)
+        Walk(r, ReplacerOfRecursivePredicate())
         for c in cover - {predicate}:
           Walk(r, ReplacerOfCoverMember(c))
       elif r['head']['predicate_name'] in cover:
-        Walk(r, ReplaceRecursivePredicate)
+        Walk(r, ReplacerOfRecursivePredicate())
         for c in cover - {predicate}:
           Walk(r, ReplacerOfCoverMember(c))
       elif (r['head']['predicate_name'][0] == '@' and
             r['head']['predicate_name'] != '@Make'):
-        Walk(r, ReplaceRecursiveHeadPredicate)
+        Walk(r, ReplacerOfRecursiveHeadPredicate())
         for c in cover - {predicate}:
           Walk(r, ReplacerOfCoverMember(c))        
       else:
@@ -395,26 +549,140 @@ class Functors(object):
       rename_lib_rules = parse.ParseFile(rename_lib)['rule']
       rules.extend(rename_lib_rules)
 
-  def UnfoldRecursions(self, depth_map):
+  def GetStop(self, depth_map, p):
+    stop = depth_map.get(p, {}).get('stop')
+    if isinstance(stop, dict):
+      stop = stop['predicate_name']
+    return stop
+
+  def UnfoldRecursions(self, depth_map, default_iterative, default_depth):
     """Unfolds all recursions."""
-    should_recurse, my_cover = self.RecursiveAnalysis(depth_map)
+    should_recurse, my_cover = self.RecursiveAnalysis(
+      depth_map, default_iterative, default_depth)
     new_rules = copy.deepcopy(self.rules)
-    for p in should_recurse:
-      depth = depth_map.get(p, {}).get('1', 8)
-      self.UnfoldRecursivePredicate(p, my_cover[p], depth, new_rules)
+    for p, style in should_recurse.items():
+      depth = depth_map.get(p, {}).get('1', default_depth)
+      if style == 'vertical':
+        self.UnfoldRecursivePredicate(p, my_cover[p], depth, new_rules)
+      elif style == 'horizontal' or style == 'iterative_horizontal':
+        # Old ad-hoc formula:
+        # ignition = len(my_cover[p]) * 3 + 4
+        # Calculation of ignition:
+        #   len(cover) to fill all predicates,
+        #   + 2 for iterations
+        #   + 1 for final step.
+        ignition = len(my_cover[p]) + 3
+        if ignition % 2 == depth % 2:
+          ignition += 1
+        stop = self.GetStop(depth_map, p)
+        if stop and stop not in my_cover[p]:
+          raise FunctorError(
+            color.Format(
+              'Recursive predicate {warning}{p}{end} uses stop signal '
+              '{warning}{stop}{end} that '
+              'does not exist or is outside of the recurvisve component.'
+              ' This means that {warning}{stop}{end} does not depend '
+              'on {warning}{p}{end} which means it would not change over '
+              'iteration. There is a bug in rules, or you need to specify '
+              '{warning}satellites{end} of {warning}{p}{end} which should run '
+              'in the iteration as well and which {warning}{stop}{end} '
+              'monitors.',
+              {'p': p, 'stop': stop}), p)
+        self.UnfoldRecursivePredicateFlatFashion(
+          my_cover[p], depth, new_rules,
+          iterative=(style=='iterative_horizontal'),
+          # Ignition is my_cover[p] * 3 because it may take my_cover[p] steps
+          # to propagate dependency. So we have initial stage, iteration and final
+          # propagation to outputs. Plus 5 to cover small numbers.
+          ignition_steps=depth_map.get(p, {}).get('ignition', ignition),
+          stop=stop)
+      else:
+        assert False, 'Unknown recursion style:' + style
     return new_rules
 
-  def RecursiveAnalysis(self, depth_map):
+  def RemoveRulesProvenToBeNil(self, rules):
+    proven_to_be_nothing = set({'nil'})
+    def ReplacePredicate(original, new):
+      def Replace(x):
+        if isinstance(x, dict) and 'predicate_name' in x:
+          if x['predicate_name'] == original:
+            x['predicate_name'] = new
+        return []
+      return Replace
+    class NilCounter:
+      def __init__(self):
+        self.nil_count  = 0
+      def CountNils(self, node):
+        if isinstance(node, dict):
+          if 'predicate_name' in node:
+            if node['predicate_name'] in proven_to_be_nothing:
+              self.nil_count += 1
+        return []
+    defined_predicates = {rule['head']['predicate_name']
+                          for rule in rules}
+    while True:
+      rules_per_predicate = {}
+      for rule in rules:
+        p = rule['head']['predicate_name']
+        c = NilCounter()
+        WalkWithTaboo(rule, c.CountNils,
+                      # Do not walk into:
+                      #   predicate value literals,
+                      #   combine expressions because they will be trivially
+                      #     null,
+                      #   lists of satelites.
+                      taboo=['the_predicate', 'combine', 'satellites'])
+        rules_per_predicate[p] = rules_per_predicate.get(p,0) + (
+          c.nil_count == 0)
+      is_nothing = set()
+      for p in defined_predicates:
+        if rules_per_predicate[p] == 0:
+          is_nothing |= {p}
+      if is_nothing <= proven_to_be_nothing:
+        break
+      proven_to_be_nothing |= is_nothing
+    for p in proven_to_be_nothing - {'nil'}:
+      for rule in rules:
+        if rule['head']['predicate_name'] == p:
+          rule['head']['predicate_name'] = 'Nullified' + p
+        elif not rule['head']['predicate_name'].startswith('@'):
+          Walk(rule, ReplacePredicate(p, 'nil'))
+      if '_' not in p:
+        raise FunctorError(
+          color.Format(
+            'Predicate {warning}{p}{end} was proven to be empty. '
+            'Most likely initial base condition of recursion is missing, or '
+            'flat recursion is not given enough steps.',
+            {'p': p}), p)
+      del rules_per_predicate[p]
+    self.UpdateStructure(p)
+    return rules_per_predicate
+
+  def IsCutOfCover(self, p, cover_leaf):
+    """Determining if p cuts the cover leaf into non-recursive state."""
+    stack = [(p, set())]
+    cover_leaf = set(cover_leaf)
+    while stack:
+      t, u = stack.pop()
+      if t in u:
+        return False
+      for x in cover_leaf & self.direct_args_of[t]:
+        if x != p:
+          stack.append((x, (u | {t})))
+    return True
+
+  def RecursiveAnalysis(self, depth_map, default_iterative, default_depth):
     """Finds recursive cycles and predicates that would unfold them."""
     # TODO: Select unfolding predicates to guarantee unfolding.
     cover = []
     covered = set()
     deep = set(depth_map)
     for p, args in self.args_of.items():
+      # TODO: We probably don't need _MultBodyAggAux exception.
       if p in args and p not in covered and '_MultBodyAggAux' not in p:
         c = {p}
         for p2 in args:
-          if p in self.args_of[p2]:
+          if p2 in self.args_of and p in self.args_of[p2]:
             c.add(p2)
         cover.append(c)
         covered |= c
@@ -425,13 +693,30 @@ class Functors(object):
         my_cover[p] = c
 
     recursion_covered = set()
-    should_recurse = []
+    should_recurse = {}
     for c in cover:
       if c & deep:
         p = min(c & deep)
       else:
         p = min(c)
-      should_recurse.append(p)
+      if depth_map.get(p, {}).get('1', default_depth) == -1:
+        depth_map[p]['1'] = 1000000000
+      # Iterate if explicitly requested or unspecified
+      # and number of steps is greater than 20.
+      if (depth_map.get(p, {}).get('iterative', default_iterative) or
+          depth_map.get(p, {}).get('iterative', True) == True and
+          depth_map.get(p, {}).get('1', default_depth) > 20):
+        should_recurse[p] = 'iterative_horizontal'
+      elif self.IsCutOfCover(p, c):
+        should_recurse[p] = 'vertical'
+      else:
+        should_recurse[p] = 'horizontal'
       recursion_covered |= my_cover[p]
-
+    # Tried adding stop signal to recursive component, but it feels
+    # unnatural.
+    # if p in should_recurse:
+    #   if stop := self.GetStop(depth_map, p):
+    #     my_cover[p].add(stop)
+    #     my_cover[stop] = my_cover[p]
+    # print('my cover:', my_cover)
     return should_recurse, my_cover

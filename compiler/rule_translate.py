@@ -77,14 +77,18 @@ def HeadToSelect(head):
     else:
       assert 'expression' in v, 'Bad select value: %s' % str(v)
       select[k] = v['expression']  # <=> v as k
+  # Allowing predicates with no arguments.
+  if not select:
+    select['atom'] = {'literal': {'the_string': {'the_string': 'yes'}}}
 
   return (select, aggregated_vars)
 
 
-def AllMentionedVariables(x, dive_in_combines=False):
+def AllMentionedVariables(x, dive_in_combines=False, this_is_select=False):
   """Extracting all variables mentioned in an expression."""
   r = []
-  if isinstance(x, dict) and 'variable' in x:
+  # In select there can be a variable named variable.
+  if isinstance(x, dict) and 'variable' in x and not this_is_select:
     r.append(x['variable']['var_name'])
   if isinstance(x, list):
     for v in x:
@@ -207,11 +211,18 @@ class RuleStructure(object):
     self.distinct_denoted = None
 
   def SelectAsRecord(self):
+    def StrIntKey(x):
+      k, v = x
+      if isinstance(k, str):
+        return (k, v)
+      if isinstance(k, int):
+        return ('%03d' % k, v)
+      assert False, 'x:%s' % str(x)    
     return {'record': {
       'field_value': [{
         'field': k,
         'value': {'expression': v}
-      } for k, v in sorted(self.select.items())]}}
+      } for k, v in sorted(self.select.items(), key=StrIntKey)]}}
 
   def OwnVarsVocabulary(self):
     """Returns a map: logica variable -> SQL expression with the value."""
@@ -242,7 +253,7 @@ class RuleStructure(object):
 
   def AllVariables(self):
     r = set()
-    r |= AllMentionedVariables(self.select)
+    r |= AllMentionedVariables(self.select, this_is_select=True)
     r |= AllMentionedVariables(self.vars_unification)
     r |= AllMentionedVariables(self.constraints)
     r |= AllMentionedVariables(self.unnestings)
@@ -297,6 +308,8 @@ class RuleStructure(object):
     variables = self.InternalVariables()
     while True:
       done = True
+      self.vars_unification = [
+          u for u in self.vars_unification if u['left'] != u['right']]
       for u in self.vars_unification:
         # Direct variable assignments.
         for k, r in [['left', 'right'], ['right', 'left']]:
@@ -531,11 +544,15 @@ class RuleStructure(object):
       from_str = '\n'.join('  ' + l for l in from_str.split('\n'))
       r += from_str
       if self.constraints:
-        r += '\nWHERE\n'
         constraints = []
+        # Predicates used for type inference.
+        ephemeral_predicates = ['~']
         for c in self.constraints:
-          constraints.append(ql.ConvertToSql(c))
-        r += ' AND\n'.join(map(Indent2, constraints))
+          if c['call']['predicate_name'] not in ephemeral_predicates:
+            constraints.append(ql.ConvertToSql(c))
+        if constraints:
+          r += '\nWHERE\n'
+          r += ' AND\n'.join(map(Indent2, constraints))
       if self.distinct_vars:
         ordered_distinct_vars = [
             v for v in self.select.keys() if v in self.distinct_vars]
@@ -565,7 +582,7 @@ def ExtractPredicateStructure(c, s):
 
   if predicate in (
       '<=', '<', '>', '>=', '!=', '&&', '||', '!', 'IsNull', 'Like',
-      'Constraint', 'is', 'is not'):
+      'Constraint', 'is', 'is not', '~'):
     s.constraints.append({'call': c})
     return
 
@@ -725,7 +742,7 @@ def InlinePredicateValuesRecursively(r, names_allocator, conjuncts):
         'Got: %s' % str(r))
 
   for k in member_index:
-    if k != 'combine':
+    if k != 'combine' and k != 'type':
       if isinstance(r[k], dict) or isinstance(r[k], list):
         InlinePredicateValuesRecursively(r[k], names_allocator, conjuncts)
 

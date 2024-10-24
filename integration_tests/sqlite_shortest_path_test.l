@@ -15,7 +15,7 @@
 
 # This example was causing record unfolding go wild.
 
-@Engine("sqlite");
+@Engine("sqlite", type_checking: true);
 
 Edge("a", "b");
 Edge("b", "c");
@@ -23,14 +23,14 @@ Edge("c", "d");
 Edge("d", "e");
 Edge("d", "a");
 
-ShortestPath(open_path) = ArgMin(k -> v).nodes :-
+`*`(open_path) = ArgMin(k -> v).nodes :-
     k == {nodes: open_path},
     v == Size(open_path);
 
-OpenPath(start, end) ShortestPath= [start] :-
+OpenPath(start, end) *= [start] :-
     (Edge(start, end) | Edge(end, start));
 
-OpenPath(start, end) ShortestPath= ArrayConcat(path_one, path_two) :-
+OpenPath(start, end) *= ArrayConcat(path_one, path_two) :-
   OpenPath(start, intermediate_node) = path_one,
   OpenPath(intermediate_node, end) = path_two,
   start != end;

@@ -123,6 +123,14 @@ class TypeReference:
     assert isinstance(a.target, dict), a.target
     a.target = ClosedRecord(a.target)
 
+def StrIntKey(x):
+  k, v = x
+  if isinstance(k, str):
+    return (k, v)
+  if isinstance(k, int):
+    return ('%03d' % k, v)
+  assert False, 'x:%s' % str(x)
+  
 def RenderType(t):
   if isinstance(t, str):
     return t
@@ -130,7 +138,7 @@ def RenderType(t):
     return '[%s]' % RenderType(t[0])
   if isinstance(t, dict):
     return '{%s}' % ', '.join('%s: %s' % (k, RenderType(v))
-                              for k, v in sorted(t.items()))
+                              for k, v in sorted(t.items(), key=StrIntKey))
   if isinstance(t, tuple):
     return '(%s != %s)' % (RenderType(t[0]), RenderType(t[1]))
   assert False, type(t)
@@ -171,6 +179,8 @@ def IsFullyDefined(t):
     return False
   if t == 'Singular':
     return False
+  if t == 'Sequential':
+    return False
   if isinstance(t, str):
     return True
   if isinstance(t, BadType):
@@ -192,18 +202,22 @@ def Rank(x):
     return 0
   if x == 'Singular':
     return 1
-  if x == 'Num':
+  if x == 'Sequential':
     return 2
-  if x == 'Str':
+  if x == 'Num':
     return 3
-  if x == 'Bool':
+  if x == 'Str':
     return 4
-  if isinstance(x, list):
+  if x == 'Bool':
     return 5
-  if isinstance(x, OpenRecord):
+  if x == 'Time':
     return 6
-  if isinstance(x, ClosedRecord):
+  if isinstance(x, list):
     return 7
+  if isinstance(x, OpenRecord):
+    return 8
+  if isinstance(x, ClosedRecord):
+    return 9
   assert False, 'Bad type: %s' % x
 
 
@@ -247,10 +261,24 @@ def Unify(a, b):
           Incompatible(a.target, b.target),
           Incompatible(b.target, a.target))
       return
+    if concrete_b == 'Sequential':
+      a.target = b
+      b.target = 'Str'
+      return
     a.target = b
     return
 
-  if concrete_a in ('Num', 'Str', 'Bool'):
+  if concrete_a == 'Sequential':
+    if concrete_b in ('Str', 'Sequential') or isinstance(concrete_b, list):
+      a.target = b
+      return
+    # Type error: a is incompatible with b.
+    a.target, b.target = (
+        Incompatible(a.target, b.target),
+        Incompatible(b.target, a.target))
+    return
+
+  if concrete_a in ('Num', 'Str', 'Bool', 'Time'):
     if concrete_a == concrete_b:
       return  # It's all fine.
     # Type error: a is incompatible with b.
@@ -303,7 +331,7 @@ def Unify(a, b):
       b.target = Incompatible(b.target, a.target)
       return
     assert False
-  assert False, (a, type(a))
+  assert False, (a, type(a), b, type(b))
 
 
 def UnifyFriendlyRecords(a, b, record_type):
@@ -377,7 +405,12 @@ def Revive(t):
     return TypeReference(OpenRecord(
       {ReviveKey(k): Revive(v) for k, v in t.items()}))
   if isinstance(t, list):
-    return TypeReference(list(map(Revive, t)))
+    if len(t) == 1:
+      return TypeReference(list(map(Revive, t)))
+    elif len(t) == 2:
+      return TypeReference(BadType(map(Revive, t)))
+    else:
+      assert False, t
   if isinstance(t, BadType):
     return TypeReference(BadType(map(Revive, t)))
   assert False, [type(t), t]
