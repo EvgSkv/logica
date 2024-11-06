@@ -252,9 +252,12 @@ class Annotations(object):
   def AttachDatabaseStatements(self):
     lines = []
     for k, v in self.AttachedDatabases().items():
+      type_sqlite = ''
       if self.Engine() == 'duckdb':
         lines.append('DETACH DATABASE IF EXISTS %s;' % k)
-      lines.append('ATTACH DATABASE \'%s\' AS %s;' % (v, k))
+        if v[-7:] == '.sqlite':
+          type_sqlite = ' (TYPE SQLITE)'
+      lines.append('ATTACH DATABASE \'%s\' AS %s%s;' % (v, k, type_sqlite))
     return '\n'.join(lines)
 
   def CompileAsUdf(self, predicate_name):
