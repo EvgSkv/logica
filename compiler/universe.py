@@ -186,9 +186,13 @@ class Annotations(object):
           '-- Empty logica type: logicarecord893574736;\n'
           "DO $$ BEGIN if not exists (select 'I(am) :- I(think)' from pg_type where typname = 'logicarecord893574736') then create type logicarecord893574736 as (nirvana numeric); end if; END $$;\n\n")
     elif self.Engine() == 'duckdb':
-      preamble += (
-          '-- Initializing DuckDB environment.\n'
+      home_attachment = (
           'create schema if not exists logica_home;\n'
+          if 'logica_home' not in self.AttachedDatabases()
+          else '-- logica_home attached by user.\n')
+      preamble += (
+          '-- Initializing DuckDB environment.\n' +
+          home_attachment +
           '-- Empty record, has to have a field by DuckDB syntax.\n'
           'drop type if exists logicarecord893574736 cascade; create type logicarecord893574736 as struct(nirvana numeric);\n'
       )
