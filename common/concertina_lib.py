@@ -269,7 +269,7 @@ class Concertina(object):
           maybe_iteration_info += ' / stop.'
       else:
         maybe_iteration_info = ''
-      return node + maybe_iteration_info
+      return node.replace(':', '⁝') + maybe_iteration_info
     g = graphviz.Digraph('Concertina')
     for a in self.all_actions:
       color = self.ActionColor(a)
