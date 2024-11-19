@@ -502,6 +502,10 @@ def ParseRecordInternals(s,
 def ParseVariable(s: HeritageAwareString):
   if (s and s[0] in set(string.ascii_lowercase) | set('_') and
       set(s) <= VARIABLE_CHARS_SET):
+    if s.startswith('x_'):
+      raise ParsingException('Variables starting with >>x_<< are reserved '
+                             'to be Logica compiler internal. Please use '
+                             'a different name.', s)
     return {'var_name': s}
 
 
