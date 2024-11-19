@@ -551,9 +551,13 @@ class TypeInferenceForStructure:
         # This is from unnestings. I don't recall why are those even here :-(
         # Need to clarify.
         continue
+      # TODO: Location can be unknown due to injections. We should fix it.
+      heritage = self.structure.vars_heritage_map.get((table_id, field),
+                                                      'UNKNOWN_LOCATION')
       calls[table_id]['predicate']['record']['field_value'].append(
         {'field': field,
-         'value': {'expression': {'variable': {'var_name': variable}}}
+         'value': {'expression': {'variable': {'var_name': variable},
+                                  'expression_heritage': heritage}}
         }
       )
 
@@ -583,7 +587,7 @@ class TypeErrorChecker:
   def __init__(self, typed_rules):
     self.typed_rules = typed_rules
 
-  def CheckForError(self, mode='print'):    
+  def CheckForError(self, mode='print'):
     self.found_error = self.SearchTypeErrors()
     if self.found_error.type_error:
       if mode == 'print':
