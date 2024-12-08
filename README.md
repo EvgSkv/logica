@@ -117,6 +117,8 @@ python3 -m pip install logica
 python3 -m logica
 # To print SQL for HelloWorld program.
 python3 -m logica - print Greet <<<'@Engine("sqlite"); Greet(greeting: "Hello world!")'
+# To run HelloWorld program on SQLite.
+python3 -m logica - print Greet <<<'@Engine("sqlite"); Greet(greeting: "Hello world!")'
 ```
 
 If your `PATH` includes Python's `bin` folder then you will also be able to
