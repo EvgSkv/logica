@@ -143,10 +143,13 @@ Here a couple examples of how Logica code looks like.
 
 ### Prime numbers
 
-Find prime numbers less than 30.
+Find prime numbers less than 30 with SQLite.
 
 Program `primes.l`:
 ```
+# Using SQLite engine.
+@Engine("sqlite");
+
 # Define numbers 1 to 30.
 Number(x + 1) :- x in Range(30);
 
