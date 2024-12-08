@@ -186,6 +186,12 @@ Let's use beer variety dataset from [plotly](https://github.com/plotly/datasets/
 Let us find top 5 states with largest variety of beers. In each state we will pick city with the largest
 variety in the state.
 
+To run this example you will need to install DuckDB if you don't yet have it on your system. Luckily installing DuckDB is easy:
+
+```
+python3 -m pip install duckdb
+```
+
 Program `beer.l`:
 
 ```
