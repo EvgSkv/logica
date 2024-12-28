@@ -32,7 +32,7 @@ Logica compiles to SQL and gives you access to the power of SQL ecosystem
 with the convenience of logic programming syntax. 
 
 This is useful because
-SQL enginers are magnitudes more powerful than state of the art native
+SQL engines are magnitudes more powerful than state of the art native
 logic programming engines. For example, BigQuery is a distributed datawarehouse and thus logic programs written
 in Logica can be easily parallelized onto thousands of servers. Postgres and SQLite are among most popular databases, they are
 capable of processing substantial volumes of data right on your machine.
