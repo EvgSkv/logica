@@ -60,10 +60,20 @@ def Intelligence(command):
     InitializeOpenAI()
   intelligence_executed = True
 
-  args = INTELLIGENCE_PARAMS.copy()
-  args['prompt'] = command
-  response = openai.Completion.create(**args)
+  client = openai.OpenAI(api_key=openai.api_key)
+  response = client.chat.completions.create(
+    model="gpt-4o",
+    messages=[
+      {
+        "role": "user",
+        "content": command
+      }
+    ],
+    temperature=1,
+    max_tokens=512,
+    top_p=1,
+    frequency_penalty=0,
+    presence_penalty=0
+  )
 
-  response_text = response.choices[0].text.strip()
-
-  return response_text
+  return response.choices[0].message.content
