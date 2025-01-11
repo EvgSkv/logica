@@ -279,6 +279,29 @@ def ShowError(error_text):
   print(color.Format('[ {error}Error{end} ] ' + error_text))
 
 
+class ExecutionObserver:
+  def __init__(self, bar, predicates):
+    self.bar = bar
+    self.predicates = predicates
+    self.observed = set()
+
+  def ObserveTable(self, predicate, table):
+    with self.bar.output_to(self.predicates.index(predicate)):
+      self.ObserveTableHere(predicate, table)
+
+  def ObserveTableHere(self, predicate, table):
+    if predicate in self.observed:
+      # Already observed.
+      return
+    self.observed |= {predicate}
+    print(
+        color.Format(
+            'The following table is stored at {warning}%s{end} '
+            'variable.' %
+            predicate))
+    display(table)
+
+
 def Logica(line, cell, run_query):
   """Running Logica predicates and storing results."""
   predicates, maybe_storage_file = ParseListAndMaybeFile(line)
@@ -364,10 +387,14 @@ def Logica(line, cell, run_query):
     else:
       raise Exception('Logica only supports BigQuery, PostgreSQL and SQLite '
                       'for now.')   
+    observer = None
+    if run_query:
+      observer = ExecutionObserver(bar, predicates)
     try:
       result_map = concertina_lib.ExecuteLogicaProgram(
         executions, sql_runner=sql_runner, sql_engine=engine,
-        display_mode=DISPLAY_MODE)
+        display_mode=DISPLAY_MODE,
+        observer=observer)
     except infer.TypeErrorCaughtException as e:
       e.ShowMessage()
       return
@@ -378,12 +405,7 @@ def Logica(line, cell, run_query):
     with bar.output_to(idx):
       with sub_bars[idx].output_to(1): 
         if run_query:
-          print(
-              color.Format(
-                  'The following table is stored at {warning}%s{end} '
-                  'variable.' %
-                  predicate))
-          display(t)  
+          observer.ObserveTableHere(predicate, t) 
         else:
           print('The query was not run.')
       print(' ') # To activate the tabbar.
