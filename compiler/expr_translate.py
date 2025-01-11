@@ -264,7 +264,7 @@ class QL(object):
     if self.dialect.IsPostgreSQLish() and not element_type_name:
         raise self.exception_maker(
           'Type is needed, but not determined for %s. Please give hints with ~ operator!' %
-          color.Warn(full_expression['expression_heritage']))
+          color.Warn(full_expression.get('expression_heritage', str(full_expression))))
 
     suffix = ('::' + element_type_name + '[]'
               if self.dialect.IsPostgreSQLish()
