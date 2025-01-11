@@ -15,6 +15,8 @@
 
 # Testing simple function compilation.
 
+@Engine("bigquery");
+
 # Functors of argument F.
 GridF(t) = F(t) :- t == s / 100.0 - 5, s in Range(1000);
 FunctionMinimum() = x :-

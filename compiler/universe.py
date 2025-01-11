@@ -161,7 +161,7 @@ class Annotations(object):
     if 'logica_default_engine' in user_flags:
       self.default_engine = user_flags['logica_default_engine']
     else:
-      self.default_engine = 'bigquery'
+      self.default_engine = 'duckdb'
 
     self.annotations = self.ExtractAnnotations(
         rules, restrict_to=['@DefineFlag', '@ResetFlagValue'])

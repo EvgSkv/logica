@@ -15,6 +15,8 @@
 
 # Testing ArgMax, ArgMin, ArgMaxK and ArgMinK builtins.
 
+@Engine("bigquery");
+
 Data(v: 10, payload: "a");
 Data(v: 5, payload: "b");
 Data(v: 20, payload: "c");

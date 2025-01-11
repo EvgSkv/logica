@@ -112,6 +112,11 @@ def RunQuery(sql,
                           '--file=/dev/stdin'] +
                           ['--output-format=ALIGNED'],
                           stdin=subprocess.PIPE, stdout=subprocess.PIPE)
+  elif engine == 'duckdb':
+    import duckdb
+    connection = duckdb.connect()
+    df = connection.sql(sql).df()
+    return sqlite3_logica.DataframeAsArtisticTable(df)
   else:
     assert False, 'Unknown engine: %s' % engine
   o, _ = p.communicate(sql.encode())

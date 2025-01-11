@@ -16,6 +16,10 @@
 # Testing that recursion works even if some predicates have
 # no initial condition.
 
+# TODO: Seems like this test is incorrectly named to be sqlite, while
+# it's on bigquery.
+
+@Engine("bigquery");
 A() Max= 0;
 B() Max= A() + 1;
 A() Max= B() + 1;

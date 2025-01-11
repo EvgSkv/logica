@@ -65,6 +65,8 @@ def RunAll(test_presto=False, test_trino=False):
     RunTest("dialects/trino/joins_test")
     RunTest("dialects/trino/joins_test")
 
+  RunTest("duckdb_is_default")
+
   RunTest("bq_plusplus_test")
   RunTest("sqlite_functors_test")
 

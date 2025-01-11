@@ -1,5 +1,5 @@
 #
-# Copyright 2020 Google LLC
+# Copyright 2025 Google LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -13,10 +13,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# Testing that unnestings are ordered by dependency.
-
-@Engine("bigquery");
-
-@OrderBy(Test, "col0");
-Test(x) :- x in y.a, y in [{a:[1,2,3]}];
-Test(x) :- y in [{a:[1,2,3]}], x in y.a;
+# Only duckdb has UniqueNumber function.
+Test(fourty_two? Count= UniqueNumber()) distinct :-
+  i in Range(42);

@@ -15,6 +15,8 @@
 
 # Testing array creation.
 
+@Engine("bigquery");
+
 FibonacciArray() = f :-
   f Array= (n -> ToInt64(Round((1 + 5 ^ 0.5) ^ n / (2 ^ n * 5 ^ 0.5))) :-
             n in Range(10));

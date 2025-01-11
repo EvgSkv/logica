@@ -18,6 +18,8 @@
 # Main predicate: BetterCountry, which is equal to Country, except for anyone
 # who wanted have got a new washer and doesn't want a new washer any more.
 
+@Engine("bigquery");
+
 @OrderBy(BetterCountry, "col0.name");
 BetterCountry(better_country) :-
   Country(country),

@@ -16,6 +16,8 @@
 # Example of running:
 # yodaql --f=a=my_value flags_test_manual.ydg testrun FlagValues
 
+@Engine("bigquery");
+
 @DefineFlag("a", "default_value_for_a");
 @DefineFlag("b", "default_value_for_b");
 @DefineFlag("c", "default_value_for_c");

@@ -15,5 +15,7 @@
 
 import integration_tests.import_tests.new_canada.NewCanadaConsume;
 
+@Engine("bigquery");
+
 @OrderBy(Test, "col0");
 Test(..r) :- NewCanadaConsume(..r);

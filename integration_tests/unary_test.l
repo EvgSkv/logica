@@ -15,6 +15,8 @@
 
 # Testing unary operators ! and -.
 
+@Engine("bigquery");
+
 Test("not") = ToString(is_small) :-
   is_small == !is_big,
   is_big == (x > 5),
