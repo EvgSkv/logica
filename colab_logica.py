@@ -85,7 +85,7 @@ if hasattr(concertina_lib, 'graphviz'):
 else:
   DISPLAY_MODE = 'colab-text'
 
-DEFAULT_ENGINE = 'bigquery'
+DEFAULT_ENGINE = 'duckdb'
 
 
 def SetPreamble(preamble):
