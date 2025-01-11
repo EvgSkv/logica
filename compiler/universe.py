@@ -335,20 +335,21 @@ class Annotations(object):
                       self.annotations['@Engine'][engine])
     return engine
  
+  def EngineTypechecksByDefault(self, engine):
+    return engine in ['psql', 'duckdb']
+
   def ShouldTypecheck(self):
     engine = self.Engine()
+    typechecks_by_default = self.EngineTypechecksByDefault(engine)
 
     if '@Engine' not in self.annotations:
-      return engine == 'psql'
+      return typechecks_by_default
     if len(self.annotations['@Engine'].values()) == 0:
-      return  engine == 'psql'
+      return typechecks_by_default
     
     engine_annotation = list(self.annotations['@Engine'].values())[0]
     if 'type_checking' not in engine_annotation:
-      if engine in ['psql', 'duckdb']:
-        return True
-      else:
-        return False
+      return typechecks_by_default
     return engine_annotation['type_checking']
 
   def ExtractSingleton(self, annotation_name, default_value):
