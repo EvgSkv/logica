@@ -25,12 +25,14 @@ else:
 
 class ConcertinaQueryEngine(object):
   def __init__(self, final_predicates, sql_runner,
-               print_running_predicate=True):
+               print_running_predicate=True,
+               observer=None):
     self.final_predicates = final_predicates
     self.final_result = {}
     self.sql_runner = sql_runner
     self.print_running_predicate = print_running_predicate
     self.completion_time = {}
+    self.observer = observer
 
   def Run(self, action):
     assert action['launcher'] in ('query', 'none')
@@ -47,6 +49,8 @@ class ConcertinaQueryEngine(object):
         print(' (%d ms)' % self.completion_time[predicate])
       if predicate in self.final_predicates:
         self.final_result[predicate] = result
+        if self.observer:
+          self.observer.ObserveTable(predicate, result)
 
 
 class ConcertinaDryRunEngine(object):
@@ -444,7 +448,7 @@ def RenamePredicate(table_to_export_map, dependency_edges,
 
 
 def ExecuteLogicaProgram(logica_executions, sql_runner, sql_engine,
-                         display_mode='colab'):
+                         display_mode='colab', observer=None):
   def ConcertinaConfig(table_to_export_map, dependency_edges,
                        data_dependency_edges, final_predicates):
     depends_on = {}
@@ -512,7 +516,8 @@ def ExecuteLogicaProgram(logica_executions, sql_runner, sql_engine,
  
   engine = ConcertinaQueryEngine(
       final_predicates=final_predicates, sql_runner=sql_runner,
-      print_running_predicate=(display_mode == 'colab'))
+      print_running_predicate=(display_mode == 'colab'),
+      observer=observer)
 
   preambles = set(e.preamble for e in logica_executions)
   # Due to change of types from predicate to predicate preables are not

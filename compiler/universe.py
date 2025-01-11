@@ -196,13 +196,13 @@ class Annotations(object):
           '-- Empty record, has to have a field by DuckDB syntax.\n'
           'drop type if exists logicarecord893574736 cascade; create type logicarecord893574736 as struct(nirvana numeric);\n'
       )
-      if self.annotations['@Engine']['duckdb'].get('motherduck'):
+      if self.annotations['@Engine'].get('duckdb', {}).get('motherduck'):
         preamble += '\n'  # Sequences are not supported in MotherDuck.
       else:
         preamble += (
           'create sequence if not exists eternal_logical_sequence;\n\n')
-      if self.annotations['@Engine']['duckdb'].get('threads'):
-        threads = int(self.annotations['@Engine']['duckdb'].get('threads'))
+      if self.annotations['@Engine'].get('duckdb', {}).get('threads'):
+        threads = int(self.annotations['@Engine'].get('duckdb', {}).get('threads'))
         preamble += 'set threads to %d;\n' % threads
     return preamble
 
