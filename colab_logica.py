@@ -388,7 +388,7 @@ def Logica(line, cell, run_query):
       raise Exception('Logica only supports BigQuery, PostgreSQL and SQLite '
                       'for now.')   
     observer = None
-    if run_query:
+    if run_query and False:  # There are some errors caused by this.
       observer = ExecutionObserver(bar, predicates)
     try:
       result_map = concertina_lib.ExecuteLogicaProgram(
