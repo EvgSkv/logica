@@ -15,6 +15,8 @@
 
 # Testing that Arg<X> functions work for single rule.
 
+@Engine("bigquery");
+
 T1() ArgMin= 4->4;
 T2() ArgMax= 4->4;
 T3() Aggr= ArgMinK(4->4, 5);

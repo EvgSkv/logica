@@ -15,5 +15,7 @@
 
 # Testing Cast function.
 
+@Engine("bigquery");
+
 T(true);
 T(Cast(1, "BOOL"));

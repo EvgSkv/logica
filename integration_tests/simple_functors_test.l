@@ -15,6 +15,8 @@
 
 # Simple functor test.
 
+@Engine("bigquery");
+
 Events1(campaign: 1) :- x in [0, 0, 0];        # 3 events.
 Events1(campaign: 2) :- x in [0, 0];           # 2 events.
 Events1(campaign: 3) :- x in [0, 0, 0, 0, 0];  # etc.

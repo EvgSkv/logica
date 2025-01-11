@@ -19,6 +19,8 @@ import integration_tests.import_tests.canada.Consume;
 import integration_tests.import_tests.canada.ImportCost;
 import integration_tests.import_tests.canada.DomesticCost;
 
+@Engine("bigquery");
+
 TestImportFraction() =
     Format("%.3f", import_cost / (import_cost + domestic_cost)) :-
   import_cost == ImportCost(), domestic_cost == DomesticCost();

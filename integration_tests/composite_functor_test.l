@@ -15,6 +15,8 @@
 
 # Test for composite functor.
 
+@Engine("bigquery");
+
 Traffic(campaign: 1, cookie: 100, country: "US");
 Traffic(campaign: 2, cookie: 200, country: "US");
 Traffic(campaign: 3, cookie: 300, country: "US");

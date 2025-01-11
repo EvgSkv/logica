@@ -15,6 +15,8 @@
 
 # Testing custom aggregation functions.
 
+@Engine("bigquery");
+
 SampledVisit(campaign:"1", person:123);
 SampledVisit(campaign:"1", person:125);
 SampledVisit(campaign:"2", person:155);

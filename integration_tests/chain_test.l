@@ -19,6 +19,8 @@ import integration_tests.chain.C;  # To connect.
 import integration_tests.chain.D;  # To connect.
 import integration_tests.chain.F;  # To test.
 
+@Engine("bigquery");
+
 # Mocking data.
 MockA("mock_data");
 

@@ -15,6 +15,8 @@
 
 # Testing 'With' annotation.
 
+@Engine("bigquery");
+
 @With(Parent);
 Parent("A", "B");
 Parent("B", "C");

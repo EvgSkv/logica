@@ -15,6 +15,8 @@
 
 # Testing analytic functions.
 
+@Engine("bigquery");
+
 Ten() = x :- x in Range(10);
 
 Data("one_five", x, y) :-

@@ -6,6 +6,8 @@ import lib.reachability.GraphPath;
 import lib.reachability.GP3;
 import lib.reachability.GraphDistance;
 
+@Engine("bigquery");
+
 D(a, a + 1) :- a in Range(100);
 
 @OrderBy(P, "col0", "col1");

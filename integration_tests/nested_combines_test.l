@@ -15,6 +15,8 @@
 
 # Tests that unified combines don't confuse variables.
 
+@Engine("bigquery");
+
 A(x, y) :- x == (combine List= t * 2 :- t in y), B(y);
 B(z) :- z == (combine List= t + 1 :- t in [1,2,3]);
 

@@ -15,6 +15,8 @@
 
 # @NoInject annotation test.
 
+@Engine("bigquery");
+
 @NoInject(A);
 A(x + x * x) :- x in [1,2,3];
 

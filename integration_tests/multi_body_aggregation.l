@@ -15,6 +15,8 @@
 
 # Tests for multi-body-aggregation.
 
+@Engine("bigquery");
+
 A() += 1;
 A() += 2;
 

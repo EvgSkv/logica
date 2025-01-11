@@ -17,6 +17,8 @@
 # Predicates are meaningless. Simply creating a deep call stack and calling the
 # functor.
 
+@Engine("bigquery");
+
 @Ground(L0);
 L0() = 0;
 L1() = L0() + 1;

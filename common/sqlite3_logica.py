@@ -162,6 +162,11 @@ def WriteFile(filename, content):
   return 'OK'
 
 
+def DataframeAsArtisticTable(df):
+  return ArtisticTable(df.columns,
+                       list(df.itertuples(index=False, name=None)))
+
+
 def ArtisticTable(header, rows):
   """ASCII art table for query output."""
   width = [0] * len(header)

@@ -13,6 +13,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+@Engine("bigquery");
+
 @OrderBy(Test, "col0");
 Test("Tan") = Round(Tan(3.14159265 / 4.0), 3);
 Test("Least") = Round(Least(Sin(0.5), Sin(0.7), Sin(0.001)), 5);

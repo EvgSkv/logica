@@ -15,6 +15,8 @@
 
 # Testing default ground and grounding a predicate to another.
 
+@Engine("bigquery");
+
 @Ground(A);
 A("a");
 
