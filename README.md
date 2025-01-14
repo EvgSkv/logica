@@ -84,7 +84,7 @@ _Logica_ stands for _**Logic** with **a**ggregation_.
 
 ## How to learn?
 
-Learn basics of Logica with the [CoLab tutorial](https://colab.research.google.com/github/EvgSkv/logica/blob/main/tutorial/Logica_tutorial.ipynb) located at [`tutorial`](https://github.com/EvgSkv/logica/tree/main/tutorial) folder.
+Learn basics of Logica with the [CoLab tutorial](https://colab.research.google.com/github/EvgSkv/logica/blob/main/tutorial/Logica_DuckDB_tutorial.ipynb) located at [`tutorial`](https://github.com/EvgSkv/logica/tree/main/tutorial) folder.
 See examples of using Logica in [`examples`](https://github.com/EvgSkv/logica/tree/main/examples) folder.
 
 Tutorial and examples show how to access Logica from CoLab. You can also install Logica command line tool.
