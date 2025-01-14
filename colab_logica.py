@@ -35,6 +35,7 @@ import IPython
 
 from IPython.core.magic import register_cell_magic
 from IPython.display import display
+from IPython.display import HTML
 
 import os
 
@@ -284,22 +285,14 @@ class ExecutionObserver:
     self.bar = bar
     self.predicates = predicates
     self.observed = set()
+    self.table_locations = {}
 
   def ObserveTable(self, predicate, table):
-    with self.bar.output_to(self.predicates.index(predicate)):
-      self.ObserveTableHere(predicate, table)
+    assert predicate in self.table_locations
+    self.table_locations[predicate].update(HTML(table.to_html()))
 
-  def ObserveTableHere(self, predicate, table):
-    if predicate in self.observed:
-      # Already observed.
-      return
-    self.observed |= {predicate}
-    print(
-        color.Format(
-            'The following table is stored at {warning}%s{end} '
-            'variable.' %
-            predicate))
-    display(table)
+  def RegisterTableLocation(self, predicate, table_location):
+    self.table_locations[predicate] = table_location 
 
 
 def Logica(line, cell, run_query):
@@ -344,6 +337,9 @@ def Logica(line, cell, run_query):
   executions = []
   sub_bars = []
   ip = IPython.get_ipython()
+  observer = None
+  if run_query:
+    observer = ExecutionObserver(bar, predicates)
   for idx, predicate in enumerate(predicates):
     with bar.output_to(logs_idx):
       try:
@@ -373,6 +369,14 @@ def Logica(line, cell, run_query):
         else:
           print('Query is stored at %s variable.' %
                 color.Warn(predicate + '_sql'))
+      with sub_bar.output_to(1):
+        print(
+            color.Format(
+                'The following table is stored at {warning}%s{end} '
+                'variable.' %
+                predicate))
+        table_location = display(HTML('<i>table to be rendered</i>'), display_id=True)
+        observer.RegisterTableLocation(predicate, table_location)
 
   with bar.output_to(logs_idx):
     if engine == 'sqlite':
@@ -387,14 +391,11 @@ def Logica(line, cell, run_query):
     else:
       raise Exception('Logica only supports BigQuery, PostgreSQL and SQLite '
                       'for now.')   
-    observer = None
-    if run_query:
-      observer = ExecutionObserver(bar, predicates)
     try:
       result_map = concertina_lib.ExecuteLogicaProgram(
         executions, sql_runner=sql_runner, sql_engine=engine,
         display_mode=DISPLAY_MODE,
-        observer=None)  # There are some errors caused by this.
+        observer=observer)
     except infer.TypeErrorCaughtException as e:
       e.ShowMessage()
       return
@@ -405,7 +406,7 @@ def Logica(line, cell, run_query):
     with bar.output_to(idx):
       with sub_bars[idx].output_to(1): 
         if run_query:
-          observer.ObserveTableHere(predicate, t) 
+          observer.ObserveTable(predicate, t) 
         else:
           print('The query was not run.')
       print(' ') # To activate the tabbar.
