@@ -942,9 +942,9 @@ def ParseProposition(s):
     c = ParsePropositionalEquivalence(s)
     if c:
       return {'conjunction': {'conjunct': [c]}}
-    c = ParsePropositionalImplication(s)
-    if c:
-      return {'conjunction': {'conjunct': [c]}}
+  c = ParsePropositionalImplication(s)
+  if c:
+    return {'conjunction': {'conjunct': [c]}}
 
   c = ParseImplication(s)
   if c:
