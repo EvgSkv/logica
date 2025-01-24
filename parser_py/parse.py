@@ -252,9 +252,10 @@ def RemoveComments(s):
 def IsWhole(s):
   """String is 'whole' if all parenthesis match."""
   status = 'OK'
-  for (_, _, status) in Traverse(s):
+  state = ''
+  for (_, state, status) in Traverse(s):
     pass
-  return status == 'OK'
+  return status == 'OK' and state == ''
 
 
 def ShowTraverse(s):
