@@ -266,8 +266,11 @@ def main(argv):
       elif engine == 'duckdb':
         import duckdb
         cur = duckdb.sql(formatted_sql)
-        o = sqlite3_logica.ArtisticTable(cur.columns,
-                                         cur.fetchall()).encode()
+        formatter = (sqlite3_logica.ArtisticTable
+                     if command == 'run'
+                     else sqlite3_logica.Csv)
+        o = formatter(cur.columns,
+                      cur.fetchall()).encode()
       elif engine == 'psql':
         connection_str = os.environ.get('LOGICA_PSQL_CONNECTION')
         if connection_str:
