@@ -691,9 +691,7 @@ class LogicaProgram(object):
     #   for p in depth_map:
     #     # DuckDB struggles with long querries.
     #     depth_map[p]['iterative'] = True
-    quacks_like_a_duck = (
-      annotations.annotations.get(
-        '@Engine', {}).get('duckdb', None) is not None)
+    quacks_like_a_duck = (annotations.Engine() == "duckdb")
     default_iterative = False
     default_depth = 8
     if quacks_like_a_duck:
