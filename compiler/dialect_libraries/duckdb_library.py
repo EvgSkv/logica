@@ -49,7 +49,8 @@ Fingerprint(s) = NaturalHash(s);
 
 ReadFile(filename) = SqlExpr("pg_read_file({filename})", {filename:});
 
-Chr(x) = SqlExpr("Chr({x})", {x:});
+Chr(x) = SqlExpr("Chr(cast({x} as integer))", {x:});
+Ord(x) = SqlExpr("Ord({x})", {x:});
 
 Num(a) = a;
 Str(a) = a;
