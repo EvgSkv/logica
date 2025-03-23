@@ -289,7 +289,8 @@ class ExecutionObserver:
 
   def ObserveTable(self, predicate, table):
     assert predicate in self.table_locations
-    self.table_locations[predicate].update(HTML(table.to_html()))
+    self.table_locations[predicate].update(HTML(
+      table.to_html(max_rows=pandas.get_option('display.max_rows'))))
 
   def RegisterTableLocation(self, predicate, table_location):
     self.table_locations[predicate] = table_location 

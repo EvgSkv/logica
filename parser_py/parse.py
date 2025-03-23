@@ -597,7 +597,7 @@ def ParseInfix(s, operators=None, disallow_operators=None):
   """Parses an infix operator expression."""
   if TOO_MUCH == 'fun':
     user_defined_operators = ['---', '-+-', '-*-', '-/-', '-%-', '-^-',
-                              '\u25C7', '\u25CB', '\u2661']
+                              '\u25C7', '\u25CB', '\u2661', '\u2295', '\u2297']
   else:
     user_defined_operators = []
 
@@ -843,7 +843,7 @@ def ParseGenericCall(s, opening, closing):
             set(['@', '_', '.', '$', '{', '}', '+', '-', '`']) |
             set(string.digits))
         if TOO_MUCH == 'fun':
-          good_chars |= set(['*', '^', '%', '/', '\u25C7', '\u25CB', '\u2661'])
+          good_chars |= set(['*', '^', '%', '/', '\u25C7', '\u25CB', '\u2661', '\u2295', '\u2297'])
         if ((idx > 0 and set(s[:idx]) <= good_chars) or
             s[:idx] == '!' or
             s[:idx] == '++?' or
