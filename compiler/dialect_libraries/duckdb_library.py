@@ -76,4 +76,10 @@ UniqueNumber() = SqlExpr("nextval('eternal_logical_sequence')", {});
 # Doing via SqlExpr as Logica for now prohibits list of lists.
 # TODO: We should allow list of lists in DuckDB.
 MergeList(e) = SqlExpr("flatten(array_agg({e}))", {e:});
+
+# Functional predicate for toy examples of solving
+# NP-complete problems.
+ProverChoice(slot, options:) = options[i] :-
+  i = NaturalHash("ProverChoice-" ++
+                  ToString(UniqueNumber())) % Size(options);
 """
