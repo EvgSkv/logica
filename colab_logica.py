@@ -235,15 +235,24 @@ class SqliteRunner(object):
   def __call__(self, sql, engine, is_final):
     return RunSQL(sql, engine, self.connection, is_final)
 
+
 class DuckdbRunner(object):
   def __init__(self):
-    global DB_CONNECTION
-    if not DB_CONNECTION:
-      DB_CONNECTION = duckdb.connect()
-    self.connection = DB_CONNECTION
+    self.connection = self.GetGlobalConnection()
 
   def  __call__(self, sql, engine, is_final):
     return RunSQL(sql, engine, self.connection, is_final)
+
+  @classmethod
+  def GetGlobalConnection(cls):
+    global DB_CONNECTION
+    if not DB_CONNECTION:
+      DB_CONNECTION = duckdb.connect()
+    return DB_CONNECTION
+  
+  @classmethod
+  def Register(cls, name, dataframe):
+    DB_CONNECTION.register(name, dataframe)
 
 
 class PostgresRunner(object):
