@@ -49,6 +49,7 @@ if __name__ == '__main__' and not __package__:
   from parser_py import parse
   from type_inference.research import infer
   from type_inference import type_retrieval_service_discovery
+  from tools import proposition_repl
 else:
   from .common import color
   from .common import sqlite3_logica
@@ -58,6 +59,7 @@ else:
   from .parser_py import parse
   from .type_inference.research import infer
   from .type_inference import type_retrieval_service_discovery
+  from .tools import proposition_repl
 
 
 def ReadUserFlags(rules, argv):
@@ -134,7 +136,8 @@ def main(argv):
           'GoodIdea(snack: "carrots")\'')
     return 1
 
-  if len(argv) == 3 and argv[2] in ['parse', 'infer_types', 'show_signatures']:
+  if len(argv) == 3 and argv[2] in ['parse', 'infer_types', 'show_signatures',
+                                    'propositional_playground']:
     pass  # compile needs just 2 actual arguments.
   else:
     if len(argv) < 4:
@@ -151,7 +154,8 @@ def main(argv):
   command = argv[2]
 
   commands = ['parse', 'print', 'run', 'run_to_csv', 'run_in_terminal',
-              'infer_types', 'show_signatures', 'build_schema']
+              'infer_types', 'show_signatures', 'build_schema',
+              'propositional_playground']
 
   if command not in commands:
     print(color.Format('Unknown command {warning}{command}{end}. '
@@ -180,6 +184,10 @@ def main(argv):
   except parse.ParsingException as parsing_exception:
     parsing_exception.ShowMessage()
     sys.exit(1)
+
+  if command == 'propositional_playground':
+    proposition_repl.Repl(program_text)
+    return
 
   if command == 'parse':
     # Minimal indentation for better readability of deep objects.

@@ -187,6 +187,10 @@ class SqlReceiver:
     self.sql = None
 
 
+def HandleException(exception):
+  sys.exit(1)  # LOL
+
+
 def CompilePredicateFromString(logica_string,
                                predicate_name,
                                user_flags=None):
@@ -194,24 +198,24 @@ def CompilePredicateFromString(logica_string,
     rules = parse.ParseFile(logica_string)['rule']
   except parse.ParsingException as parsing_exception:
     parsing_exception.ShowMessage()
-    sys.exit(1)
-  
+    return HandleException(parsing_exception)
+
   try:
     program = universe.LogicaProgram(rules, user_flags=user_flags)
     sql = program.FormattedPredicateSql(predicate_name)
     engine = program.execution.annotations.Engine()
   except rule_translate.RuleCompileException as rule_compilation_exception:
     rule_compilation_exception.ShowMessage()
-    sys.exit(1)
+    return HandleException(rule_compilation_exception)
   except functors.FunctorError as functor_exception:
     functor_exception.ShowMessage()
-    sys.exit(1)
+    return HandleException(functor_exception)
   except infer.TypeErrorCaughtException as type_error_exception:
     type_error_exception.ShowMessage()
-    sys.exit(1)
+    return HandleException(type_error_exception)
   except parse.ParsingException as parsing_exception:
     parsing_exception.ShowMessage()
-    sys.exit(1)
+    return HandleException(parsing_exception)
   return sql, engine
 
 
