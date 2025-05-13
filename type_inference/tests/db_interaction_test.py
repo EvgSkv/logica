@@ -61,8 +61,8 @@ class TestTypeInferenceWithSqlite(unittest.TestCase):
 
     TypeInference(graphs, sqlite_inspector).Infer()
 
-    self.assertEquals(q_col0.type, number)
-    self.assertEquals(t_col0.type, number)
+    self.assertEqual(q_col0.type, number)
+    self.assertEqual(t_col0.type, number)
 
     self.safe_drop_table('T')
 
@@ -110,8 +110,8 @@ class TestTypeInferenceWithPsql(unittest.TestCase):
 
     TypeInference(graphs, postgres_inspector).Infer()
 
-    self.assertEquals(q_col0.type, number)
-    self.assertEquals(t_col0.type, number)
+    self.assertEqual(q_col0.type, number)
+    self.assertEqual(t_col0.type, number)
 
     self.safe_drop_table(metadata, table)
 

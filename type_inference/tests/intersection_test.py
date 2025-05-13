@@ -50,7 +50,7 @@ class IntersectionTest(unittest.TestCase):
     for type in types:
       with self.subTest(type=type):
         result = self.intersect_with_zero_bounds(Intersect, type, type)
-        self.assertEquals(result, type)
+        self.assertEqual(result, type)
 
   def test_fail_when_intersect_not_equal_types(self):
     types = [number, string, boolean, list_of_nums,
