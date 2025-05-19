@@ -20,10 +20,43 @@ import os
 intelligence_executed = False
 PROVIDER = None  # Will be set during first execution
 
+def GetDefaultProvider():
+    """Returns default AI provider and API key based on available API keys in environment.
+    
+    Returns:
+        tuple[str|None, str|None]: A tuple containing:
+            - provider: 'gemini' or 'openai' if respective key is set, None if no keys
+            - api_key: The corresponding API key if found, None otherwise
+    """
+    gemini_key = os.getenv('LOGICA_GEMINI_API_KEY')
+    if gemini_key:
+        return "gemini", gemini_key
+    
+    openai_key = os.getenv('LOGICA_OPENAI_API_KEY')
+    if openai_key:
+        return "openai", openai_key
+    
+    return None, None
+
 def InitializeAI(provider=None):
     """Initializing AI API by setting the API key."""
     global PROVIDER
     
+    # If no provider specified, try to get default from environment
+    if provider is None:
+        provider, api_key = GetDefaultProvider()
+    # If provider specified, verify and get the API key
+    elif provider == "gemini":
+        api_key = os.getenv('LOGICA_GEMINI_API_KEY')
+        if not api_key:
+            print(f"Warning: {provider} specified but no API key found in environment")
+            provider = None
+    elif provider == "openai":
+        api_key = os.getenv('LOGICA_OPENAI_API_KEY')
+        if not api_key:
+            print(f"Warning: {provider} specified but no API key found in environment")
+            provider = None
+        
     if provider is None:
         print("\nPlease choose the AI provider:")
         print("1. OpenAI (gpt-3.5-turbo)")
@@ -42,7 +75,7 @@ def InitializeAI(provider=None):
     if PROVIDER == "openai":
         import openai
         if not openai.api_key:
-            openai.api_key = os.getenv('LOGICA_OPENAI_API_KEY')
+            openai.api_key = api_key
             if not openai.api_key:
                 print()
                 print('OpenAI API will be used to run Logica Intelligence function. '
@@ -57,7 +90,7 @@ def InitializeAI(provider=None):
     
     elif PROVIDER == "gemini":
         import google.generativeai as genai
-        if not os.getenv('LOGICA_GEMINI_API_KEY'):
+        if not api_key:
             print()
             print('Google Gemini API will be used to run Logica Intelligence function.')
             print('No key provided in the environment variable LOGICA_GEMINI_API_KEY.')
@@ -66,7 +99,9 @@ def InitializeAI(provider=None):
                 raise Exception('Intelligence function could not obtain Gemini API key.')
             genai.configure(api_key=api_key)
         else:
-            genai.configure(api_key=os.getenv('LOGICA_GEMINI_API_KEY'))
+            genai.configure(api_key=api_key)
+    else:
+        assert False, "Unknown provider: %s" % PROVIDER
 
 def Intelligence(command):
     """Executing command on AI API and returning the response."""
