@@ -19,15 +19,21 @@ import os
 
 intelligence_executed = False
 PROVIDER = None  # Will be set during first execution
+LLAMA_MODEL = None  # Global reference to loaded LLaMA model
 
 def GetDefaultProvider():
     """Returns default AI provider and API key based on available API keys in environment.
     
     Returns:
         tuple[str|None, str|None]: A tuple containing:
-            - provider: 'gemini' or 'openai' if respective key is set, None if no keys
+            - provider: 'gemini', 'openai', or 'llama' if respective key/path is set, None if no keys
             - api_key: The corresponding API key if found, None otherwise
     """
+    # Check for LLaMA model path first as it's local
+    llama_path = os.getenv('LOGICA_LLAMA_MODEL_PATH')
+    if llama_path and os.path.exists(llama_path):
+        return "llama", llama_path
+    
     gemini_key = os.getenv('LOGICA_GEMINI_API_KEY')
     if gemini_key:
         return "gemini", gemini_key
@@ -40,7 +46,7 @@ def GetDefaultProvider():
 
 def InitializeAI(provider=None):
     """Initializing AI API by setting the API key."""
-    global PROVIDER
+    global PROVIDER, LLAMA_MODEL
     
     # If no provider specified, try to get default from environment
     if provider is None:
@@ -56,19 +62,27 @@ def InitializeAI(provider=None):
         if not api_key:
             print(f"Warning: {provider} specified but no API key found in environment")
             provider = None
+    elif provider == "llama":
+        api_key = os.getenv('LOGICA_LLAMA_MODEL_PATH')
+        if not api_key or not os.path.exists(api_key):
+            print(f"Warning: {provider} specified but no valid model path found in environment")
+            provider = None
         
     if provider is None:
         print("\nPlease choose the AI provider:")
         print("1. OpenAI (gpt-3.5-turbo)")
         print("2. Google Gemini (gemini-2.0-flash)")
-        choice = input("Enter your choice (1 or 2): ").strip()
+        print("3. Local LLaMA")
+        choice = input("Enter your choice (1, 2, or 3): ").strip()
         
         if choice == "1":
             provider = "openai"
         elif choice == "2":
             provider = "gemini"
+        elif choice == "3":
+            provider = "llama"
         else:
-            raise ValueError("Invalid choice. Please select 1 for OpenAI or 2 for Gemini.")
+            raise ValueError("Invalid choice. Please select 1 for OpenAI, 2 for Gemini, or 3 for LLaMA.")
     
     PROVIDER = provider
     
@@ -100,13 +114,31 @@ def InitializeAI(provider=None):
             genai.configure(api_key=api_key)
         else:
             genai.configure(api_key=api_key)
+    
+    elif PROVIDER == "llama":
+        try:
+            from llama_cpp import Llama
+        except ImportError:
+            raise ImportError("Please install llama-cpp-python first: pip install llama-cpp-python")
+        
+        if not api_key:
+            print()
+            print('Local LLaMA will be used to run Logica Intelligence function.')
+            print('No model path provided in the environment variable LOGICA_LLAMA_MODEL_PATH.')
+            model_path = input('Please provide the path to your LLaMA model file (.gguf): ').strip()
+            if not model_path or not os.path.exists(model_path):
+                raise Exception('Invalid model path or model file does not exist.')
+            api_key = model_path
+        
+        print("Loading LLaMA model... This might take a few moments.")
+        LLAMA_MODEL = Llama(model_path=api_key)
     else:
         assert False, "Unknown provider: %s" % PROVIDER
 
 def Intelligence(command):
     """Executing command on AI API and returning the response."""
     global intelligence_executed
-    global PROVIDER
+    global PROVIDER, LLAMA_MODEL
 
     if not intelligence_executed:
         InitializeAI()
@@ -136,3 +168,13 @@ def Intelligence(command):
         model = genai.GenerativeModel('gemini-2.0-flash')
         response = model.generate_content(command)
         return response.text
+        
+    elif PROVIDER == "llama":
+        response = LLAMA_MODEL.create_completion(
+            prompt=command,
+            max_tokens=512,
+            temperature=0.7,
+            top_p=0.95,
+            stop=["</s>", "\n\n"]
+        )
+        return response['choices'][0]['text']
