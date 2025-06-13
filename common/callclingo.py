@@ -50,25 +50,10 @@ def _run_clingo(script: str):
 
     # Convert answer sets to Logica-compatible format
     for atoms in collector.models:
-        predicates = {}
+        atom_strings = []
         for atom in atoms:
-            if '(' in atom:
-                pred_name, args_str = atom.split('(', 1)
-                args_str = args_str.rstrip(')')
-                args = []
-                for arg in args_str.split(','):
-                    arg = arg.strip()
-                    if arg.isdigit():
-                        args.append(int(arg))
-                    elif arg.startswith('"') and arg.endswith('"'):
-                        args.append(arg[1:-1])
-                    else:
-                        args.append(arg)
-                predicates[pred_name] = args
-            else:
-                predicates[atom] = []
-        answer_sets.append(predicates)
-
+            atom_strings.append(str(atom))
+        answer_sets.append(atom_strings)
     return answer_sets
 
 def ClingoToLogica(script: str) -> str:
@@ -78,20 +63,25 @@ def ClingoToLogica(script: str) -> str:
     """
     answer_sets = _run_clingo(script)
     result = []
+    for idx, atom_strings in enumerate(answer_sets, start=1):
+        result.append({"world_id": idx, "predicates": atom_strings})
+    return json.dumps(result)
+
+def ClingoToLogicaFile(script: str, filename: str):
+    """
+    Execute a Clingo script and write the possible worlds as JSON to a file.
+    """
+    answer_sets = _run_clingo(script)
+    result = []
     for idx, answer_set in enumerate(answer_sets, start=1):
         predicates = []
         for pred_name, args in answer_set.items():
             if args:
-                # Join arguments with commas, wrap strings in quotes if needed
-                arg_strs = []
-                for arg in args:
-                    if isinstance(arg, str) and not arg.isdigit():
-                        arg_strs.append(str(arg))
-                    else:
-                        arg_strs.append(str(arg))
+                arg_strs = [str(arg) for arg in args]
                 pred_str = f"{pred_name}({', '.join(arg_strs)})"
             else:
                 pred_str = pred_name
             predicates.append(pred_str)
         result.append({"world_id": idx, "predicates": predicates})
-    return json.dumps(result) 
+    with open(filename, "w") as f:
+        json.dump(result, f) 
