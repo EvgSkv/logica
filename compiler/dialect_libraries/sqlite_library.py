@@ -51,6 +51,8 @@ Fingerprint(s) = SqlExpr("Fingerprint({s})", {s:});
 
 Intelligence(command) = SqlExpr("Intelligence({command})", {command:});
 
+ClingoToLogica(script) = SqlExpr("ClingoToLogica({script})", {script:});
+
 AssembleRecord(field_values) = SqlExpr("AssembleRecord({field_values})", {field_values:});
 
 DisassembleRecord(record) = SqlExpr("DisassembleRecord({record})", {record:});
