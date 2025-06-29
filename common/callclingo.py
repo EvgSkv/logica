@@ -17,6 +17,7 @@
 """Provides integration with Clingo (Answer Set Programming) for Logica."""
 
 import json
+import re
 
 try:
     import clingo
@@ -25,6 +26,23 @@ except ImportError as e:
         "The 'clingo' Python package is required for ClingoToLogica. "
         "Install it with: pip install clingo"
     ) from e
+
+def _parse_predicate(atom_str: str):
+    """Parse a predicate string like 'attack(b,a)' into {pred_name: 'attack', args: ['b', 'a']}."""
+    # Match pattern like 'predicate(arg1,arg2,...)' or just 'predicate'
+    match = re.match(r'^(\w+)(?:\((.*)\))?$', atom_str)
+    if match:
+        predicate = match.group(1)
+        args_str = match.group(2)
+        if args_str:
+            # Split by comma and strip whitespace
+            args = [arg.strip() for arg in args_str.split(',')]
+        else:
+            args = []
+        return {"pred_name": predicate, "args": args}
+    else:
+        # Fallback: return as is
+        return {"pred_name": atom_str, "args": []}
 
 def _run_clingo(script: str):
     """Execute a Clingo script and return the answer sets using the Clingo Python API."""
@@ -47,7 +65,6 @@ def _run_clingo(script: str):
         ctl.solve(on_model=collector.on_model)
     except Exception as e:
         raise RuntimeError(f"Clingo execution failed: {e}")
-
     # Convert answer sets to Logica-compatible format
     for atoms in collector.models:
         atom_strings = []
@@ -59,12 +76,13 @@ def _run_clingo(script: str):
 def ClingoToLogica(script: str) -> str:
     """
     Execute a Clingo script and return results as a list of possible worlds,
-    each with a world id and a list of predicate strings (e.g., 'attack(b,a)').
+    each with a world id and a list of predicate objects with predicate name and args.
     """
     answer_sets = _run_clingo(script)
     result = []
     for idx, atom_strings in enumerate(answer_sets, start=1):
-        result.append({"world_id": idx, "predicates": atom_strings})
+        predicates = [_parse_predicate(atom_str) for atom_str in atom_strings]
+        result.append({"world_id": idx, "predicates": predicates})
     return json.dumps(result)
 
 def ClingoToLogicaFile(script: str, filename: str):
@@ -73,15 +91,8 @@ def ClingoToLogicaFile(script: str, filename: str):
     """
     answer_sets = _run_clingo(script)
     result = []
-    for idx, answer_set in enumerate(answer_sets, start=1):
-        predicates = []
-        for pred_name, args in answer_set.items():
-            if args:
-                arg_strs = [str(arg) for arg in args]
-                pred_str = f"{pred_name}({', '.join(arg_strs)})"
-            else:
-                pred_str = pred_name
-            predicates.append(pred_str)
+    for idx, atom_strings in enumerate(answer_sets, start=1):
+        predicates = [_parse_predicate(atom_str) for atom_str in atom_strings]
         result.append({"world_id": idx, "predicates": predicates})
     with open(filename, "w") as f:
         json.dump(result, f) 
