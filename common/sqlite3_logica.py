@@ -259,7 +259,8 @@ def ExtendConnectionWithLogicaFunctions(con):
   con.create_function('RE_SUB', 5, lambda string, pattern, repl="", count=0, flags=0: \
                                     re.sub(pattern, repl, string ,count, flags))
   con.create_function('Intelligence', 1, intelligence.Intelligence)
-  con.create_function('ClingoToLogica', 1, callclingo.ClingoToLogica)
+  con.create_function('RunClingo', 1, callclingo.RunClingo)
+  con.create_function('RunClingoFile', 1, callclingo.RunClingoFile)
   con.create_function('AssembleRecord', 1, AssembleRecord)
   con.create_function('DisassembleRecord', 1, DisassembleRecord)
   sqlite3.enable_callback_tracebacks(True)
