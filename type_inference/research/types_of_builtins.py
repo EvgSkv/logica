@@ -202,6 +202,11 @@ def TypesOfBultins():
            0: 'Any',
            'logica_value': 'Str'
         },
+        'Join': {
+           0: 'Any',
+           1: 'Any',
+           'logica_value': 'Str'
+        },
         'ToInt64': {
            0: 'Any',
            'logica_value': 'Num'
