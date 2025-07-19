@@ -1,0 +1,10 @@
++------------------------------------------------------------------------------------------------------------------------------+
+| model                                                                                                                        |
++------------------------------------------------------------------------------------------------------------------------------+
+| name(ceasar). name(leo). name(napoleon). dog(1). dog(2). dogname(1, napoleon). dogname(2, ceasar). nameddog(1). nameddog(2). |
+| name(ceasar). name(leo). name(napoleon). dog(1). dog(2). dogname(1, napoleon). dogname(2, leo). nameddog(1). nameddog(2).    |
+| name(ceasar). name(leo). name(napoleon). dog(1). dog(2). dogname(1, leo). dogname(2, ceasar). nameddog(1). nameddog(2).      |
+| name(ceasar). name(leo). name(napoleon). dog(1). dog(2). dogname(1, leo). dogname(2, napoleon). nameddog(1). nameddog(2).    |
+| name(ceasar). name(leo). name(napoleon). dog(1). dog(2). dogname(1, ceasar). dogname(2, leo). nameddog(1). nameddog(2).      |
+| name(ceasar). name(leo). name(napoleon). dog(1). dog(2). dogname(1, ceasar). dogname(2, napoleon). nameddog(1). nameddog(2). |
++------------------------------------------------------------------------------------------------------------------------------+
