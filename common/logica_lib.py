@@ -22,6 +22,7 @@ import subprocess
 import sys
 
 if '.' not in __package__:
+  from common import duckdb_logica
   from common import sqlite3_logica
   from common import psql_logica
   from compiler import functors
@@ -30,6 +31,7 @@ if '.' not in __package__:
   from parser_py import parse
   from type_inference.research import infer
 else:
+  from ..common import duckdb_logica
   from ..common import sqlite3_logica
   from ..common import psql_logica
   from ..compiler import functors
@@ -115,6 +117,8 @@ def RunQuery(sql,
   elif engine == 'duckdb':
     import duckdb
     connection = duckdb.connect()
+    if 'clingo' in settings and settings['clingo']:
+      duckdb_logica.ConnectClingo(connection)
     df = connection.sql(sql).df()
     return sqlite3_logica.DataframeAsArtisticTable(df)
   else:
