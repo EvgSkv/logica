@@ -43,6 +43,7 @@ import sys
 if __name__ == '__main__' and not __package__:
   from common import color
   from common import sqlite3_logica
+  from common import clingo_logica
   from common import duckdb_logica
   from compiler import functors
   from compiler import rule_translate
@@ -54,6 +55,7 @@ if __name__ == '__main__' and not __package__:
 else:
   from .common import color
   from .common import sqlite3_logica
+  from .common import clingo_logica
   from .common import duckdb_logica
   from .compiler import functors
   from .compiler import rule_translate
@@ -157,7 +159,7 @@ def main(argv):
 
   commands = ['parse', 'print', 'run', 'run_to_csv', 'run_in_terminal',
               'infer_types', 'show_signatures', 'build_schema',
-              'propositional_playground']
+              'propositional_playground', 'print_clingo', 'run_clingo']
 
   if command not in commands:
     print(color.Format('Unknown command {warning}{command}{end}. '
@@ -180,7 +182,7 @@ def main(argv):
 
   program_text = open(filename).read()
 
-  if 'RunClingo' in program_text:  # Crazy, right? :D I'll do this again below!
+  if 'Clingo' in program_text:  # Crazy, right? :D I'll do this again below!
     # Explicit connection is required in CoLab and libraries,
     # but for command line we'll just attach it whenever user
     # appears to be calling Clingo.
@@ -246,6 +248,16 @@ def main(argv):
     type_retrieval_service.RetrieveTypes(filename)
     return 0
 
+  if command == 'print_clingo':
+    print(clingo_logica.Klingon(parsed_rules, predicates_list))
+    return 0
+
+  if command == 'run_clingo':
+    print(clingo_logica.RenderKlingon(
+        clingo_logica.RunClingo(
+            clingo_logica.Klingon(parsed_rules, predicates_list))))
+    return 0  
+
   for predicate in predicates_list:
     try:
       logic_program = universe.LogicaProgram(
@@ -291,7 +303,8 @@ def main(argv):
       elif engine == 'duckdb':
         import duckdb
         connection = duckdb.connect()
-        if 'RunClingo' in formatted_sql:  # LOL! :D Second place I'm doing it.
+        if 'Clingo' in formatted_sql:  # LOL! :D Second place I'm doing it.
+          duckdb_logica.logical_context = parsed_rules
           duckdb_logica.ConnectClingo(connection)
         cur = connection.sql(formatted_sql)
         formatter = (sqlite3_logica.ArtisticTable

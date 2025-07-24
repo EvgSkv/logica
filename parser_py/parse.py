@@ -1232,13 +1232,27 @@ def ParseFunctionRule(s: HeritageAwareString) -> Optional[List[Dict]]:
   return [annotation, rule]
 
 
+def GrabDenotation(head, denotation):
+  head_couldbe = Split(head, denotation)
+  if len(head_couldbe) > 2:
+    raise ParsingException('Too many >>%s\'s<<.' % denotation, head)
+  if len(head_couldbe) == 2 and head_couldbe[1].strip():
+    raise ParsingException('Denotation >>%s<< should go last.' % denotation,
+                           head)
+  head = head_couldbe[0]
+  return head, len(head_couldbe) == 2
+
 def ParseRule(s: HeritageAwareString) -> Dict:
   """Parsing logica.Logica."""
   parts = Split(s, ':-')
   if len(parts) > 2:
     raise ParsingException('Too many :- in a rule. '
                            'Did you forget >>semicolon<<?', s)
-  head = parts[0]
+  head = parts[0] 
+  # Parsing possibilities.
+  head, couldbe = GrabDenotation(head, 'couldbe')
+  head, cantbe = GrabDenotation(head, 'cantbe')
+
   head_distinct = Split(head, 'distinct')
   if len(head_distinct) == 1:
     parsed_head_call, is_distinct = ParseHeadCall(head)
@@ -1255,6 +1269,10 @@ def ParseRule(s: HeritageAwareString) -> Dict:
     parsed_head_call, is_distinct = ParseHeadCall(head_distinct[0])
     result = {'head': parsed_head_call,
               'distinct_denoted': True}
+  if couldbe:
+    result['couldbe_denoted'] = True
+  if cantbe:
+    result['cantbe_denoted'] = True
   if len(parts) == 2:
     body = parts[1]
     result['body'] = ParseProposition(body)
