@@ -19,12 +19,17 @@
 
 if '.' not in __package__:
   from compiler.dialect_libraries import duckdb_library
+  from common import clingo_logica
 else:
   from ..compiler.dialect_libraries import duckdb_library
+  from ..common import clingo_logica
 
 
 clingo_library = '''
 # Clingo support.
+
+Clingo(p, m) = SqlExpr("Clingo({p}, {m})", {p:, m:}) :-
+  m ~ [{predicate: Str, args: [Str]}];
 
 RunClingo(p) = SqlExpr("RunClingo({p})", {p:});
 RunClingoFile(p) = SqlExpr("RunClingoFile({p})", {p:});
@@ -35,7 +40,7 @@ RenderClingoArgs(args) = (
   if Size(args) == 0 then
     "()"
   else
-    "(" ++ Join(args, ", ") ++ ")."
+    "(" ++ Join(args, ", ") ++ ")"
 );
 
 RenderClingoFact(predicate, args) =  predicate ++ RenderClingoArgs(args);
@@ -43,6 +48,9 @@ RenderClingoFact(predicate, args) =  predicate ++ RenderClingoArgs(args);
 RenderClingoModel(model, sep) = Join(List{RenderClingoFact(fact.predicate, fact.args) :-
                                           fact in model}, sep);
 '''
+
+# Rules to be put here.
+logical_context = []
 
 display_style = ';'.join([
       'border: 1px solid rgba(0, 0, 0, 0.3)',
@@ -161,6 +169,21 @@ def ConnectClingo(connection,
   except:
       pass
   connection.create_function('RunClingoFileTemplate', RunClingoFileTemplate)
+
+  def Clingo(predicates: duckdb.list_type(str),
+             within_model: model_type) -> list_of_models_type:
+    context = '\n'.join(clingo_logica.RenderKlingonModel(
+        within_model, from_logica=True))
+    program = clingo_logica.Klingon(logical_context, predicates)
+    full_program = context + program
+    # print('Full Clingo Program:', full_program)
+    return RunClingo(full_program)
+
+  try:
+      connection.remove_function('Clingo')
+  except:
+      pass
+  connection.create_function('Clingo', Clingo)
 
   AddClingoFunctionsToLibrary()
 
