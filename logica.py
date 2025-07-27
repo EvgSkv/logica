@@ -305,7 +305,7 @@ def main(argv):
         connection = duckdb.connect()
         if 'Clingo' in formatted_sql:  # LOL! :D Second place I'm doing it.
           duckdb_logica.logical_context = parsed_rules
-          duckdb_logica.ConnectClingo(connection)
+          duckdb_logica.ConnectClingo(connection, default_opt_mode='opt')
         cur = connection.sql(formatted_sql)
         formatter = (sqlite3_logica.ArtisticTable
                      if command == 'run'

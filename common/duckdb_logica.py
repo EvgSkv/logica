@@ -17,6 +17,8 @@
 # Keeping the placeholder, but we may never needed.
 # DuckDB is too easy to connect!
 
+import json
+
 if '.' not in __package__:
   from compiler.dialect_libraries import duckdb_library
   from common import clingo_logica
