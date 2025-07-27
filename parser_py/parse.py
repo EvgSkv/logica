@@ -1249,12 +1249,14 @@ def ParseRule(s: HeritageAwareString) -> Dict:
     raise ParsingException('Too many :- in a rule. '
                            'Did you forget >>semicolon<<?', s)
   head = parts[0] 
-  # Parsing possibilities.
+  # Parsing search directing modalities.
   head, couldbe = GrabDenotation(head, 'couldbe')
   head, cantbe = GrabDenotation(head, 'cantbe')
+  head, shouldbe = GrabDenotation(head, 'shouldbe')
 
   head_distinct = Split(head, 'distinct')
   if len(head_distinct) == 1:
+    
     parsed_head_call, is_distinct = ParseHeadCall(head)
     if not parsed_head_call:
       raise ParsingException(
@@ -1273,6 +1275,8 @@ def ParseRule(s: HeritageAwareString) -> Dict:
     result['couldbe_denoted'] = True
   if cantbe:
     result['cantbe_denoted'] = True
+  if shouldbe:
+    result['shouldbe_denoted'] = True
   if len(parts) == 2:
     body = parts[1]
     result['body'] = ParseProposition(body)

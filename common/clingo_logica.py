@@ -28,6 +28,9 @@ def RenderRule(rule):
     if rule.get('cantbe_denoted', False):
       return ''
     return x
+  if rule.get('shouldbe_denoted'):
+    return RenderCombine(rule['head']['record']['field_value'][0]['value']['expression']['combine'],
+                         imperative=True) + '.'
   head = Modal(RenderCall(rule['head']))
   if 'body' not in rule:
     return head + '.'
@@ -48,10 +51,32 @@ def RulesOfPredicates(rules, predicate_names):
           if r['head']['predicate_name'] in predicate_names]
 
 
+def RenderProposition(proposition):
+  if 'predicate' in proposition:
+    return RenderCall(proposition['predicate'])
+  if 'inclusion' in proposition:
+    return RenderInclusion(proposition['inclusion'])
+  assert False
+
+def RenderInclusion(inclusion):
+  left = RenderExpression(inclusion['element'])
+  l = inclusion['list']
+  if 'call' in l:
+    assert l['call']['predicate_name'] == 'Range'
+    bound = l['call']['record']['field_value'][0]['value']['expression']
+    right = '0..((' + str(RenderExpression(bound)) + ') - 1)'
+    return left + ' = ' + right
+  if 'literal' in l:
+    assert 'the_list' in l['literal']
+    elements = l['literal']['the_list']['element']
+    elements_strs = [RenderExpression(e) for e in elements]
+    return left + ' = (%s)' % ';'.join(elements_strs)
+  assert False
+
 def RenderCall(call):
   """Renders predicate call."""
   p = call['predicate_name']
-  if p in ['=', '!=', '<', '<=', '>', '>=']:
+  if p in ['=', '!=', '<', '<=', '>', '>=', '+', '-', '*']:
     return RenderInfixCall(call)
   if p == 'IsNull':
     return RenderNegation(call)
@@ -68,7 +93,7 @@ def RenderNegation(call):
   assert len(conjuncts) == 1
   negated_expr = conjuncts[0]['predicate']
   return 'not ' + RenderCall(negated_expr)
-  
+
 
 def RenderInfixCall(call):
   """Fenders infix call."""
@@ -88,7 +113,8 @@ def RenderPositionalCall(call):
   fvs = record['field_value']
   values = []
   for i, fv in enumerate(fvs):
-    assert i == fv['field'], (
+    assert (i == fv['field'] or
+            i == len(fvs) - 1 and fv['field'] == 'logica_value'), (
         'Bad argument:' + str(i) + ' vs ' + str(fv['field']))
     values.append(RenderExpression(fv['value']['expression']))
   return Snakify(call['predicate_name']) + '(' + ','.join(values) + ')'
@@ -98,8 +124,7 @@ def RenderBody(body):
   """Renders body of rule."""
   calls = []
   for x in body['conjunction']['conjunct']:
-    c = x['predicate']
-    calls.append(RenderCall(c))
+    calls.append(RenderProposition(x))
   return ', '.join(calls)
 
 
@@ -122,10 +147,30 @@ def RenderExpression(e):
     return RenderLiteral(e['literal'])
   if 'variable' in e:
     return RenderVariable(e['variable'])
+  if 'call' in e:
+    return RenderCall(e['call'])
+  if 'combine' in e:
+    return RenderCombine(e['combine'])
+  assert False, str(e)
+
+
+def RenderCombine(combine, imperative=False):
+  a = combine['head']['record']['field_value'][0]['value']['aggregation']['expression']
+  p = a['call']['predicate_name']
+  v = a['call']['record']['field_value'][0]['value']['expression']
+  b = combine['body']
+  imp_suffix = 'imize' if imperative else ''
+  return '#%s%s { %s : %s }' % (p.lower(), imp_suffix,
+                                RenderExpression(v), RenderBody(b))
+
 
 def RenderLiteral(l):
   """Renders a literal. For now just string."""
-  return l['the_string']['the_string']
+  if 'the_string' in l:
+    return '"%s"' % l['the_string']['the_string']
+  if 'the_number' in l:
+    return str(l['the_number']['number'])
+  assert False
 
 
 def RenderVariable(v):
@@ -139,6 +184,7 @@ def RenderVariable(v):
 def RunClingo(program):
   """Running program on clingo, returning models."""
   import clingo
+  import json
   ctl = clingo.Control()
   ctl.add("base", [], program)
   ctl.configuration.solve.models = 0
@@ -151,7 +197,8 @@ def RunClingo(program):
       entry = []
       for s in model.symbols(atoms=True):
         entry.append({'predicate': s.name,
-                      'args': list(map(str, s.arguments))})
+                      'args': [str(json.loads(str(a))) for 
+                               a in s.arguments]})
       result.append({'model': entry, 'model_id': model_id})
   return result
 
