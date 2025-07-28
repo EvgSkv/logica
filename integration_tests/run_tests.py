@@ -67,12 +67,11 @@ def RunAll(test_presto=False, test_trino=False, test_clingo=True):
 
   if test_clingo:
     from common import duckdb_logica
-    duckdb_logica.AddClingoFunctionsToLibrary()
     RunTest('duckdb_clingo')
     RunTest('clingo_basic_test')
     RunTest('manual_coloring_first_test')
     RunTest('manual_coloring_second_test')
-    RunTest('manual_salesmanp')
+    RunTest('manual_salesman')
 
   RunTest("propositional_implication_test")
 

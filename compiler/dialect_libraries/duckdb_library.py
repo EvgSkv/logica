@@ -82,4 +82,31 @@ MergeList(e) = SqlExpr("flatten(array_agg({e}))", {e:});
 ProverChoice(slot, options:) = options[i] :-
   i = NaturalHash("ProverChoice-" ++
                   ToString(UniqueNumber())) % Size(options);
+
+#######################
+# Clingo support.
+#
+
+Clingo(p, m) = SqlExpr("Clingo({p}, {m})", {p:, m:}) :-
+  m ~ [{predicate: Str, args: [Str]}];
+
+RunClingo(p) = SqlExpr("RunClingo({p})", {p:});
+RunClingoFile(p) = SqlExpr("RunClingoFile({p})", {p:});
+RunClingoTemplate(p, a) = SqlExpr("RunClingoTemplate({p}, {a})", {p:, a:});
+RunClingoFileTemplate(p, a) = SqlExpr("RunClingoFileTemplate({p}, {a})", {p:, a:});
+
+RenderClingoArgs(args) = (
+  if Size(args) == 0 then
+    "()"
+  else
+    "(" ++ Join(args, ", ") ++ ")"
+);
+
+RenderClingoFact(predicate, args) =  predicate ++ RenderClingoArgs(args);
+
+JoinOrEmpty(x, s) = Coalesce(Join(x, s), "");
+
+RenderClingoModel(model, sep) = JoinOrEmpty(
+    List{RenderClingoFact(fact.predicate, fact.args) :-
+         fact in model}, sep);
 """
