@@ -128,15 +128,22 @@ def RenderBody(body):
   return ', '.join(calls)
 
 
-def Snakify(camel):
-  """Snakifies a camel."""
-  result = [camel[0]]
-  for char in camel[1:]:
+def Snakify(pascal):
+  """Snakifies a pascal."""
+  result = [pascal[0].lower()]
+  for char in pascal[1:]:
     if char.isupper():
       result.append('_')
     result.append(char.lower())
-  return ''.join(result).lower()
+  return ''.join(result)
 
+
+def Pascalize(snake):
+  pieces = snake.split('_')
+  result = []
+  for p in pieces:
+    result.append(p.capitalize())
+  return ''.join(result)
 
 ###############################
 # Rendering Expression.
@@ -196,7 +203,7 @@ def RunClingo(program):
     for model_id, model in enumerate(handle):
       entry = []
       for s in model.symbols(atoms=True):
-        entry.append({'predicate': s.name,
+        entry.append({'predicate': Pascalize(s.name),
                       'args': [str(json.loads(str(a))) for 
                                a in s.arguments]})
       result.append({'model': entry, 'model_id': model_id})

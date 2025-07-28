@@ -1,0 +1,28 @@
++------+-------------------------------+
+| col0 | logica_value                  |
++------+-------------------------------+
+| 0    | a->r b->g c->b d->g e->b f->r |
+| 1    | a->g b->r c->b d->g e->b f->r |
+| 2    | a->r b->g c->b d->g e->r f->b |
+| 3    | a->g b->r c->b d->g e->r f->b |
+| 4    | a->r b->b c->g d->b e->g f->r |
+| 5    | a->b b->r c->g d->b e->g f->r |
+| 6    | a->r b->b c->g d->b e->r f->g |
+| 7    | a->b b->r c->g d->b e->r f->g |
+| 8    | a->b b->r c->g d->r e->g f->b |
+| 9    | a->b b->r c->g d->r e->b f->g |
+| 10   | a->r b->b c->g d->r e->g f->b |
+| 11   | a->r b->b c->g d->r e->b f->g |
+| 12   | a->g b->r c->b d->r e->b f->g |
+| 13   | a->g b->r c->b d->r e->g f->b |
+| 14   | a->r b->g c->b d->r e->b f->g |
+| 15   | a->r b->g c->b d->r e->g f->b |
+| 16   | a->g b->b c->r d->b e->r f->g |
+| 17   | a->g b->b c->r d->b e->g f->r |
+| 18   | a->b b->g c->r d->b e->r f->g |
+| 19   | a->b b->g c->r d->b e->g f->r |
+| 20   | a->b b->g c->r d->g e->r f->b |
+| 21   | a->b b->g c->r d->g e->b f->r |
+| 22   | a->g b->b c->r d->g e->r f->b |
+| 23   | a->g b->b c->r d->g e->b f->r |
++------+-------------------------------+

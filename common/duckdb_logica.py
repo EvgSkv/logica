@@ -47,8 +47,11 @@ RenderClingoArgs(args) = (
 
 RenderClingoFact(predicate, args) =  predicate ++ RenderClingoArgs(args);
 
-RenderClingoModel(model, sep) = Join(List{RenderClingoFact(fact.predicate, fact.args) :-
-                                          fact in model}, sep);
+JoinOrEmpty(x, s) = Coalesce(Join(x, s), "");
+
+RenderClingoModel(model, sep) = JoinOrEmpty(
+    List{RenderClingoFact(fact.predicate, fact.args) :-
+         fact in model}, sep);
 '''
 
 # Rules to be put here.
@@ -68,7 +71,8 @@ display_id_counter = 0
 def ConnectClingo(connection,
                   display_code=False,
                   default_num_models=0,
-                  default_opt_mode=None):
+                  default_opt_mode=None,
+                  logical_context=None):
   import clingo
   import duckdb
   from IPython.display import HTML
@@ -179,7 +183,7 @@ def ConnectClingo(connection,
     program = clingo_logica.Klingon(logical_context, predicates)
     full_program = context + program
     # print('Full Clingo Program:', full_program)
-    return RunClingo(full_program)
+    return clingo_logica.RunClingo(full_program)  # Should this be from clingo_logica?
 
   try:
       connection.remove_function('Clingo')

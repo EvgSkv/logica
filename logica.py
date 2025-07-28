@@ -256,7 +256,7 @@ def main(argv):
     print(clingo_logica.RenderKlingon(
         clingo_logica.RunClingo(
             clingo_logica.Klingon(parsed_rules, predicates_list))))
-    return 0  
+    return 0
 
   for predicate in predicates_list:
     try:
@@ -304,8 +304,8 @@ def main(argv):
         import duckdb
         connection = duckdb.connect()
         if 'Clingo' in formatted_sql:  # LOL! :D Second place I'm doing it.
-          duckdb_logica.logical_context = parsed_rules
-          duckdb_logica.ConnectClingo(connection, default_opt_mode='opt')
+          duckdb_logica.ConnectClingo(connection, default_opt_mode='opt',
+                                      logical_context=parsed_rules)
         cur = connection.sql(formatted_sql)
         formatter = (sqlite3_logica.ArtisticTable
                      if command == 'run'

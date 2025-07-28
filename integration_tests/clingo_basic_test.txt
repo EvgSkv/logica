@@ -1,0 +1,7 @@
++-----------------------------------------------------------------------+
+| logica_value                                                          |
++-----------------------------------------------------------------------+
+| Hamlet(not to be),Hamlet(is),Ophelia(is),OpheliaHappy()               |
+| Hamlet(to be),Hamlet(is),Ophelia(is),OpheliaHappy()                   |
+| Hamlet(to be),Hamlet(not to be),Hamlet(is),Ophelia(is),OpheliaHappy() |
++-----------------------------------------------------------------------+

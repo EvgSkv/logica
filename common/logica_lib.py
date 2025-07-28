@@ -72,7 +72,8 @@ def GetProgramOrExit(filename, user_flags=None, import_root=None):
 
 def RunQuery(sql,
              settings=None,
-             output_format='pretty', engine='bigquery'):
+             output_format='pretty', engine='bigquery',
+             logical_context=None):
   """Run a SQL query on BigQuery."""
   settings = settings or {}
   if engine == 'psql' and os.environ.get('LOGICA_PSQL_CONNECTION'):
@@ -118,7 +119,7 @@ def RunQuery(sql,
     import duckdb
     connection = duckdb.connect()
     if 'clingo' in settings and settings['clingo']:
-      duckdb_logica.ConnectClingo(connection)
+      duckdb_logica.ConnectClingo(connection, logical_context=logical_context)
     df = connection.sql(sql).df()
     return sqlite3_logica.DataframeAsArtisticTable(df)
   else:
@@ -141,7 +142,8 @@ def RunPredicate(filename, predicate,
   else:
     settings = {}
   return RunQuery(sql, settings,
-                  output_format, engine=engine)
+                  output_format, engine=engine,
+                  logical_context=p.raw_rules)
 
 
 def RunQueryPandas(sql, engine, connection=None):

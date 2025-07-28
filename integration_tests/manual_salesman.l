@@ -13,6 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+@Engine("duckdb", clingo: true);
 
 City("seattle");
 City("los_angeles");
@@ -42,3 +43,9 @@ Cost(c) :- c = Sum{ d :-
                     Distance(x, y, d) };
 
 D() = Min{ c :- Cost(c) } shouldbe;
+
+Salesman() = ["City", "Distance", "Route", "Bad", "Cost", "D"];
+
+Test(m.model_id) = RenderClingoModel(path, ", ") :-
+  m in Clingo(Salesman(), []),
+  path = List{c :- c in m.model, c.predicate == "Route"};
