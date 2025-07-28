@@ -40,7 +40,7 @@ ColoringPredicates() = ["E", "Color", "N", "C", "Bad"];
 
 RenderColoring(model) = Join(Array{ n -> (n ++ "->" ++ c) :-
                                     m in model,
-                                    m.predicate == "c",
+                                    m.predicate == "C",
                                     args = m.args,
                                     n = args[0],
                                     c = args[1] }, " ");
@@ -50,3 +50,5 @@ Model(m) :- m in Clingo(ColoringPredicates(), []);
 
 Colorings(m.model_id) = RenderColoring(m.model) :-
   Model(m);
+
+Test(model_id) = Colorings(model_id);

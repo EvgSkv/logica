@@ -573,6 +573,7 @@ class LogicaProgram(object):
         BigQuery table name. This table will be used in place of predicate.
       user_flags: Dictionary of user specified flags.
     """
+    self.raw_rules = rules  # For Clingo.
     rules = self.UnfoldRecursion(rules)
 
     # TODO: Should allocator be a member of Logica?
