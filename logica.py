@@ -182,21 +182,6 @@ def main(argv):
 
   program_text = open(filename).read()
 
-  if 'Clingo' in program_text:  # Crazy, right? :D I'll do this again below!
-    # Explicit connection is required in CoLab and libraries,
-    # but for command line we'll just attach it whenever user
-    # appears to be calling Clingo.
-    # Why not attach it always? - you may ask.
-    # Clingo is not required to be installed. Having it work depending
-    # on whether Clingo is installed doesn't feel right.
-    # Ideally it would be handled by @Engine("duckdb", clingo: true);
-    # but there are too many calls all over for this to just work now.
-    # universe.py doesn't have access to connection to turn it on
-    # everywhere.
-    # We should have all the calls to SQL be unified, there is probably
-    # no reason to. It's gona happen one day. Until then. Here we go.
-    duckdb_logica.AddClingoFunctionsToLibrary()
-
   try:
     parsed_rules = parse.ParseFile(program_text,
                                    import_root=GetImportRoot())['rule']

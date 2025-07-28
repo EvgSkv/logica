@@ -27,36 +27,6 @@ else:
   from ..common import clingo_logica
 
 
-clingo_library = '''
-# Clingo support.
-
-Clingo(p, m) = SqlExpr("Clingo({p}, {m})", {p:, m:}) :-
-  m ~ [{predicate: Str, args: [Str]}];
-
-RunClingo(p) = SqlExpr("RunClingo({p})", {p:});
-RunClingoFile(p) = SqlExpr("RunClingoFile({p})", {p:});
-RunClingoTemplate(p, a) = SqlExpr("RunClingoTemplate({p}, {a})", {p:, a:});
-RunClingoFileTemplate(p, a) = SqlExpr("RunClingoFileTemplate({p}, {a})", {p:, a:});
-
-RenderClingoArgs(args) = (
-  if Size(args) == 0 then
-    "()"
-  else
-    "(" ++ Join(args, ", ") ++ ")"
-);
-
-RenderClingoFact(predicate, args) =  predicate ++ RenderClingoArgs(args);
-
-JoinOrEmpty(x, s) = Coalesce(Join(x, s), "");
-
-RenderClingoModel(model, sep) = JoinOrEmpty(
-    List{RenderClingoFact(fact.predicate, fact.args) :-
-         fact in model}, sep);
-'''
-
-# Rules to be put here.
-logical_context = []
-
 display_style = ';'.join([
       'border: 1px solid rgba(0, 0, 0, 0.3)',
       'width: fit-content;',
@@ -67,6 +37,7 @@ display_style = ';'.join([
       'box-shadow: 1px 1px 3px rgba(0, 0, 0, 0.2)'])
 
 display_id_counter = 0
+
 
 def ConnectClingo(connection,
                   display_code=False,
@@ -183,17 +154,10 @@ def ConnectClingo(connection,
     program = clingo_logica.Klingon(logical_context, predicates)
     full_program = context + program
     # print('Full Clingo Program:', full_program)
-    return clingo_logica.RunClingo(full_program)  # Should this be from clingo_logica?
+    return clingo_logica.RunClingo(full_program)
 
   try:
       connection.remove_function('Clingo')
   except:
       pass
   connection.create_function('Clingo', Clingo)
-
-  AddClingoFunctionsToLibrary()
-
-
-def AddClingoFunctionsToLibrary():
-  if '# Clingo support.' not in duckdb_library.library:
-    duckdb_library.library += clingo_library
