@@ -39,6 +39,18 @@ display_style = ';'.join([
 display_id_counter = 0
 
 
+def GetConnection(logica_program=None):
+  import duckdb
+  connection = duckdb.connect()
+  if logica_program:
+    a = logica_program.annotations.annotations
+    needs_clingo = a.get('@Engine', {}).get('duckdb', {}).get('clingo', False)
+    if needs_clingo:
+      ConnectClingo(connection, default_opt_mode='opt',
+                    logical_context=logica_program.raw_rules)
+  return connection
+
+
 def ConnectClingo(connection,
                   display_code=False,
                   default_num_models=0,

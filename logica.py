@@ -286,11 +286,7 @@ def main(argv):
         o = sqlite3_logica.RunSqlScript(statements_to_execute,
                                         format).encode()
       elif engine == 'duckdb':
-        import duckdb
-        connection = duckdb.connect()
-        if 'Clingo' in formatted_sql:  # LOL! :D Second place I'm doing it.
-          duckdb_logica.ConnectClingo(connection, default_opt_mode='opt',
-                                      logical_context=parsed_rules)
+        connection = duckdb_logica.GetConnection(logic_program)
         cur = connection.sql(formatted_sql)
         formatter = (sqlite3_logica.ArtisticTable
                      if command == 'run'
