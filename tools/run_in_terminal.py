@@ -26,6 +26,7 @@ if not __package__ or '.' not in __package__:
   from parser_py import parse
   from common import psql_logica
   from common import sqlite3_logica
+  from common import duckdb_logica
   from compiler import functors
   from compiler import rule_translate
   from type_inference.research import infer
@@ -35,12 +36,14 @@ else:
   from ..parser_py import parse
   from ..common import psql_logica
   from ..common import sqlite3_logica
+  from ..common import duckdb_logica
   from ..compiler import functors
   from ..compiler import rule_translate
   from ..type_inference.research import infer
 
+
 class SqlRunner(object):
-  def __init__(self, engine):
+  def __init__(self, engine, logic_program=None):
     self.engine = engine
     assert engine in ['sqlite', 'bigquery', 'psql', 'duckdb']
     if engine == 'sqlite':
@@ -59,7 +62,7 @@ class SqlRunner(object):
     if engine == 'psql':
       self.connection = psql_logica.ConnectToPostgres('environment')
     if engine == 'duckdb':
-      self.connection = None  # No connection needed!
+      self.connection = duckdb_logica.GetConnection(logic_program)
     self.bq_credentials = credentials
     self.bq_project = project
   
@@ -106,10 +109,10 @@ def RunSQL(sql, engine, connection=None, is_final=False,
     import duckdb
     if is_final:
       import duckdb
-      cur = duckdb.sql(sql)
+      cur = connection.sql(sql)
       return cur.columns, cur.fetchall()
     else:
-      duckdb.sql(sql)
+      connection.sql(sql)
     
   else:
     raise Exception('Logica only supports BigQuery, PostgreSQL and SQLite '
@@ -133,7 +136,7 @@ def Run(filename, predicate_name,
     unused_sql = program.FormattedPredicateSql(predicate_name)
 
     (header, rows) = concertina_lib.ExecuteLogicaProgram(
-        [program.execution], SqlRunner(engine), engine,
+        [program.execution], SqlRunner(engine, logic_program=program), engine,
         display_mode=display_mode)[predicate_name]
   except rule_translate.RuleCompileException as rule_compilation_exception:
     rule_compilation_exception.ShowMessage()
