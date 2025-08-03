@@ -3,21 +3,22 @@
 
 ## Installation
 
-You can install this extension in Marketplace; or you can package the extension (as instructed below) and install the `vsix` file. 
-
-Alternatively, you can also copy the directory to your extension folder:
+To install extention simply copy files into your VSCode extensions folder:
 ```
 mkdir ~/.vscode/extensions/logica-syntax-highlighting-0.0.1
 cp -r syntaxes package.json language-configuration.json ~/.vscode/extensions/logica-syntax-highlighting-0.0.1
 ```
 
+You can also install this extension in Marketplace; or you can package the extension (as instructed below) and install the `vsix` file. 
+
 ## Quick Running
 
-In VS Code open this folder and 
+In VS Code open this folder (not from Logica folder, but as itself) and 
 
+- click `Run and Debug` on your VS Code activity bar and then click the `Start Debugging` icon; OR
 - press `F5` to open a new window with the extension loaded; OR
-- hit `Ctrl+Shift+P` and run `>Debug: Start Debugging` in the Command Palette; OR
-- click `Run and Debug` on your VS Code activity bar and then click the `Start Debugging` icon.
+- hit `Ctrl+Shift+P` and run `>Debug: Start Debugging` in the Command Palette.
+
 
 ## Development
 

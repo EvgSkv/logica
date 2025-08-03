@@ -157,8 +157,9 @@ limitations under the License.
 </div>
 
 <div class="content">
+  <div style="float: right; display:flex; flex-direction:column;">
   <a href="https://github.com/evgskv/logica" style="text-decoration: none; color: inherit;">
-    <div class="github_button" onclick="thumbsUp()">
+    <div class="github_button" style="float: none;"  onclick="thumbsUp()">
       <img src="github-mark.png" height="80px"/>
       <div style="float: right; margin: 10px;">
         View project on<br/>
@@ -166,10 +167,29 @@ limitations under the License.
       </div>
     </div>
   </a>
+  <a href="https://logica-web.github.io/" style="text-decoration: none; color: inherit;">
+    <div class="github_button" style="float: none; margin-top: 0px; padding: 5px;" onclick="openBook()">
+      <div style="float: none; text-align: center; display: flex; flex-direction: row;">
+        <div id="closed_book" style="font-size: 4em; display:flex; margin: 0px;">📘</div>
+        <div id="open_book" style="font-size: 4em; display:none">📖</div><br/>
+        <div style="display: flex; justify-content: center; align-items: center; padding-left: 30px;">
+          <div>Documentation</div>
+        </div>      
+      </div>
+    </div>
+  </a>
+  </div>
+
 <script>
   function thumbsUp() {
     let s = document.getElementById('thumbs_up');
     s.style.display = 'inline'
+  }
+  function openBook() {
+    let s1 = document.getElementById('open_book');
+    let s2 = document.getElementById('closed_book');
+    s1.style.display = 'flex'
+    s2.style.display = 'none'
   }
 
   function reactToDevice() {
@@ -195,10 +215,24 @@ limitations under the License.
   manipulation. It compiles to SQL thus providing you access to the power
   of SQL engines with the convenience of logic programming syntax.
 </p>
+
+<p>
+  Logica can compiles to SQL dialects of DuckDB, SQLite, Google BigQuery and Postgres. This makes
+  it practical for a wide range of applications. Almost every computational device comes with SQLite
+  and thus you can run Logica there. DuckDB is a powerful on-device computation engine with robust
+  SQL semantics that is easy to install and can efficiently leverage parallelism of modern devices.
+  Google BigQuery is a distributed datawarehouse capable of processing terabytes of data in seconds
+  and PostgreSQL is the most popular open source SQL engine.
+  
+</p>
+<p>
+  Thus Logica reaches widely into
+  SQL ecosystem and can be employed by professionals willing to stay with the clarity of logic reasoning
+  while performing data analysis. 
+</p>
+
 </div>
-
-
-  <h1>Examples</h1>
+<h1>Examples</h1>
 
 
 <p>

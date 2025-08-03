@@ -2,7 +2,8 @@
     "name": "logica-syntax-highlighting",
     "displayName": "Logica Syntax Highlighting",
     "description": "Syntax highlighting for Logica",
-    "version": "0.0.1",
+    "version": "0.0.3",
+    "icon": "images/Logica_Icon.png",
     "engines": {
         "vscode": "^1.54.0"
     },
@@ -23,6 +24,11 @@
                 "configuration": "./language-configuration.json"
             }
         ],
+        "iconThemes": [{
+            "id": "logica-icon-theme",
+            "label": "Logica Icons",
+            "path": "./logica-icon-theme.json"
+        }],      
         "grammars": [
             {
                 "language": "logica",

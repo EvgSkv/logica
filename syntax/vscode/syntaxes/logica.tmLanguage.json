@@ -137,15 +137,15 @@
     "inclusion": {
       "patterns": [
         {
-          "name": "keyword.operator.logical.logica",
-          "match": "\\bin\\b"
+          "name": "keyword.control.flow.logica",
+          "match": "\\b(in)\\b"
         }
       ]
     },
     "implication": {
       "patterns": [
         {
-          "name": "keyword.operator.logical.logica",
+          "name": "keyword.control.flow.logica",
           "match": "\\b(if|else|then)\\b"
         }
       ]
@@ -582,6 +582,18 @@
         },
         {
           "match": "(?x)\\b distinct \\b",
+          "name": "keyword.control.flow.logica"
+        },
+        {
+          "match": "(?x)\\b couldbe \\b",
+          "name": "keyword.control.flow.logica"
+        },
+        {
+          "match": "(?x)\\b cantbe \\b",
+          "name": "keyword.control.flow.logica"
+        },
+        {
+          "match": "(?x)\\b shouldbe \\b",
           "name": "keyword.control.flow.logica"
         }
       ]
