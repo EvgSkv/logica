@@ -46,6 +46,9 @@ def RenderRules(rules):
 
 def RulesOfPredicates(rules, predicate_names):
   """Returns rules defining predicates."""
+  assert predicate_names is not None, (
+      "For some reason no predicate names were delivered to Clingo.")
+  assert rules is not None, "For some reason no rules were delivered"
   return [r
           for r in rules
           if r['head']['predicate_name'] in predicate_names]

@@ -55,7 +55,8 @@ def ConnectClingo(connection,
                   display_code=False,
                   default_num_models=0,
                   default_opt_mode=None,
-                  logical_context=None):
+                  logical_context=None,
+                  debug_printing=False):
   import clingo
   import duckdb
   from IPython.display import HTML
@@ -165,7 +166,11 @@ def ConnectClingo(connection,
         within_model, from_logica=True))
     program = clingo_logica.Klingon(logical_context, predicates)
     full_program = context + program
-    # print('Full Clingo Program:', full_program)
+    if debug_printing:
+      print('=== Running Clingo ===')
+      print('Predicates:', predicates)
+      print('Within model:', within_model)
+      print('Full Clingo Program:\n', full_program)
     return clingo_logica.RunClingo(full_program)
 
   try:

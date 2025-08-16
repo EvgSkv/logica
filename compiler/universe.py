@@ -1283,6 +1283,11 @@ class LogicaProgram(object):
   def MakeSubqueryTranslator(self, allocator):
     return SubqueryTranslator(self, allocator, self.execution)
 
+  def NeedsClingo(self):
+    a = self.annotations.annotations
+    needs_clingo = a.get('@Engine', {}).get('duckdb', {}).get('clingo', False)
+    return needs_clingo
+
 
 class SubqueryTranslator(object):
   """Converter of tables and rules in a context of a universe."""
