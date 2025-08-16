@@ -72,6 +72,7 @@ def RunAll(test_presto=False, test_trino=False, test_clingo=True):
     RunTest('manual_coloring_first_test')
     RunTest('manual_coloring_second_test')
     RunTest('manual_salesman')
+    RunTest('extract_clingo_test')
     RunTest('clingo_pipeline_test', use_concertina=True)
 
   RunTest("propositional_implication_test")
