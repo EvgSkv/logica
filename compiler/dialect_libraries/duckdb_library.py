@@ -104,6 +104,17 @@ RenderClingoArgs(args) = (
 
 RenderClingoFact(predicate, args) =  predicate ++ RenderClingoArgs(args);
 
+ExtractClingoCall(a, b, c, d, e, f, g, h,
+                  predicate:, world_id:) = multiverse :-
+  world in multiverse,
+  world_id = world.model_id,
+  entry in world.model,
+  entry.predicate = predicate,
+  args = entry.args,
+  a = args[0], b = args[1], c = args[2],
+  d = args[3], e = args[4], f = args[5],
+  g = args[6], h = args[7];
+
 JoinOrEmpty(x, s) = Coalesce(Join(x, s), "");
 
 RenderClingoModel(model, sep) = JoinOrEmpty(
