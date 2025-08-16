@@ -104,6 +104,10 @@ RenderClingoArgs(args) = (
 
 RenderClingoFact(predicate, args) =  predicate ++ RenderClingoArgs(args);
 
+QuoteIt(x) = Chr(34) ++ x ++ Chr(34);
+ClingoFact(predicate, args) = {predicate:,
+                               args: List{QuoteIt(a) :- a in args}};
+
 ExtractClingoCall(a, b, c, d, e, f, g, h,
                   predicate:, world_id:) = multiverse :-
   world in multiverse,

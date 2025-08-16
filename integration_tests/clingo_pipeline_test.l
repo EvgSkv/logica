@@ -15,18 +15,14 @@
 
 @Engine("duckdb", clingo: true);
 
-QuoteIt(x) = Chr(34) ++ x ++ Chr(34);
-ClingoCall(predicate, args) = {predicate:,
-                               args: List{QuoteIt(a) :- a in args}};
-
-Square() = [ClingoCall("E", ["a", "b"]),
-            ClingoCall("E", ["b", "c"]),
-            ClingoCall("E", ["c", "d"]),
-            ClingoCall("E", ["d", "a"])];
+Square() = [ClingoFact("E", ["a", "b"]),
+            ClingoFact("E", ["b", "c"]),
+            ClingoFact("E", ["c", "d"]),
+            ClingoFact("E", ["d", "a"])];
 
 @Ground(Graph);
 Graph("square") = Square();
-Graph("square_with_diagonal") = Square() ++ [ClingoCall("E", ["b", "d"])];
+Graph("square_with_diagonal") = Square() ++ [ClingoFact("E", ["b", "d"])];
 
 ######################
 # Clingo!
