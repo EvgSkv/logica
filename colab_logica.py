@@ -23,6 +23,7 @@ import re
 
 from .common import color
 from .common import concertina_lib
+from .common import duckdb_logica
 from .common import psql_logica
 
 from .compiler import functors
@@ -237,8 +238,12 @@ class SqliteRunner(object):
 
 
 class DuckdbRunner(object):
-  def __init__(self):
-    self.connection = self.GetGlobalConnection()
+  def __init__(self, logic_program_for_clingo_context=None):
+    if logic_program_for_clingo_context:
+      self.connection = duckdb_logica.GetConnection(
+        logic_program_for_clingo_context)
+    else:
+      self.connection = self.GetGlobalConnection()
 
   def  __call__(self, sql, engine, is_final):
     return RunSQL(sql, engine, self.connection, is_final)
@@ -394,7 +399,12 @@ def Logica(line, cell, run_query):
     elif engine == 'psql':
       sql_runner = PostgresRunner()
     elif engine == 'duckdb':
-      sql_runner = DuckdbRunner() 
+      if program.NeedsClingo():
+        sql_runner = DuckdbRunner(program)
+      else:
+        # Let users set stuff in default connection unless
+        # clingo is actually needed.
+        sql_runner = DuckdbRunner()
     elif engine == 'bigquery':
       EnsureAuthenticatedUser()
       sql_runner = RunSQL
