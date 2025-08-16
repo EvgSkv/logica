@@ -37,12 +37,8 @@ V(x) :- x in ["a", "b", "c", "d"];
 E(x, y) :- t = ["a", "b", "c"], x in t, y in t, x != y;
 E("c", "d");
 
-QuoteIt(x) = Chr(34) ++ x ++ Chr(34);
-ClingoCall(predicate, args) = {predicate:,
-                               args: List{QuoteIt(a) :- a in args}};
-
-DataFacts() = List{ClingoCall("V", [x]) :- V(x)} ++
-              List{ClingoCall("E", [a, b]) :- E(a, b)};
+DataFacts() = List{ClingoFact("V", [x]) :- V(x)} ++
+              List{ClingoFact("E", [a, b]) :- E(a, b)};
 
 Models() = Clingo(GraphColoringPredicates(), DataFacts());
 
