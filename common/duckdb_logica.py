@@ -44,9 +44,14 @@ def GetConnection(logica_program=None):
   connection = duckdb.connect()
   if logica_program:
     a = logica_program.annotations.annotations
-    needs_clingo = a.get('@Engine', {}).get('duckdb', {}).get('clingo', False)
-    if needs_clingo:
-      ConnectClingo(connection, default_opt_mode='opt',
+    clingo_settings = a.get('@Engine', {}).get('duckdb', {}).get('clingo', False)
+    if clingo_settings or clingo_settings == {}:
+      if clingo_settings == True:
+        clingo_settings = {}
+      default_opt_mode = clingo_settings.get('opt_mode', 'opt')
+      ConnectClingo(connection,
+                    default_opt_mode=default_opt_mode,
+                    clingo_settings=clingo_settings,
                     logical_context=logica_program.raw_rules)
   return connection
 
@@ -56,6 +61,7 @@ def ConnectClingo(connection,
                   default_num_models=0,
                   default_opt_mode=None,
                   logical_context=None,
+                  clingo_settings=None,
                   debug_printing=False):
   import clingo
   import duckdb
@@ -165,13 +171,13 @@ def ConnectClingo(connection,
     context = '\n'.join(clingo_logica.RenderKlingonModel(
         within_model, from_logica=True))
     program = clingo_logica.Klingon(logical_context, predicates)
-    full_program = context + program
+    full_program = context + '\n' + program
     if debug_printing:
       print('=== Running Clingo ===')
       print('Predicates:', predicates)
       print('Within model:', within_model)
       print('Full Clingo Program:\n', full_program)
-    return clingo_logica.RunClingo(full_program)
+    return clingo_logica.RunClingo(full_program, clingo_settings)
 
   try:
       connection.remove_function('Clingo')

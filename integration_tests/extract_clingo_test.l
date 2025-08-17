@@ -36,10 +36,10 @@ Village() = ["Person", "Loves", "Proposes", "Happy",
 
 Worlds() = Clingo(Village(), []);
 
-ProposesInWorld(a, b, world_id:) :-
-  ExtractClingoCall(a, b, predicate: "Proposes", world_id:) = Worlds();
+ProposesInWorld(a, b, model_id:) :-
+  ExtractClingoCall(a, b, predicate: "Proposes", model_id:) = Worlds();
 
-HappyInWorld(person:, world_id:) :-
-  ExtractClingoCall(person, predicate: "Happy", world_id:) = Worlds();
+HappyInWorld(person:, model_id:) :-
+  ExtractClingoCall(person, predicate: "Happy", model_id:) = Worlds();
 
-Test(person:, world_id:) :- HappyInWorld(person:, world_id:);
+Test(person:, model_id:) :- HappyInWorld(person:, model_id:);

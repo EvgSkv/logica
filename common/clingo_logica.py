@@ -191,25 +191,50 @@ def RenderVariable(v):
 ####################
 # Running Clingo.
 
-def RunClingo(program):
+def RunClingo(program, clingo_settings=None):
   """Running program on clingo, returning models."""
   import clingo
   import json
+  clingo_settings = clingo_settings or {}
+  assert set(clingo_settings.keys()) <= {'models_limit', 'time_limit'}, (
+      'Unexpected clingo settings:' + str(clingo_settings))
   ctl = clingo.Control()
   ctl.add("base", [], program)
-  ctl.configuration.solve.models = 0
+  models_limit = clingo_settings.get('models_limit', -1)
+  time_limit = clingo_settings.get('time_limit', -1)
+  ctl.configuration.solve.models = models_limit + 1
   if False:
     ctl.configuration.solve.opt_mode = 'opt'
   ctl.ground([("base", [])])
   result = []
-  with ctl.solve(yield_=True) as handle:
-    for model_id, model in enumerate(handle):
+  with ctl.solve(yield_=True, async_=True) as handle:
+    completed_computation = handle.wait(time_limit)
+    if not completed_computation:
+      print('Clingo program:')
+      print(program)
+      print('[ \033[91m Timeout \033[0m ] Clingo timed out.')
+      print('\033[1m For settings\033[0m:')
+      print(clingo_settings)
+      assert False, 'Clingo timeout.'
+    import itertools  # Too much glory for a tool to import on top!
+    for model_id, model in enumerate(
+        itertools.chain([handle.model()], handle)):
       entry = []
       for s in model.symbols(atoms=True):
         entry.append({'predicate': Pascalize(s.name),
                       'args': [str(json.loads(str(a))) for 
                                a in s.arguments]})
       result.append({'model': entry, 'model_id': model_id})
+    if models_limit > 0:
+      assert len(result) <= models_limit + 1, 'This should never happen!'
+    if models_limit > 0 and len(result) > models_limit:
+      print('Clingo program:')
+      print(program)
+      print('[ \033[91m Model limit exceeded \033[0m ] Clingo has too many models.')
+      print('\033[1m For settings\033[0m:')
+      print(clingo_settings)
+      assert False, 'Combinatorial explosion.'
+
   return result
 
 #############################
