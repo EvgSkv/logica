@@ -89,6 +89,7 @@ else:
 
 DEFAULT_ENGINE = 'duckdb'
 
+CLINGO_AD_HOC_PROTECTION = True
 
 def SetPreamble(preamble):
   global PREAMBLE
@@ -363,6 +364,18 @@ def Logica(line, cell, run_query):
             storage_file.write(cell)
             print('\x1B[3mProgram saved to %s.\x1B[0m' % storage_file_name)
         sql = program.FormattedPredicateSql(predicate)
+        # Ad hoc user protection:
+        a = program.annotations.annotations
+        clingo_settings = a.get('@Engine', {}).get('duckdb', {}).get('clingo', False)
+        if 'Clingo' in sql and clingo_settings == False and CLINGO_AD_HOC_PROTECTION:
+          print('[ \033[91m Turn on Clingo \033[0m ] Clingo appears used, but not turned on.')
+          print('Turn on Clingo by including')
+          print('@Engine("duckdb", clingo: {time_limit: ∞, models_limit: ∞});')
+          print('or turn off protection by setting ')
+          print('colab_logica.CLINGO_AD_HOC_PROTECTION = False')
+          print('I hope you enjoy Logica!')
+          assert False, 'Your happyness is my priority.'
+          pass
         executions.append(program.execution)
         ip.push({predicate + '_sql': sql})
       except rule_translate.RuleCompileException as e:

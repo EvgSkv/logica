@@ -1,5 +1,6 @@
+
 #
-# Copyright 2020 Google LLC
+# Copyright 2025 Google LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -13,17 +14,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-@Engine("duckdb", clingo: {time_limit: ∞, models_limit: ∞});
+@Engine("duckdb", clingo: {models_limit: 6});
 
-Hamlet("to be") couldbe;
-Hamlet("not to be") couldbe;
-Hamlet("is") :- Hamlet(x);
-Ophelia("is") couldbe;
+Combination(e) couldbe :- E(e);
 
-OpheliaHappy() :- Ophelia("is"), Hamlet("is"), Hamlet("to be"), ~Hamlet("not to be");
-
-OpheliaUnhappy() cantbe :- ~OpheliaHappy();
-
-HamletStory() = ["Hamlet", "Ophelia", "OpheliaHappy", "OpheliaUnhappy"];
-
-Test() = RenderClingoModel(m.model, ",") :- m in Clingo(HamletStory(), []);
+Test() = Clingo(["Combination", "E"], [ClingoFact("E", ["a"]),
+                                       ClingoFact("E", ["b"]),
+                                       ClingoFact("E", ["c"])]);

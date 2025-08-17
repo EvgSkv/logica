@@ -118,7 +118,7 @@ def RunQuery(sql,
   elif engine == 'duckdb':
     import duckdb
     connection = duckdb.connect()
-    if 'clingo' in settings and settings['clingo']:
+    if 'clingo' in settings and settings['clingo'] != False:
       duckdb_logica.ConnectClingo(connection, logical_context=logical_context)
     df = connection.sql(sql).df()
     return sqlite3_logica.DataframeAsArtisticTable(df)

@@ -109,10 +109,10 @@ ClingoFact(predicate, args) = {predicate:,
                                args: List{QuoteIt(a) :- a in args}};
 
 ExtractClingoCall(a, b, c, d, e, f, g, h,
-                  predicate:, world_id:) = multiverse :-
-  world in multiverse,
-  world_id = world.model_id,
-  entry in world.model,
+                  predicate:, model_id:) = models :-
+  model in models,
+  model_id = model.model_id,
+  entry in model.model,
   entry.predicate = predicate,
   args = entry.args,
   a = args[0], b = args[1], c = args[2],

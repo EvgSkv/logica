@@ -1,5 +1,5 @@
 +---------+----------+
-| person  | world_id |
+| person  | model_id |
 +---------+----------+
 | Mary    | 2        |
 | Mary    | 3        |
