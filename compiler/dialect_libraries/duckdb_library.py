@@ -124,4 +124,7 @@ JoinOrEmpty(x, s) = Coalesce(Join(x, s), "");
 RenderClingoModel(model, sep) = JoinOrEmpty(
     List{RenderClingoFact(fact.predicate, fact.args) :-
          fact in model}, sep);
+
+# Indexed sum, that Clingo needs.
+ISum(x) = SqlExpr("SUM({x})", {x:}) :- Error("ISum is to be used only in Clingo.");
 """

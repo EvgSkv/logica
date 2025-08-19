@@ -164,14 +164,32 @@ def RenderExpression(e):
   assert False, str(e)
 
 
+def ExtractVariableListFromMaybeArrow(e):
+  if 'variable' in e:
+    return [e['variable']['var_name']]
+  assert 'call' in e, str(e)
+  assert e['call']['predicate_name'] == '->', str(e)
+  args = e['call']['record']['field_value']
+  left = args[0]['value']['expression']
+  right = args[1]['value']['expression']
+  return (
+    ExtractVariableListFromMaybeArrow(left) +
+    ExtractVariableListFromMaybeArrow(right))
+
+
 def RenderCombine(combine, imperative=False):
   a = combine['head']['record']['field_value'][0]['value']['aggregation']['expression']
   p = a['call']['predicate_name']
   v = a['call']['record']['field_value'][0]['value']['expression']
   b = combine['body']
   imp_suffix = 'imize' if imperative else ''
-  return '#%s%s { %s : %s }' % (p.lower(), imp_suffix,
-                                RenderExpression(v), RenderBody(b))
+  variables = ExtractVariableListFromMaybeArrow(v)
+  variables_str = ','.join(reversed([v.upper() for v in variables]))
+  predicate = p.lower()
+  if predicate == 'isum':
+    predicate = 'sum'
+  return '#%s%s { %s : %s }' % (predicate, imp_suffix,
+                                variables_str, RenderBody(b))
 
 
 def RenderLiteral(l):
