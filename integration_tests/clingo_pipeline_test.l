@@ -42,7 +42,7 @@ Bad() cantbe :-
   V(a), Count{ c :- C(a, c) } != 1          |
   E(a, b), C(a, c), C(b, c)                 ;
 
-ColoringPredicates() = ["Color", "V", "C", "Colored", "Bad"];
+ColoringPredicates() = ["Color", "V", "C", "Colored", "Bad", "E"];
 
 #
 #######################
