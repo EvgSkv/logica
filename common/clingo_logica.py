@@ -15,6 +15,11 @@
 # limitations under the License.
 
 
+SUPPORTED_PREDICATES = [
+    '=', '<', '>', '<=', '>=', '!=', '+', '-', '*', '/',
+    'Combine', '->', 'ISum', 'Sum', 'Max', 'Range', 'Count']
+
+
 def Klingon(rules, predicates):
   """Renders all rules defining predicates."""
   return RenderRules(RulesOfPredicates(rules, predicates))
@@ -79,7 +84,7 @@ def RenderInclusion(inclusion):
 def RenderCall(call):
   """Renders predicate call."""
   p = call['predicate_name']
-  if p in ['=', '!=', '<', '<=', '>', '>=', '+', '-', '*']:
+  if p in ['=', '!=', '<', '<=', '>', '>=', '+', '-', '*', '/']:
     return RenderInfixCall(call)
   if p == 'IsNull':
     return RenderNegation(call)
@@ -167,6 +172,8 @@ def RenderExpression(e):
 def ExtractVariableListFromMaybeArrow(e):
   if 'variable' in e:
     return [e['variable']['var_name']]
+  if 'literal' in e and 'the_number' in e['literal']:
+    return [e['literal']['the_number']['number']]
   assert 'call' in e, str(e)
   assert e['call']['predicate_name'] == '->', str(e)
   args = e['call']['record']['field_value']
@@ -235,8 +242,11 @@ def RunClingo(program, clingo_settings=None):
       print(clingo_settings)
       assert False, 'Clingo timeout.'
     import itertools  # Too much glory for a tool to import on top!
+    first_model = handle.model()
+    if not first_model:
+      return []
     for model_id, model in enumerate(
-        itertools.chain([handle.model()], handle)):
+        itertools.chain([first_model], handle)):
       entry = []
       for s in model.symbols(atoms=True):
         entry.append({'predicate': Pascalize(s.name),

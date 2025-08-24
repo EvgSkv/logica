@@ -52,7 +52,8 @@ def GetConnection(logica_program=None):
       ConnectClingo(connection,
                     default_opt_mode=default_opt_mode,
                     clingo_settings=clingo_settings,
-                    logical_context=logica_program.raw_rules)
+                    logical_context=logica_program.raw_rules,
+                    logica_program=logica_program)
   return connection
 
 
@@ -61,6 +62,7 @@ def ConnectClingo(connection,
                   default_num_models=0,
                   default_opt_mode=None,
                   logical_context=None,
+                  logica_program=None,
                   clingo_settings=None,
                   debug_printing=False):
   import clingo
@@ -168,6 +170,24 @@ def ConnectClingo(connection,
 
   def Clingo(predicates: duckdb.list_type(str),
              within_model: model_type) -> list_of_models_type:
+    if logica_program:
+      for p in predicates:
+        if p not in logica_program.functors.args_of:
+          continue
+        for a in logica_program.functors.args_of[p]:
+          if a in clingo_logica.SUPPORTED_PREDICATES:
+            continue
+          if a not in predicates:
+            import sys
+            hl = lambda x: '\033[1m%s\033[0m' % x
+            print('Running Clingo for predicates: %s' % hl(','.join(predicates)))
+            print('[ \033[91m Missing predicate \033[0m ] '
+                  f'Predicate {hl(p)} depends on {hl(a)} but {hl(a)} was '
+                  'not requested.')
+            print('Request predicate even if its provided via facts.')
+            print('This is required to avoid debugging caused by forgotten ')
+            print('predicates.')
+            assert False, 'Your happiness is my priority.'
     context = '\n'.join(clingo_logica.RenderKlingonModel(
         within_model, from_logica=True))
     program = clingo_logica.Klingon(logical_context, predicates)
