@@ -1,16 +1,20 @@
+#!/usr/bin/python
+#
+# Copyright 2020 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 import setuptools
-from setuptools.command.build_py import build_py as _build_py
-
-
-class build_py(_build_py):
-  def find_package_modules(self, package, package_dir):
-    modules = super().find_package_modules(package, package_dir)
-    filtered = []
-    for pkg, mod, filename in modules:
-      if (mod.endswith('_test') or mod.startswith('test') or 'tests' in filename):
-        continue
-      filtered.append((pkg, mod, filename))
-    return filtered
 
 with open("README.md", "r") as f:
   long_description = f.read()
@@ -24,24 +28,7 @@ setuptools.setup(
   long_description = long_description,
   long_description_content_type = "text/markdown",
   url="https://github.com/evgskv/logica",
-  packages=setuptools.find_namespace_packages(
-    include=[
-      "common*",
-      "compiler*",
-      "parser_py*",
-      "tools*",
-      "type_inference*",
-    ],
-    exclude=[
-      "examples*",
-      "integration_tests*",
-      "type_inference/tests*",
-      "type_inference/research/integration_tests*",
-      "docs*",
-      "tutorial*",
-      "syntax*",
-    ],
-  ),
+  packages=setuptools.find_namespace_packages(),
   py_modules=["logica"],
   include_package_data=True,
   classifiers = [
@@ -52,8 +39,4 @@ setuptools.setup(
     'console_scripts': ['logica=logica:run_main']
   },
   python_requires= ">=3.0"
-  ,
-  cmdclass={
-    'build_py': build_py
-  }
 )
