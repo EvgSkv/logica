@@ -5,3 +5,5 @@
 __pycache__/
 docs/.DS_Store
 env
+**/logica.egg-info
+**/dist

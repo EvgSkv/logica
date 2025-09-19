@@ -40,7 +40,7 @@ import sys
 
 # We are doing this 'if' to allow usage of the code as package and as a
 # script.
-if __name__ == '__main__' and not __package__:
+if not __package__:
   from common import color
   from common import sqlite3_logica
   from compiler import functors
