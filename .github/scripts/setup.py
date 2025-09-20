@@ -14,14 +14,18 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import setuptools
 
-with open("README.md", "r") as f:
+import setuptools
+import os
+
+version = os.environ.get("VERSION", "0.0.0").lstrip("v")
+
+with open("logica/README.md", "r") as f:
   long_description = f.read()
 
 setuptools.setup(
   name = "logica",
-  version = "1.3.141592",
+  version = version,
   author = "Evgeny Skvortsov",
   author_email = "logica@evgeny.ninja",
   description = "Logica language.",
@@ -29,14 +33,12 @@ setuptools.setup(
   long_description_content_type = "text/markdown",
   url="https://github.com/evgskv/logica",
   packages=setuptools.find_namespace_packages(),
-  py_modules=["logica"],
-  include_package_data=True,
   classifiers = [
       "Topic :: Database",
       "License :: OSI Approved :: Apache Software License"
   ],
   entry_points = {
-    'console_scripts': ['logica=logica:run_main']
+    'console_scripts': ['logica=logica.logica:run_main']
   },
   python_requires= ">=3.0"
 )

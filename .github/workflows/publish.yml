@@ -1,44 +1,33 @@
-name: Publish to PyPI on release branch merge
+name: Release to PyPI
 
 on:
   push:
-    branches:
-      - release
-
-permissions:
-  contents: read
-
-concurrency:
-  group: pypi-publish-release
-  cancel-in-progress: false
+    tags:
+      - 'v*'
 
 jobs:
-  build-and-publish:
-    name: Build and publish
+  release:
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: .github/scripts   # where deploy.sh lives
+
     steps:
-      - name: Check out repository
-        uses: actions/checkout@v4
+    - uses: actions/checkout@v3
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.x'
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.x'
 
-      - name: Upgrade pip and install build backend
-        run: |
-          python -m pip install --upgrade pip
-          python -m pip install build
+    - name: Install build tools
+      run: |
+        python -m pip install --upgrade pip
+        pip install setuptools wheel twine
 
-      - name: Build sdist and wheel
-        run: |
-          python -m build
-
-      - name: Publish to PyPI
-        if: success()
-        uses: pypa/gh-action-pypi-publish@v1.12.2
-        with:
-          password: ${{ secrets.PYPI_API_TOKEN }}
-          skip-existing: true
-
-
+    - name: Run deploy script
+      env:
+        TWINE_USERNAME: __token__
+        TWINE_PASSWORD: ${{ secrets.PYPI_API_TOKEN }}
+        VERSION: ${{ github.ref_name }}
+      run: bash deploy.sh
