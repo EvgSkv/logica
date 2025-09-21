@@ -700,6 +700,12 @@ def ExtractConjunctiveStructure(conjuncts, s):
           })
     elif 'inclusion' in c:
       ExtractInclusionStructure(c['inclusion'], s)
+    elif 'disjunction' in c:
+      raise RuleCompileException(
+          color.Format(
+              '{warning}Disjunction{end} is disallowed inside of aggregation '
+              'and negation, please refactor.'),
+          s.full_rule_text)
     else:
       assert False, 'Unsupported conjunct: %s' % c
 
