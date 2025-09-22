@@ -2,8 +2,8 @@ name: Release to PyPI
 
 on:
   push:
-    tags:
-      - 'v*'
+    branches:
+      - release
 
 jobs:
   release:
@@ -29,5 +29,4 @@ jobs:
       env:
         TWINE_USERNAME: __token__
         TWINE_PASSWORD: ${{ secrets.PYPI_API_TOKEN }}
-        VERSION: ${{ github.ref_name }}
       run: bash deploy.sh

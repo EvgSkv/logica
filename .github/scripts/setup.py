@@ -16,9 +16,8 @@
 
 
 import setuptools
-import os
 
-version = os.environ.get("VERSION", "0.0.0").lstrip("v")
+version = "1.3.141592"
 
 with open("logica/README.md", "r") as f:
   long_description = f.read()
