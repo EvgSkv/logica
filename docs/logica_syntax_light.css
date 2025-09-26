@@ -13,11 +13,10 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License. */
 
-
 @import url('https://fonts.googleapis.com/css2?family=Roboto+Mono&display=swap');
 .plain_code, .code {
-    background-color: #252525;
-    color: #eee;
+    background-color: #fff;
+    color: rgb(40, 44, 52);
     white-space: pre;
     padding: 10px;
     padding-top: 0px;
@@ -32,29 +31,30 @@ limitations under the License. */
 .agg_field, .operator, .variable, .predicate, .field, .keyword, .string, .end_of_line_comment, .multiline_comment, .numeric_literal {
     display: inline;
 }
+
 .predicate {
     display: inline;
-    /* color: #7c7; */
-    color: #eea;
+    color: rgb(51, 103, 214);
 }
 .field {
-    color: #6ee;
+    color: rgb(123, 60, 0);
 }
 .agg_field {
-    color: #6ee;
+    color: rgb(166, 38, 164);
 }
 .end_of_line_comment, .multiline_comment {
-    color: #aaa;
+    color: rgb(94, 95, 96);
+    font-style: italic;
 }
 .string {
-    color: #c77;
+    color: rgb(80, 161, 79);
 }
 .keyword {
-    color: #c8c;
+    color: rgb(149, 54, 178);
 }
 .variable {
-    color: #ddd;
+    color: rgb(44, 23, 3);
 }
-.numeric_literal{
-    color: rgb(255, 150, 108);
+.numeric_literal {
+    color:rgb(197, 106, 41);
 }

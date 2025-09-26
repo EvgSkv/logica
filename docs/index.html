@@ -300,16 +300,66 @@ syntax is suited for it naturally. Here is a program finding prime numbers
 that are less than 100.
 
 <div class="code">
-  # Define numbers 1 to 30.
-  Number(x + 1) :- x in Range(30);
-  
-  # Defining composite numbers.
-  Composite(a * b) distinct :- Number(a), Number(b), a > 1, b > 1;
-  
-  # Defining primes as "not composite".
-  Prime(n) distinct :- Number(n), n > 1, ~Composite(n);
+# Define numbers 1 to 30.
+Number(x + 1) :- x in Range(30);
+
+# Defining composite numbers.
+Composite(a * b) distinct :- Number(a), Number(b), a > 1, b > 1;
+
+# Defining primes as "not composite".
+Prime(n) distinct :- Number(n), n > 1, ~Composite(n);
 </div>
 
+<h2>Cities with largest beer variety</h2>
+
+Let's use beer variety dataset from [plotly](https://github.com/plotly/datasets/blob/master/beers.csv).
+
+Let us find top 5 states with largest variety of beers. In each state we will pick city with the largest
+variety in the state.
+
+To run this example you will need to install DuckDB if you don't yet have it on your system. Luckily installing DuckDB is easy:
+
+<div class="code">
+python3 -m pip install duckdb
+</div>
+
+Program <i>beer.l</i>:
+
+<div class="code">
+@Engine("duckdb");
+
+@Ground(Beer);
+Beer(..r) :- 
+    `('https://github.com/plotly/datasets/blob/master/beers.csv?raw=true')`(..r);
+
+BeersInState(state) += 1 :- Beer(state:);
+BeersInCity(state, city) += 1 :- Beer(state:, city:);
+
+ArgMax5(x) = ArgMaxK(x, 5);
+BestCityForBeer(state:, city:,
+                city_beers: BeersInCity(state, city),
+                state_beers: BeersInState(state)) :-
+    state in ArgMax5{s -> BeersInState(s)},
+    city = ArgMax{c -> BeersInCity(state, c)};
+</div>
+
+Running <i>beer.l</i>:
+
+<div class="code">
+# logica beer.l run BestCityForBeer
++-------+--------------+------------+-------------+
+| state | city         | city_beers | state_beers |
++-------+--------------+------------+-------------+
+| IN    | Indianapolis | 43         | 139         |
+| CO    | Boulder      | 41         | 265         |
+| CA    | San Diego    | 42         | 183         |
+| TX    | Austin       | 25         | 130         |
+| MI    | Grand Rapids | 66         | 162         |
++-------+--------------+------------+-------------+
+</div>
+
+
+<!--
 <p>
 Finally here is an example of program that runs over
 <a href="https://www.gdeltproject.org/">GDELT Project</a> dataset,
@@ -352,6 +402,7 @@ AgiMentions(person:, mentions? += 1) distinct :-
 This program completes in interactive time
 when ran over the 4TB dataset
 via BigQuery.
+-->
 
 <div>
   <h1> Why Logica? </h1>

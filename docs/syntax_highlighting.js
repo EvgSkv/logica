@@ -21,10 +21,11 @@ function HighlightCodeElements(doc) {
       end_of_line_comment: /#.*/g,
       operator: /&gt;|&lt;/g,
       string: /["].*?["]/g,
+      numeric_literal: /\b[0-9]+[.]?[0-9]*/g,
       predicate: /[A-Z]\w*/g,
       field: /\w+:/g,
       agg_field: /\w+[?]/g,
-      keyword: / if | then | else | distinct | in /g,
+      keyword: /\bif | then | else | distinct | in /g,
       variable: /[a-z]\w*/g
   };
 
