@@ -51,6 +51,10 @@ Fingerprint(s) = SqlExpr("Fingerprint({s})", {s:});
 
 Intelligence(command) = SqlExpr("Intelligence({command})", {command:});
 
+RunClingo(script) = SqlExpr("RunClingo({script})", {script:});
+
+RunClingoFile(filename) = SqlExpr("RunClingoFile({filename})", {filename:});
+
 AssembleRecord(field_values) = SqlExpr("AssembleRecord({field_values})", {field_values:});
 
 DisassembleRecord(record) = SqlExpr("DisassembleRecord({record})", {record:});
