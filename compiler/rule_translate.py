@@ -153,7 +153,9 @@ class NamesAllocator(object):
           for c in hint_for_user if c in allowed_chars)
     else:
       suffix = ''
-    if suffix and suffix not in self.allocated_tables:
+    if (suffix and
+        suffix not in self.allocated_tables and
+        not suffix[0].isdigit()):
       t = suffix
     else:
       if suffix:
@@ -490,6 +492,10 @@ class RuleStructure(object):
                            custom_udfs=subquery_encoder.execution.custom_udfs,
                            dialect=subquery_encoder.execution.dialect)
     r = 'SELECT\n'
+    if (self.this_predicate_name in
+        subquery_encoder.execution.
+        annotations.annotations['@DifferentiallyPrivate']):
+      r += 'WITH DIFFERENTIAL_PRIVACY\n'
     fields = []
     if not self.select:
       raise RuleCompileException(
