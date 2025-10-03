@@ -176,8 +176,17 @@ def main(argv):
       from tools import run_in_terminal
     else:
       from .tools import run_in_terminal
-    artistic_table = run_in_terminal.Run(filename, predicates)
-    print(artistic_table)
+    if ',' in predicates:
+      artistic_tables = run_in_terminal.RunMany(filename, predicates.split(','))
+      for name, table in artistic_tables.items():
+        k = len(table.split('\n')[0]) - 4 - len(name)
+        n = k // 2
+        m = k - n
+        print(f'|{"=" * n} %s {"=" * m}|' % name)
+        print(table)
+    else:
+      artistic_table = run_in_terminal.Run(filename, predicates)
+      print(artistic_table)
     return
 
   program_text = open(filename).read()

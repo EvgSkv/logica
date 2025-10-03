@@ -155,3 +155,47 @@ def Run(filename, predicate_name,
     return header, rows
   else:
     assert False, 'Unknown output format: %s' % output_format
+
+
+def RunMany(filename, predicate_names,
+            output_format='artistic_table', display_mode='terminal'):
+  try:
+    rules = parse.ParseFile(open(filename).read())['rule']
+  except parse.ParsingException as parsing_exception:
+    parsing_exception.ShowMessage()
+    sys.exit(1)
+
+  try:
+    program = universe.LogicaProgram(rules)
+    engine = program.annotations.Engine()
+
+    executions = []
+    for predicate_name in predicate_names:
+      # This is needed to build the program execution.
+      unused_sql = program.FormattedPredicateSql(predicate_name)
+      executions.append(program.execution)
+
+    results = concertina_lib.ExecuteLogicaProgram(
+        executions, SqlRunner(engine, logic_program=program), engine,
+        display_mode=display_mode)
+  except rule_translate.RuleCompileException as rule_compilation_exception:
+    rule_compilation_exception.ShowMessage()
+    sys.exit(1)
+  except functors.FunctorError as functor_exception:
+    functor_exception.ShowMessage()
+    sys.exit(1)
+  except infer.TypeErrorCaughtException as type_error_exception:
+    type_error_exception.ShowMessage()
+    sys.exit(1)
+
+  if output_format == 'artistic_table':
+    artistic_tables = {}
+    for predicate_name in predicate_names:
+      (header, rows) = results[predicate_name]
+      artistic_table = sqlite3_logica.ArtisticTable(header, rows)
+      artistic_tables[predicate_name] = artistic_table
+    return artistic_tables
+  elif output_format == 'header_rows':
+    return results
+  else:
+    assert False, 'Unknown output format: %s' % output_format

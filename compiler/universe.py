@@ -152,7 +152,8 @@ class Annotations(object):
       '@Limit', '@OrderBy', '@Ground', '@Flag', '@DefineFlag',
       '@NoInject', '@Make', '@CompileAsTvf', '@With', '@NoWith',
       '@CompileAsUdf', '@ResetFlagValue', '@Dataset', '@AttachDatabase',
-      '@Engine', '@Recursive', '@Iteration', '@BareAggregation'
+      '@Engine', '@Recursive', '@Iteration', '@BareAggregation',
+      '@DifferentiallyPrivate'
   ]
 
   def __init__(self, rules, user_flags):
