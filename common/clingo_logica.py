@@ -221,12 +221,14 @@ def RunClingo(program, clingo_settings=None):
   import clingo
   import json
   clingo_settings = clingo_settings or {}
-  assert set(clingo_settings.keys()) <= {'models_limit', 'time_limit'}, (
+  assert set(clingo_settings.keys()) <= {'models_limit', 'time_limit',
+                                         'models_limit_soft'}, (
       'Unexpected clingo settings:' + str(clingo_settings))
   ctl = clingo.Control()
   ctl.add("base", [], program)
   models_limit = clingo_settings.get('models_limit', -1)
   time_limit = clingo_settings.get('time_limit', -1)
+  models_limit_soft = clingo_settings.get('models_limit_soft', False)
   ctl.configuration.solve.models = models_limit + 1
   if False:
     ctl.configuration.solve.opt_mode = 'opt'
@@ -255,7 +257,7 @@ def RunClingo(program, clingo_settings=None):
       result.append({'model': entry, 'model_id': model_id})
     if models_limit > 0:
       assert len(result) <= models_limit + 1, 'This should never happen!'
-    if models_limit > 0 and len(result) > models_limit:
+    if models_limit > 0 and len(result) > models_limit and not models_limit_soft:
       print('Clingo program:')
       print(program)
       print('[ \033[91m Model limit exceeded \033[0m ] Clingo has too many models.')
