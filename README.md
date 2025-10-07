@@ -266,6 +266,10 @@ $ logica mentions.l run Mentions
 Note that cities of Los Angeles and Las Vegas are mentioned in this table due to known
 missclasification issue in the GDELT data analysis.
 --> 
+
+## Citations
+For citations, see our list of [Logica publications](https://logica-web.github.io/publications/).
+
 ## Feedback
 
 Feel free to create [github issues](https://github.com/EvgSkv/logica/issues)
