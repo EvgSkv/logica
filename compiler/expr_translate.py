@@ -248,7 +248,14 @@ class QL(object):
     return str(literal['number'])
 
   def StrLiteral(self, literal):
-    if self.dialect.Name() in ["PostgreSQL", "Presto", "Trino", "SqLite", "DuckDB"]:
+    if self.dialect.Name() in ["DuckDB"]:  # PostreSQL too?
+      return 'E\'%s\'' % (
+          literal['the_string']
+          .replace('\\', '\\\\')
+          .replace("'", "''")
+          .replace('\t', r'\t')
+          .replace('\n', r'\n'))
+    if self.dialect.Name() in ["PostgreSQL", "Presto", "Trino", "SqLite"]:
       # TODO: Do this safely.
       return '\'%s\'' % (literal['the_string'].replace("'", "''"))
 

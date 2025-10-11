@@ -20,6 +20,7 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 
+import codecs
 import copy
 import os
 import re
@@ -184,6 +185,14 @@ def Traverse(s):
         yield (idx, None, 'EOL in string')
       if c == '"':
         state = state[:-1]
+    elif State() == "'":
+      track_parenthesis = False
+      if c == "'":
+        state = state[:-1]
+      if c == '\\':
+        state += '\\'
+    elif State() == '\\':
+      state = state[:-1] # character is screened whatever that is.
     elif State() == '`':
       track_parenthesis = False
       if c == '`':
@@ -217,6 +226,8 @@ def Traverse(s):
         idx += 1
       elif c == '"':
         state += '"'
+      elif c == "'":
+        state += "'"
       elif c == '`':
         state += '`'
       elif c2 == '/*':
@@ -530,6 +541,21 @@ def ParseString(s):
       s[-1] == '"' and
       '"' not in s[1:-1]):
     return {'the_string': s[1:-1]}
+  if (len(s) >= 2 and
+      s[0] == "'" and
+      s[-1] == "'"):
+    meat = s[1:-1]
+    screen = False
+    for c in meat:
+      if screen:
+        screen = False
+        continue
+      if not screen and c == "'":
+        break
+      if c == '\\':
+        screen = True
+    else:  # for ... else ... LOL %D
+      return {'the_string': codecs.decode(meat, 'unicode_escape')}
   if (len(s) >= 6 and
       s[:3] == '"""' and
       s[-3:] == '"""' and
