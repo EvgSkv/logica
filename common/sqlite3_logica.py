@@ -175,7 +175,7 @@ def ArtisticTable(header, rows):
     return str(s) + ' ' * (w - len(str(s)))
 
   def RowLines(row, width):
-      row_columns = [x.split('\n') for x in row]
+      row_columns = [str(x).split('\n') for x in row]
       height = max(len(x) for x in row_columns)
       result = []
       for i in range(height):
