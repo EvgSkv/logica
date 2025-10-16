@@ -17,7 +17,8 @@
 
 SUPPORTED_PREDICATES = [
     '=', '<', '>', '<=', '>=', '!=', '+', '-', '*', '/',
-    'Combine', '->', 'ISum', 'Sum', 'Max', 'Range', 'Count']
+    'Combine', '->', 'ISum', 'Sum', 'Max', 'Range', 'Count',
+    'IsNull']
 
 
 def Klingon(rules, predicates):
