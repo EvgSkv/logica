@@ -20,6 +20,7 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 
+import ast
 import codecs
 import copy
 import os
@@ -555,7 +556,7 @@ def ParseString(s):
       if c == '\\':
         screen = True
     else:  # for ... else ... LOL %D
-      return {'the_string': codecs.decode(meat, 'unicode_escape')}
+      return {'the_string': ast.literal_eval(s)}
   if (len(s) >= 6 and
       s[:3] == '"""' and
       s[-3:] == '"""' and

@@ -1,0 +1,10 @@
++---------------------+------------+
+| company             | num_models |
++---------------------+------------+
+| AlphaShovel         | 1.0        |
+| Northern Butcheries | 2.0        |
+| Open Kopai          | 1.0        |
+| Peaceful Joe        | 2.0        |
+| Stargazer           | 2.0        |
+| Toys Unlimited      | 2.0        |
++---------------------+------------+

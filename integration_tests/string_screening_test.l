@@ -16,4 +16,5 @@
 Test('\U0001F600.oO(Hello!)');
 Test('Hello\n World aka \'Universe\'!');
 Test('What does "air quotes" mean?');
-Test('        (Oh hi!)\n                \U0001F601')
+Test('        (Oh hi!)\n                \U0001F601');
+Test('Это    /\\ \nЁлка   /\\\n       ..');
