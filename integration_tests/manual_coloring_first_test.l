@@ -42,7 +42,8 @@ DataFacts() = List{ClingoFact("V", [x]) :- V(x)} ++
 
 Models() = Clingo(GraphColoringPredicates(), DataFacts());
 
-@OrderBy(Test, "col0");
-Test(model_id) Array= node -> color :-
+Coloring(model_id) Array= node -> color :-
   ExtractClingoCall(node, color, predicate: "C", model_id:) = Models();
-  
+
+@OrderBy(Test, "logica_value");
+Test() = Coloring();

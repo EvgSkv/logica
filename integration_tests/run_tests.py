@@ -76,6 +76,7 @@ def RunAll(test_presto=False, test_trino=False, test_clingo=True):
     RunTest('extract_clingo_test')
     RunTest('clingo_pipeline_test', use_concertina=True)
 
+  RunTest("strategic_test")
   RunTest("string_screening_test")
   RunTest("propositional_implication_test")
 
