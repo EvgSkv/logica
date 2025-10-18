@@ -1259,13 +1259,32 @@ def ParseFunctionRule(s: HeritageAwareString) -> Optional[List[Dict]]:
   return [annotation, rule]
 
 
-def GrabDenotation(head, denotation):
+def GrabDenotation(head, denotation, with_arguments=False):
   head_couldbe = Split(head, denotation)
   if len(head_couldbe) > 2:
-    raise ParsingException('Too many >>%s\'s<<.' % denotation, head)
+    raise ParsingException(
+        'Too many >>%s\'s<<, or on it is on incorrect place.'
+        'Denotations go as [distrinct] [order_by(...)] '
+        '[limit(...)].' % denotation, head)
+  if with_arguments:
+    if len(head_couldbe) == 2:
+      head_couldbe[1] = Strip(head_couldbe[1])
+      if head_couldbe[1] and head_couldbe[1][0] == '(':
+        raise ParsingException(
+          'Can not parse denotations when extracting >>%s<<. '
+          'Denotations should go as [distinct][order_by][limit].' % denotation,
+          head)
+      args = ParseRecordInternals(head_couldbe[1])
+      return head_couldbe[0], True, args
+    else:
+      return head, False, None
+
   if len(head_couldbe) == 2 and head_couldbe[1].strip():
-    raise ParsingException('Denotation >>%s<< should go last.' % denotation,
-                           head)
+    raise ParsingException(
+        'Too many >>%s\'s<<, or on incorrect place.'
+        'Denotations go as [distrinct] [order_by(...)] '
+        '[limit(...)].' % denotation, head)
+
   head = head_couldbe[0]
   return head, len(head_couldbe) == 2
 
@@ -1280,6 +1299,10 @@ def ParseRule(s: HeritageAwareString) -> Dict:
   head, couldbe = GrabDenotation(head, 'couldbe')
   head, cantbe = GrabDenotation(head, 'cantbe')
   head, shouldbe = GrabDenotation(head, 'shouldbe')
+  head, limit, limit_what = GrabDenotation(head, 'limit',
+                                           with_arguments=True)
+  head, order_by, order_by_what = GrabDenotation(head, 'order_by',
+                                                 with_arguments=True)
 
   head_distinct = Split(head, 'distinct')
   if len(head_distinct) == 1:
@@ -1304,6 +1327,10 @@ def ParseRule(s: HeritageAwareString) -> Dict:
     result['cantbe_denoted'] = True
   if shouldbe:
     result['shouldbe_denoted'] = True
+  if order_by:
+    result['orderby_denoted'] = order_by_what
+  if limit:
+    result['limit_denoted'] = limit_what
   if len(parts) == 2:
     body = parts[1]
     result['body'] = ParseProposition(body)
@@ -1689,6 +1716,37 @@ class AggergationsAsExpressions(object):
     return rules
 
 
+def AnnotationsFromDenotations(rule):
+  def ShiftArgs(fvs):
+    for fv in fvs:
+      fv['field'] += 1
+  result = []
+  for denotation, annotation in [('orderby_denoted', '@OrderBy'),
+                                 ('limit_denoted', '@Limit')]:
+    if denotation in rule:
+      ShiftArgs(rule[denotation]['field_value'])
+      result.append({'full_text': rule['full_text'],
+                    'head': {
+                      'predicate_name': annotation,
+                      'record': {
+                        'field_value': [{
+                          'field': 0,
+                          'value': {
+                            'expression': {
+                              'literal': {
+                                'the_predicate': {
+                                  'predicate_name': rule['head']['predicate_name']
+                                }
+                              }
+                            }
+                          }
+                        }] + rule[denotation]['field_value']
+                      }
+                    }})
+  return result
+
+
+
 def ParseFile(s, this_file_name=None, parsed_imports=None, import_chain=None,
               import_root=None):
   """Parsing logica.Logica."""
@@ -1731,6 +1789,8 @@ def ParseFile(s, this_file_name=None, parsed_imports=None, import_chain=None,
       rule = ParseFunctorRule(HeritageAwareString(str_statement))
     if not rule:
       rule = ParseRule(HeritageAwareString(str_statement))
+      if rule:
+        rules.extend(AnnotationsFromDenotations(rule))
 
     if rule:
       rules.append(rule)
