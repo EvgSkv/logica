@@ -164,7 +164,8 @@ class PostgreSQL(Dialect):
         'MagicalEntangle': '(CASE WHEN {1} = 0 THEN {0} ELSE NULL END)',
         'ArrayConcat': '{0} || {1}',
         'Split': 'STRING_TO_ARRAY({0}, {1})',
-        'AnyValue': '(ARRAY_AGG(%s))[1]'
+        'AnyValue': '(ARRAY_AGG(%s))[1]',
+        'Log': 'LN(%s)',  # Log is natural logarithm!
       }
 
   def InfixOperators(self):
@@ -421,7 +422,8 @@ class DuckDB(Dialect):
           'DateDiffDay': "CAST(JULIANDAY({0}) - JULIANDAY({1}) AS INT64)",
           'CurrentTimestamp': 'GET_CURRENT_TIMESTAMP()',
           'TimeAdd': '{0} + to_microseconds(cast(1000000 * {1} as int64))',
-          'Rand': 'RANDOM(%s)'
+          'Rand': 'RANDOM(%s)',
+          'Log': 'LN(%s)'  # Log is natural logarithm!
       }
 
     def DecorateCombineRule(self, rule, var):
