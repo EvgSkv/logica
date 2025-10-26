@@ -168,8 +168,8 @@ def ConnectClingo(connection,
       pass
   connection.create_function('RunClingoFileTemplate', RunClingoFileTemplate)
 
-  def Clingo(predicates: duckdb.list_type(str),
-             within_model: model_type) -> list_of_models_type:
+  def CompileClingo(predicates: duckdb.list_type(str),
+                    within_model: model_type) -> str:
     if logica_program:
       for p in predicates:
         if p not in logica_program.functors.args_of:
@@ -192,6 +192,16 @@ def ConnectClingo(connection,
         within_model, from_logica=True))
     program = clingo_logica.Klingon(logical_context, predicates)
     full_program = context + '\n' + program
+    return full_program
+  try:
+      connection.remove_function('CompileClingo')
+  except:
+      pass
+  connection.create_function('CompileClingo', CompileClingo)
+
+  def Clingo(predicates: duckdb.list_type(str),
+             within_model: model_type) -> list_of_models_type:
+    full_program = CompileClingo(predicates, within_model)
     if debug_printing:
       print('=== Running Clingo ===')
       print('Predicates:', predicates)

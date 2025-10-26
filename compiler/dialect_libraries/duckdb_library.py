@@ -89,6 +89,8 @@ ProverChoice(slot, options:) = options[i] :-
 
 Clingo(p, m) = SqlExpr("Clingo({p}, {m})", {p:, m:}) :-
   m ~ [{predicate: Str, args: [Str]}];
+CompileClingo(p, m) = SqlExpr("CompileClingo({p}, {m})", {p:, m:}) :-
+  m ~ [{predicate: Str, args: [Str]}];
 
 RunClingo(p) = SqlExpr("RunClingo({p})", {p:});
 RunClingoFile(p) = SqlExpr("RunClingoFile({p})", {p:});
