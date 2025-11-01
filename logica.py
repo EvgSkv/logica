@@ -346,7 +346,10 @@ def main(argv):
         o, _ = p.communicate(formatted_sql.encode())
       else:
         assert False, 'Unknown engine: %s' % engine
-      print(o.decode())
+      try:
+          print(o.decode())
+      except BrokenPipeError:
+          pass
 
 
 def run_main():
