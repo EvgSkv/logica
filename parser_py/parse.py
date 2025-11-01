@@ -322,6 +322,7 @@ def SplitRaw(s, separator):
   l = len(separator)
   traverse = Traverse(s)
   part_start = 0
+  separator_alphanum = separator.isalnum()
   for idx, state, status in traverse:
     # TODO: This should be thrown by Traverse.
     if status != 'OK':
@@ -331,6 +332,12 @@ def SplitRaw(s, separator):
     if not state and s[idx:(idx + l)] == separator and (
         len(s) == idx + l or s[idx + l] != '|') and (
             idx == 0 or s[idx - 1] != '|'):
+      # Bail out if this is alphanum separator that's part of
+      # a word.
+      if separator_alphanum:
+        if (idx > 0 and s[idx - 1].isalnum() or
+            idx + l < len(s) and s[idx + l].isalnum()):
+          continue
       # TODO: Treat tuples properly.
       parts.append(s[part_start:idx])
       for _ in range(l - 1):
@@ -822,6 +829,9 @@ def ActuallyParseExpression(s):
   v = ParseRecord(s)
   if v:
     return {'record': v}
+  v = ParsePropositionalImplication(s)
+  if v:
+    return {'call': v['predicate']}
   v = ParseCall(s, is_aggregation_allowed=False)
   if v:
     return {'call': v}
@@ -972,8 +982,7 @@ def ParseProposition(s):
       return {'conjunction': {'conjunct': [c]}}
   c = ParsePropositionalImplication(s)
   if c:
-    return {'conjunction': {'conjunct': [c]}}
-
+    return c
   c = ParseImplication(s)
   if c:
     raise ParsingException('If-then-else clause is only supported as an '
