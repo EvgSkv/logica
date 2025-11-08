@@ -268,7 +268,7 @@ missclasification issue in the GDELT data analysis.
 --> 
 
 ## Citations
-For citations, see our list of [Logica publications](https://logica-web.github.io/publications/).
+For citations, see our list of [Logica publications](https://logica-lang.github.io/publications/).
 
 ## Feedback
 
