@@ -378,17 +378,17 @@ class QL(object):
 
   def GenericSqlExpression(self, record):
     """Converting SqlExpr to SQL."""
-    top_record = self.ConvertRecord(record)
-    if set(top_record) != set([0, 1]):
+    top_record = lambda: self.ConvertRecord(record)
+    if {fv['field'] for fv in record['field_value']} != {0, 1}:
       raise self.exception_maker(
-          'SqlExpr must have 2 positional arguments, got: %s' % top_record)
+          'SqlExpr must have 2 positional arguments, got: %s' % top_record())
     if ('literal' not in record['field_value'][0]
         ['value']['expression'] or
         'the_string' not in
         record['field_value'][0]['value']['expression']['literal']):
       raise self.exception_maker(
           'SqlExpr must have first argument be string, got: %s' %
-          top_record[0])
+          top_record()[0])
 
     template = (
         record['field_value'][0]['value']['expression']['literal']
@@ -396,7 +396,7 @@ class QL(object):
     if 'record' not in record['field_value'][1]['value']['expression']:
       raise self.exception_maker(
           'Sectond argument of SqlExpr must be record literal. Got: %s' %
-          top_record[1])
+          top_record()[1])
     args = self.ConvertRecord(
         record['field_value'][1]['value']['expression']['record'])
     return template.format(**args)
