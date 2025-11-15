@@ -25,10 +25,10 @@ Arrow(left, right) = arrow :-
 PrintToConsole(message) :- 1 == SqlExpr("PrintToConsole({message})", {message:});
 
 ArgMin(arr) = SqlExpr(
-    "argmin({a}, {v})", {a:, v:}) :- Arrow(a, v) == arr;
+    "argmin({a}, {v})", {a: arr.arg, v: arr.value});
 
 ArgMax(arr) = SqlExpr(
-    "argmax({a}, {v})", {a:, v:}) :- Arrow(a, v) == arr;
+    "argmax({a}, {v})", {a: arr.arg, v: arr.value});
 
 ArgMaxK(a, l) = SqlExpr(
   "(array_agg({arg_1} order by {value_1} desc))[1:{lim}]",

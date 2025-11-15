@@ -1157,7 +1157,7 @@ def ParseSubscript(s: HeritageAwareString):
     return {'record': record, 'subscript': subscript}
 
 
-def ParseHeadCall(s):
+def ParseHeadCall(s, distinct_from_outside=False):
   """Parsing rule head, excluding 'distinct'."""
   saw_open = False
   idx = -1
@@ -1177,10 +1177,19 @@ def ParseHeadCall(s):
   if not call:
     raise ParsingException('Could not parse predicate call.', call_str)
   operator_expression = Split(post_call_str, '=')
+  def CheckAggregationCoherence(call):
+    if not distinct_from_outside:
+      for fv in call['record']['field_value']:
+        if 'aggregation' in fv['value']:
+          raise ParsingException(
+            'Aggregation appears in a non-distinct predicate. '
+            'Did you forget >>distinct<<?', call_str)
+
   if len(operator_expression) == 1:
     if operator_expression[0]:
       raise ParsingException('Unexpected text in the head of a rule.',
                              operator_expression[0])
+    CheckAggregationCoherence(call)
     return (call, False)
   # We have a value!
   if len(operator_expression) > 2:
@@ -1195,6 +1204,7 @@ def ParseHeadCall(s):
         'field': 'logica_value',
         'value': {'expression': ParseExpression(expression_str)}
     })
+    CheckAggregationCoherence(call)
     return (call, False)
 
   aggregated_field_value = {
@@ -1316,7 +1326,8 @@ def ParseRule(s: HeritageAwareString) -> Dict:
   head_distinct = Split(head, 'distinct')
   if len(head_distinct) == 1:
     
-    parsed_head_call, is_distinct = ParseHeadCall(head)
+    parsed_head_call, is_distinct = ParseHeadCall(head,
+                                                  distinct_from_outside=False)
     if not parsed_head_call:
       raise ParsingException(
           'Could not parse head of a rule.', head)
@@ -1327,7 +1338,8 @@ def ParseRule(s: HeritageAwareString) -> Dict:
     if not (len(head_distinct) == 2 and not head_distinct[1]):
       raise ParsingException('Can not parse rule head. Something is wrong with '
                              'how >>distinct<< is used.', head)
-    parsed_head_call, is_distinct = ParseHeadCall(head_distinct[0])
+    parsed_head_call, is_distinct = ParseHeadCall(head_distinct[0],
+                                                  distinct_from_outside=True)
     result = {'head': parsed_head_call,
               'distinct_denoted': True}
   if couldbe:
