@@ -186,7 +186,7 @@ def RunSQL(sql, engine, connection=None, is_final=False):
       rows = cursor.fetchall()
       df = pandas.DataFrame(
         rows, columns=[d[0] for d in cursor.description])
-      df = df.applymap(psql_logica.DigestPsqlType)
+      df = df.map(psql_logica.DigestPsqlType)
       return df
     else:
       psql_logica.PostgresExecute(sql, connection)
@@ -279,6 +279,8 @@ class PostgresRunner(object):
       if user_choice != 'y':
         print('User declined.')
         print('Bailing out.')
+        print('You can run colab_logica.ConnectToPostgres() '
+              'to connect.')
         return
       PostgresJumpStart()
     self.connection = DB_CONNECTION

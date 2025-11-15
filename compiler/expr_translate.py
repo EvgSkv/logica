@@ -72,6 +72,7 @@ class QL(object):
       # These functions are treated specially.
       'FlagValue': 'UNUSED',
       'Cast': 'UNUSED',
+      'TryCast': 'UNUSED',
       'SqlExpr': 'UNUSED'
   }
   BUILT_IN_INFIX_OPERATORS = {
@@ -540,7 +541,19 @@ class QL(object):
         return self.ConvertAnalytic(call)
       if call['predicate_name'] == 'SqlExpr':
         return self.GenericSqlExpression(call['record'])
-      if call['predicate_name'] == 'Cast':
+      if call['predicate_name'] in ['Cast', 'TryCast']:
+        sql_predicate = 'CAST' if call['predicate_name'] == 'Cast' else 'TRY_CAST'
+        if len(arguments) == 2 and (
+          'record' in call['record']['field_value'][1]['value']['expression']):
+          fvs = call['record']['field_value']
+          type_name = fvs[1]['value']['expression']['type']['type_name']
+          if sql_predicate == 'TRY_CAST':
+            return 'TRY_CAST(%s AS %s)' % (
+                self.ConvertToSql(
+                fvs[0]['value']['expression']), type_name)
+          return (
+            '(' + self.ConvertToSql(
+              fvs[0]['value']['expression']) + '::' + type_name) + ')'
         if (len(arguments) != 2 or
             'literal' not in
             call['record']['field_value'][1]['value']['expression'] or
@@ -552,7 +565,8 @@ class QL(object):
         cast_to = (
             call['record']['field_value'][1]['value']['expression']['literal']
             ['the_string']['the_string'])
-        return 'CAST(%s AS %s)' % (
+        return '%s(%s AS %s)' % (
+            sql_predicate,
             self.ConvertToSql(
                 call['record']['field_value'][0]['value']['expression']),
             cast_to)
