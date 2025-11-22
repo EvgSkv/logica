@@ -65,7 +65,16 @@ def RenderProposition(proposition):
     return RenderCall(proposition['predicate'])
   if 'inclusion' in proposition:
     return RenderInclusion(proposition['inclusion'])
+  if 'unification' in proposition:
+    return RenderUnification(proposition['unification'])
   assert False
+
+
+def RenderUnification(unification):
+  left = unification['left_hand_side']
+  right = unification['right_hand_side']
+  return '(%s) = (%s)' % (RenderExpression(left), RenderExpression(right))
+
 
 def RenderInclusion(inclusion):
   left = RenderExpression(inclusion['element'])
@@ -82,6 +91,7 @@ def RenderInclusion(inclusion):
     return left + ' = (%s)' % ';'.join(elements_strs)
   assert False
 
+
 def RenderCall(call):
   """Renders predicate call."""
   p = call['predicate_name']
@@ -90,6 +100,7 @@ def RenderCall(call):
   if p == 'IsNull':
     return RenderNegation(call)
   return RenderPositionalCall(call)
+
 
 def RenderNegation(call):
   """Renders negation of a call."""
