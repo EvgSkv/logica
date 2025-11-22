@@ -16,7 +16,7 @@
 
 
 SUPPORTED_PREDICATES = [
-    '=', '<', '>', '<=', '>=', '!=', '+', '-', '*', '/',
+    '=', '<', '>', '<=', '>=', '!=', '+', '-', '*', '/', '%',
     'Combine', '->', 'ISum', 'Sum', 'Min', 'Max', 'Range',
     'Count', 'IsNull']
 
@@ -85,7 +85,7 @@ def RenderInclusion(inclusion):
 def RenderCall(call):
   """Renders predicate call."""
   p = call['predicate_name']
-  if p in ['=', '!=', '<', '<=', '>', '>=', '+', '-', '*', '/']:
+  if p in ['=', '!=', '<', '<=', '>', '>=', '+', '-', '*', '/', '%']:
     return RenderInfixCall(call)
   if p == 'IsNull':
     return RenderNegation(call)
@@ -109,6 +109,8 @@ def RenderInfixCall(call):
   record = call['record']
   fvs = record['field_value']
   predicate = call['predicate_name']
+  if predicate == '%':
+    predicate = '\\' # Oh yes, not kidding!
   assert fvs[0]['field'] == 'left'
   assert fvs[1]['field'] == 'right'
   return (RenderExpression(fvs[0]['value']['expression']) +
