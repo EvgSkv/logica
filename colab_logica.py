@@ -312,6 +312,7 @@ class ExecutionObserver:
   def RegisterTableLocation(self, predicate, table_location):
     self.table_locations[predicate] = table_location 
 
+CONNECTION_USED = None
 
 def Logica(line, cell, run_query):
   """Running Logica predicates and storing results."""
@@ -416,6 +417,9 @@ def Logica(line, cell, run_query):
     elif engine == 'duckdb':
       if program.NeedsClingo():
         sql_runner = DuckdbRunner(program)
+        # Storing connection for debugging.
+        global CONNECTION_USED
+        CONNECTION_USED = sql_runner.connection
       else:
         # Let users set stuff in default connection unless
         # clingo is actually needed.
