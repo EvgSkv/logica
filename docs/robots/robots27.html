@@ -1,0 +1,1934 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/codemirror@5.65.16/lib/codemirror.css">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Robot Labyrinth Simulator (Logica Edition)</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/pyodide/v0.23.2/full/pyodide.js"></script>
+    <style>
+        /* Shared Editor Styles */
+        textarea#robotProgram, textarea#debugProgram {
+            font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+            font-size: 0.9rem;
+            line-height: 1.4;
+            background-color: #1e1e1e;
+            color: #d4d4d4;
+            border: 1px solid #3a3a3a;
+            border-radius: 8px;
+            padding: 1rem;
+            resize: vertical;
+            outline: none;
+            width: 100%;
+        }
+        
+        #robotProgram {
+            height: 600px;
+        }
+
+        #debugProgram {
+            height: 100%; /* Fills the container in debug mode */
+            resize: none; 
+        }
+
+        textarea:focus {
+            border-color: #3b82f6; /* blue-500 */
+        }
+
+        canvas {
+            background-color: #000;
+            border-radius: 8px;
+            cursor: default;
+        }
+        /* Loading Overlay */
+        #loader {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: rgba(17, 24, 39, 0.95); /* bg-gray-900 with opacity */
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 1.5rem;
+            color: #d1d5db; /* text-gray-300 */
+            z-index: 100;
+            flex-direction: column;
+            gap: 1rem;
+        }
+        
+        /* Victory Overlay */
+        #victoryOverlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: rgba(22, 163, 74, 0.85); /* bg-green-700 with opacity */
+            display: none; /* Hidden by default */
+            justify-content: center;
+            align-items: center;
+            font-size: 3rem;
+            color: #f0fdf4; /* text-green-50 */
+            z-index: 101;
+            flex-direction: column;
+            gap: 2rem;
+            text-align: center;
+        }
+        #victoryButton {
+            background-color: #f0fdf4; /* text-green-50 */
+            color: #16a34a; /* text-green-700 */
+            font-size: 1.25rem;
+            font-weight: bold;
+            padding: 0.75rem 1.5rem;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: transform 0.1s;
+        }
+        #victoryButton:active {
+            transform: scale(0.95);
+        }
+
+        /* Simple spinner */
+        .spinner {
+            border: 4px solid #4b5563; /* border-gray-600 */
+            border-top: 4px solid #3b82f6; /* border-blue-500 */
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        /* Debug Tables */
+        .debug-table { width: 100%; border-collapse: separate; border-spacing: 0; font-size: 0.75rem; }
+        .debug-table th { 
+            text-align: left; 
+            border-bottom: 1px solid #4b5563; 
+            color: #9ca3af; 
+            padding: 6px; 
+            position: sticky; 
+            top: 0; 
+            background-color: #1f2937; /* bg-gray-800 */ 
+            z-index: 10;
+            font-weight: bold;
+        }
+        /* Style for Transposed Tables (Headers on left) */
+        .debug-table.transposed th {
+            position: sticky;
+            left: 0;
+            top: auto;
+            border-right: 1px solid #4b5563;
+            border-bottom: 1px solid #374151;
+        }
+
+        .debug-table td { 
+            border-bottom: 1px solid #374151; 
+            padding: 6px; 
+            color: #d1d5db; 
+            vertical-align: top; 
+            font-family: monospace; 
+            white-space: pre-wrap; 
+            word-break: break-all; 
+            max-width: 300px; 
+        }
+        .debug-table tr:hover { background-color: rgba(255,255,255,0.05); }
+    </style>
+</head>
+<body class="bg-gray-900 text-gray-200 font-sans min-h-screen p-8">
+
+    <div id="loader">
+        <div class="spinner"></div>
+        <span id="loader-text">Initializing Simulator...</span>
+    </div>
+
+    <div id="victoryOverlay">
+        <h1 class="font-bold">🎉 VICTORY! 🎉</h1>
+        <p class="text-xl">All required robots are in the victory area!</p>
+        <button id="victoryButton">Continue Watching</button>
+    </div>
+
+    <div id="debugOverlay" class="hidden fixed inset-0 bg-gray-900/95 z-50 flex flex-col p-6 overflow-hidden font-mono text-sm">
+        
+        <div class="flex justify-between items-center mb-4 border-b border-gray-700 pb-2 shrink-0">
+            <h2 class="text-2xl text-amber-400 font-bold flex items-center gap-2">
+                <span>🐞 Logic Debugger</span>
+                <span class="text-xs font-normal text-gray-400 bg-gray-800 px-2 py-1 rounded border border-gray-700 uppercase tracking-wide">Paused Snapshot</span>
+            </h2>
+            <button id="closeDebugButton" class="text-gray-400 hover:text-white text-3xl font-bold leading-none px-2">&times;</button>
+        </div>
+
+        <div class="flex-1 grid grid-cols-12 gap-6 overflow-hidden min-h-0">
+            
+            <div class="col-span-5 flex flex-col gap-4 overflow-hidden min-h-0">
+                <h3 class="text-lg font-semibold text-blue-300 shrink-0">Input State</h3>
+                
+                <div class="flex-1 flex flex-col overflow-hidden bg-gray-800 rounded border border-gray-700 min-h-0">
+                    <div class="flex justify-between items-center bg-gray-900/50 p-2 border-b border-gray-700 shrink-0">
+                        <h4 class="text-gray-400 font-bold text-xs uppercase">Table: Sensor</h4>
+                        <button id="flipSensorBtn" class="text-xs bg-gray-700 hover:bg-gray-600 px-2 py-1 rounded text-blue-200 transition-colors">⇄ Flip</button>
+                    </div>
+                    <div class="overflow-auto p-2" id="debugSensorWrapper">
+                        <div id="debugSensorTable"></div>
+                    </div>
+                </div>
+
+                <div class="flex-1 flex flex-col overflow-hidden bg-gray-800 rounded border border-gray-700 min-h-0">
+                     <div class="flex justify-between items-center bg-gray-900/50 p-2 border-b border-gray-700 shrink-0">
+                        <h4 class="text-gray-400 font-bold text-xs uppercase">Table: Memory</h4>
+                        <button id="flipMemoryBtn" class="text-xs bg-gray-700 hover:bg-gray-600 px-2 py-1 rounded text-blue-200 transition-colors">⇄ Flip</button>
+                    </div>
+                    <div class="overflow-auto p-2" id="debugMemoryWrapper">
+                        <div id="debugMemoryTable"></div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-span-7 flex flex-col gap-4 overflow-hidden min-h-0">
+                
+                <div class="flex-1 flex flex-col min-h-0">
+                    <div class="flex justify-between items-end mb-1 shrink-0">
+                        <h3 class="text-lg font-semibold text-purple-300">Live Code</h3>
+                        <span class="text-xs text-gray-500">Edits here update main program</span>
+                    </div>
+                    <textarea id="debugProgram" spellcheck="false"></textarea>
+                </div>
+
+                <div class="flex items-center gap-2 shrink-0">
+                    <div class="flex-1 flex items-center gap-2 bg-gray-800 p-1 rounded border border-gray-700">
+                        <span class="text-gray-400 pl-2 text-xs">Query:</span>
+                        <input id="debugPredicateInput" type="text" value="RobotJson" class="bg-transparent text-white px-2 py-1 w-full outline-none font-bold text-green-400" placeholder="Predicate">
+                    </div>
+                    <button id="runQueryButton" class="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-6 rounded transition-colors shadow-lg flex items-center gap-2">
+                        <span>▶ Run & Update</span>
+                    </button>
+                </div>
+
+                <div class="h-1/3 flex flex-col overflow-hidden bg-black rounded border border-gray-700 min-h-0">
+                    <div class="bg-gray-900/80 p-2 border-b border-gray-800 shrink-0 flex justify-between">
+                         <h4 class="text-gray-400 text-xs uppercase font-bold">Query Result</h4>
+                         <span id="debugStatus" class="text-xs italic text-gray-500">Ready</span>
+                    </div>
+                    <div id="debugOutput" class="p-2 overflow-auto text-green-400 font-mono text-xs"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="container mx-auto max-w-7xl">
+        <div style="display: flex; justify-content: flex-end; width: 100%;">
+            <h1 style="font-size:20px; display: flex; align-items: center; font-family: 'Lucida Console', Monaco, monospace; color: #33aa33; padding: 10px 20px; border-radius: 10px; border: 1px solid rgba(33,200,33,0.2); width: fit-content; box-shadow: 0 0 10px rgba(51, 200, 51, 0.0);" class="bg-gray-900">
+                Logical Robots
+                <img src="logo.png" alt="Robot Game Logo" style="height: 50px; width: auto; margin-left: 20px; margin-right: 15px;">
+            </h1>
+        </div>      
+        <div class="grid grid-cols-1 gap-8">
+            
+            <div>
+                <canvas id="simCanvas"></canvas>
+            </div>
+
+            <div class="bg-gray-800 p-6 rounded-lg shadow-lg">
+                <div id="fpsIndicator" class="text-right text-xs text-gray-400 mb-2">FPS: --</div>
+                <div id="error_div" style="white-space: pre" class="mb-2 p-2.5 rounded text-sm font-mono bg-black/30 text-gray-300 empty:hidden"></div>
+                <div id="memory_div" class="mb-4 p-2.5 rounded text-sm font-mono bg-black/50 text-green-400/80 max-h-32 overflow-y-auto empty:hidden"></div>
+                <h2 class="text-xl font-semibold mb-4">Controls</h2>
+                
+                <div class="space-y-4">
+                    <div class="grid grid-cols-3 gap-2">
+                        <button id="restartButton" class="col-span-1 bg-red-800 hover:bg-red-900 text-white font-bold py-2 px-4 rounded-lg transition-colors opacity-50 cursor-not-allowed" disabled>
+                            Restart
+                        </button>
+                        <button id="simToggle" class="col-span-2 bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-lg transition-colors">
+                            Start Simulation
+                        </button>
+                    </div>
+
+                    <div class="grid grid-cols-3 gap-4">
+                        <div class="col-span-1 space-y-2">
+                            <select id="levelSelect" class="w-full bg-gray-700 border border-gray-600 text-white text-sm rounded-lg focus:ring-indigo-500 focus:border-indigo-500 block p-2.5">
+                                <option value="">Select Level...</option>
+                                <option value="Level1.json">Level 1</option>
+                                <option value="Level2.json">Level 2</option>
+                                <option value="Level3.json">Level 3</option>
+                                <option value="Level4.json">Level 4</option>
+                                <option value="Level5.json">Level 5</option>
+                                <option value="Level6.json">Level 6</option>
+                                <option value="Level7.json">Level 7</option>
+                                <option value="Level8.json">Level 8</option>
+                                <option value="Level9.json">Level 9</option>
+                                <option value="Level10.json">Level 10</option>
+                                <option value="Level11.json">Level 11</option>
+                            </select>
+                            <button id="loadLevelButton" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-4 rounded-lg transition-colors">
+                                Load Level
+                            </button>
+                        </div>
+                        <div class="col-span-2">
+                            <button id="loadButton" class="w-full h-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg transition-colors flex flex-col items-center justify-center">
+                                <span>Load Labyrinth</span>
+                                <span class="text-xs font-normal opacity-75">(from File)</span>
+                            </button>
+                        </div>
+                    </div>
+                    <input type="file" id="fileInput" accept="application/json" style="display: none;">
+                    
+                    <div class="mt-4">
+                        <label for="cameraFollow" class="block text-sm font-medium text-gray-400 mb-1">Camera View</label>
+                        <select id="cameraFollow" class="w-full bg-gray-700 border border-gray-600 text-white text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block p-2.5">
+                            <option value="-1">Bird's Eye View</option>
+                            <option value="-2">Sensorial</option>
+                        </select>
+                    </div>
+                </div>
+
+                <hr class="my-6 border-gray-600">
+
+                <h2 class="text-xl font-semibold mb-4">Robot Program (Logica)</h2>
+                <p class="text-sm text-gray-400 mb-2">
+                    Define the `Robot` predicate.
+                    <br>Input tables: `Sensor(robot_name:, sensor:)`
+                    <br>and `Memory(robot_name:, memory:)`.
+                    <br>Sensor pings (e.g., `sensor.radar[0]`) now have `object` and `label` fields.
+                    <br>`sensor.forward_label` and `sensor.forward_object` also available.
+                </p>
+                
+                <textarea id="robotProgram"></textarea>
+                
+
+                <script src="https://cdn.jsdelivr.net/npm/codemirror@5.65.16/lib/codemirror.js"></script>
+                <script type="module">
+                    // Making robotProgram syntax highlighted.
+                    import { PrettyEditor } from './logica-editor.js';
+                    const editorMain = PrettyEditor("robotProgram");
+                    const editorDebug = PrettyEditor("debugProgram");                
+                </script>
+
+                <div class="grid grid-cols-3 gap-4 mt-4">
+                    <div class="col-span-1 space-y-2">
+                        <select id="demoProgramSelect" class="w-full bg-gray-700 border border-gray-600 text-white text-sm rounded-lg focus:ring-teal-500 focus:border-teal-500 block p-2.5">
+                            <option value="">Select Demo...</option>
+                            <option value="crawl_wall.l">Crawl Wall</option>
+                            <option value="simple_flow.l">Simple Flow</option>
+                            <option value="home_sick.l">Homesick</option>
+                            <option value="stare_beacon.l">Stare Beacon</option>
+                            <option value="hamlet.l">Hamlet</option>
+                            <option value="herd8.l">Hamlet Modern</option>
+                            <option value="follow_beacon3.l">Follow Beacons</option>
+                            <option value="stations8.l">Stations</option>
+                            <option value="sling3.l">Sling</option>
+                            <option value="custom_clock.l">Custom Clock</option>
+                            <option value="searcher7.l">Labyrinth Walkers</option>
+                        </select>
+                        <button id="loadDemoButton" class="w-full bg-teal-600 hover:bg-teal-700 text-white font-bold py-2 px-4 rounded-lg transition-colors">
+                            Load Demo
+                        </button>
+                    </div>
+                    <div class="col-span-2">
+                        <button id="applyProgram" class="w-full h-full bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 px-4 rounded-lg transition-colors">
+                            Apply Program
+                        </button>
+                    </div>
+                </div>
+                
+                <div class="mt-4 pt-4 border-t border-gray-700">
+                    <button id="debugModeButton" class="w-full bg-amber-600 hover:bg-amber-700 text-white font-bold py-2 px-4 rounded-lg transition-colors border border-amber-500 shadow-md flex justify-center items-center gap-2">
+                        <span>🐞</span> Enter Debug Mode
+                    </button>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <script type="module">
+        import * as l from "./logica_lib.js";
+        import * as brain from "./logica_brain.js";
+
+        // *** JSON Handling from Lib ***
+        const jsonReplacer = (key, value) => {
+          if (typeof value === 'bigint') {
+            return value.toString();
+          }
+          return value;
+        };
+
+        let global_time = 0;
+        const errorDiv = document.getElementById('error_div');
+        const memoryDiv = document.getElementById('memory_div')
+        const fpsIndicator = document.getElementById('fpsIndicator'); 
+        const restartButton = document.getElementById('restartButton');
+        let loadedLevelData = null;
+
+        // --- Setup ---
+        const canvas = document.getElementById('simCanvas');
+        const ctx = canvas.getContext('2d');
+        const loadButton = document.getElementById('loadButton');
+        const fileInput = document.getElementById('fileInput');
+        const simToggle = document.getElementById('simToggle');
+        const robotProgram = document.getElementById('robotProgram');
+        const applyProgram = document.getElementById('applyProgram');
+        const cameraFollow = document.getElementById('cameraFollow');
+        const loader = document.getElementById('loader');
+        const loaderText = document.getElementById('loader-text');
+        const victoryOverlay = document.getElementById('victoryOverlay');
+        const victoryButton = document.getElementById('victoryButton');
+        const levelSelect = document.getElementById('levelSelect');
+        const loadLevelButton = document.getElementById('loadLevelButton');
+        const demoProgramSelect = document.getElementById('demoProgramSelect');
+        const loadDemoButton = document.getElementById('loadDemoButton');
+
+        // --- Labyrinth State ---
+        let LABYRINTH_WIDTH = 500;
+        let LABYRINTH_HEIGHT = 500;
+
+
+        let grid = new Array(LABYRINTH_HEIGHT).fill(0).map(() => new Array(LABYRINTH_WIDTH).fill(0));
+        
+        let offScreenLabyrinthCanvas = document.createElement('canvas');
+
+        let offScreenCtx = offScreenLabyrinthCanvas.getContext('2d');
+        
+        function RespectSize() {
+          canvas.width = LABYRINTH_WIDTH;
+          canvas.height = LABYRINTH_HEIGHT;          
+          offScreenLabyrinthCanvas.width = LABYRINTH_WIDTH;
+          offScreenLabyrinthCanvas.height = LABYRINTH_HEIGHT;                 
+        }
+        RespectSize();
+
+
+// --- Interactive Mouse Control State ---
+        let dragTargetIndex = -1;
+        let rotateTargetIndex = -1;
+        let dragOffset = { x: 0, y: 0 };
+        
+        // Helper: Convert Mouse Event to World Coordinates
+        function getWorldCoordinates(e) {
+            const rect = canvas.getBoundingClientRect();
+            const mouseX = e.clientX - rect.left;
+            const mouseY = e.clientY - rect.top;
+
+            // 1. Sensorial View: Interaction disabled (too complex to map grid to world)
+            if (cameraFollow.value === "-2") {
+                return null; 
+            }
+
+            // 2. Camera Follow Mode (Zoomed & Centered)
+            if (followTarget > -1 && robots[followTarget]) {
+                const robot = robots[followTarget];
+                // Reverse the transforms done in drawSimulation:
+                // T1: translate(width/2, height/2)
+                // S1: scale(ZOOM, ZOOM)
+                // T2: translate(-rx, -ry)
+                
+                // Formula: World = (Mouse - Center) / Zoom + RobotPos
+                const worldX = (mouseX - canvas.width / 2) / FOLLOW_ZOOM + robot.x;
+                const worldY = (mouseY - canvas.height / 2) / FOLLOW_ZOOM + robot.y;
+                return { x: worldX, y: worldY };
+            }
+
+            // 3. Bird's Eye View (1:1 mapping)
+            // Need to account for potential CSS scaling if canvas size != display size
+            const scaleX = canvas.width / rect.width;
+            const scaleY = canvas.height / rect.height;
+            
+            return { x: mouseX * scaleX, y: mouseY * scaleY };
+        }
+
+
+// --- Mouse Interaction Handlers ---
+
+        canvas.addEventListener('mousedown', (e) => {
+            const worldPos = getWorldCoordinates(e);
+            if (!worldPos) return;
+
+            const CLICK_RADIUS = 20; // Hitbox for body
+            const ROTATE_RADIUS = 80; // Area around robot to trigger rotation
+
+            let closestDist = Infinity;
+            let closestIndex = -1;
+
+            // Find closest robot
+            robots.forEach((r, i) => {
+                const dist = Math.hypot(r.x - worldPos.x, r.y - worldPos.y);
+                if (dist < closestDist) {
+                    closestDist = dist;
+                    closestIndex = i;
+                }
+            });
+
+            if (closestIndex !== -1) {
+                // If clicked ON the robot -> Drag
+                if (closestDist < CLICK_RADIUS) {
+                    dragTargetIndex = closestIndex;
+                    dragOffset = {
+                        x: robots[closestIndex].x - worldPos.x,
+                        y: robots[closestIndex].y - worldPos.y
+                    };
+                    // Reset physics momentum so it doesn't drift after release
+                    robots[closestIndex].lastDesire = { left_engine: 0, right_engine: 0 };
+                } 
+                // If clicked NEAR the robot -> Rotate
+                else if (closestDist < ROTATE_RADIUS) {
+                    rotateTargetIndex = closestIndex;
+                    const dx = worldPos.x - robots[rotateTargetIndex].x;
+                    const dy = worldPos.y - robots[rotateTargetIndex].y;
+                    robots[rotateTargetIndex].angle = Math.atan2(dy, dx);
+                    
+                    if (!isSimulating) drawSimulation(); // Force redraw if paused
+                }
+            }
+        });
+
+        canvas.addEventListener('mousemove', (e) => {
+            // Optimization: Don't calculate if not interacting
+            if (dragTargetIndex === -1 && rotateTargetIndex === -1) return;
+
+            const worldPos = getWorldCoordinates(e);
+            if (!worldPos) return;
+
+            // Handle Dragging
+            if (dragTargetIndex !== -1) {
+                const r = robots[dragTargetIndex];
+                
+                // Update position
+                let newX = worldPos.x + dragOffset.x;
+                let newY = worldPos.y + dragOffset.y;
+
+                // Simple bounds checking (keep inside map)
+                newX = Math.max(0, Math.min(LABYRINTH_WIDTH, newX));
+                newY = Math.max(0, Math.min(LABYRINTH_HEIGHT, newY));
+
+                r.x = newX;
+                r.y = newY;
+                
+                if (!isSimulating) drawSimulation();
+            }
+
+            // Handle Rotating
+            if (rotateTargetIndex !== -1) {
+                const r = robots[rotateTargetIndex];
+                const dx = worldPos.x - r.x;
+                const dy = worldPos.y - r.y;
+                r.angle = Math.atan2(dy, dx);
+
+                if (!isSimulating) drawSimulation();
+            }
+        });
+
+        canvas.addEventListener('mouseup', () => {
+            dragTargetIndex = -1;
+            rotateTargetIndex = -1;
+        });
+
+        canvas.addEventListener('mouseleave', () => {
+            dragTargetIndex = -1;
+            rotateTargetIndex = -1;
+        });
+
+
+        const PATH_COLOR = '#007bff';
+        const INNER_WALL_COLOR = '#000080';
+        const EDGE_WALL_COLOR = '#00ffff';
+
+        // --- Robot State ---
+        let robots = [];
+        let bodies = []; // <-- Array for beacons and areas
+        const ROBOT_BASE_COLOR_DARK_FACTOR = 0.7;
+        const ROBOT_OUTLINE_THICKNESS = 2;
+        const ROBOT_BODY_WIDTH = 12;
+        const ROBOT_BODY_HEIGHT = 18;
+        const ROBOT_BACK_FLAT_RATIO = 0.8;
+        const TRACK_WIDTH = 6;
+        const TRACK_LENGTH_FACTOR = 0.7;
+        const TRACK_OFFSET_Y = ROBOT_BODY_WIDTH / 2 + 1;
+        const ROBOT_TRACK_DISTANCE = 20;
+        const MAX_SPEED = 1.0;
+        const MAX_SENSOR_DISTANCE = 200;
+        const BEACON_HIT_RADIUS = 8; 
+
+        // --- Simulation State ---
+        let isSimulating = false;
+        let followTarget = -1;
+        const FOLLOW_ZOOM = 2.5;
+        let victoryAchieved = false; 
+
+        // --- FPS Counter ---
+        let frameCount = 0;
+        let lastFPSTime = performance.now();
+        
+        // --- Decoupled Logic State ---
+        const THINK_INTERVAL_MS = 50; // How often robots "think" (10Hz)
+        let isThinking = false; // A "lock" to prevent overlapping thoughts
+
+        let track_spin = (s => {
+            let is = (s + 1000000) % 30;
+            let is2 = is > 20? 20 - 2 * (is - 20) : is;
+            return is2 - 15;
+        });
+
+
+        const code_suffix = `
+@Ground(Robot);
+# We must use RecordAsJson to handle the struct-to-JSON conversion
+RobotJson(robot_name:, desire: RecordAsJson(desire), memory:) :-
+  Robot(robot_name:, desire:, memory:);
+            `
+
+        // --- Default Labyrinth and Robot Program ---
+
+        function createDefaultLabyrinth() {
+            grid = new Array(LABYRINTH_HEIGHT).fill(0).map(() => new Array(LABYRINTH_WIDTH).fill(0));
+            for (let y = 0; y < LABYRINTH_HEIGHT; y++) {
+                for (let x = 0; x < LABYRINTH_WIDTH; x++) {
+                    if (x < 50 || x >= LABYRINTH_WIDTH - 50 || y < 50 || y >= LABYRINTH_HEIGHT - 50) {
+                        grid[y][x] = 1;
+                    } else {
+                        grid[y][x] = 0;
+                    }
+                }
+            }
+            updateOffScreenCanvas();
+        }
+
+        function resetRobots() {
+            robots = [
+                // Use string names as IDs, as required by the brain
+                { name: "Alpha", x: 100, y: 100, left_track_offset: 0, right_track_offset: 0, angle: Math.PI * 1 / 6, color: '#f43f5e', memory: '', lastDesire: { left_engine: 0, right_engine: 0 } },
+                { name: "Beta", x: 120, y: 100, left_track_offset: 0, right_track_offset: 0, angle: Math.PI / 2, color: '#3b82f6', memory: '', lastDesire: { left_engine: 0, right_engine: 0 } },
+                { name: "Gamma", x: 100, y: 120, left_track_offset: 0, right_track_offset: 0, angle: Math.PI * 1 / 3, color: '#22c55e', memory: '', lastDesire: { left_engine: 0, right_engine: 0 } },
+                { name: "Delta", x: 120, y: 120, left_track_offset: 0, right_track_offset: 0, angle: 0, color: '#c5c55e', memory: '', lastDesire: { left_engine: 0, right_engine: 0 } }
+            ];
+            bodies = [];
+            updateCameraFollowOptions();
+        }
+
+        // The default program is now a Logica string
+        const defaultLogicaProgram = `WeightedAverage(k->v) = Sum(k * v) / Sum(k);
+# Steer toward open space
+FreedomMotion(radar) = WeightedAverage{
+  x.distance -> x.angle :- x in radar
+};
+Robot(robot_name:, desire:, memory: "I am") :-
+  Sensor(robot_name:, sensor:),
+  freedom = FreedomMotion(sensor.radar),
+  speed = 0.5,
+  desire = {
+    left_engine: speed - freedom + 0.1,
+    right_engine: speed + freedom
+  };
+
+`;
+
+// Robot(robot_name:,
+//       desire: {
+//         left_engine: 0.2,
+//         right_engine: -0.2
+//       },
+//       memory:) :-
+//   # Read memory if needed:
+//   # Memory(robot_name:, memory: old_memory),  
+//   memory = ("I, " ++ robot_name ++", desire and therefore I am. I see " ++
+//             sensor.forward_object ++ " is at " ++ ToString(sensor.forward_distance)),
+//   Sensor(robot_name:, sensor:);
+
+        robotProgram.value = defaultLogicaProgram;
+
+        // --- Labyrinth Functions ---
+
+        function isPath(x, y) {
+            if (x < 0 || x >= LABYRINTH_WIDTH || y < 0 || y >= LABYRINTH_HEIGHT) {
+                return false;
+            }
+            return grid[y][x] === 0;
+        }
+
+        function updateOffScreenCanvas() {
+            offScreenCtx.clearRect(0, 0, LABYRINTH_WIDTH, LABYRINTH_HEIGHT);
+            const imageData = offScreenCtx.createImageData(LABYRINTH_WIDTH, LABYRINTH_HEIGHT);
+            const data = imageData.data;
+            
+            for (let y = 0; y < LABYRINTH_HEIGHT; y++) {
+                for (let x = 0; x < LABYRINTH_WIDTH; x++) {
+                    const index = (y * LABYRINTH_WIDTH + x) * 4;
+                    let color;
+                    const cellValue = grid[y][x];
+
+                    if (cellValue === 0) {
+                        color = PATH_COLOR;
+                    } else {
+                        if (isPath(x + 1, y) || isPath(x - 1, y) || isPath(x, y + 1) || isPath(x, y - 1) ||
+                            isPath(x + 1, y + 1) || isPath(x - 1, y - 1) || isPath(x + 1, y - 1)) {
+                            color = EDGE_WALL_COLOR;
+                        } else {
+                            color = INNER_WALL_COLOR;
+                        }
+                    }
+                    
+                    const rgb = hexToRgb(color);
+                    data[index]     = rgb.r;
+                    data[index + 1] = rgb.g;
+                    data[index + 2] = rgb.b;
+                    data[index + 3] = 255;
+                }
+            }
+            offScreenCtx.putImageData(imageData, 0, 0);
+        }
+
+        function hexToRgb(hex) {
+            const bigint = parseInt(hex.slice(1), 16);
+            return { r: (bigint >> 16) & 255, g: (bigint >> 8) & 255, b: bigint & 255 };
+        }
+        function rgbToHex(r, g, b) {
+            return "#" + ((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1);
+        }
+        function darkenHexColor(hex, factor) {
+            const { r, g, b } = hexToRgb(hex);
+            return rgbToHex(Math.floor(r * factor), Math.floor(g * factor), Math.floor(b * factor));
+        }
+
+        function drawLabyrinth() {
+            ctx.drawImage(offScreenLabyrinthCanvas, 0, 0);
+        }
+
+        // --- Labyrinth Data Processing ---
+        function processLabyrinthData(data) {
+            try {
+                loadedLevelData = JSON.parse(JSON.stringify(data));
+                restartButton.disabled = false;
+                restartButton.classList.remove('opacity-50', 'cursor-not-allowed');
+
+                LABYRINTH_WIDTH = data.width;
+                LABYRINTH_HEIGHT = data.height;
+                RespectSize();
+                const newGrid = [];
+                const wallsString = data.walls;
+                for (let y = 0; y < LABYRINTH_HEIGHT; y++) {
+                    const row = [];
+                    for (let x = 0; x < LABYRINTH_WIDTH; x++) {
+                        const val = parseInt(wallsString[y * LABYRINTH_WIDTH + x], 10);
+                        row.push(val);
+                    }
+                    newGrid.push(row);
+                }
+                console.log(robots);
+                robots = [];
+                bodies = [];
+
+                data.robots.forEach((r) => {
+                    robots.push({
+                        name: r.name,
+                        color: r.color,
+                        x: r.x,
+                        y: r.y,
+                        left_track_offset: 0,
+                        right_track_offset: 0,
+                        angle: r.angle ? r.angle : 0,
+                        color: r.color,
+                        memory: '',
+                        lastDesire: { left_engine: 0, right_engine: 0 }
+                    });
+                });
+                console.log("Robots loaded:", robots);
+
+                if (data.beacons) {
+                    data.beacons.forEach(b => {
+                        bodies.push({
+                            ...b,
+                            body_type: "beacon"
+                        });
+                    });
+                }
+                
+                if (data.areas) {
+                    data.areas.forEach(a => {
+                        const hasOn = !!a.on_beacon;
+                        const hasOff = !!a.off_beacon;
+                        const isSwitch = hasOn || hasOff;
+                        
+                        bodies.push({
+                            ...a,
+                            body_type: "area",
+                            visitors: new Set(),
+                            is_active: !isSwitch || (hasOff && !hasOn),
+                            impenetrable: a.impenetrable === true
+                        });
+                    });
+                }
+                console.log('Bodies loaded (beacons and areas):', bodies);
+
+                updateCameraFollowOptions();
+
+                grid = newGrid;
+                updateOffScreenCanvas();
+                
+                victoryAchieved = false;
+                victoryOverlay.style.display = 'none';
+
+                drawSimulation();
+                console.log('Labyrinth loaded successfully!');
+            } catch (error) {
+                console.error('Failed to process labyrinth data:', error);
+                errorDiv.innerHTML = `Failed to process data:<br/>${error.message}`;
+            }
+        }
+
+        function loadLabyrinthData(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                try {
+                    const data = JSON.parse(e.target.result);
+                    processLabyrinthData(data);
+                } catch (error) {
+                    console.error('Failed to parse JSON file:', error);
+                    errorDiv.innerHTML = `Failed to parse file:<br/>${error.message}`;
+                }
+            };
+            reader.readAsText(file);
+            event.target.value = null;
+        }
+
+        async function loadLevelFromUrl(url) {
+            if (!url) {
+                console.warn("No level selected.");
+                return;
+            }
+            
+            toggleSimulation(true); 
+            loader.style.display = 'flex';
+            loaderText.textContent = `Loading ${url}...`;
+            errorDiv.innerHTML = '';
+
+            try {
+                const response = await fetch(url);
+                if (!response.ok) {
+                    throw new Error(`HTTP error! Status: ${response.status} - ${response.statusText}`);
+                }
+                const data = await response.json();
+                processLabyrinthData(data);
+
+            } catch (error) {
+                console.error(`Failed to load level from ${url}:`, error);
+                errorDiv.innerHTML = `Failed to load ${url}:<br/>${error.message}`;
+            } finally {
+                loader.style.display = 'none';
+            }
+        }
+
+        async function loadDemoProgramFromUrl(url) {
+            if (!url) {
+                console.warn("No demo program selected.");
+                return;
+            }
+
+            loader.style.display = 'flex';
+            loaderText.textContent = `Loading ${url}...`;
+            errorDiv.innerHTML = '';
+
+            try {
+                const response = await fetch(url);
+                if (!response.ok) {
+                    throw new Error(`HTTP error! Status: ${response.status} - ${response.statusText}`);
+                }
+                const code = await response.text();
+                robotProgram.value = code;
+                // We don't auto-apply anymore, let the user do it to see the code first
+                // applyProgramCode(); 
+
+            } catch (error) {
+                console.error(`Failed to load demo from ${url}:`, error);
+                errorDiv.innerHTML = `Failed to load ${url}:<br/>${error.message}`;
+            } finally {
+                loader.style.display = 'none';
+            }
+        }
+
+        // --- Robot & Simulation Functions ---
+
+        function updateCameraFollowOptions() {
+            const currentValue = cameraFollow.value; // Store current selection
+            
+            // Clear all options except the first one ("Bird's Eye View")
+            while (cameraFollow.options.length > 2) {
+                cameraFollow.remove(2);
+            }
+
+            // Add new options for each robot
+            robots.forEach((robot, index) => {
+                const option = document.createElement('option');
+                option.value = index; // The value is the robot's index
+                option.textContent = `Follow ${robot.name} (${robot.color})`; // The text
+                cameraFollow.appendChild(option);
+            });
+
+            // Restore the previous selection, if possible
+            cameraFollow.value = currentValue;
+        }
+
+        // --- *** NEW: Spinner SVG for the button *** ---
+        const SPINNER_HTML = `<svg class="animate-spin -ml-1 mr-3 h-5 w-5 text-white inline-block" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+        </svg>`;
+
+        // --- *** MODIFIED: applyProgramCode (Now Async with Spinner) *** ---
+        async function applyProgramCode() {
+            const user_code = robotProgram.value;
+            const code = user_code + code_suffix;
+            const originalText = applyProgram.innerHTML; // Save the original button text
+
+            // 1. Set Loading State
+            applyProgram.disabled = true;
+            applyProgram.innerHTML = `${SPINNER_HTML} Compiling...`;
+            applyProgram.classList.add('opacity-75', 'cursor-not-allowed');
+            errorDiv.innerHTML = ''; // Clear previous errors immediately
+
+            // Yield to the browser to let it render the spinner before heavy work starts
+            await new Promise(resolve => setTimeout(resolve, 10));
+
+            try {
+                // 2. Perform Compilation (waiting for it if it's async, 
+                // or just letting it block if it's sync - the spinner is already visible now)
+                await brain.Compile(code);
+                
+                console.log('Program applied successfully!');
+                applyProgram.classList.remove('bg-red-500');
+                applyProgram.classList.add('bg-purple-600');
+                errorDiv.innerHTML = 'Compilation is succesful.';
+                window.scrollTo({ top: 0, behavior: 'smooth' })
+
+            } catch (e) {
+                console.error('Error in robot program:', e);
+                errorDiv.innerHTML = e.message || e;
+                applyProgram.classList.add('bg-red-500');
+                applyProgram.classList.remove('bg-purple-600');
+                toggleSimulation(true);
+                errorDiv.scrollIntoView({behavior: 'smooth'});
+            } finally {
+                // 3. Restore Button State
+                applyProgram.disabled = false;
+                applyProgram.innerHTML = originalText;
+                applyProgram.classList.remove('opacity-75', 'cursor-not-allowed');
+            }
+        }
+
+        function rayCast(startX, startY, angle, maxDist, selfRobotName, allRobots) {
+            const cosA = Math.cos(angle);
+            const sinA = Math.sin(angle);
+            const robotHitRadius = ROBOT_BODY_HEIGHT / 2;
+
+            for (let d = 1; d < maxDist; d++) {
+                const checkX = startX + cosA * d;
+                const checkY = startY + sinA * d;
+                const gridX = Math.floor(checkX);
+                const gridY = Math.floor(checkY);
+
+                // 1. Check for grid-based walls
+                if (gridX < 0 || gridX >= LABYRINTH_WIDTH || gridY < 0 || gridY >= LABYRINTH_HEIGHT) {
+                    return { distance: d, object: 'wall', label: 'wall' }; // Hit map boundary
+                }
+                if (grid[gridY][gridX] === 1) {
+                    return { distance: d, object: 'wall', label: 'wall' }; // Hit labyrinth wall
+                }
+
+                // 2. Check for other robots
+                for (const robot of allRobots) {
+                    if (robot.name === selfRobotName) continue; // Don't detect self
+                    const dist = Math.hypot(checkX - robot.x, checkY - robot.y);
+                    if (dist < robotHitRadius) {
+                        return { distance: d, object: 'robot', label: robot.name };
+                    }
+                }
+
+                // 3. Check bodies (Beacons and Impenetrable Areas)
+                for (const body of bodies) {
+                    const dist = Math.hypot(checkX - body.x, checkY - body.y);
+
+                    if (body.body_type === 'beacon') {
+                        if (dist < BEACON_HIT_RADIUS) {
+                            return { distance: d, object: 'beacon', label: body.name };
+                        }
+                    } else if (body.body_type === 'area') {
+                        // Check if it's an active, solid area
+                        if (body.impenetrable && body.is_active) {
+                             if (dist < body.radius) {
+                                 // We return 'wall' as the object type so standard
+                                 // wall-avoidance logic works automatically.
+                                 return { distance: d, object: 'wall', label: body.name };
+                             }
+                        }
+                    }
+                }
+            }
+            // 4. No hit
+            return { distance: maxDist, object: 'none', label: 'nothing' };
+        }
+
+        function calculateSensors(robot, allRobots, t) {
+            
+            // 1. Simple forward sensor (now uses rayCast)
+            const forwardResult = rayCast(robot.x, robot.y, robot.angle, MAX_SENSOR_DISTANCE, robot.name, allRobots);
+
+            // 2. New Radar Sensor (-60 to +60 degrees, 10 pings)
+            const radar = [];
+            const radarAngleSpan = (120 * Math.PI) / 180; // 120 degrees in radians
+            const startAngle = robot.angle - (radarAngleSpan / 2); // Start at -60 deg relative to robot
+            const numPings = 30;
+            const angleStep = radarAngleSpan / (numPings - 1); // 9 intervals for 10 pings
+
+            for (let i = 0; i < numPings; i++) {
+                const pingAngle = startAngle + (i * angleStep);
+                // Cast a ray at the calculated absolute angle
+                const result = rayCast(robot.x, robot.y, pingAngle, MAX_SENSOR_DISTANCE, robot.name, allRobots);
+                
+                radar.push({
+                   // Angle difference is inverted, because screen is inverted.
+                    angle: -(pingAngle - robot.angle), // Store relative angle
+                    distance: result.distance,
+                    object: result.object,
+                    label: result.label // <-- THE NEW FIELD
+                });
+            }
+
+            // 3. Return the full sensor object
+            return {
+                forward_distance: forwardResult.distance,
+                forward_object: forwardResult.object, // <-- NEW
+                forward_label: forwardResult.label,   // <-- NEW
+                radar: radar,
+                clock: t
+            };
+        }
+
+        function updateRobotPhysics(robot, desire) {
+            // If Logica returned no desire, default to 0.
+            if (!desire) {
+                desire = { left_engine: 0, right_engine: 0 };
+            }
+
+            // NOTE: We switch left and right because screen is mirrored for user (y is down).
+            const vLeft = Math.max(-1, Math.min(1, desire.right_engine || 0)) * MAX_SPEED;
+            const vRight = Math.max(-1, Math.min(1, desire.left_engine || 0)) * MAX_SPEED;
+
+            const vAvg = (vLeft + vRight) / 2.0; 
+            const omega = (vRight - vLeft) / ROBOT_TRACK_DISTANCE;
+
+            let newAngle = robot.angle + omega;
+            newAngle = (newAngle + Math.PI * 2) % (Math.PI * 2);
+
+            const newX = robot.x + vAvg * Math.cos(newAngle);
+            const newY = robot.y + vAvg * Math.sin(newAngle);
+
+            const gridX = Math.floor(newX);
+            const gridY = Math.floor(newY);
+
+            robot.left_track_offset -= vLeft; // Use the clamped value
+            robot.right_track_offset -= vRight; // Use the clamped value
+
+            if (gridX >= 0 && gridX < LABYRINTH_WIDTH && gridY >= 0 && gridY < LABYRINTH_HEIGHT && grid[gridY][gridX] === 1) {
+                robot.angle = newAngle;
+            } else {
+                robot.x = newX;
+                robot.y = newY;
+                robot.angle = newAngle;
+            }
+        }
+
+        // --- Area Logic Functions ---
+
+        function getPressedBeacons() {
+            const pressed = new Set();
+            for (const robot of robots) {
+                if (robot.sensor && robot.sensor.radar) {
+                    for (const ping of robot.sensor.radar) {
+                        if (ping.object === 'beacon') {
+                            pressed.add(ping.label);
+                        }
+                    }
+                }
+            }
+            return pressed;
+        }
+
+        function updateAreaStates() {
+            const pressedBeacons = getPressedBeacons();
+            const areas = bodies.filter(b => b.body_type === 'area');
+
+            for (const area of areas) {
+                const hasOn = !!area.on_beacon;
+                const hasOff = !!area.off_beacon;
+                if (!hasOn && !hasOff) continue;
+
+                const isOnPressed = hasOn && pressedBeacons.has(area.on_beacon);
+                const isOffPressed = hasOff && pressedBeacons.has(area.off_beacon);
+
+                if (area.sticky_switch) {
+                    if (isOffPressed) area.is_active = false;
+                    else if (isOnPressed) area.is_active = true;
+                } else {
+                    if (isOffPressed) area.is_active = false;
+                    else if (isOnPressed) area.is_active = true;
+                    else area.is_active = !hasOn;
+                }
+            }
+        }
+
+        function handleAreaCollisions(robot) {
+            const areas = bodies.filter(b => b.body_type === 'area');
+            for (const area of areas) {
+                if (area.impenetrable && area.is_active) {
+                    const dx = robot.x - area.x;
+                    const dy = robot.y - area.y;
+                    const dist = Math.hypot(dx, dy);
+                    const pushRadius = area.radius + 0.1; 
+
+                    if (dist < area.radius) {
+                        if (dist < 1) { 
+                            robot.x = area.x + pushRadius;
+                            robot.y = area.y;
+                        } else {
+                            const normX = dx / dist;
+                            const normY = dy / dist;
+                            robot.x = area.x + normX * pushRadius;
+                            robot.y = area.y + normY * pushRadius;
+                        }
+                    }
+                }
+            }
+        }
+
+        function updateAreaVisits() {
+            bodies.forEach(body => {
+                if (body.body_type === 'area') {
+                    body.visitors.clear();
+                }
+            });
+            robots.forEach(robot => {
+                bodies.forEach(body => {
+                    if (body.body_type === 'area') {
+                        const dist = Math.hypot(robot.x - body.x, robot.y - body.y);
+                        if (dist < body.radius) {
+                            body.visitors.add(robot.name);
+                        }
+                    }
+                });
+            });
+        }
+        
+        function checkVictoryConditions() {
+            if (victoryAchieved) return; 
+
+            const victoryAreas = bodies.filter(b => 
+                b.body_type === 'area' && 
+                b.victory_robots && 
+                b.victory_robots.length > 0
+            );
+
+            if (victoryAreas.length === 0) return; 
+
+            for (const area of victoryAreas) {
+                if (!area.is_active) {
+                    continue;
+                }
+
+                const requiredRobots = new Set(area.victory_robots);
+                const currentRobots = area.visitors; 
+
+                let allRequiredPresent = true;
+                for (const robotName of requiredRobots) {
+                    if (!currentRobots.has(robotName)) {
+                        allRequiredPresent = false;
+                        break; 
+                    }
+                }
+
+                if (allRequiredPresent) {
+                    triggerVictory();
+                    break; 
+                }
+            }
+        }
+
+        function triggerVictory() {
+            victoryAchieved = true;
+            toggleSimulation(true); 
+            victoryOverlay.style.display = 'flex'; 
+        }
+
+        function drawRobots() {
+            robots.forEach(robot => {
+                ctx.save();
+                ctx.translate(robot.x, robot.y);
+                ctx.rotate(robot.angle);
+
+                // --- Robot Body ---
+                const halfLength = ROBOT_BODY_HEIGHT / 2;
+                const halfWidth = ROBOT_BODY_WIDTH / 2;
+                const backWidth = halfWidth * ROBOT_BACK_FLAT_RATIO;
+                const frontCornerX = halfLength * 0.3;
+
+                let track_shift = 0.3 * (track_spin(robot.left_track_offset) + track_spin(robot.right_track_offset));
+                
+                const bodyPoints = [
+                    { x: halfLength, y: 0 },
+                    { x: frontCornerX, y: halfWidth },
+                    { x: -halfLength, y: backWidth },
+                    { x: -halfLength, y: -backWidth },
+                    { x: frontCornerX, y: -halfWidth },
+                ];
+
+                ctx.beginPath();
+                ctx.moveTo(bodyPoints[0].x - track_shift, bodyPoints[0].y);
+                for (let i = 1; i < bodyPoints.length; i++) {
+                    ctx.lineTo(bodyPoints[i].x - track_shift, bodyPoints[i].y);
+                }
+                ctx.closePath();
+                
+                ctx.strokeStyle = darkenHexColor(robot.color, ROBOT_BASE_COLOR_DARK_FACTOR);
+                ctx.lineWidth = ROBOT_OUTLINE_THICKNESS * 2;
+                ctx.lineJoin = 'round';
+                ctx.stroke();
+                ctx.fillStyle = robot.color;
+                ctx.fill();
+
+                // --- Robot Tracks ---
+                const trackFillColor = darkenHexColor(robot.color, ROBOT_BASE_COLOR_DARK_FACTOR * 0.8);
+                const trackLength = ROBOT_BODY_HEIGHT * TRACK_LENGTH_FACTOR;
+                const halfTrackLength = trackLength / 2;
+
+                ctx.fillStyle = trackFillColor;
+                ctx.fillRect(
+                    -halfTrackLength + track_spin(robot.right_track_offset),
+                    -TRACK_OFFSET_Y - TRACK_WIDTH,
+                    trackLength,
+                    TRACK_WIDTH
+                );
+                ctx.fillRect(
+                    -halfTrackLength + track_spin(robot.left_track_offset),
+                    TRACK_OFFSET_Y,
+                    trackLength,
+                    TRACK_WIDTH
+                );
+
+                // --- Draw Radar ---
+                if (robot.sensor && robot.sensor.radar) {
+                    
+                    robot.sensor.radar.forEach(ping => {
+                        const endX = Math.cos(-ping.angle) * ping.distance;
+                        const endY = Math.sin(-ping.angle) * ping.distance;
+
+                        // 1. Draw the ray
+                        ctx.beginPath();
+                        ctx.moveTo(-track_shift, 0); // Start from robot center
+                        ctx.lineTo(endX, endY);
+                        
+                        if (ping.object === 'none') {
+                            ctx.strokeStyle = 'rgba(255, 255, 255, 0.15)'; // Faint white
+                            ctx.lineWidth = 1;
+                        } else {
+                            ctx.strokeStyle = 'rgba(255, 255, 255, 0.5)'; // Brighter white
+                            ctx.lineWidth = 1;
+                        }
+                        ctx.stroke();
+
+                        // 2. Draw a hit marker
+                        if (ping.object === 'wall') {
+                            ctx.fillStyle = 'rgba(255, 100, 100, 0.7)'; // Translucent red
+                            ctx.fillRect(endX - 2, endY - 2, 4, 4); 
+                        } else if (ping.object === 'robot') {
+                            ctx.fillStyle = 'rgba(100, 100, 255, 0.7)'; // Translucent blue
+                            ctx.fillRect(endX - 2, endY - 2, 4, 4); 
+                        } else if (ping.object === 'beacon') {
+                            ctx.fillStyle = 'rgba(255, 255, 100, 0.7)'; // Translucent yellow
+                            ctx.fillRect(endX - 2, endY - 2, 4, 4); 
+                        }
+                    });
+                }
+
+                ctx.restore();
+            });
+        }
+
+        function drawArea(area) {
+            ctx.save();
+            ctx.fillStyle = area.color;
+            ctx.strokeStyle = area.color;
+
+            const fillAlpha = area.is_active ? 0.2 : 0.05;
+            const borderAlpha = area.is_active ? 0.8 : 0.2;
+            const textFill = area.is_active ? area.color : '#777'; 
+
+            ctx.globalAlpha = fillAlpha; 
+            ctx.beginPath();
+            ctx.arc(area.x, area.y, area.radius, 0, 2 * Math.PI);
+            ctx.fill();
+            
+            ctx.globalAlpha = borderAlpha; 
+            ctx.lineWidth = 2;
+            ctx.stroke();
+            
+            ctx.restore(); 
+            
+            ctx.fillStyle = textFill; 
+            ctx.font = '10px sans-serif';
+            ctx.textAlign = 'left';
+            ctx.fillText(area.name, area.x + area.radius + 3, area.y + 4);
+        }
+
+        function drawBeacon(beacon) {
+            ctx.save();
+            ctx.translate(beacon.x, beacon.y);
+
+            // Calculate pulse
+            const pulse = (Math.sin(global_time * 0.05) + 1) / 2; 
+            const outerRadius = 8 + pulse * 4; 
+            const innerRadius = 4;
+
+            // 1. Draw outer glow
+            ctx.fillStyle = 'rgba(255, 255, 100, 0.4)'; 
+            ctx.beginPath();
+            ctx.arc(0, 0, outerRadius, 0, Math.PI * 2);
+            ctx.fill();
+
+            // 2. Draw inner core
+            ctx.fillStyle = 'rgba(255, 255, 220, 1)'; 
+            ctx.beginPath();
+            ctx.arc(0, 0, innerRadius, 0, Math.PI * 2);
+            ctx.fill();
+
+            // 3. Draw name label
+            ctx.fillStyle = '#FFFFFF';
+            ctx.font = '10px sans-serif';
+            ctx.textAlign = 'center';
+            ctx.fillText(beacon.name, 0, -outerRadius - 5); 
+
+            ctx.restore();
+        }
+
+        function drawBodies() {
+            bodies.forEach(body => {
+                if (body.body_type === "beacon") {
+                    drawBeacon(body);
+                } else if (body.body_type === "area") {
+                    drawArea(body);
+                }
+            });
+        }
+
+        async function thinkingLoop() {
+            if (!isSimulating) {
+                setTimeout(thinkingLoop, THINK_INTERVAL_MS);
+                return;
+            }
+            if (isThinking) {
+                setTimeout(thinkingLoop, THINK_INTERVAL_MS);
+                return;
+            }
+            if (!robots.length || !robots[0].sensor) {
+                setTimeout(thinkingLoop, THINK_INTERVAL_MS);
+                return;
+            }
+
+            isThinking = true; 
+            
+            try {
+                errorDiv.innerHTML = '';
+
+                const sensors_data = robots.map(r => ({
+                    robot_name: r.name,
+                    sensor: r.sensor 
+                }));
+                
+                const memory_data = robots.map(r => ({
+                    robot_name: r.name,
+                    memory: r.memory
+                }));
+
+                const result = await brain.Desire(sensors_data, memory_data);
+                const desires = result.desires;
+                const memories = result.memories;
+
+                memoryDiv.innerHTML = '';
+                robots.forEach(robot => {
+                    const new_desire = desires.get(robot.name);
+                    const new_memory = memories.get(robot.name);
+                    
+                    if (new_memory !== undefined) { 
+                        robot.memory = new_memory;
+                    }
+                    
+                    if (new_desire) {
+                        robot.lastDesire = new_desire;
+                    } else {
+                        robot.lastDesire = { left_engine: 0, right_engine: 0 };
+                    }
+                    
+                      memoryDiv.innerHTML += '<div><span class="font-semibold text-green-300">' + robot.name + ':</span> ' + (robot.memory ? robot.memory : '<span class="opacity-50 italic">empty</span>') + '</div>';
+                });
+
+            } catch (e) {
+                console.error("Error during brain.Desire():", e);
+                toggleSimulation(true); 
+                applyProgram.classList.add('bg-red-500');
+                applyProgram.classList.remove('bg-purple-600');
+                
+                errorDiv.innerHTML = '<span class="text-red-400 font-bold">Runtime Error:</span><br/>' + (e.message || e);
+
+            } finally {
+                isThinking = false; 
+                setTimeout(thinkingLoop, THINK_INTERVAL_MS);
+            }
+        }        
+        
+        function updateWorldState() {
+            global_time += 1; 
+
+            robots.forEach(robot => {
+                robot.sensor = calculateSensors(robot, robots, global_time); 
+                updateRobotPhysics(robot, robot.lastDesire); 
+                handleAreaCollisions(robot);
+            });
+            
+            updateAreaStates();
+            updateAreaVisits();
+            checkVictoryConditions();
+        }
+
+        function drawSimulation() {
+            // --- SENSORIAL MODE HANDLING ---
+            if (cameraFollow.value === "-2") {
+                // 1. Force Canvas Size for better Grid View
+                // We use 800px width as requested.
+                // We calculate height based on number of robots to ensure nice big boxes.
+                if (canvas.width !== 800) {
+                    canvas.width = 800;
+                    // Calculate roughly how many rows we need for nice aspect ratio
+                    const count = robots.length || 1;
+                    const cols = Math.ceil(Math.sqrt(count));
+                    const rows = Math.ceil(count / cols);
+                    // Give each row 300px of height
+                    canvas.height = Math.max(600, rows * 300); 
+                }
+                
+                drawSensorialView();
+                return;
+            }
+
+            // --- STANDARD MODE HANDLING ---
+            // 2. Restore Map Size if we switched back
+            if (canvas.width !== LABYRINTH_WIDTH || canvas.height !== LABYRINTH_HEIGHT) {
+                canvas.width = LABYRINTH_WIDTH;
+                canvas.height = LABYRINTH_HEIGHT;
+            }
+
+
+            ctx.clearRect(0, 0, LABYRINTH_WIDTH, LABYRINTH_HEIGHT);
+            ctx.save();
+
+            if (followTarget > -1 && robots[followTarget]) {
+                const robot = robots[followTarget];
+                ctx.translate(canvas.width / 2, canvas.height / 2);
+                ctx.scale(FOLLOW_ZOOM, FOLLOW_ZOOM);
+                ctx.translate(-robot.x, -robot.y);
+            }
+
+            drawLabyrinth();
+            drawBodies(); 
+            drawRobots(); 
+            ctx.restore();
+        }
+
+        function livingLoop() { 
+            if (!isSimulating) {
+                return;
+            }
+
+            const now = performance.now();
+            frameCount++;
+            if (now - lastFPSTime > 1000) { 
+                fpsIndicator.textContent = `FPS: ${frameCount}`;
+                frameCount = 0;
+                lastFPSTime = now;
+            }
+
+            updateWorldState(); 
+            drawSimulation();   
+
+            requestAnimationFrame(livingLoop); 
+        }
+
+        function toggleSimulation(forceStop = false) {
+            if (forceStop) {
+                isSimulating = false;
+            } else {
+                isSimulating = !isSimulating;
+            }
+
+            if (isSimulating) {
+                simToggle.textContent = 'Stop Simulation';
+                simToggle.classList.remove('bg-green-600', 'hover:bg-green-700');
+                simToggle.classList.add('bg-red-600', 'hover:bg-red-700'); 
+                
+                requestAnimationFrame(livingLoop); 
+                thinkingLoop(); 
+
+            } else {
+                simToggle.textContent = 'Start Simulation';
+                simToggle.classList.add('bg-green-600', 'hover:bg-green-700');
+                simToggle.classList.remove('bg-red-600', 'hover:bg-red-700');
+            }
+        }
+
+        function restartSimulation() {
+            // 1. Stop simulation if running
+            toggleSimulation(true);
+
+            // 2. If we have loaded level data, re-process it to restore initial state
+            if (loadedLevelData) {
+                // Pass a clone so we don't accidentally mutate our backup during processing
+                processLabyrinthData(JSON.parse(JSON.stringify(loadedLevelData)));
+                console.log("Level restarted.");
+            } else {
+                // Fallback for the default hardcoded level if no JSON was loaded
+                createDefaultLabyrinth();
+                resetRobots();
+                drawSimulation();
+                console.log("Default level restarted.");
+            }
+        }
+
+        // --- Event Listeners ---
+        loadButton.addEventListener('click', () => fileInput.click());
+        fileInput.addEventListener('change', loadLabyrinthData);
+        simToggle.addEventListener('click', () => toggleSimulation());
+        restartButton.addEventListener('click', restartSimulation);
+        applyProgram.addEventListener('click', applyProgramCode);
+
+        loadLevelButton.addEventListener('click', () => {
+            loadLevelFromUrl(levelSelect.value);
+        });
+
+        loadDemoButton.addEventListener('click', () => {
+            loadDemoProgramFromUrl(demoProgramSelect.value);
+        });
+
+        cameraFollow.addEventListener('change', (e) => {
+            followTarget = parseInt(e.target.value, 10);
+            if (!isSimulating) {
+                drawSimulation();
+            }
+        });
+
+        victoryButton.addEventListener('click', () => {
+            victoryOverlay.style.display = 'none';
+        });
+
+        // ==========================================
+        // DEBUG MODE LOGIC
+        // ==========================================
+        const debugModeButton = document.getElementById('debugModeButton');
+        const debugOverlay = document.getElementById('debugOverlay');
+        const closeDebugButton = document.getElementById('closeDebugButton');
+        
+        const debugSensorTable = document.getElementById('debugSensorTable');
+        const debugMemoryTable = document.getElementById('debugMemoryTable');
+        const debugProgram = document.getElementById('debugProgram');
+        const debugOutput = document.getElementById('debugOutput');
+        const debugStatus = document.getElementById('debugStatus');
+        
+        const runQueryButton = document.getElementById('runQueryButton');
+        const debugPredicateInput = document.getElementById('debugPredicateInput');
+        const flipSensorBtn = document.getElementById('flipSensorBtn');
+        const flipMemoryBtn = document.getElementById('flipMemoryBtn');
+
+        let isSensorFlipped = false;
+        let isMemoryFlipped = false;
+        let snapshotSensors = [];
+        let snapshotMemory = [];
+
+        // Helper: Convert array of objects to HTML Table (Supports Transpose)
+        function renderDebugTable(data, isTransposed = false) {
+            if (!data || data.length === 0) return '<div class="text-gray-500 italic p-2">Empty Table</div>';
+            
+            // Get all unique keys
+            const keys = new Set();
+            data.forEach(row => Object.keys(row).forEach(k => keys.add(k)));
+            const headers = Array.from(keys);
+
+            let html = `<table class="debug-table ${isTransposed ? 'transposed' : ''}">`;
+
+            if (!isTransposed) {
+                // STANDARD VIEW: Headers on Top
+                html += '<thead><tr>';
+                headers.forEach(h => html += `<th>${h}</th>`);
+                html += '</tr></thead><tbody>';
+                data.forEach(row => {
+                    html += '<tr>';
+                    headers.forEach(h => {
+                        let val = row[h];
+                        if (val === undefined) val = "";
+                        else if (typeof val === 'object') {
+                             // Use jsonReplacer for BigInts, formatted with 2 spaces
+                             val = JSON.stringify(val, jsonReplacer, 2);
+                        }
+                        html += `<td>${val}</td>`;
+                    });
+                    html += '</tr>';
+                });
+                html += '</tbody>';
+            } else {
+                // TRANSPOSED VIEW: Headers on Left
+                html += '<tbody>';
+                headers.forEach(h => {
+                    html += '<tr>';
+                    html += `<th>${h}</th>`; // Header Column
+                    data.forEach(row => {
+                        let val = row[h];
+                        if (val === undefined) val = "";
+                        else if (typeof val === 'object') {
+                             // Use jsonReplacer for BigInts, formatted with 2 spaces
+                             val = JSON.stringify(val, jsonReplacer, 2);
+                        }
+                        html += `<td>${val}</td>`;
+                    });
+                    html += '</tr>';
+                });
+                html += '</tbody>';
+            }
+            html += '</table>';
+            return html;
+        }
+
+        // 1. OPEN DEBUGGER
+        debugModeButton.addEventListener('click', async () => {
+            // Force stop simulation
+            if (isSimulating) toggleSimulation(true);
+
+            debugOverlay.classList.remove('hidden');
+            debugOverlay.classList.add('flex');
+            
+            // Capture Snapshot
+            snapshotSensors = robots.map(r => ({ robot_name: r.name, sensor: r.sensor }));
+            snapshotMemory = robots.map(r => ({ robot_name: r.name, memory: r.memory }));
+
+            // Update Tables
+            debugSensorTable.innerHTML = renderDebugTable(snapshotSensors, isSensorFlipped);
+            debugMemoryTable.innerHTML = renderDebugTable(snapshotMemory, isMemoryFlipped);
+
+            // Sync Code: Copy Main -> Debug
+            debugProgram.value = robotProgram.value;
+            debugStatus.textContent = "Ready";
+            debugOutput.textContent = "Click 'Run' to execute query.";
+
+            // Update DB State
+            try {
+                await l.WriteTable('Sensor', snapshotSensors);
+                await l.WriteTable('Memory', snapshotMemory);
+                console.log("Debug: DB State Updated.");
+            } catch (e) {
+                console.error(e);
+                debugOutput.innerHTML = `<div class="text-red-500">DB Write Error: ${e.message}</div>`;
+            }
+        });
+
+        // 2. CLOSE DEBUGGER
+        closeDebugButton.addEventListener('click', () => {
+            debugOverlay.classList.add('hidden');
+            debugOverlay.classList.remove('flex');
+        });
+
+        // 3. FLIP BUTTONS
+        flipSensorBtn.addEventListener('click', () => {
+            isSensorFlipped = !isSensorFlipped;
+            debugSensorTable.innerHTML = renderDebugTable(snapshotSensors, isSensorFlipped);
+        });
+        flipMemoryBtn.addEventListener('click', () => {
+            isMemoryFlipped = !isMemoryFlipped;
+            debugMemoryTable.innerHTML = renderDebugTable(snapshotMemory, isMemoryFlipped);
+        });
+
+        // 4. RUN QUERY & SYNC BACK
+        runQueryButton.addEventListener('click', async () => {
+            const predicate = debugPredicateInput.value.trim() || 'Robot';
+            const userCode = debugProgram.value; // Read from DEBUG editor
+            
+            // SYNC BACK: Update Main Editor
+            robotProgram.value = userCode; 
+            
+            const fullCode = userCode + code_suffix;
+
+            debugStatus.textContent = "Compiling...";
+            debugStatus.className = "text-xs italic text-yellow-400";
+            debugOutput.innerHTML = '<div class="text-gray-500">Running...</div>';
+
+            try {
+                // A. Compile
+                l.Compile(fullCode, predicate);
+                
+                // B. Execute
+                const results = await l.Execute(predicate);
+
+                // C. Render
+                debugOutput.innerHTML = renderDebugTable(results, false); // Results usually standard view
+                
+                debugStatus.textContent = "Success";
+                debugStatus.className = "text-xs italic text-green-400";
+                
+            } catch (e) {
+                console.error(e);
+                debugStatus.textContent = "Error";
+                debugStatus.className = "text-xs italic text-red-400";
+                debugOutput.innerHTML = `<div class="bg-red-900/50 p-4 rounded text-red-200 font-mono whitespace-pre-wrap">${e.message || e}</div>`;
+            }
+        });
+function drawSensorialView() {
+            // 1. Background
+            ctx.fillStyle = '#111827'; 
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            const count = robots.length;
+            if (count === 0) return;
+
+            // 2. Grid Calculations
+            const cols = Math.ceil(Math.sqrt(count));
+            const rows = Math.ceil(count / cols);
+            const cellW = canvas.width / cols;
+            const cellH = canvas.height / rows;
+
+            robots.forEach((robot, index) => {
+                const col = index % cols;
+                const row = Math.floor(index / cols);
+                
+                const centerX = col * cellW + cellW / 2;
+                const centerY = row * cellH + 4 / 5 * cellH;
+
+                // --- SAVE CELL CONTEXT ---
+                ctx.save();
+
+                // 3. Clip to Cell
+                ctx.beginPath();
+                ctx.rect(col * cellW, row * cellH, cellW, cellH);
+                ctx.clip();
+
+                // Border
+                ctx.strokeStyle = '#374151'; 
+                ctx.strokeRect(col * cellW, row * cellH, cellW, cellH);
+
+                // Center & Scale
+                ctx.translate(centerX, centerY);
+                const scale = 1.0; // 1:1 Scale as requested
+                ctx.scale(scale, scale);
+
+                // Rotate -90 so Robot faces UP
+                ctx.rotate(-Math.PI / 2);
+
+                // ==========================================
+                // DRAW ROBOT (Self)
+                // ==========================================
+                // (Exact copy of drawRobots logic)
+                const halfLength = ROBOT_BODY_HEIGHT / 2;
+                const halfWidth = ROBOT_BODY_WIDTH / 2;
+                const backWidth = halfWidth * ROBOT_BACK_FLAT_RATIO;
+                const frontCornerX = halfLength * 0.3;
+                let track_shift = 0.3 * (track_spin(robot.left_track_offset) + track_spin(robot.right_track_offset));
+                
+                const bodyPoints = [
+                    { x: halfLength, y: 0 },
+                    { x: frontCornerX, y: halfWidth },
+                    { x: -halfLength, y: backWidth },
+                    { x: -halfLength, y: -backWidth },
+                    { x: frontCornerX, y: -halfWidth },
+                ];
+
+                ctx.beginPath();
+                ctx.moveTo(bodyPoints[0].x - track_shift, bodyPoints[0].y);
+                for (let i = 1; i < bodyPoints.length; i++) {
+                    ctx.lineTo(bodyPoints[i].x - track_shift, bodyPoints[i].y);
+                }
+                ctx.closePath();
+                ctx.strokeStyle = darkenHexColor(robot.color, ROBOT_BASE_COLOR_DARK_FACTOR);
+                ctx.lineWidth = ROBOT_OUTLINE_THICKNESS * 2; 
+                ctx.lineJoin = 'round';
+                ctx.stroke();
+                ctx.fillStyle = robot.color;
+                ctx.fill();
+
+                // Tracks
+                const trackFillColor = darkenHexColor(robot.color, ROBOT_BASE_COLOR_DARK_FACTOR * 0.8);
+                const trackLength = ROBOT_BODY_HEIGHT * TRACK_LENGTH_FACTOR;
+                const halfTrackLength = trackLength / 2;
+                ctx.fillStyle = trackFillColor;
+                ctx.fillRect(-halfTrackLength + track_spin(robot.right_track_offset), -TRACK_OFFSET_Y - TRACK_WIDTH, trackLength, TRACK_WIDTH);
+                ctx.fillRect(-halfTrackLength + track_spin(robot.left_track_offset), TRACK_OFFSET_Y, trackLength, TRACK_WIDTH);
+
+
+                // ==========================================
+                // DRAW SENSOR RAYS (Background)
+                // ==========================================
+                // We track which objects we have detected to draw them later
+                const detectedObjects = new Set();
+
+                if (robot.sensor && robot.sensor.radar) {
+                    robot.sensor.radar.forEach(ping => {
+                        const drawAngle = -ping.angle; 
+                        const endX = Math.cos(drawAngle) * ping.distance;
+                        const endY = Math.sin(drawAngle) * ping.distance;
+
+                        // Draw the ray
+                        ctx.beginPath();
+                        ctx.moveTo(-track_shift, 0); 
+                        ctx.lineTo(endX, endY);
+                        
+                        // Faint lines for everything
+                        if (ping.object === 'none') {
+                            ctx.strokeStyle = 'rgba(255, 255, 255, 0.1)'; 
+                        } else {
+                            ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
+                        }
+                        ctx.lineWidth = 1; 
+                        ctx.stroke();
+
+                        // If it hit a wall, draw the dot (walls don't have unique IDs/Sprites)
+                        if (ping.object === 'wall') {
+                            ctx.fillStyle = '#f87171'; // Red
+                            ctx.fillRect(endX - 2, endY - 2, 4, 4);
+                        }
+                        // If it's a known object, store it for the "True Relative" pass
+                        else if (ping.object === 'beacon' || ping.object === 'robot') {
+                            detectedObjects.add(ping.label);
+                        }
+                    });
+                }
+
+                // ==========================================
+                // DRAW DETECTED OBJECTS (True Relative Position)
+                // ==========================================
+                
+                detectedObjects.forEach(label => {
+                    // 1. Find the actual object in the world
+                    let target = robots.find(r => r.name === label);
+                    let type = 'robot';
+                    
+                    if (!target) {
+                        target = bodies.find(b => b.name === label);
+                        type = target ? target.body_type : null;
+                    }
+
+                    if (target) {
+                        // 2. Calculate Relative Coordinates
+                        const dx = target.x - robot.x;
+                        const dy = target.y - robot.y;
+                        
+                        // Distance is standard hypotenuse
+                        const dist = Math.hypot(dx, dy);
+                        
+                        // Absolute angle to target
+                        const absAngle = Math.atan2(dy, dx);
+                        
+                        // Relative angle: Object Angle - Robot Angle
+                        // (Because Robot is rotated by robot.angle in the world)
+                        const relAngle = absAngle - robot.angle;
+
+                        // 3. Draw at (dist, relAngle) relative to our Up-Facing robot
+                        ctx.save();
+                        // We are already rotated -90deg. 
+                        // We rotate by relAngle to point towards the object
+                        ctx.rotate(relAngle);
+                        ctx.translate(dist, 0);
+
+                        // Now we are at the object's center.
+                        // We need to un-rotate so the text/icon isn't spinning wildy?
+                        // Actually, for the icon to look "upright" relative to the screen,
+                        // we need to undo the total rotation.
+                        // Total rotation so far: (-PI/2) + relAngle.
+                        // To make it upright: rotate( -((-PI/2) + relAngle) )
+                        ctx.rotate( -(-Math.PI/2 + relAngle) ); 
+
+                        // --- DRAW THE TARGET ---
+                        
+                        if (type === 'beacon') {
+                            // Draw Beacon (Pulse effect omitted for static clarity)
+                            ctx.beginPath();
+                            ctx.arc(0, 0, 8, 0, Math.PI*2);
+                            ctx.fillStyle = 'rgba(255, 255, 100, 0.8)';
+                            ctx.fill();
+                            ctx.beginPath();
+                            ctx.arc(0, 0, 4, 0, Math.PI*2);
+                            ctx.fillStyle = '#fff';
+                            ctx.fill();
+
+                            // Label
+                            ctx.fillStyle = "white";
+                            ctx.font = "bold 12px sans-serif";
+                            ctx.textAlign = "center";
+                            ctx.fillText(target.name, 0, -12);
+                        } 
+                        else if (type === 'robot') {
+                            // Draw Robot (Simplified Square representation)
+                            ctx.fillStyle = target.color;
+                            ctx.fillRect(-6, -6, 12, 12);
+                            ctx.strokeStyle = "white";
+                            ctx.lineWidth = 1;
+                            ctx.strokeRect(-6, -6, 12, 12);
+
+                            // Label
+                            ctx.fillStyle = "white";
+                            ctx.font = "bold 12px sans-serif";
+                            ctx.textAlign = "center";
+                            ctx.fillText(target.name, 0, -10);
+                        }
+
+                        ctx.restore();
+                    }
+                });
+
+                ctx.restore(); // End Cell Context
+
+                // Label (Corner of cell)
+                ctx.fillStyle = robot.color;
+                ctx.font = 'bold 14px monospace';
+                ctx.textAlign = 'left';
+                ctx.fillText(robot.name, col * cellW + 10, row * cellH + 20);
+            });
+        }
+
+        // --- Initialization ---
+        async function main() {
+            try {
+                loaderText.textContent = 'Initializing Logica Engine...';
+                await l.Init(); 
+                
+                loaderText.textContent = 'Compiling default program...';
+                brain.SetDefaultProgram(defaultLogicaProgram + code_suffix);
+                brain.Compile(defaultLogicaProgram + code_suffix); 
+                
+                createDefaultLabyrinth();
+                resetRobots(); 
+                drawSimulation(); 
+
+                // --- Enable restart for default level ---
+                restartButton.disabled = false;
+                restartButton.classList.remove('opacity-50', 'cursor-not-allowed');
+                
+                loader.style.display = 'none'; 
+            } catch (e) {
+                loaderText.textContent = `Fatal Error: ${e.message}. Check console.`;
+                console.error("Initialization failed:", e);
+            }
+        }
+        
+
+        main(); 
+
+    </script>
+</body>
+</html>
