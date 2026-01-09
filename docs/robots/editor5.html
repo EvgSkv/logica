@@ -1,0 +1,395 @@
+<!--
+Copyright 2023 Google LLC
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+     http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+-->
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Labyrinth Editor</title>
+    <style>
+        /* Basic styling for the page */
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            display: grid;
+            place-items: center;
+            min-height: 100vh;
+            background-color: #2c2c2c; /* Dark grey background */
+            color: #f0f0f0; /* Light text */
+            margin: 0;
+        }
+
+        /* Main container for the app */
+        .editor-container {
+            background: #3a3a3a; /* Slightly lighter container background */
+            padding: 1.5rem 2rem;
+            border-radius: 12px;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.3);
+            text-align: center;
+        }
+
+        h2 {
+            margin-top: 0;
+            color: #ffffff;
+        }
+
+        /* Styling for the canvas */
+        canvas {
+            border: 2px solid #555;
+            background-color: #000; /* Walls will be black by default */
+            cursor: crosshair;
+            border-radius: 4px;
+            /* Ensure the canvas is responsive but respects its pixel dimensions */
+            max-width: 100%;
+            height: auto;
+        }
+
+        /* Controls section */
+        #controls {
+            margin-top: 1.5rem;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 1.25rem; /* Increased gap */
+        }
+
+        .control-group {
+            display: flex;
+            align-items: center;
+            justify-content: space-between; 
+            gap: 0.75rem;
+            width: 100%; 
+            max-width: 280px; 
+        }
+
+        /* Style for the select dropdown */
+        select {
+            background-color: #555;
+            color: white;
+            border: none;
+            padding: 10px 15px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.9rem;
+            font-weight: 500;
+            font-family: inherit;
+            flex-grow: 1; 
+        }
+
+        /* General button style for all buttons */
+        .editor-button {
+            color: white;
+            border: none;
+            padding: 10px 15px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.9rem;
+            font-weight: 500;
+            transition: background-color 0.2s, transform 0.1s;
+            width: 200px; 
+        }
+        .editor-button:active {
+            transform: scale(0.98);
+        }
+
+        /* Specific button colors */
+        #resizeButton {
+            background-color: #5856d6; /* Indigo */
+        }
+        #downloadButton {
+            background-color: #34c759; /* Green */
+        }
+        #loadButton {
+            background-color: #ff9500; /* Orange */
+        }
+
+        /* Style the range slider */
+        input[type="range"] {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 150px;
+            height: 8px;
+            background: #555;
+            border-radius: 5px;
+            outline: none;
+            opacity: 0.7;
+            transition: opacity 0.2s;
+        }
+
+        input[type="range"]:hover {
+            opacity: 1;
+        }
+
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 18px;
+            height: 18px;
+            background: #007aff; /* Blue thumb */
+            border-radius: 50%;
+            cursor: pointer;
+        }
+
+        input[type="range"]::-moz-range-thumb {
+            width: 18px;
+            height: 18px;
+            background: #007aff;
+            border-radius: 50%;
+            cursor: pointer;
+        }
+        
+        /* Modal styles for alerts and editing */
+        .modal-backdrop {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0,0,0,0.6);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+        }
+        .modal-content {
+            background-color: #4a4a4a;
+            color: #f0f0f0;
+            padding: 2rem;
+            border-radius: 12px;
+            box-shadow: 0 5px 20px rgba(0,0,0,0.4);
+            text-align: left; 
+            max-width: 320px; 
+            width: 90%;
+        }
+        .modal-content p {
+            margin-top: 0;
+            margin-bottom: 1.5rem;
+            text-align: center; 
+        }
+        .modal-content button {
+            background-color: #007aff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.9rem;
+            font-weight: 500;
+            transition: background-color 0.2s, transform 0.1s;
+        }
+        .modal-content button:active {
+            transform: scale(0.98);
+        }
+
+        /* Styles for the edit panel */
+        .modal-content h3 {
+            margin-top: 0;
+            text-align: center;
+            color: #fff;
+        }
+        .edit-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1rem;
+        }
+        .edit-row label {
+            font-weight: 500;
+            color: #ccc;
+        }
+        .edit-row input,
+        .edit-row input[type="number"],
+        .edit-row select { 
+            background-color: #3a3a3a;
+            border: 1px solid #555;
+            color: #f0f0f0;
+            padding: 8px 12px;
+            border-radius: 6px;
+            font-family: inherit;
+            font-size: 0.9rem;
+            width: 180px;
+        }
+        /* Style for checkbox input */
+        .edit-row input[type="checkbox"] {
+            width: auto; 
+            margin-left: auto; 
+        }
+        .edit-row input[type="color"] {
+            width: 180px; 
+            height: 36px; 
+            padding: 0 4px; 
+            border: 1px solid #555;
+            border-radius: 6px;
+            background-color: #3a3a3a;
+            cursor: pointer;
+        }
+        .modal-buttons {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 1.5rem;
+        }
+        #deleteEdit {
+            background-color: #ff3b30; /* Red */
+        }
+        #closeEdit,
+        #cancelResize { 
+            background-color: #555; /* Grey */
+        }
+        #applyResize { 
+            background-color: #34c759; /* Green */
+        }
+        .modal-buttons-center {
+            text-align: center;
+        }
+
+        /* Warning text for resize modal */
+        .modal-warning {
+            font-size: 0.85rem;
+            color: #ff9500; /* Orange */
+            text-align: center;
+            border: 1px solid #ff9500;
+            padding: 0.75rem;
+            border-radius: 6px;
+            background: rgba(255, 149, 0, 0.1);
+        }
+
+        /* Style for Angle Editor */
+        #angleEditorRow {
+            justify-content: center;
+        }
+        #angleEditor {
+            background-color: #2c2c2c;
+            border-radius: 50%;
+            cursor: pointer;
+        }
+
+    </style>
+</head>
+<body>
+
+    <div class="editor-container">
+        <h2>Labyrinth Editor</h2>
+        <canvas id="editorCanvas"></canvas>
+        <div id="controls">
+            <div class="control-group">
+                <label for="brushSize">Brush Radius:</label>
+                <input type="range" id="brushSize" min="1" max="50" value="10">
+            </div>
+            
+            <div class="control-group">
+                <label for="toolMode">Tool Mode:</label>
+                <select id="toolMode">
+                    <option value="0">Carving Path</option>
+                    <option value="1">Building Wall</option>
+                    <option value="2">Place Robot</option>
+                    <option value="3">Place Beacon</option>
+                    <option value="4">Place Area</option>
+                    <option value="5">Selection / Edit</option>
+                </select>
+            </div>
+
+            <button id="resizeButton" class="editor-button">New / Resize Labyrinth</button>
+            <button id="downloadButton" class="editor-button">Download Labyrinth</button>
+            <button id="loadButton" class="editor-button">Load Labyrinth</button>
+            <input type="file" id="fileInput" accept="application/json" style="display: none;">
+        </div>
+    </div>
+    
+    <div id="alertModal" class="modal-backdrop" style="display: none;">
+        <div class="modal-content">
+            <p id="alertMessage"></p>
+            <div class="modal-buttons-center">
+                <button id="alertClose">OK</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="editModal" class="modal-backdrop" style="display: none;">
+        <div class="modal-content">
+            <h3 id="editTitle">Edit Object</h3>
+            <div class="edit-row">
+                <label for="editName">Name:</label>
+                <input type="text" id="editName">
+            </div>
+            <div class="edit-row" id="editAngleRow" style="display: none;">
+                <label for="editAngle">Angle (deg):</label>
+                <input type="number" id="editAngle" value="0">
+            </div>
+            <div class="edit-row" id="angleEditorRow" style="display: none;">
+                <canvas id="angleEditor" width="100" height="100"></canvas>
+            </div>
+            <div class="edit-row" id="editRadiusRow" style="display: none;">
+                <label for="editRadius">Radius:</label>
+                <input type="number" id="editRadius" min="1" value="50">
+            </div>
+            <div class="edit-row" id="editColorRow" style="display: none;">
+                <label for="editColor">Color:</label>
+                <input type="color" id="editColor"> 
+            </div>
+
+            <div class="edit-row" id="editVictoryRobotsRow" style="display: none;">
+                <label for="editVictoryRobots">Victory Robots (csv):</label>
+                <input type="text" id="editVictoryRobots">
+            </div>
+            <div class="edit-row" id="editOnBeaconRow" style="display: none;">
+                <label for="editOnBeacon">On Beacon:</label>
+                <select id="editOnBeacon"></select>
+            </div>
+            <div class="edit-row" id="editOffBeaconRow" style="display: none;">
+                <label for="editOffBeacon">Off Beacon:</label>
+                <select id="editOffBeacon"></select>
+            </div>
+            <div class="edit-row" id="editStickySwitchRow" style="display: none;">
+                <label for="editStickySwitch">Sticky Switch:</label>
+                <input type="checkbox" id="editStickySwitch">
+            </div>
+            
+            <div class="edit-row" id="editImpenetrableRow" style="display: none;">
+                <label for="editImpenetrable">Impenetrable:</label>
+                <input type="checkbox" id="editImpenetrable">
+            </div>
+            <div class="modal-buttons">
+                <button id="deleteEdit">Delete</button>
+                <button id="closeEdit">Close</button>
+                <button id="saveEdit">Save</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="resizeModal" class="modal-backdrop" style="display: none;">
+        <div class="modal-content">
+            <h3>Resize Labyrinth</h3>
+            <div class="edit-row">
+                <label for="resizeWidth">Width:</label>
+                <input type="number" id="resizeWidth" min="10" max="2000" value="500">
+            </div>
+            <div class="edit-row">
+                <label for="resizeHeight">Height:</label>
+                <input type="number" id="resizeHeight" min="10" max="2000" value="500">
+            </div>
+            <p class="modal-warning">
+                <strong>Warning:</strong> This will clear your current labyrinth and all objects. This action cannot be undone.
+            </p>
+            <div class="modal-buttons">
+                <button id="cancelResize">Cancel</button>
+                <button id="applyResize">Apply & Clear</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="editor5.js"></script>
+</body>
+</html>
