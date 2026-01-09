@@ -306,11 +306,17 @@ limitations under the License.
                                 Load Level
                             </button>
                         </div>
-                        <div class="col-span-2">
-                            <button id="loadButton" class="w-full h-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg transition-colors flex flex-col items-center justify-center">
+                        <div class="col-span-2 flex flex-col gap-2">
+                            <!-- Top Half: Load File -->
+                            <button id="loadButton" class="w-full flex-1 bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg transition-colors flex flex-col items-center justify-center">
                                 <span>Load Labyrinth</span>
-                                <span class="text-xs font-normal opacity-75">(from File)</span>
                             </button>
+
+                            <!-- Bottom Half: Open Editor -->
+                            <a href="editor5.html" target="_blank" class="w-full flex-1 bg-slate-600 hover:bg-slate-700 text-white font-bold py-2 px-4 rounded-lg transition-colors flex flex-col items-center justify-center text-center no-underline">
+                                <span>Level Editor</span>
+                            </a>
+                        </div>
                         </div>
                     </div>
                     <input type="file" id="fileInput" accept="application/json" style="display: none;">
