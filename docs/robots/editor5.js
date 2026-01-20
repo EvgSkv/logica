@@ -58,6 +58,19 @@ const editStickySwitch = document.getElementById('editStickySwitch');
 // --- *** 1. ADDED IMPENETRABLE ELEMENTS *** ---
 const editImpenetrableRow = document.getElementById('editImpenetrableRow');
 const editImpenetrable = document.getElementById('editImpenetrable');
+const editChargingStationRow = document.getElementById('editChargingStationRow');
+const editChargingStation = document.getElementById('editChargingStation');
+const hasBatteryRow = document.getElementById('hasBatteryRow');
+const hasBatteryToggle = document.getElementById('hasBatteryToggle');
+const canChargeRow = document.getElementById('canChargeRow');
+const canChargeToggle = document.getElementById('canChargeToggle');
+
+const batteryConsumptionRow = document.getElementById('batteryConsumptionRow');
+const batteryConsumptionSlider = document.getElementById('batteryConsumptionSlider');
+const batteryConsumptionValue = document.getElementById('batteryConsumptionValue');
+
+const batteryCapacityRow = document.getElementById('batteryCapacityRow');
+const batteryCapacityInput = document.getElementById('batteryCapacityInput');
 // --- END NEW ---
 
 // --- Resize Modal elements ---
@@ -96,6 +109,10 @@ const ROBOT_RADIUS = 5;
 const BEACON_SIZE = 4; // Half-size (total size 8x8)
 const BEACON_COLOR = '#00FF00'; // Bright green
 const DEFAULT_AREA_COLOR = '#FFFF00'; // Yellow
+
+// Default Battery Constants
+const DEFAULT_BATTERY_CAPACITY = 100;
+const DEFAULT_BATTERY_CONSUMPTION_RATE = 0.5;
 
 // Custom alert function
 function customAlert(message) {
@@ -327,12 +344,22 @@ function handlePlaceObject(mouseX, mouseY) {
     let newType = null;
 
     if (currentTool === 2) { // Place Robot
-        const newRobot = { x: mouseX, y: mouseY, name: "Anon", color: "#BBBBBB", angle: 0 };
+        const newRobot = { 
+            x: mouseX, 
+            y: mouseY, 
+            name: "Anon", 
+            color: "#BBBBBB", 
+            angle: 0,
+            has_battery: false,         // Default is false
+            can_charge: false,
+            battery_consumption_rate: DEFAULT_BATTERY_CONSUMPTION_RATE,     // Default value
+            battery_capacity: DEFAULT_BATTERY_CAPACITY      // Default value
+        };
         newIndex = robots.push(newRobot) - 1;
         newType = 'robot';
     } else if (currentTool === 3) { // Place Beacon
         beacons_placed += 1;
-        const newBeacon = { x: mouseX, y: mouseY, name: "B" + beacons_placed };
+        const newBeacon = { x: mouseX, y: mouseY, name: "B" + beacons_placed, charging_station: false};
         newIndex = beacons.push(newBeacon) - 1;
         newType = 'beacon';
     } else if (currentTool === 4) { // Place Area
@@ -391,6 +418,10 @@ function openEditPanel(type, index) {
     selectedObjectIndex = index;
     
     // Hide all optional rows by default
+    hasBatteryRow.style.display = 'none';
+    canChargeRow.style.display = 'none';
+    batteryConsumptionRow.style.display = 'none';
+    batteryCapacityRow.style.display = 'none';
     editColorRow.style.display = 'none';
     editAngleRow.style.display = 'none';
     angleEditorRow.style.display = 'none';
@@ -401,6 +432,7 @@ function openEditPanel(type, index) {
     editStickySwitchRow.style.display = 'none';
     // --- *** 3. HIDE IMPENETRABLE ROW BY DEFAULT *** ---
     editImpenetrableRow.style.display = 'none';
+    editChargingStationRow.style.display = 'none';
     
     if (type === 'robot') {
         const obj = robots[index];
@@ -414,10 +446,31 @@ function openEditPanel(type, index) {
         editAngleRow.style.display = 'flex';
         angleEditorRow.style.display = 'flex';
         drawAngleEditor(angleDeg);
+        hasBatteryRow.style.display = 'flex'; // Show the main toggle
+
+        const robotHasBattery = obj.has_battery ?? false; // Default to false for old files
+        hasBatteryToggle.checked = robotHasBattery;
+
+        const robotCanCharge = obj.canCharge ?? false;
+        canChargeToggle.checked = robotCanCharge;
+        
+        // Populate the input fields, with defaults for old files
+        batteryConsumptionSlider.value = obj.batteryConsumptionRate ?? DEFAULT_BATTERY_CONSUMPTION_RATE;
+        batteryConsumptionValue.textContent = parseFloat(batteryConsumptionSlider.value).toFixed(2);
+        batteryCapacityInput.value = obj.batteryCapacity ?? DEFAULT_BATTERY_CAPACITY;
+
+        // Set initial visibility of the conditional fields
+        batteryConsumptionRow.style.display = robotHasBattery ? 'flex' : 'none';
+        batteryCapacityRow.style.display = robotHasBattery ? 'flex' : 'none';
+        canChargeRow.style.display = robotHasBattery ? 'flex' : 'none';
     } else if (type === 'beacon') {
         const obj = beacons[index];
-        editTitle.textContent = "Edit Beacon";
+        editTitle.textContent = "Edit Beacon Modified";
         editName.value = obj.name;
+        // Show the charging station toggle
+        editChargingStationRow.style.display = 'flex';
+        // Use `?? true` to default to checked for old beacons without this property
+        editChargingStation.checked = obj.charging_station ?? false;
         // All optional rows remain hidden
     } else if (type === 'area') {
         const obj = areas[index];
@@ -559,9 +612,22 @@ function saveObjectChanges() {
         robot.name = newName;
         robot.color = editColor.value;
         robot.angle = parseInt(editAngle.value, 10) * Math.PI / 180;
+        robot.has_battery = hasBatteryToggle.checked;
+        // Parse as numbers, with fallbacks in case the input is empty
+        if (robot.has_battery) {
+            // Parse as numbers, with fallbacks in case the input is empty
+            robot.battery_consumption_rate = parseFloat(batteryConsumptionSlider.value);
+            robot.can_charge = canChargeToggle.checked;
+            robot.battery_capacity = parseInt(batteryCapacityInput.value, 10) || DEFAULT_BATTERY_CAPACITY;
+        } else {
+            robot.battery_consumption_rate = 0;
+            robot.can_charge = false;
+            robot.battery_capacity = 0;
+        }
     } else if (selectedObjectType === 'beacon') {
         const beacon = beacons[selectedObjectIndex];
         beacon.name = newName;
+        beacon.charging_station = editChargingStation.checked;
     } else if (selectedObjectType === 'area') {
         const area = areas[selectedObjectIndex];
         area.name = newName;
@@ -619,10 +685,14 @@ downloadButton.addEventListener('click', () => {
 
     // Filter out temporary beacon/area properties for export if not needed in simulator
     const robotsExport = robots.map(r => ({
-        x: r.x, y: r.y, name: r.name, color: r.color, angle: r.angle
+        x: r.x, y: r.y, name: r.name, color: r.color, angle: r.angle,
+        has_battery: r.has_battery,
+        can_charge: r.can_charge,
+        battery_consumption_rate: r.battery_consumption_rate,
+        battery_capacity: r.battery_capacity
     }));
     const beaconsExport = beacons.map(b => ({
-        x: b.x, y: b.y, name: b.name
+        x: b.x, y: b.y, name: b.name, charging_station: b.charging_station
     }));
     const areasExport = areas.map(a => ({
         x: a.x, y: a.y, name: a.name, color: a.color, radius: a.radius,
@@ -686,10 +756,24 @@ fileInput.addEventListener('change', (event) => {
             // Load robots
             robots = data.robots || [];
             // Ensure angles are numbers (sometimes load as strings from JSON)
-            robots.forEach(r => r.angle = parseFloat(r.angle || 0));
+            robots.forEach(r => {
+                r.angle = parseFloat(r.angle || 0);
+                // Set defaults if properties are missing from the loaded file
+                r.has_battery = r.has_battery ?? false;
+                r.can_charge = r.can_charge ?? false;
+                r.battery_consumption_rate = r.battery_consumption_rate ?? DEFAULT_BATTERY_CONSUMPTION_RATE;
+                r.battery_capacity = r.battery_capacity ?? DEFAULT_BATTERY_CAPACITY;
+            });
 
             // Load beacons
             beacons = data.beacons || [];
+
+            beacons.forEach(b => {
+                // If charging_station is undefined (e.g., from an old file), default to false.
+                if (b.charging_station === undefined) {
+                    b.charging_station = false;
+                }
+            });
 
             // Load areas
             areas = data.areas || [];
@@ -777,6 +861,15 @@ editAngle.addEventListener('input', (e) => {
     }
 });
 
+hasBatteryToggle.addEventListener('change', () => {
+    const isEnabled = hasBatteryToggle.checked;
+    canChargeRow.style.display = isEnabled ? 'flex' : 'none';
+    batteryConsumptionRow.style.display = isEnabled ? 'flex' : 'none';
+    batteryCapacityRow.style.display = isEnabled ? 'flex' : 'none';
+});
+batteryConsumptionSlider.addEventListener('input', () => {
+    batteryConsumptionValue.textContent = parseFloat(batteryConsumptionSlider.value).toFixed(2);
+});
 
 // Resize Modal Buttons
 resizeButton.addEventListener('click', () => {

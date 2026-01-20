@@ -16,6 +16,7 @@ limitations under the License.
 
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/codemirror@5.65.16/lib/codemirror.css">
     <meta charset="UTF-8">
@@ -25,7 +26,8 @@ limitations under the License.
     <script src="https://cdn.jsdelivr.net/pyodide/v0.23.2/full/pyodide.js"></script>
     <style>
         /* Shared Editor Styles */
-        textarea#robotProgram, textarea#debugProgram {
+        textarea#robotProgram,
+        textarea#debugProgram {
             font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
             font-size: 0.9rem;
             line-height: 1.4;
@@ -38,18 +40,20 @@ limitations under the License.
             outline: none;
             width: 100%;
         }
-        
+
         #robotProgram {
             height: 600px;
         }
 
         #debugProgram {
-            height: 100%; /* Fills the container in debug mode */
-            resize: none; 
+            height: 100%;
+            /* Fills the container in debug mode */
+            resize: none;
         }
 
         textarea:focus {
-            border-color: #3b82f6; /* blue-500 */
+            border-color: #3b82f6;
+            /* blue-500 */
         }
 
         canvas {
@@ -57,6 +61,7 @@ limitations under the License.
             border-radius: 8px;
             cursor: default;
         }
+
         /* Loading Overlay */
         #loader {
             position: absolute;
@@ -64,17 +69,19 @@ limitations under the License.
             left: 0;
             right: 0;
             bottom: 0;
-            background-color: rgba(17, 24, 39, 0.95); /* bg-gray-900 with opacity */
+            background-color: rgba(17, 24, 39, 0.95);
+            /* bg-gray-900 with opacity */
             display: flex;
             justify-content: center;
             align-items: center;
             font-size: 1.5rem;
-            color: #d1d5db; /* text-gray-300 */
+            color: #d1d5db;
+            /* text-gray-300 */
             z-index: 100;
             flex-direction: column;
             gap: 1rem;
         }
-        
+
         /* Victory Overlay */
         #victoryOverlay {
             position: absolute;
@@ -82,20 +89,26 @@ limitations under the License.
             left: 0;
             right: 0;
             bottom: 0;
-            background-color: rgba(22, 163, 74, 0.85); /* bg-green-700 with opacity */
-            display: none; /* Hidden by default */
+            background-color: rgba(22, 163, 74, 0.85);
+            /* bg-green-700 with opacity */
+            display: none;
+            /* Hidden by default */
             justify-content: center;
             align-items: center;
             font-size: 3rem;
-            color: #f0fdf4; /* text-green-50 */
+            color: #f0fdf4;
+            /* text-green-50 */
             z-index: 101;
             flex-direction: column;
             gap: 2rem;
             text-align: center;
         }
+
         #victoryButton {
-            background-color: #f0fdf4; /* text-green-50 */
-            color: #16a34a; /* text-green-700 */
+            background-color: #f0fdf4;
+            /* text-green-50 */
+            color: #16a34a;
+            /* text-green-700 */
             font-size: 1.25rem;
             font-weight: bold;
             padding: 0.75rem 1.5rem;
@@ -103,37 +116,54 @@ limitations under the License.
             cursor: pointer;
             transition: transform 0.1s;
         }
+
         #victoryButton:active {
             transform: scale(0.95);
         }
 
         /* Simple spinner */
         .spinner {
-            border: 4px solid #4b5563; /* border-gray-600 */
-            border-top: 4px solid #3b82f6; /* border-blue-500 */
+            border: 4px solid #4b5563;
+            /* border-gray-600 */
+            border-top: 4px solid #3b82f6;
+            /* border-blue-500 */
             border-radius: 50%;
             width: 40px;
             height: 40px;
             animation: spin 1s linear infinite;
         }
+
         @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
+            0% {
+                transform: rotate(0deg);
+            }
+
+            100% {
+                transform: rotate(360deg);
+            }
         }
 
         /* Debug Tables */
-        .debug-table { width: 100%; border-collapse: separate; border-spacing: 0; font-size: 0.75rem; }
-        .debug-table th { 
-            text-align: left; 
-            border-bottom: 1px solid #4b5563; 
-            color: #9ca3af; 
-            padding: 6px; 
-            position: sticky; 
-            top: 0; 
-            background-color: #1f2937; /* bg-gray-800 */ 
+        .debug-table {
+            width: 100%;
+            border-collapse: separate;
+            border-spacing: 0;
+            font-size: 0.75rem;
+        }
+
+        .debug-table th {
+            text-align: left;
+            border-bottom: 1px solid #4b5563;
+            color: #9ca3af;
+            padding: 6px;
+            position: sticky;
+            top: 0;
+            background-color: #1f2937;
+            /* bg-gray-800 */
             z-index: 10;
             font-weight: bold;
         }
+
         /* Style for Transposed Tables (Headers on left) */
         .debug-table.transposed th {
             position: sticky;
@@ -143,19 +173,23 @@ limitations under the License.
             border-bottom: 1px solid #374151;
         }
 
-        .debug-table td { 
-            border-bottom: 1px solid #374151; 
-            padding: 6px; 
-            color: #d1d5db; 
-            vertical-align: top; 
-            font-family: monospace; 
-            white-space: pre-wrap; 
-            word-break: break-all; 
-            max-width: 300px; 
+        .debug-table td {
+            border-bottom: 1px solid #374151;
+            padding: 6px;
+            color: #d1d5db;
+            vertical-align: top;
+            font-family: monospace;
+            white-space: pre-wrap;
+            word-break: break-all;
+            max-width: 300px;
         }
-        .debug-table tr:hover { background-color: rgba(255,255,255,0.05); }
+
+        .debug-table tr:hover {
+            background-color: rgba(255, 255, 255, 0.05);
+        }
     </style>
 </head>
+
 <body class="bg-gray-900 text-gray-200 font-sans min-h-screen p-8">
 
     <div id="loader">
@@ -169,33 +203,43 @@ limitations under the License.
         <button id="victoryButton">Continue Watching</button>
     </div>
 
-    <div id="debugOverlay" class="transition-opacity duration-300 hidden fixed inset-0 bg-gray-900/95 z-50 flex flex-col p-6 overflow-hidden font-mono text-sm">
-        
+    <div id="debugOverlay"
+        class="transition-opacity duration-300 hidden fixed inset-0 bg-gray-900/95 z-50 flex flex-col p-6 overflow-hidden font-mono text-sm">
+
         <div class="flex justify-between items-center mb-4 border-b border-gray-700 pb-2 shrink-0">
             <h2 class="text-2xl text-amber-400 font-bold flex items-center gap-2">
                 <span>🐞 Logic Debugger</span>
-                <span class="text-xs font-normal text-gray-400 bg-gray-800 px-2 py-1 rounded border border-gray-700 uppercase tracking-wide">Paused Snapshot</span>
+                <span
+                    class="text-xs font-normal text-gray-400 bg-gray-800 px-2 py-1 rounded border border-gray-700 uppercase tracking-wide">Paused
+                    Snapshot</span>
             </h2>
 
             <div class="flex items-center gap-1">
-                <button id="peekDebugButton" class="text-gray-500 hover:text-blue-400 p-2 rounded transition-colors" title="Peek at Simulation">
+                <button id="peekDebugButton" class="text-gray-500 hover:text-blue-400 p-2 rounded transition-colors"
+                    title="Peek at Simulation">
                     <!-- Eye Icon -->
-                    <svg class="w-6 h-6 fill-current" viewBox="0 0 24 24"><path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z"/></svg>
+                    <svg class="w-6 h-6 fill-current" viewBox="0 0 24 24">
+                        <path
+                            d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z" />
+                    </svg>
                 </button>
-                <button id="closeDebugButton" class="text-gray-400 hover:text-white text-3xl font-bold leading-none px-2">&times;</button>
+                <button id="closeDebugButton"
+                    class="text-gray-400 hover:text-white text-3xl font-bold leading-none px-2">&times;</button>
             </div>
 
         </div>
 
         <div class="flex-1 grid grid-cols-12 gap-6 overflow-hidden min-h-0">
-            
+
             <div class="col-span-5 flex flex-col gap-4 overflow-hidden min-h-0">
                 <h3 class="text-lg font-semibold text-blue-300 shrink-0">Input State</h3>
-                
+
                 <div class="flex-1 flex flex-col overflow-hidden bg-gray-800 rounded border border-gray-700 min-h-0">
                     <div class="flex justify-between items-center bg-gray-900/50 p-2 border-b border-gray-700 shrink-0">
                         <h4 class="text-gray-400 font-bold text-xs uppercase">Table: Sensor</h4>
-                        <button id="flipSensorBtn" class="text-xs bg-gray-700 hover:bg-gray-600 px-2 py-1 rounded text-blue-200 transition-colors">⇄ Flip</button>
+                        <button id="flipSensorBtn"
+                            class="text-xs bg-gray-700 hover:bg-gray-600 px-2 py-1 rounded text-blue-200 transition-colors">⇄
+                            Flip</button>
                     </div>
                     <div class="overflow-auto p-2" id="debugSensorWrapper">
                         <div id="debugSensorTable"></div>
@@ -203,9 +247,11 @@ limitations under the License.
                 </div>
 
                 <div class="flex-1 flex flex-col overflow-hidden bg-gray-800 rounded border border-gray-700 min-h-0">
-                     <div class="flex justify-between items-center bg-gray-900/50 p-2 border-b border-gray-700 shrink-0">
+                    <div class="flex justify-between items-center bg-gray-900/50 p-2 border-b border-gray-700 shrink-0">
                         <h4 class="text-gray-400 font-bold text-xs uppercase">Table: Memory</h4>
-                        <button id="flipMemoryBtn" class="text-xs bg-gray-700 hover:bg-gray-600 px-2 py-1 rounded text-blue-200 transition-colors">⇄ Flip</button>
+                        <button id="flipMemoryBtn"
+                            class="text-xs bg-gray-700 hover:bg-gray-600 px-2 py-1 rounded text-blue-200 transition-colors">⇄
+                            Flip</button>
                     </div>
                     <div class="overflow-auto p-2" id="debugMemoryWrapper">
                         <div id="debugMemoryTable"></div>
@@ -214,7 +260,7 @@ limitations under the License.
             </div>
 
             <div class="col-span-7 flex flex-col gap-4 overflow-hidden min-h-0">
-                
+
                 <div class="flex-1 flex flex-col min-h-0">
                     <div class="flex justify-between items-end mb-1 shrink-0">
                         <h3 class="text-lg font-semibold text-purple-300">Live Code</h3>
@@ -226,17 +272,20 @@ limitations under the License.
                 <div class="flex items-center gap-2 shrink-0">
                     <div class="flex-1 flex items-center gap-2 bg-gray-800 p-1 rounded border border-gray-700">
                         <span class="text-gray-400 pl-2 text-xs">Query:</span>
-                        <input id="debugPredicateInput" type="text" value="RobotJson" class="bg-transparent text-white px-2 py-1 w-full outline-none font-bold text-green-400" placeholder="Predicate">
+                        <input id="debugPredicateInput" type="text" value="RobotJson"
+                            class="bg-transparent text-white px-2 py-1 w-full outline-none font-bold text-green-400"
+                            placeholder="Predicate">
                     </div>
-                    <button id="runQueryButton" class="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-6 rounded transition-colors shadow-lg flex items-center gap-2">
+                    <button id="runQueryButton"
+                        class="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-6 rounded transition-colors shadow-lg flex items-center gap-2">
                         <span>▶ Run & Update</span>
                     </button>
                 </div>
 
                 <div class="h-1/3 flex flex-col overflow-hidden bg-black rounded border border-gray-700 min-h-0">
                     <div class="bg-gray-900/80 p-2 border-b border-gray-800 shrink-0 flex justify-between">
-                         <h4 class="text-gray-400 text-xs uppercase font-bold">Query Result</h4>
-                         <span id="debugStatus" class="text-xs italic text-gray-500">Ready</span>
+                        <h4 class="text-gray-400 text-xs uppercase font-bold">Query Result</h4>
+                        <span id="debugStatus" class="text-xs italic text-gray-500">Ready</span>
                     </div>
                     <div id="debugOutput" class="p-2 overflow-auto text-green-400 font-mono text-xs"></div>
                 </div>
@@ -246,49 +295,64 @@ limitations under the License.
 
     <div class="container mx-auto max-w-7xl">
         <div style="display: flex; justify-content: flex-end; width: 100%;">
-            <h1 style="font-size:20px; display: flex; align-items: center; font-family: 'Lucida Console', Monaco, monospace; color: #33aa33; padding: 10px 20px; border-radius: 10px; border: 1px solid rgba(33,200,33,0.2); width: fit-content; box-shadow: 0 0 10px rgba(51, 200, 51, 0.0);" class="bg-gray-900">
+            <h1 style="font-size:20px; display: flex; align-items: center; font-family: 'Lucida Console', Monaco, monospace; color: #33aa33; padding: 10px 20px; border-radius: 10px; border: 1px solid rgba(33,200,33,0.2); width: fit-content; box-shadow: 0 0 10px rgba(51, 200, 51, 0.0);"
+                class="bg-gray-900">
                 Logical Robots
-                <img src="logo.png" alt="Robot Game Logo" style="height: 50px; width: auto; margin-left: 20px; margin-right: 15px;">
+                <img src="logo.png" alt="Robot Game Logo"
+                    style="height: 50px; width: auto; margin-left: 20px; margin-right: 15px;">
             </h1>
-        </div>      
+        </div>
         <div class="grid grid-cols-1 gap-8">
-            
+
             <div>
                 <canvas id="simCanvas"></canvas>
-                
+
                 <div class="flex justify-end gap-2 mt-1.5">
                     <!-- Debug Button -->
-                    <button id="miniDebugButton" class="w-12 h-8 bg-gray-700 hover:bg-amber-600 text-white rounded shadow-md border border-gray-600 transition-colors flex items-center justify-center" title="Open Debugger">
+                    <button id="miniDebugButton"
+                        class="w-12 h-8 bg-gray-700 hover:bg-amber-600 text-white rounded shadow-md border border-gray-600 transition-colors flex items-center justify-center"
+                        title="Open Debugger">
                         <span class="text-lg">🐞</span>
                     </button>
-                    
+
                     <!-- Play Button (Defaults to Play Icon SVG) -->
-                    <button id="miniPlayButton" class="w-12 h-8 bg-gray-700 hover:bg-green-700 text-white rounded shadow-md border border-green-500/50 transition-colors flex items-center justify-center" title="Play/Pause">
+                    <button id="miniPlayButton"
+                        class="w-12 h-8 bg-gray-700 hover:bg-green-700 text-white rounded shadow-md border border-green-500/50 transition-colors flex items-center justify-center"
+                        title="Play/Pause">
                         <!-- Play Icon SVG -->
-                        <svg class="w-4 h-4 fill-current" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+                        <svg class="w-4 h-4 fill-current" viewBox="0 0 24 24">
+                            <path d="M8 5v14l11-7z" />
+                        </svg>
                     </button>
                 </div>
             </div>
 
             <div class="bg-gray-800 p-6 rounded-lg shadow-lg">
                 <div id="fpsIndicator" class="text-right text-xs text-gray-400 mb-2">FPS: --</div>
-                <div id="error_div" style="white-space: pre" class="mb-2 p-2.5 rounded text-sm font-mono bg-black/30 text-gray-300 empty:hidden"></div>
-                <div id="memory_div" class="mb-4 p-2.5 rounded text-sm font-mono bg-black/50 text-green-400/80 max-h-32 overflow-y-auto empty:hidden"></div>
+                <div id="error_div" style="white-space: pre"
+                    class="mb-2 p-2.5 rounded text-sm font-mono bg-black/30 text-gray-300 empty:hidden"></div>
+                <div id="memory_div"
+                    class="mb-4 p-2.5 rounded text-sm font-mono bg-black/50 text-green-400/80 max-h-32 overflow-y-auto empty:hidden">
+                </div>
                 <h2 class="text-xl font-semibold mb-4">Controls</h2>
-                
+
                 <div class="space-y-4">
                     <div class="grid grid-cols-3 gap-2">
-                        <button id="restartButton" class="col-span-1 bg-red-800 hover:bg-red-900 text-white font-bold py-2 px-4 rounded-lg transition-colors opacity-50 cursor-not-allowed" disabled>
+                        <button id="restartButton"
+                            class="col-span-1 bg-red-800 hover:bg-red-900 text-white font-bold py-2 px-4 rounded-lg transition-colors opacity-50 cursor-not-allowed"
+                            disabled>
                             Restart
                         </button>
-                        <button id="simToggle" class="col-span-2 bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-lg transition-colors">
+                        <button id="simToggle"
+                            class="col-span-2 bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-lg transition-colors">
                             Start Simulation
                         </button>
                     </div>
 
                     <div class="grid grid-cols-3 gap-4">
                         <div class="col-span-1 space-y-2">
-                            <select id="levelSelect" class="w-full bg-gray-700 border border-gray-600 text-white text-sm rounded-lg focus:ring-indigo-500 focus:border-indigo-500 block p-2.5">
+                            <select id="levelSelect"
+                                class="w-full bg-gray-700 border border-gray-600 text-white text-sm rounded-lg focus:ring-indigo-500 focus:border-indigo-500 block p-2.5">
                                 <option value="">Select Level...</option>
                                 <option value="Level1.json">Level 1</option>
                                 <option value="Level2.json">Level 2</option>
@@ -301,92 +365,110 @@ limitations under the License.
                                 <option value="Level9.json">Level 9</option>
                                 <option value="Level10.json">Level 10</option>
                                 <option value="Level11.json">Level 11</option>
+                                <option value="Level12.json">Level 12</option>
                             </select>
-                            <button id="loadLevelButton" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-4 rounded-lg transition-colors">
+                            <button id="loadLevelButton"
+                                class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-4 rounded-lg transition-colors">
                                 Load Level
                             </button>
                         </div>
                         <div class="col-span-2 flex flex-col gap-2">
                             <!-- Top Half: Load File -->
-                            <button id="loadButton" class="w-full flex-1 bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg transition-colors flex flex-col items-center justify-center">
+                            <button id="loadButton"
+                                class="w-full flex-1 bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg transition-colors flex flex-col items-center justify-center">
                                 <span>Load Labyrinth</span>
                             </button>
 
                             <!-- Bottom Half: Open Editor -->
-                            <a href="editor5.html" target="_blank" class="w-full flex-1 bg-slate-600 hover:bg-slate-700 text-white font-bold py-2 px-4 rounded-lg transition-colors flex flex-col items-center justify-center text-center no-underline">
+                            <a href="editor5.html" target="_blank"
+                                class="w-full flex-1 bg-slate-600 hover:bg-slate-700 text-white font-bold py-2 px-4 rounded-lg transition-colors flex flex-col items-center justify-center text-center no-underline">
                                 <span>Level Editor</span>
                             </a>
                         </div>
-                        </div>
-                    </div>
-                    <input type="file" id="fileInput" accept="application/json" style="display: none;">
-                    
-                    <div class="mt-4">
-                        <label for="cameraFollow" class="block text-sm font-medium text-gray-400 mb-1">Camera View</label>
-                        <select id="cameraFollow" class="w-full bg-gray-700 border border-gray-600 text-white text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block p-2.5">
-                            <option value="-1">Bird's Eye View</option>
-                            <option value="-2">Sensorial</option>
-                        </select>
                     </div>
                 </div>
+                <input type="file" id="fileInput" accept="application/json" style="display: none;">
 
-                <hr class="my-6 border-gray-600">
-
-                <h2 class="text-xl font-semibold mb-4">Robot Program (Logica)</h2>
-                <p class="text-sm text-gray-400 mb-2">
-                    Define the `Robot` predicate.
-                    <br>Input tables: `Sensor(robot_name:, sensor:)`
-                    <br>and `Memory(robot_name:, memory:)`.
-                    <br>Sensor pings (e.g., `sensor.radar[0]`) now have `object` and `label` fields.
-                    <br>`sensor.forward_label` and `sensor.forward_object` also available.
-                </p>
-                
-                <textarea id="robotProgram"></textarea>
-                
-
-                <script src="https://cdn.jsdelivr.net/npm/codemirror@5.65.16/lib/codemirror.js"></script>
-                <script type="module">
-                    // Making robotProgram syntax highlighted.
-                    import { PrettyEditor } from './logica-editor.js';
-                    const editorMain = PrettyEditor("robotProgram");
-                    const editorDebug = PrettyEditor("debugProgram");                
-                </script>
-
-                <div class="grid grid-cols-3 gap-4 mt-4">
-                    <div class="col-span-1 space-y-2">
-                        <select id="demoProgramSelect" class="w-full bg-gray-700 border border-gray-600 text-white text-sm rounded-lg focus:ring-teal-500 focus:border-teal-500 block p-2.5">
-                            <option value="">Select Demo...</option>
-                            <option value="crawl_wall.l">Crawl Wall</option>
-                            <option value="simple_flow.l">Simple Flow</option>
-                            <option value="home_sick.l">Homesick</option>
-                            <option value="stare_beacon.l">Stare Beacon</option>
-                            <option value="hamlet.l">Hamlet</option>
-                            <option value="herd8.l">Hamlet Modern</option>
-                            <option value="follow_beacon3.l">Follow Beacons</option>
-                            <option value="stations8.l">Stations</option>
-                            <option value="sling3.l">Sling</option>
-                            <option value="custom_clock.l">Custom Clock</option>
-                            <option value="searcher7.l">Labyrinth Walkers</option>
-                        </select>
-                        <button id="loadDemoButton" class="w-full bg-teal-600 hover:bg-teal-700 text-white font-bold py-2 px-4 rounded-lg transition-colors">
-                            Load Demo
-                        </button>
-                    </div>
-                    <div class="col-span-2">
-                        <button id="applyProgram" class="w-full h-full bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 px-4 rounded-lg transition-colors">
-                            Apply Program
-                        </button>
-                    </div>
+                <div class="mt-4">
+                    <label for="cameraFollow" class="block text-sm font-medium text-gray-400 mb-1">Camera View</label>
+                    <select id="cameraFollow"
+                        class="w-full bg-gray-700 border border-gray-600 text-white text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block p-2.5">
+                        <option value="-1">Bird's Eye View</option>
+                        <option value="-2">Sensorial</option>
+                    </select>
                 </div>
-                
-                <div class="mt-4 pt-4 border-t border-gray-700">
-                    <button id="debugModeButton" class="w-full bg-amber-600 hover:bg-amber-700 text-white font-bold py-2 px-4 rounded-lg transition-colors border border-amber-500 shadow-md flex justify-center items-center gap-2">
-                        <span>🐞</span> Enter Debug Mode
+            </div>
+
+            <hr class="my-6 border-gray-600">
+
+            <h2 class="text-xl font-semibold mb-4">Robot Program (Logica)</h2>
+            <p class="text-sm text-gray-400 mb-2">
+                Define the <code>Robot</code> predicate using the following inputs:
+                <br><b>Input Tables:</b> <code>Sensor(robot_name:, sensor:)</code>,
+                <code>Memory(robot_name:, memory:)</code>
+                <br>
+                <br><b>The <code>sensor</code> object contains:</b>
+                <br> &nbsp;• <code>self</code>: The robot's own state (e.g., <code>self.battery_level</code>).
+                <br> &nbsp;• <code>clock</code>: The current simulation time tick, for time-based logic.
+                <br> &nbsp;• <code>radar</code>: An array of sensor pings around the robot.
+                <br> &nbsp;• <code>forward_distance</code>, <code>forward_object</code>, <code>forward_label</code>,
+                <code>forward_state</code>.
+                <br>
+                <br>Each radar ping and the forward sensor's <code>state</code> field contain properties
+                <br>of the detected object (e.g., <code>state.charging_station</code>).
+            </p>
+
+            <textarea id="robotProgram"></textarea>
+
+
+            <script src="https://cdn.jsdelivr.net/npm/codemirror@5.65.16/lib/codemirror.js"></script>
+            <script type="module">
+                // Making robotProgram syntax highlighted.
+                import { PrettyEditor } from './logica-editor.js';
+                const editorMain = PrettyEditor("robotProgram");
+                const editorDebug = PrettyEditor("debugProgram");                
+            </script>
+
+            <div class="grid grid-cols-3 gap-4 mt-4">
+                <div class="col-span-1 space-y-2">
+                    <select id="demoProgramSelect"
+                        class="w-full bg-gray-700 border border-gray-600 text-white text-sm rounded-lg focus:ring-teal-500 focus:border-teal-500 block p-2.5">
+                        <option value="">Select Demo...</option>
+                        <option value="crawl_wall.l">Crawl Wall</option>
+                        <option value="charger.l">Charger</option>
+                        <option value="simple_flow.l">Simple Flow</option>
+                        <option value="home_sick.l">Homesick</option>
+                        <option value="stare_beacon.l">Stare Beacon</option>
+                        <option value="hamlet.l">Hamlet</option>
+                        <option value="herd8.l">Hamlet Modern</option>
+                        <option value="follow_beacon3.l">Follow Beacons</option>
+                        <option value="stations8.l">Stations</option>
+                        <option value="sling3.l">Sling</option>
+                        <option value="custom_clock.l">Custom Clock</option>
+                        <option value="searcher7.l">Labyrinth Walkers</option>
+                    </select>
+                    <button id="loadDemoButton"
+                        class="w-full bg-teal-600 hover:bg-teal-700 text-white font-bold py-2 px-4 rounded-lg transition-colors">
+                        Load Demo
+                    </button>
+                </div>
+                <div class="col-span-2">
+                    <button id="applyProgram"
+                        class="w-full h-full bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 px-4 rounded-lg transition-colors">
+                        Apply Program
                     </button>
                 </div>
             </div>
 
+            <div class="mt-4 pt-4 border-t border-gray-700">
+                <button id="debugModeButton"
+                    class="w-full bg-amber-600 hover:bg-amber-700 text-white font-bold py-2 px-4 rounded-lg transition-colors border border-amber-500 shadow-md flex justify-center items-center gap-2">
+                    <span>🐞</span> Enter Debug Mode
+                </button>
+            </div>
         </div>
+
+    </div>
     </div>
 
     <script type="module">
@@ -395,16 +477,16 @@ limitations under the License.
 
         // *** JSON Handling from Lib ***
         const jsonReplacer = (key, value) => {
-          if (typeof value === 'bigint') {
-            return value.toString();
-          }
-          return value;
+            if (typeof value === 'bigint') {
+                return value.toString();
+            }
+            return value;
         };
 
         let global_time = 0;
         const errorDiv = document.getElementById('error_div');
         const memoryDiv = document.getElementById('memory_div')
-        const fpsIndicator = document.getElementById('fpsIndicator'); 
+        const fpsIndicator = document.getElementById('fpsIndicator');
         const restartButton = document.getElementById('restartButton');
         let loadedLevelData = null;
 
@@ -432,19 +514,19 @@ limitations under the License.
 
 
         let grid = new Array(LABYRINTH_HEIGHT).fill(0).map(() => new Array(LABYRINTH_WIDTH).fill(0));
-        
+
         let offScreenLabyrinthCanvas = document.createElement('canvas');
 
         let offScreenCtx = offScreenLabyrinthCanvas.getContext('2d');
-        
+
         function RespectSize() {
-          canvas.width = LABYRINTH_WIDTH;
-          canvas.height = LABYRINTH_HEIGHT;          
-          offScreenLabyrinthCanvas.width = LABYRINTH_WIDTH;
-          offScreenLabyrinthCanvas.height = LABYRINTH_HEIGHT;                 
+            canvas.width = LABYRINTH_WIDTH;
+            canvas.height = LABYRINTH_HEIGHT;
+            offScreenLabyrinthCanvas.width = LABYRINTH_WIDTH;
+            offScreenLabyrinthCanvas.height = LABYRINTH_HEIGHT;
         }
         RespectSize();
-// ==========================================
+        // ==========================================
         // ✨ COMPLETE GOD MODE (Variables + Logic) ✨
         // ==========================================
 
@@ -461,7 +543,7 @@ limitations under the License.
             const mouseY = e.clientY - rect.top;
 
             // Sensorial View: No interaction
-            if (cameraFollow.value === "-2") return null; 
+            if (cameraFollow.value === "-2") return null;
 
             // Camera Follow Mode
             if (followTarget > -1 && robots[followTarget]) {
@@ -478,55 +560,131 @@ limitations under the License.
         }
 
         // 3. HELPER: Draw Nameplate
-        function drawHoverName() {
-            if (hoveredRobotIndex !== -1 && robots[hoveredRobotIndex]) {
-                const r = robots[hoveredRobotIndex];
-                ctx.save();
-                
-                if (followTarget > -1 && robots[followTarget]) {
-                    const focus = robots[followTarget];
-                    ctx.translate(canvas.width / 2, canvas.height / 2);
-                    ctx.scale(FOLLOW_ZOOM, FOLLOW_ZOOM);
-                    ctx.translate(-focus.x, -focus.y);
-                }
+        function drawHoverInfo() {
+            if (hoveredRobotIndex === -1 || !robots[hoveredRobotIndex]) return;
 
-                ctx.translate(r.x, r.y);
+            const r = robots[hoveredRobotIndex];
+            ctx.save();
 
-                const text = " " + r.name + " ";
-                ctx.font = "bold 14px sans-serif";
-                const metrics = ctx.measureText(text);
-                const w = metrics.width + 20;
-                const h = 26;
-                
-                ctx.shadowColor = "black";
-                ctx.shadowBlur = 8;
-                ctx.fillStyle = "rgba(17, 24, 39, 0.9)"; 
-                ctx.strokeStyle = r.color; 
-                ctx.lineWidth = 2;
-                
-                ctx.beginPath();
-                if (ctx.roundRect) ctx.roundRect(-w/2, -50, w, h, 8);
-                else ctx.rect(-w/2, -50, w, h);
-                ctx.fill();
-                ctx.stroke();
-
-                ctx.shadowBlur = 0;
-                ctx.fillStyle = "#ffffff";
-                ctx.textAlign = "center";
-                ctx.textBaseline = "middle";
-                ctx.fillText(text, 0, -37);
-
-                ctx.restore();
+            // --- Camera Transformation Logic (same as before) ---
+            if (followTarget > -1 && robots[followTarget]) {
+                const focus = robots[followTarget];
+                ctx.translate(canvas.width / 2, canvas.height / 2);
+                ctx.scale(FOLLOW_ZOOM, FOLLOW_ZOOM);
+                ctx.translate(-focus.x, -focus.y);
             }
+
+            ctx.translate(r.x, r.y);
+
+            // =================================================================
+            // --- NEW DYNAMIC NAMEPLATE LOGIC ---
+            // =================================================================
+
+            // --- 1. Define layout and check conditions ---
+            const ICON_WIDTH = 12;
+            const ICON_SPACING = 8;
+            const shouldDrawChargeIcon = r.has_battery && r.can_charge;
+
+            const text = " " + r.name + " ";
+            ctx.font = "bold 14px sans-serif";
+            const textMetrics = ctx.measureText(text);
+
+            // --- 2. Calculate dynamic width for the nameplate box ---
+            let totalContentWidth = textMetrics.width;
+            if (shouldDrawChargeIcon) {
+                totalContentWidth += ICON_WIDTH + ICON_SPACING;
+            }
+
+            const w = totalContentWidth + 20; // Add horizontal padding
+            const h = 26;
+
+            // --- 3. Draw the nameplate box (same as before, but with new width) ---
+            ctx.shadowColor = "black";
+            ctx.shadowBlur = 8;
+            ctx.fillStyle = "rgba(17, 24, 39, 0.9)";
+            ctx.strokeStyle = r.color;
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.rect(-w / 2, -50, w, h);
+            ctx.fill();
+            ctx.stroke();
+            ctx.shadowBlur = 0;
+
+            // --- 4. Draw the content (icon + text) centered within the box ---
+            const startX = -totalContentWidth / 2;
+            let currentX = startX;
+
+            // Draw the icon if needed
+            if (shouldDrawChargeIcon) {
+                ctx.save();
+                // Position the context at the center of where the icon should be
+                ctx.translate(currentX + ICON_WIDTH / 2, -37);
+
+                // Draw the lightning bolt centered at (0,0)
+                ctx.fillStyle = '#fde047'; // yellow-300
+                ctx.beginPath();
+                ctx.moveTo(1, -7);
+                ctx.lineTo(-5, 0);
+                ctx.lineTo(0, 0);
+                ctx.lineTo(-3, 7);
+                ctx.lineTo(5, 0);
+                ctx.lineTo(0, 0);
+                ctx.closePath();
+                ctx.fill();
+                ctx.restore();
+
+                // Advance the drawing position for the text
+                currentX += ICON_WIDTH + ICON_SPACING;
+            }
+
+            // Draw the text
+            ctx.fillStyle = "#ffffff";
+            ctx.textAlign = "left"; // Align to the start of our calculated position
+            ctx.textBaseline = "middle";
+            ctx.fillText(text, currentX, -37);
+
+            // =================================================================
+            // --- END OF NEW LOGIC ---
+            // =================================================================
+
+            // --- Draw Battery Bar (this logic remains unchanged) ---
+            if (r.has_battery) {
+                const barWidth = 100;
+                const barHeight = 10;
+                const barY = -20;
+
+                const fillPercent = r.battery_level / r.battery_capacity;
+                let barColor = '#22c55e'; // Green
+                if (fillPercent < 0.5) barColor = '#f59e0b'; // Yellow
+                if (fillPercent < 0.2) barColor = '#ef4444'; // Red
+
+                ctx.fillStyle = '#374151';
+                ctx.fillRect(-barWidth / 2, barY, barWidth, barHeight);
+                ctx.fillStyle = barColor;
+                ctx.fillRect(-barWidth / 2, barY, barWidth * fillPercent, barHeight);
+                ctx.strokeStyle = '#9ca3af';
+                ctx.lineWidth = 1;
+                ctx.strokeRect(-barWidth / 2, barY, barWidth, barHeight);
+
+                ctx.fillStyle = '#fff';
+                ctx.font = 'bold 9px sans-serif';
+                const batteryText = `${Math.round(r.battery_level)} / ${r.battery_capacity}`;
+                // Temporarily switch back to center align for the battery text
+                ctx.textAlign = "center";
+                ctx.fillText(batteryText, 0, barY + barHeight / 2 + 1);
+            }
+
+            ctx.restore();
         }
+
 
         // 4. LISTENERS
         canvas.addEventListener('mousedown', (e) => {
             const worldPos = getWorldCoordinates(e);
             if (!worldPos) return;
 
-            const CLICK_RADIUS = 20; 
-            const ROTATE_RADIUS = 80; 
+            const CLICK_RADIUS = 20;
+            const ROTATE_RADIUS = 80;
 
             let closestDist = Infinity;
             let closestIndex = -1;
@@ -589,8 +747,8 @@ limitations under the License.
         });
 
         canvas.addEventListener('mouseup', () => { dragTargetIndex = -1; rotateTargetIndex = -1; });
-        canvas.addEventListener('mouseleave', () => { 
-            dragTargetIndex = -1; rotateTargetIndex = -1; hoveredRobotIndex = -1; 
+        canvas.addEventListener('mouseleave', () => {
+            dragTargetIndex = -1; rotateTargetIndex = -1; hoveredRobotIndex = -1;
             if (!isSimulating) drawSimulation();
         });
 
@@ -598,10 +756,10 @@ limitations under the License.
         const peekBtn = document.getElementById('peekDebugButton');
 
         peekBtn.addEventListener('mouseenter', () => {
-            debugOverlay.classList.add('opacity-5', 'pointer-events-none'); 
+            debugOverlay.classList.add('opacity-5', 'pointer-events-none');
             // We add pointer-events-none so mouse passes through to the game!
             // But we keep the button hoverable because the mouse is ALREADY there.
-            peekBtn.style.pointerEvents = "auto"; 
+            peekBtn.style.pointerEvents = "auto";
         });
 
         peekBtn.addEventListener('mouseleave', () => {
@@ -615,7 +773,7 @@ limitations under the License.
         const miniDebugButton = document.getElementById('miniDebugButton');
 
         miniPlayButton.addEventListener('click', () => toggleSimulation());
-        
+
         // We just trigger the big debug button click so we don't have to copy the logic
         miniDebugButton.addEventListener('click', () => debugModeButton.click());
 
@@ -639,25 +797,28 @@ limitations under the License.
         const ROBOT_TRACK_DISTANCE = 20;
         const MAX_SPEED = 1.0;
         const MAX_SENSOR_DISTANCE = 200;
-        const BEACON_HIT_RADIUS = 8; 
+        const BEACON_HIT_RADIUS = 8;
+
+        const CHARGING_RADIUS = 50; // How close a robot must be to charge
+        const CHARGE_RATE = 2.0;    // Units of battery restored per frame
 
         // --- Simulation State ---
         let isSimulating = false;
         let followTarget = -1;
         const FOLLOW_ZOOM = 2.5;
-        let victoryAchieved = false; 
+        let victoryAchieved = false;
 
         // --- FPS Counter ---
         let frameCount = 0;
         let lastFPSTime = performance.now();
-        
+
         // --- Decoupled Logic State ---
         const THINK_INTERVAL_MS = 50; // How often robots "think" (10Hz)
         let isThinking = false; // A "lock" to prevent overlapping thoughts
 
         let track_spin = (s => {
             let is = (s + 1000000) % 30;
-            let is2 = is > 20? 20 - 2 * (is - 20) : is;
+            let is2 = is > 20 ? 20 - 2 * (is - 20) : is;
             return is2 - 15;
         });
 
@@ -714,17 +875,17 @@ Robot(robot_name:, desire:, memory: "I am") :-
 
 `;
 
-// Robot(robot_name:,
-//       desire: {
-//         left_engine: 0.2,
-//         right_engine: -0.2
-//       },
-//       memory:) :-
-//   # Read memory if needed:
-//   # Memory(robot_name:, memory: old_memory),  
-//   memory = ("I, " ++ robot_name ++", desire and therefore I am. I see " ++
-//             sensor.forward_object ++ " is at " ++ ToString(sensor.forward_distance)),
-//   Sensor(robot_name:, sensor:);
+        // Robot(robot_name:,
+        //       desire: {
+        //         left_engine: 0.2,
+        //         right_engine: -0.2
+        //       },
+        //       memory:) :-
+        //   # Read memory if needed:
+        //   # Memory(robot_name:, memory: old_memory),  
+        //   memory = ("I, " ++ robot_name ++", desire and therefore I am. I see " ++
+        //             sensor.forward_object ++ " is at " ++ ToString(sensor.forward_distance)),
+        //   Sensor(robot_name:, sensor:);
 
         robotProgram.value = defaultLogicaProgram;
 
@@ -741,7 +902,7 @@ Robot(robot_name:, desire:, memory: "I am") :-
             offScreenCtx.clearRect(0, 0, LABYRINTH_WIDTH, LABYRINTH_HEIGHT);
             const imageData = offScreenCtx.createImageData(LABYRINTH_WIDTH, LABYRINTH_HEIGHT);
             const data = imageData.data;
-            
+
             for (let y = 0; y < LABYRINTH_HEIGHT; y++) {
                 for (let x = 0; x < LABYRINTH_WIDTH; x++) {
                     const index = (y * LABYRINTH_WIDTH + x) * 4;
@@ -758,9 +919,9 @@ Robot(robot_name:, desire:, memory: "I am") :-
                             color = INNER_WALL_COLOR;
                         }
                     }
-                    
+
                     const rgb = hexToRgb(color);
-                    data[index]     = rgb.r;
+                    data[index] = rgb.r;
                     data[index + 1] = rgb.g;
                     data[index + 2] = rgb.b;
                     data[index + 3] = 255;
@@ -820,7 +981,12 @@ Robot(robot_name:, desire:, memory: "I am") :-
                         angle: r.angle ? r.angle : 0,
                         color: r.color,
                         memory: '',
-                        lastDesire: { left_engine: 0, right_engine: 0 }
+                        lastDesire: { left_engine: 0, right_engine: 0 },
+                        has_battery: r.has_battery || false,
+                        can_charge: (r.can_charge && r.has_battery) || false,
+                        battery_capacity: r.battery_capacity || 0,
+                        battery_consumption_rate: r.battery_consumption_rate || 0,
+                        battery_level: r.battery_capacity || 0
                     });
                 });
                 console.log("Robots loaded:", robots);
@@ -829,17 +995,18 @@ Robot(robot_name:, desire:, memory: "I am") :-
                     data.beacons.forEach(b => {
                         bodies.push({
                             ...b,
-                            body_type: "beacon"
+                            body_type: "beacon",
+                            charging_station: b.charging_station == true
                         });
                     });
                 }
-                
+
                 if (data.areas) {
                     data.areas.forEach(a => {
                         const hasOn = !!a.on_beacon;
                         const hasOff = !!a.off_beacon;
                         const isSwitch = hasOn || hasOff;
-                        
+
                         bodies.push({
                             ...a,
                             body_type: "area",
@@ -855,7 +1022,7 @@ Robot(robot_name:, desire:, memory: "I am") :-
 
                 grid = newGrid;
                 updateOffScreenCanvas();
-                
+
                 victoryAchieved = false;
                 victoryOverlay.style.display = 'none';
 
@@ -891,7 +1058,7 @@ Robot(robot_name:, desire:, memory: "I am") :-
                 return;
             }
             global_time = 0;
-            toggleSimulation(true); 
+            toggleSimulation(true);
             loader.style.display = 'flex';
             loaderText.textContent = `Loading ${url}...`;
             errorDiv.innerHTML = '';
@@ -944,7 +1111,7 @@ Robot(robot_name:, desire:, memory: "I am") :-
 
         function updateCameraFollowOptions() {
             const currentValue = cameraFollow.value; // Store current selection
-            
+
             // Clear all options except the first one ("Bird's Eye View")
             while (cameraFollow.options.length > 2) {
                 cameraFollow.remove(2);
@@ -987,7 +1154,7 @@ Robot(robot_name:, desire:, memory: "I am") :-
                 // 2. Perform Compilation (waiting for it if it's async, 
                 // or just letting it block if it's sync - the spinner is already visible now)
                 await brain.Compile(code);
-                
+
                 console.log('Program applied successfully!');
                 applyProgram.classList.remove('bg-red-500');
                 applyProgram.classList.add('bg-purple-600');
@@ -1000,7 +1167,7 @@ Robot(robot_name:, desire:, memory: "I am") :-
                 applyProgram.classList.add('bg-red-500');
                 applyProgram.classList.remove('bg-purple-600');
                 toggleSimulation(true);
-                errorDiv.scrollIntoView({behavior: 'smooth'});
+                errorDiv.scrollIntoView({ behavior: 'smooth' });
             } finally {
                 // 3. Restore Button State
                 applyProgram.disabled = false;
@@ -1032,8 +1199,21 @@ Robot(robot_name:, desire:, memory: "I am") :-
                 for (const robot of allRobots) {
                     if (robot.name === selfRobotName) continue; // Don't detect self
                     const dist = Math.hypot(checkX - robot.x, checkY - robot.y);
+                    let can_charge_post_fix = ""
+                    let dead_battery =""
+                    if (robot.can_charge){
+                        can_charge_post_fix="_CanCharge"
+                    } 
+                    else if (robot.has_battery){
+                        can_charge_post_fix="_HasCharge"
+                    }
+                    if (robot.battery_level==0 && robot.has_battery){
+                        dead_battery = "_DeadBattery"
+                    }
                     if (dist < robotHitRadius) {
-                        return { distance: d, object: 'robot', label: robot.name };
+                        return {
+                            distance: d, object: 'robot', label: robot.name+can_charge_post_fix+dead_battery
+                        };
                     }
                 }
 
@@ -1042,17 +1222,22 @@ Robot(robot_name:, desire:, memory: "I am") :-
                     const dist = Math.hypot(checkX - body.x, checkY - body.y);
 
                     if (body.body_type === 'beacon') {
+                        let post_fix = ""
+                        if (body.charging_station) {
+                            post_fix = "_ChargingStation"
+                        }
                         if (dist < BEACON_HIT_RADIUS) {
-                            return { distance: d, object: 'beacon', label: body.name };
+
+                            return { distance: d, object: 'beacon', label: body.name + post_fix };
                         }
                     } else if (body.body_type === 'area') {
                         // Check if it's an active, solid area
                         if (body.impenetrable && body.is_active) {
-                             if (dist < body.radius) {
-                                 // We return 'wall' as the object type so standard
-                                 // wall-avoidance logic works automatically.
-                                 return { distance: d, object: 'wall', label: body.name };
-                             }
+                            if (dist < body.radius) {
+                                // We return 'wall' as the object type so standard
+                                // wall-avoidance logic works automatically.
+                                return { distance: d, object: 'wall', label: body.name };
+                            }
                         }
                     }
                 }
@@ -1062,7 +1247,7 @@ Robot(robot_name:, desire:, memory: "I am") :-
         }
 
         function calculateSensors(robot, allRobots, t) {
-            
+
             // 1. Simple forward sensor (now uses rayCast)
             const forwardResult = rayCast(robot.x, robot.y, robot.angle, MAX_SENSOR_DISTANCE, robot.name, allRobots);
 
@@ -1077,13 +1262,13 @@ Robot(robot_name:, desire:, memory: "I am") :-
                 const pingAngle = startAngle + (i * angleStep);
                 // Cast a ray at the calculated absolute angle
                 const result = rayCast(robot.x, robot.y, pingAngle, MAX_SENSOR_DISTANCE, robot.name, allRobots);
-                
+
                 radar.push({
-                   // Angle difference is inverted, because screen is inverted.
+                    // Angle difference is inverted, because screen is inverted.
                     angle: -(pingAngle - robot.angle), // Store relative angle
                     distance: result.distance,
                     object: result.object,
-                    label: result.label // <-- THE NEW FIELD
+                    label: result.label
                 });
             }
 
@@ -1093,6 +1278,12 @@ Robot(robot_name:, desire:, memory: "I am") :-
                 forward_object: forwardResult.object, // <-- NEW
                 forward_label: forwardResult.label,   // <-- NEW
                 radar: radar,
+                self: {
+                can_charge: robot.can_charge,
+                has_battery: robot.has_battery,
+                battery_level: robot.battery_level,
+                battery_capacity: robot.battery_capacity
+            },
                 clock: t
             };
         }
@@ -1102,12 +1293,15 @@ Robot(robot_name:, desire:, memory: "I am") :-
             if (!desire) {
                 desire = { left_engine: 0, right_engine: 0 };
             }
+            if (robot.has_battery && robot.battery_level <= 0 && robot.battery_consumption_rate > 0) {
+                desire = { left_engine: 0, right_engine: 0 };
+            }
 
             // NOTE: We switch left and right because screen is mirrored for user (y is down).
             const vLeft = Math.max(-1, Math.min(1, desire.right_engine || 0)) * MAX_SPEED * SPEED_UP;
             const vRight = Math.max(-1, Math.min(1, desire.left_engine || 0)) * MAX_SPEED * SPEED_UP;
 
-            const vAvg = (vLeft + vRight) / 2.0; 
+            const vAvg = (vLeft + vRight) / 2.0;
             const omega = (vRight - vLeft) / ROBOT_TRACK_DISTANCE;
 
             let newAngle = robot.angle + omega;
@@ -1177,10 +1371,10 @@ Robot(robot_name:, desire:, memory: "I am") :-
                     const dx = robot.x - area.x;
                     const dy = robot.y - area.y;
                     const dist = Math.hypot(dx, dy);
-                    const pushRadius = area.radius + 0.1; 
+                    const pushRadius = area.radius + 0.1;
 
                     if (dist < area.radius) {
-                        if (dist < 1) { 
+                        if (dist < 1) {
                             robot.x = area.x + pushRadius;
                             robot.y = area.y;
                         } else {
@@ -1211,17 +1405,17 @@ Robot(robot_name:, desire:, memory: "I am") :-
                 });
             });
         }
-        
-        function checkVictoryConditions() {
-            if (victoryAchieved) return; 
 
-            const victoryAreas = bodies.filter(b => 
-                b.body_type === 'area' && 
-                b.victory_robots && 
+        function checkVictoryConditions() {
+            if (victoryAchieved) return;
+
+            const victoryAreas = bodies.filter(b =>
+                b.body_type === 'area' &&
+                b.victory_robots &&
                 b.victory_robots.length > 0
             );
 
-            if (victoryAreas.length === 0) return; 
+            if (victoryAreas.length === 0) return;
 
             for (const area of victoryAreas) {
                 if (!area.is_active) {
@@ -1229,27 +1423,27 @@ Robot(robot_name:, desire:, memory: "I am") :-
                 }
 
                 const requiredRobots = new Set(area.victory_robots);
-                const currentRobots = area.visitors; 
+                const currentRobots = area.visitors;
 
                 let allRequiredPresent = true;
                 for (const robotName of requiredRobots) {
                     if (!currentRobots.has(robotName)) {
                         allRequiredPresent = false;
-                        break; 
+                        break;
                     }
                 }
 
                 if (allRequiredPresent) {
                     triggerVictory();
-                    break; 
+                    break;
                 }
             }
         }
 
         function triggerVictory() {
             victoryAchieved = true;
-            toggleSimulation(true); 
-            victoryOverlay.style.display = 'flex'; 
+            toggleSimulation(true);
+            victoryOverlay.style.display = 'flex';
         }
 
         function drawRobots() {
@@ -1265,7 +1459,7 @@ Robot(robot_name:, desire:, memory: "I am") :-
                 const frontCornerX = halfLength * 0.3;
 
                 let track_shift = 0.3 * (track_spin(robot.left_track_offset) + track_spin(robot.right_track_offset));
-                
+
                 const bodyPoints = [
                     { x: halfLength, y: 0 },
                     { x: frontCornerX, y: halfWidth },
@@ -1280,7 +1474,7 @@ Robot(robot_name:, desire:, memory: "I am") :-
                     ctx.lineTo(bodyPoints[i].x - track_shift, bodyPoints[i].y);
                 }
                 ctx.closePath();
-                
+
                 ctx.strokeStyle = darkenHexColor(robot.color, ROBOT_BASE_COLOR_DARK_FACTOR);
                 ctx.lineWidth = ROBOT_OUTLINE_THICKNESS * 2;
                 ctx.lineJoin = 'round';
@@ -1309,7 +1503,7 @@ Robot(robot_name:, desire:, memory: "I am") :-
 
                 // --- Draw Radar ---
                 if (robot.sensor && robot.sensor.radar) {
-                    
+
                     robot.sensor.radar.forEach(ping => {
                         const endX = Math.cos(-ping.angle) * ping.distance;
                         const endY = Math.sin(-ping.angle) * ping.distance;
@@ -1318,7 +1512,7 @@ Robot(robot_name:, desire:, memory: "I am") :-
                         ctx.beginPath();
                         ctx.moveTo(-track_shift, 0); // Start from robot center
                         ctx.lineTo(endX, endY);
-                        
+
                         if (ping.object === 'none') {
                             ctx.strokeStyle = 'rgba(255, 255, 255, 0.15)'; // Faint white
                             ctx.lineWidth = 1;
@@ -1331,13 +1525,13 @@ Robot(robot_name:, desire:, memory: "I am") :-
                         // 2. Draw a hit marker
                         if (ping.object === 'wall') {
                             ctx.fillStyle = 'rgba(255, 100, 100, 0.7)'; // Translucent red
-                            ctx.fillRect(endX - 2, endY - 2, 4, 4); 
+                            ctx.fillRect(endX - 2, endY - 2, 4, 4);
                         } else if (ping.object === 'robot') {
                             ctx.fillStyle = 'rgba(100, 100, 255, 0.7)'; // Translucent blue
-                            ctx.fillRect(endX - 2, endY - 2, 4, 4); 
+                            ctx.fillRect(endX - 2, endY - 2, 4, 4);
                         } else if (ping.object === 'beacon') {
                             ctx.fillStyle = 'rgba(255, 255, 100, 0.7)'; // Translucent yellow
-                            ctx.fillRect(endX - 2, endY - 2, 4, 4); 
+                            ctx.fillRect(endX - 2, endY - 2, 4, 4);
                         }
                     });
                 }
@@ -1353,20 +1547,20 @@ Robot(robot_name:, desire:, memory: "I am") :-
 
             const fillAlpha = area.is_active ? 0.2 : 0.05;
             const borderAlpha = area.is_active ? 0.8 : 0.2;
-            const textFill = area.is_active ? area.color : '#777'; 
+            const textFill = area.is_active ? area.color : '#777';
 
-            ctx.globalAlpha = fillAlpha; 
+            ctx.globalAlpha = fillAlpha;
             ctx.beginPath();
             ctx.arc(area.x, area.y, area.radius, 0, 2 * Math.PI);
             ctx.fill();
-            
-            ctx.globalAlpha = borderAlpha; 
+
+            ctx.globalAlpha = borderAlpha;
             ctx.lineWidth = 2;
             ctx.stroke();
-            
-            ctx.restore(); 
-            
-            ctx.fillStyle = textFill; 
+
+            ctx.restore();
+
+            ctx.fillStyle = textFill;
             ctx.font = '10px sans-serif';
             ctx.textAlign = 'left';
             ctx.fillText(area.name, area.x + area.radius + 3, area.y + 4);
@@ -1375,32 +1569,56 @@ Robot(robot_name:, desire:, memory: "I am") :-
         function drawBeacon(beacon) {
             ctx.save();
             ctx.translate(beacon.x, beacon.y);
-
+            console.log(beacon.name, "charging_station:", beacon.charging_station);
             // Calculate pulse
-            const pulse = (Math.sin(global_time * 0.05) + 1) / 2; 
-            const outerRadius = 8 + pulse * 4; 
+            const pulse = (Math.sin(global_time * 0.05) + 1) / 2;
+            const outerRadius = 8 + pulse * 4;
             const innerRadius = 4;
 
             // 1. Draw outer glow
-            ctx.fillStyle = 'rgba(255, 255, 100, 0.4)'; 
+            ctx.fillStyle = 'rgba(255, 255, 100, 0.4)';
             ctx.beginPath();
             ctx.arc(0, 0, outerRadius, 0, Math.PI * 2);
             ctx.fill();
 
             // 2. Draw inner core
-            ctx.fillStyle = 'rgba(255, 255, 220, 1)'; 
+            ctx.fillStyle = 'rgba(255, 255, 220, 1)';
             ctx.beginPath();
             ctx.arc(0, 0, innerRadius, 0, Math.PI * 2);
             ctx.fill();
 
-            // 3. Draw name label
+            if (beacon.charging_station) {
+                // If it's a charging station, draw a blue lightning bolt logo.
+                ctx.save(); // Save context before adding shadow
+
+                ctx.shadowColor = '#facc15'; // Tailwind's amber-400
+                ctx.shadowBlur = 12; // Slightly larger blur for a bigger bolt
+
+                // Change the bolt color to a bright yellow
+                ctx.fillStyle = '#fde047'; // Tailwind's yellow-300
+
+                // Draw the bigger lightning bolt (coordinates are scaled by ~1.5x)
+                ctx.beginPath();
+                ctx.moveTo(3, -10.5);
+                ctx.lineTo(-6, 0);
+                ctx.lineTo(1.5, 0);
+                ctx.lineTo(-3, 10.5);
+                ctx.lineTo(6, 0);
+                ctx.lineTo(-1.5, 0);
+                ctx.closePath();
+                ctx.fill();
+
+                ctx.restore(); // Restore context to remove shadow for the name text
+            }
+            // 4. Draw name label (for all beacons)
             ctx.fillStyle = '#FFFFFF';
             ctx.font = '10px sans-serif';
             ctx.textAlign = 'center';
-            ctx.fillText(beacon.name, 0, -outerRadius - 5); 
+            ctx.fillText(beacon.name, 0, -outerRadius - 5);
 
             ctx.restore();
         }
+
 
         function drawBodies() {
             bodies.forEach(body => {
@@ -1426,16 +1644,16 @@ Robot(robot_name:, desire:, memory: "I am") :-
                 return;
             }
 
-            isThinking = true; 
-            
+            isThinking = true;
+
             try {
                 errorDiv.innerHTML = '';
 
                 const sensors_data = robots.map(r => ({
                     robot_name: r.name,
-                    sensor: r.sensor 
+                    sensor: r.sensor
                 }));
-                
+
                 const memory_data = robots.map(r => ({
                     robot_name: r.name,
                     memory: r.memory
@@ -1449,43 +1667,91 @@ Robot(robot_name:, desire:, memory: "I am") :-
                 robots.forEach(robot => {
                     const new_desire = desires.get(robot.name);
                     const new_memory = memories.get(robot.name);
-                    
-                    if (new_memory !== undefined) { 
+
+                    if (new_memory !== undefined) {
                         robot.memory = new_memory;
                     }
-                    
+
                     if (new_desire) {
                         robot.lastDesire = new_desire;
                     } else {
                         robot.lastDesire = { left_engine: 0, right_engine: 0 };
                     }
-                    
-                      memoryDiv.innerHTML += '<div><span class="font-semibold text-green-300">' + robot.name + ':</span> ' + (robot.memory ? robot.memory : '<span class="opacity-50 italic">empty</span>') + '</div>';
+
+                    memoryDiv.innerHTML += '<div><span class="font-semibold text-green-300">' + robot.name + ':</span> ' + (robot.memory ? robot.memory : '<span class="opacity-50 italic">empty</span>') + '</div>';
                 });
 
             } catch (e) {
                 console.error("Error during brain.Desire():", e);
-                toggleSimulation(true); 
+                toggleSimulation(true);
                 applyProgram.classList.add('bg-red-500');
                 applyProgram.classList.remove('bg-purple-600');
-                
+
                 errorDiv.innerHTML = '<span class="text-red-400 font-bold">Runtime Error:</span><br/>' + (e.message || e);
 
             } finally {
-                isThinking = false; 
+                isThinking = false;
                 setTimeout(thinkingLoop, THINK_INTERVAL_MS);
             }
-        }        
-        
-        function updateWorldState() {
-            global_time += 1; 
+        }
 
+        function updateWorldState() {
+            global_time += 1;
+
+            // --- Identify all potential power PROVIDERS for this frame ---
+            const chargingBeacons = bodies.filter(b => b.body_type === 'beacon' && b.charging_station);
+            const chargingRobots = robots.filter(r => r.has_battery && r.can_charge && r.battery_level > 0);
+            const allChargingSources = [...chargingBeacons, ...chargingRobots];
+
+            // --- Main loop through every robot ---
             robots.forEach(robot => {
-                robot.sensor = calculateSensors(robot, robots, global_time); 
-                updateRobotPhysics(robot, robot.lastDesire); 
+                robot.sensor = calculateSensors(robot, robots, global_time);
+
+                // --- Handle battery logic ONLY if the robot has a battery ---
+                if (robot.has_battery) {
+                    let isBeingCharged = false;
+
+                    // Check if this robot can RECEIVE a charge and needs it.
+                    if (robot.battery_level < robot.battery_capacity) {
+                        // Loop through all available PROVIDERS.
+                        for (const source of allChargingSources) {
+                            let drain = false;
+                            if (source === robot) { // A robot cannot charge itself.
+                                continue;
+                            }
+
+                            const dist = Math.hypot(robot.x - source.x, robot.y - source.y);
+                            if (dist < CHARGING_RADIUS) {
+                                robot.battery_level = Math.min(robot.battery_capacity, robot.battery_level + CHARGE_RATE);
+                                isBeingCharged = true;
+                                drain = true;
+
+                                if (source.battery_level !== undefined && drain === true) {
+                                    source.battery_level = Math.max(0, source.battery_level - CHARGE_RATE);
+                                }
+                                // No 'break' here, allowing for multiple charge sources.
+                            }
+                        }
+                    }
+
+                    // Deplete battery from movement, ONLY if not being charged.
+                    if (!isBeingCharged && robot.battery_level > 0) {
+                        const desiredMove = robot.lastDesire || { left_engine: 0, right_engine: 0 };
+                        const avgPower = (Math.abs(desiredMove.left_engine) + Math.abs(desiredMove.right_engine)) / 2;
+                        const consumption = avgPower * robot.battery_consumption_rate;
+                        robot.battery_level = Math.max(0, robot.battery_level - consumption);
+                    }
+                } // --- The `if (robot.has_battery)` block correctly ends here ---
+
+                // =============================================================
+                // === FIX: These calls are now correctly INSIDE the forEach loop ===
+                // =============================================================
+                updateRobotPhysics(robot, robot.lastDesire);
                 handleAreaCollisions(robot);
-            });
-            
+
+            }); // --- The `robots.forEach` loop correctly ends here ---
+
+            // --- These calls are correctly OUTSIDE the loop ---
             updateAreaStates();
             updateAreaVisits();
             checkVictoryConditions();
@@ -1504,9 +1770,9 @@ Robot(robot_name:, desire:, memory: "I am") :-
                     const cols = Math.ceil(Math.sqrt(count));
                     const rows = Math.ceil(count / cols);
                     // Give each row 300px of height
-                    canvas.height = Math.max(600, rows * 300); 
+                    canvas.height = Math.max(600, rows * 300);
                 }
-                
+
                 drawSensorialView();
                 return;
             }
@@ -1530,30 +1796,30 @@ Robot(robot_name:, desire:, memory: "I am") :-
             }
 
             drawLabyrinth();
-            drawBodies(); 
-            drawRobots(); 
-            drawHoverName();
+            drawBodies();
+            drawRobots();
+            drawHoverInfo();
 
             ctx.restore();
         }
 
-        function livingLoop() { 
+        function livingLoop() {
             if (!isSimulating) {
                 return;
             }
 
             const now = performance.now();
             frameCount++;
-            if (now - lastFPSTime > 1000) { 
+            if (now - lastFPSTime > 1000) {
                 fpsIndicator.textContent = `FPS: ${frameCount}`;
                 frameCount = 0;
                 lastFPSTime = now;
             }
 
-            updateWorldState(); 
-            drawSimulation();   
+            updateWorldState();
+            drawSimulation();
 
-            requestAnimationFrame(livingLoop); 
+            requestAnimationFrame(livingLoop);
         }
 
         function toggleSimulation(forceStop = false) {
@@ -1573,8 +1839,8 @@ Robot(robot_name:, desire:, memory: "I am") :-
                 // Big Button
                 simToggle.textContent = 'Stop Simulation';
                 simToggle.classList.remove('bg-green-600', 'hover:bg-green-700');
-                simToggle.classList.add('bg-red-600', 'hover:bg-red-700'); 
-                
+                simToggle.classList.add('bg-red-600', 'hover:bg-red-700');
+
                 // Mini Button -> Turn to Pause
                 miniBtn.innerHTML = PAUSE_ICON;
                 miniBtn.classList.remove('hover:bg-green-700');
@@ -1583,8 +1849,8 @@ Robot(robot_name:, desire:, memory: "I am") :-
                 // miniBtn.classList.remove('bg-green-600', 'hover:bg-green-700', 'border-green-500/50');
                 // miniBtn.classList.add('bg-red-600', 'hover:bg-red-700', 'border-red-500/50');
 
-                requestAnimationFrame(livingLoop); 
-                thinkingLoop(); 
+                requestAnimationFrame(livingLoop);
+                thinkingLoop();
 
             } else {
                 // Big Button
@@ -1652,13 +1918,13 @@ Robot(robot_name:, desire:, memory: "I am") :-
         const debugModeButton = document.getElementById('debugModeButton');
         const debugOverlay = document.getElementById('debugOverlay');
         const closeDebugButton = document.getElementById('closeDebugButton');
-        
+
         const debugSensorTable = document.getElementById('debugSensorTable');
         const debugMemoryTable = document.getElementById('debugMemoryTable');
         const debugProgram = document.getElementById('debugProgram');
         const debugOutput = document.getElementById('debugOutput');
         const debugStatus = document.getElementById('debugStatus');
-        
+
         const runQueryButton = document.getElementById('runQueryButton');
         const debugPredicateInput = document.getElementById('debugPredicateInput');
         const flipSensorBtn = document.getElementById('flipSensorBtn');
@@ -1672,7 +1938,7 @@ Robot(robot_name:, desire:, memory: "I am") :-
         // Helper: Convert array of objects to HTML Table (Supports Transpose)
         function renderDebugTable(data, isTransposed = false) {
             if (!data || data.length === 0) return '<div class="text-gray-500 italic p-2">Empty Table</div>';
-            
+
             // Get all unique keys
             const keys = new Set();
             data.forEach(row => Object.keys(row).forEach(k => keys.add(k)));
@@ -1691,8 +1957,8 @@ Robot(robot_name:, desire:, memory: "I am") :-
                         let val = row[h];
                         if (val === undefined) val = "";
                         else if (typeof val === 'object') {
-                             // Use jsonReplacer for BigInts, formatted with 2 spaces
-                             val = JSON.stringify(val, jsonReplacer, 2);
+                            // Use jsonReplacer for BigInts, formatted with 2 spaces
+                            val = JSON.stringify(val, jsonReplacer, 2);
                         }
                         html += `<td>${val}</td>`;
                     });
@@ -1709,8 +1975,8 @@ Robot(robot_name:, desire:, memory: "I am") :-
                         let val = row[h];
                         if (val === undefined) val = "";
                         else if (typeof val === 'object') {
-                             // Use jsonReplacer for BigInts, formatted with 2 spaces
-                             val = JSON.stringify(val, jsonReplacer, 2);
+                            // Use jsonReplacer for BigInts, formatted with 2 spaces
+                            val = JSON.stringify(val, jsonReplacer, 2);
                         }
                         html += `<td>${val}</td>`;
                     });
@@ -1729,7 +1995,7 @@ Robot(robot_name:, desire:, memory: "I am") :-
 
             debugOverlay.classList.remove('hidden');
             debugOverlay.classList.add('flex');
-            
+
             // Capture Snapshot
             snapshotSensors = robots.map(r => ({ robot_name: r.name, sensor: r.sensor }));
             snapshotMemory = robots.map(r => ({ robot_name: r.name, memory: r.memory }));
@@ -1775,10 +2041,10 @@ Robot(robot_name:, desire:, memory: "I am") :-
         runQueryButton.addEventListener('click', async () => {
             const predicate = debugPredicateInput.value.trim() || 'Robot';
             const userCode = debugProgram.value; // Read from DEBUG editor
-            
+
             // SYNC BACK: Update Main Editor
-            robotProgram.value = userCode; 
-            
+            robotProgram.value = userCode;
+
             const fullCode = userCode + code_suffix;
 
             debugStatus.textContent = "Compiling...";
@@ -1788,16 +2054,16 @@ Robot(robot_name:, desire:, memory: "I am") :-
             try {
                 // A. Compile
                 l.Compile(fullCode, predicate);
-                
+
                 // B. Execute
                 const results = await l.Execute(predicate);
 
                 // C. Render
                 debugOutput.innerHTML = renderDebugTable(results, false); // Results usually standard view
-                
+
                 debugStatus.textContent = "Success";
                 debugStatus.className = "text-xs italic text-green-400";
-                
+
             } catch (e) {
                 console.error(e);
                 debugStatus.textContent = "Error";
@@ -1805,9 +2071,9 @@ Robot(robot_name:, desire:, memory: "I am") :-
                 debugOutput.innerHTML = `<div class="bg-red-900/50 p-4 rounded text-red-200 font-mono whitespace-pre-wrap">${e.message || e}</div>`;
             }
         });
-function drawSensorialView() {
+        function drawSensorialView() {
             // 1. Background
-            ctx.fillStyle = '#111827'; 
+            ctx.fillStyle = '#111827';
             ctx.fillRect(0, 0, canvas.width, canvas.height);
 
             const count = robots.length;
@@ -1822,7 +2088,7 @@ function drawSensorialView() {
             robots.forEach((robot, index) => {
                 const col = index % cols;
                 const row = Math.floor(index / cols);
-                
+
                 const centerX = col * cellW + cellW / 2;
                 const centerY = row * cellH + 4 / 5 * cellH;
 
@@ -1835,7 +2101,7 @@ function drawSensorialView() {
                 ctx.clip();
 
                 // Border
-                ctx.strokeStyle = '#374151'; 
+                ctx.strokeStyle = '#374151';
                 ctx.strokeRect(col * cellW, row * cellH, cellW, cellH);
 
                 // Center & Scale
@@ -1855,7 +2121,7 @@ function drawSensorialView() {
                 const backWidth = halfWidth * ROBOT_BACK_FLAT_RATIO;
                 const frontCornerX = halfLength * 0.3;
                 let track_shift = 0.3 * (track_spin(robot.left_track_offset) + track_spin(robot.right_track_offset));
-                
+
                 const bodyPoints = [
                     { x: halfLength, y: 0 },
                     { x: frontCornerX, y: halfWidth },
@@ -1871,7 +2137,7 @@ function drawSensorialView() {
                 }
                 ctx.closePath();
                 ctx.strokeStyle = darkenHexColor(robot.color, ROBOT_BASE_COLOR_DARK_FACTOR);
-                ctx.lineWidth = ROBOT_OUTLINE_THICKNESS * 2; 
+                ctx.lineWidth = ROBOT_OUTLINE_THICKNESS * 2;
                 ctx.lineJoin = 'round';
                 ctx.stroke();
                 ctx.fillStyle = robot.color;
@@ -1894,22 +2160,22 @@ function drawSensorialView() {
 
                 if (robot.sensor && robot.sensor.radar) {
                     robot.sensor.radar.forEach(ping => {
-                        const drawAngle = -ping.angle; 
+                        const drawAngle = -ping.angle;
                         const endX = Math.cos(drawAngle) * ping.distance;
                         const endY = Math.sin(drawAngle) * ping.distance;
 
                         // Draw the ray
                         ctx.beginPath();
-                        ctx.moveTo(-track_shift, 0); 
+                        ctx.moveTo(-track_shift, 0);
                         ctx.lineTo(endX, endY);
-                        
+
                         // Faint lines for everything
                         if (ping.object === 'none') {
-                            ctx.strokeStyle = 'rgba(255, 255, 255, 0.1)'; 
+                            ctx.strokeStyle = 'rgba(255, 255, 255, 0.1)';
                         } else {
                             ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
                         }
-                        ctx.lineWidth = 1; 
+                        ctx.lineWidth = 1;
                         ctx.stroke();
 
                         // If it hit a wall, draw the dot (walls don't have unique IDs/Sprites)
@@ -1927,12 +2193,12 @@ function drawSensorialView() {
                 // ==========================================
                 // DRAW DETECTED OBJECTS (True Relative Position)
                 // ==========================================
-                
+
                 detectedObjects.forEach(label => {
                     // 1. Find the actual object in the world
                     let target = robots.find(r => r.name === label);
                     let type = 'robot';
-                    
+
                     if (!target) {
                         target = bodies.find(b => b.name === label);
                         type = target ? target.body_type : null;
@@ -1942,13 +2208,13 @@ function drawSensorialView() {
                         // 2. Calculate Relative Coordinates
                         const dx = target.x - robot.x;
                         const dy = target.y - robot.y;
-                        
+
                         // Distance is standard hypotenuse
                         const dist = Math.hypot(dx, dy);
-                        
+
                         // Absolute angle to target
                         const absAngle = Math.atan2(dy, dx);
-                        
+
                         // Relative angle: Object Angle - Robot Angle
                         // (Because Robot is rotated by robot.angle in the world)
                         const relAngle = absAngle - robot.angle;
@@ -1966,18 +2232,18 @@ function drawSensorialView() {
                         // we need to undo the total rotation.
                         // Total rotation so far: (-PI/2) + relAngle.
                         // To make it upright: rotate( -((-PI/2) + relAngle) )
-                        ctx.rotate( -(-Math.PI/2 + relAngle) ); 
+                        ctx.rotate(-(-Math.PI / 2 + relAngle));
 
                         // --- DRAW THE TARGET ---
-                        
+
                         if (type === 'beacon') {
                             // Draw Beacon (Pulse effect omitted for static clarity)
                             ctx.beginPath();
-                            ctx.arc(0, 0, 8, 0, Math.PI*2);
+                            ctx.arc(0, 0, 8, 0, Math.PI * 2);
                             ctx.fillStyle = 'rgba(255, 255, 100, 0.8)';
                             ctx.fill();
                             ctx.beginPath();
-                            ctx.arc(0, 0, 4, 0, Math.PI*2);
+                            ctx.arc(0, 0, 4, 0, Math.PI * 2);
                             ctx.fillStyle = '#fff';
                             ctx.fill();
 
@@ -1986,7 +2252,7 @@ function drawSensorialView() {
                             ctx.font = "bold 12px sans-serif";
                             ctx.textAlign = "center";
                             ctx.fillText(target.name, 0, -12);
-                        } 
+                        }
                         else if (type === 'robot') {
                             // Draw Robot (Simplified Square representation)
                             ctx.fillStyle = target.color;
@@ -2020,30 +2286,31 @@ function drawSensorialView() {
         async function main() {
             try {
                 loaderText.textContent = 'Initializing Logica Engine...';
-                await l.Init(); 
-                
+                await l.Init();
+
                 loaderText.textContent = 'Compiling default program...';
                 brain.SetDefaultProgram(defaultLogicaProgram + code_suffix);
-                brain.Compile(defaultLogicaProgram + code_suffix); 
-                
+                brain.Compile(defaultLogicaProgram + code_suffix);
+
                 createDefaultLabyrinth();
-                resetRobots(); 
-                drawSimulation(); 
+                resetRobots();
+                drawSimulation();
 
                 // --- Enable restart for default level ---
                 restartButton.disabled = false;
                 restartButton.classList.remove('opacity-50', 'cursor-not-allowed');
-                
-                loader.style.display = 'none'; 
+
+                loader.style.display = 'none';
             } catch (e) {
                 loaderText.textContent = `Fatal Error: ${e.message}. Check console.`;
                 console.error("Initialization failed:", e);
             }
         }
-        
 
-        main(); 
+
+        main();
 
     </script>
 </body>
+
 </html>
