@@ -1,7 +1,10 @@
-# HELPER FUNCTION: Returns true if a radar ping 'r' is a dead robot.
-IsDeadBot(r) = (
-  r.object == "robot" && EndsWith(r.label, "_DeadBattery")
-);
+# NEW PREDICATE: Creates a table of all robots with an empty battery.
+DeadBot(robot_name:) :-
+  # Find the sensor data for every robot in the simulation.
+  Sensor(robot_name: , sensor:),
+  # Check if that robot has a battery and its level is zero.
+  sensor.self.has_battery == true,
+  sensor.self.battery_level == 0;
 
 # HELPER FUNCTION: Returns true if a radar ping 'r' is a charging station.
 IsChargingStation(r) = (
@@ -12,7 +15,10 @@ IsChargingStation(r) = (
 ClosestDeadBotAngle(radar) = ArgMin{
   r.angle -> r.distance :-
     r in radar,
-    IsDeadBot(r)==true
+    r.object == "robot",
+    # We check if the name of the robot we see (r.label)
+    # exists in our table of dead bots.
+    DeadBot(robot_name: r.label)
 };
 
 # HELPER FUNCTION: Finds the ANGLE of the closest CHARGING STATION.
@@ -37,8 +43,14 @@ FreedomMotion(radar) = WeightedAverage{
 # Returns true if the robot should be helping a dead bot.
 ShouldHelpDeadBot(sensor) = (
   sensor.self.can_charge == true &&
-  sensor.self.battery_level >0 &&
-  Count{1 :- r in sensor.radar, IsDeadBot(r)==true}>0
+  sensor.self.battery_level > 0 &&
+  # We count how many of the robots we see in our radar
+  # have a name that is in the DeadBot table.
+  Count{ 1 :-
+    r in sensor.radar,
+    r.object == "robot",
+    DeadBot(robot_name: r.label)
+  } > 0
 );
 
 # Returns true if the robot should be seeking a charging station.
@@ -48,18 +60,15 @@ ShouldSeekCharger(sensor) = (
   Count{1 :- r in sensor.radar, IsChargingStation(r)==true} > 0
 );
 
-
 # --- Main Logic Starts Here (Now Explicit) ---
 
 # PRIORITY 1: A robot that can_charge will go help a dead robot it sees.
 Robot(robot_name:, desire:, memory:) :-
   Sensor(robot_name:, sensor:),
   # Check if the conditions for this priority are met.
-  ShouldHelpDeadBot(sensor)==true,
-  
+  ShouldHelpDeadBot(sensor)==true, 
   # Find the angle to the closest one.
   dead_bot_angle = ClosestDeadBotAngle(sensor.radar),
-  
   desire = SteerTo(dead_bot_angle, 1),
   memory = "Going to help a robot in need!";
 
@@ -69,10 +78,8 @@ Robot(robot_name:, desire:, memory:) :-
   Sensor(robot_name:, sensor:),
   # Check if the conditions for this priority are met.
   ShouldSeekCharger(sensor)==true,
-
   # Find the angle to the closest one.
   station_angle = ClosestChargingStationAngle(sensor.radar),
-
   desire = SteerTo(station_angle, 1),
   memory = "My battery is empty! Seeking a charging station.";
 
@@ -80,10 +87,8 @@ Robot(robot_name:, desire:, memory:) :-
 # PRIORITY 3 (DEFAULT): All other robots will just wander around avoiding walls.
 Robot(robot_name:, desire:, memory:) :-
   Sensor(robot_name:, sensor:),
-  
   ShouldHelpDeadBot(sensor)==false,
   ShouldSeekCharger(sensor)==false,
-
   freedom = FreedomMotion(sensor.radar),
   speed = 0.5,
   desire = {

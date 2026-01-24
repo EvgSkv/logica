@@ -75,8 +75,7 @@ limitations under the License.
             justify-content: center;
             align-items: center;
             font-size: 1.5rem;
-            color: #d1d5db;
-            /* text-gray-300 */
+            color: #d1d5db;/* text-gray-300 */
             z-index: 100;
             flex-direction: column;
             gap: 1rem;
@@ -1195,20 +1194,10 @@ Robot(robot_name:, desire:, memory: "I am") :-
                 for (const robot of allRobots) {
                     if (robot.name === selfRobotName) continue; // Don't detect self
                     const dist = Math.hypot(checkX - robot.x, checkY - robot.y);
-                    let can_charge_post_fix = ""
-                    let dead_battery =""
-                    if (robot.can_charge){
-                        can_charge_post_fix="_CanCharge"
-                    } 
-                    else if (robot.has_battery){
-                        can_charge_post_fix="_HasCharge"
-                    }
-                    if (robot.battery_level==0 && robot.has_battery){
-                        dead_battery = "_DeadBattery"
-                    }
+                   
                     if (dist < robotHitRadius) {
                         return {
-                            distance: d, object: 'robot', label: robot.name+can_charge_post_fix+dead_battery
+                            distance: d, object: 'robot', label: robot.name
                         };
                     }
                 }
@@ -1218,13 +1207,9 @@ Robot(robot_name:, desire:, memory: "I am") :-
                     const dist = Math.hypot(checkX - body.x, checkY - body.y);
 
                     if (body.body_type === 'beacon') {
-                        let post_fix = ""
-                        if (body.charging_station) {
-                            post_fix = "_ChargingStation"
-                        }
                         if (dist < BEACON_HIT_RADIUS) {
 
-                            return { distance: d, object: 'beacon', label: body.name + post_fix };
+                            return { distance: d, object: 'beacon', label: body.name};
                         }
                     } else if (body.body_type === 'area') {
                         // Check if it's an active, solid area
