@@ -347,7 +347,7 @@ def main(argv):
       else:
         assert False, 'Unknown engine: %s' % engine
       try:
-          print(o.decode())
+          print(o.decode(), flush=True)
       except BrokenPipeError:
           pass
 
