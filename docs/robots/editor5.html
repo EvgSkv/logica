@@ -150,7 +150,70 @@ limitations under the License.
             border-radius: 50%;
             cursor: pointer;
         }
-        
+        /* The switch container */
+        .switch {
+        position: relative;
+        display: inline-block;
+        width: 50px;  /* Smaller width */
+        height: 28px; /* Smaller height */
+        margin-left: auto; /* Aligns it to the right */
+        }
+
+        /* Hide the default HTML checkbox */
+        .switch input {
+        opacity: 0;
+        width: 0;
+        height: 0;
+        }
+
+        /* The slider track */
+        .slider {
+        position: absolute;
+        cursor: pointer;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background-color: #555; /* Off color to match your theme */
+        -webkit-transition: .4s;
+        transition: .4s;
+        }
+
+        /* The slider handle (the circle) */
+        .slider:before {
+        position: absolute;
+        content: "";
+        height: 20px; /* Adjusted size */
+        width: 20px;  /* Adjusted size */
+        left: 4px;
+        bottom: 4px;
+        background-color: white;
+        -webkit-transition: .4s;
+        transition: .4s;
+        }
+
+        /* --- The Magic: What happens when the checkbox is checked --- */
+
+        /* Change the background of the track to green */
+        input:checked + .slider {
+        background-color: #34c759; /* Green to match your 'Download' button */
+        }
+
+        /* Move the handle to the right */
+        input:checked + .slider:before {
+        -webkit-transform: translateX(22px); /* Adjusted distance */
+        -ms-transform: translateX(22px);
+        transform: translateX(22px);
+        }
+
+        /* Rounded sliders */
+        .slider.round {
+        border-radius: 28px;
+        }
+
+        .slider.round:before {
+        border-radius: 50%;
+        }
         /* Modal styles for alerts and editing */
         .modal-backdrop {
             position: fixed;
@@ -351,6 +414,36 @@ limitations under the License.
             <div class="edit-row" id="editOffBeaconRow" style="display: none;">
                 <label for="editOffBeacon">Off Beacon:</label>
                 <select id="editOffBeacon"></select>
+            </div>
+            <div class="edit-row" id="editChargingStationRow" style="display: none;">
+                <label for="editChargingStation">Charging Station:</label>
+                <label class="switch">
+                <input type="checkbox" id="editChargingStation">
+                <span class="slider round"></span>
+                </label>
+            </div>
+            <div class="edit-row" id="hasBatteryRow" style="display: none;">
+                <label for="hasBatteryToggle">Has Battery:</label>
+                <label class="switch">
+                  <input type="checkbox" id="hasBatteryToggle">
+                  <span class="slider round"></span>
+                </label>
+            </div>
+            <div class="edit-row" id="canChargeRow" style="display: none;">
+                <label for="canChargeToggle">Can Charge:</label>
+                <label class="switch">
+                  <input type="checkbox" id="canChargeToggle">
+                  <span class="slider round"></span>
+                </label>
+            </div>
+            <div class="edit-row" id="batteryConsumptionRow" style="display: none;">
+                <label for="batteryConsumptionSlider">Consumption Rate:</label>
+                <input type="range" id="batteryConsumptionSlider" min="0" max="1" step="0.01" value="1">
+                <span id="batteryConsumptionValue" style="width: 40px; text-align: right;">1.00</span>
+            </div>
+            <div class="edit-row" id="batteryCapacityRow" style="display: none;">
+                <label for="batteryCapacityInput">Battery Capacity:</label>
+                <input type="number" id="batteryCapacityInput" value="100" min="0">
             </div>
             <div class="edit-row" id="editStickySwitchRow" style="display: none;">
                 <label for="editStickySwitch">Sticky Switch:</label>
