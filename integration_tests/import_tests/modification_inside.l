@@ -18,6 +18,8 @@
 # Main predicate: BetterCountry, which is equal to Country, except for anyone
 # who wanter have got a new washer and doesn't want a new washer any more.
 
+@Engine("bigquery");
+
 BetterCountry(better_country) :-
   Country(country),
   better_country == MakeCountryBetter(country);

@@ -23,6 +23,8 @@
 # What day of the week was it?
 # Source: http://brainden.com/logic-problems.htm
 
+@Engine("bigquery");
+
 # Note that we can not factor out the logic of (x == "T" | ....) into a helper
 # function because disjunction is supported only for all-out predicates.
 @OrderBy(Options, "col0");

@@ -15,6 +15,8 @@
 
 # Outer join via disjunction.
 
+@Engine("bigquery");
+
 Phones(person: "Peter", phone: "4251112222");
 Phones(person: "John", phone: "4251113333");
 Emails(person: "John", email: "john@salem.org");

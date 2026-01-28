@@ -1,5 +1,7 @@
 import lib.closure.TransitiveClosure;
 
+@Engine("bigquery");
+
 Friend("Alice", "Bob");
 Friend("Bob", "Carrol");
 Friend("Bob", "Diana");

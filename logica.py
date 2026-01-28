@@ -43,21 +43,27 @@ import sys
 if __name__ == '__main__' and not __package__:
   from common import color
   from common import sqlite3_logica
+  from common import clingo_logica
+  from common import duckdb_logica
   from compiler import functors
   from compiler import rule_translate
   from compiler import universe
   from parser_py import parse
   from type_inference.research import infer
   from type_inference import type_retrieval_service_discovery
+  from tools import proposition_repl
 else:
   from .common import color
   from .common import sqlite3_logica
+  from .common import clingo_logica
+  from .common import duckdb_logica
   from .compiler import functors
   from .compiler import rule_translate
   from .compiler import universe
   from .parser_py import parse
   from .type_inference.research import infer
   from .type_inference import type_retrieval_service_discovery
+  from .tools import proposition_repl
 
 
 def ReadUserFlags(rules, argv):
@@ -134,7 +140,8 @@ def main(argv):
           'GoodIdea(snack: "carrots")\'')
     return 1
 
-  if len(argv) == 3 and argv[2] in ['parse', 'infer_types', 'show_signatures']:
+  if len(argv) == 3 and argv[2] in ['parse', 'infer_types', 'show_signatures',
+                                    'propositional_playground']:
     pass  # compile needs just 2 actual arguments.
   else:
     if len(argv) < 4:
@@ -151,7 +158,8 @@ def main(argv):
   command = argv[2]
 
   commands = ['parse', 'print', 'run', 'run_to_csv', 'run_in_terminal',
-              'infer_types', 'show_signatures', 'build_schema']
+              'infer_types', 'show_signatures', 'build_schema',
+              'propositional_playground', 'print_clingo', 'run_clingo']
 
   if command not in commands:
     print(color.Format('Unknown command {warning}{command}{end}. '
@@ -168,8 +176,17 @@ def main(argv):
       from tools import run_in_terminal
     else:
       from .tools import run_in_terminal
-    artistic_table = run_in_terminal.Run(filename, predicates)
-    print(artistic_table)
+    if ',' in predicates:
+      artistic_tables = run_in_terminal.RunMany(filename, predicates.split(','))
+      for name, table in artistic_tables.items():
+        k = len(table.split('\n')[0]) - 4 - len(name)
+        n = k // 2
+        m = k - n
+        print(f'|{"=" * n} %s {"=" * m}|' % name)
+        print(table)
+    else:
+      artistic_table = run_in_terminal.Run(filename, predicates)
+      print(artistic_table)
     return
 
   program_text = open(filename).read()
@@ -180,6 +197,10 @@ def main(argv):
   except parse.ParsingException as parsing_exception:
     parsing_exception.ShowMessage()
     sys.exit(1)
+
+  if command == 'propositional_playground':
+    proposition_repl.Repl(program_text)
+    return
 
   if command == 'parse':
     # Minimal indentation for better readability of deep objects.
@@ -219,6 +240,16 @@ def main(argv):
     type_retrieval_service = type_retrieval_service_discovery\
       .get_type_retrieval_service(engine, parsed_rules, predicates_list)
     type_retrieval_service.RetrieveTypes(filename)
+    return 0
+
+  if command == 'print_clingo':
+    print(clingo_logica.Klingon(parsed_rules, predicates_list))
+    return 0
+
+  if command == 'run_clingo':
+    print(clingo_logica.RenderKlingon(
+        clingo_logica.RunClingo(
+            clingo_logica.Klingon(parsed_rules, predicates_list))))
     return 0
 
   for predicate in predicates_list:
@@ -264,10 +295,13 @@ def main(argv):
         o = sqlite3_logica.RunSqlScript(statements_to_execute,
                                         format).encode()
       elif engine == 'duckdb':
-        import duckdb
-        cur = duckdb.sql(formatted_sql)
-        o = sqlite3_logica.ArtisticTable(cur.columns,
-                                         cur.fetchall()).encode()
+        connection = duckdb_logica.GetConnection(logic_program)
+        cur = connection.sql(formatted_sql)
+        formatter = (sqlite3_logica.ArtisticTable
+                     if command == 'run'
+                     else sqlite3_logica.Csv)
+        o = formatter(cur.columns,
+                      cur.fetchall()).encode()
       elif engine == 'psql':
         connection_str = os.environ.get('LOGICA_PSQL_CONNECTION')
         if connection_str:
@@ -312,7 +346,10 @@ def main(argv):
         o, _ = p.communicate(formatted_sql.encode())
       else:
         assert False, 'Unknown engine: %s' % engine
-      print(o.decode())
+      try:
+          print(o.decode(), flush=True)
+      except BrokenPipeError:
+          pass
 
 
 def run_main():

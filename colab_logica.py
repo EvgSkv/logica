@@ -23,6 +23,7 @@ import re
 
 from .common import color
 from .common import concertina_lib
+from .common import duckdb_logica
 from .common import psql_logica
 
 from .compiler import functors
@@ -35,6 +36,7 @@ import IPython
 
 from IPython.core.magic import register_cell_magic
 from IPython.display import display
+from IPython.display import HTML
 
 import os
 
@@ -85,8 +87,9 @@ if hasattr(concertina_lib, 'graphviz'):
 else:
   DISPLAY_MODE = 'colab-text'
 
-DEFAULT_ENGINE = 'bigquery'
+DEFAULT_ENGINE = 'duckdb'
 
+CLINGO_AD_HOC_PROTECTION = True
 
 def SetPreamble(preamble):
   global PREAMBLE
@@ -183,7 +186,7 @@ def RunSQL(sql, engine, connection=None, is_final=False):
       rows = cursor.fetchall()
       df = pandas.DataFrame(
         rows, columns=[d[0] for d in cursor.description])
-      df = df.applymap(psql_logica.DigestPsqlType)
+      df = df.map(psql_logica.DigestPsqlType)
       return df
     else:
       psql_logica.PostgresExecute(sql, connection)
@@ -234,15 +237,28 @@ class SqliteRunner(object):
   def __call__(self, sql, engine, is_final):
     return RunSQL(sql, engine, self.connection, is_final)
 
+
 class DuckdbRunner(object):
-  def __init__(self):
-    global DB_CONNECTION
-    if not DB_CONNECTION:
-      DB_CONNECTION = duckdb.connect()
-    self.connection = DB_CONNECTION
+  def __init__(self, logic_program_for_clingo_context=None):
+    if logic_program_for_clingo_context:
+      self.connection = duckdb_logica.GetConnection(
+        logic_program_for_clingo_context)
+    else:
+      self.connection = self.GetGlobalConnection()
 
   def  __call__(self, sql, engine, is_final):
     return RunSQL(sql, engine, self.connection, is_final)
+
+  @classmethod
+  def GetGlobalConnection(cls):
+    global DB_CONNECTION
+    if not DB_CONNECTION:
+      DB_CONNECTION = duckdb.connect()
+    return DB_CONNECTION
+  
+  @classmethod
+  def Register(cls, name, dataframe):
+    DB_CONNECTION.register(name, dataframe)
 
 
 class PostgresRunner(object):
@@ -263,6 +279,8 @@ class PostgresRunner(object):
       if user_choice != 'y':
         print('User declined.')
         print('Bailing out.')
+        print('You can run colab_logica.ConnectToPostgres() '
+              'to connect.')
         return
       PostgresJumpStart()
     self.connection = DB_CONNECTION
@@ -278,6 +296,23 @@ class PostgresRunner(object):
 def ShowError(error_text):
   print(color.Format('[ {error}Error{end} ] ' + error_text))
 
+
+class ExecutionObserver:
+  def __init__(self, bar, predicates):
+    self.bar = bar
+    self.predicates = predicates
+    self.observed = set()
+    self.table_locations = {}
+
+  def ObserveTable(self, predicate, table):
+    assert predicate in self.table_locations
+    self.table_locations[predicate].update(HTML(
+      table.to_html(max_rows=pandas.get_option('display.max_rows'))))
+
+  def RegisterTableLocation(self, predicate, table_location):
+    self.table_locations[predicate] = table_location 
+
+CONNECTION_USED = None
 
 def Logica(line, cell, run_query):
   """Running Logica predicates and storing results."""
@@ -321,6 +356,9 @@ def Logica(line, cell, run_query):
   executions = []
   sub_bars = []
   ip = IPython.get_ipython()
+  observer = None
+  if run_query:
+    observer = ExecutionObserver(bar, predicates)
   for idx, predicate in enumerate(predicates):
     with bar.output_to(logs_idx):
       try:
@@ -329,6 +367,18 @@ def Logica(line, cell, run_query):
             storage_file.write(cell)
             print('\x1B[3mProgram saved to %s.\x1B[0m' % storage_file_name)
         sql = program.FormattedPredicateSql(predicate)
+        # Ad hoc user protection:
+        a = program.annotations.annotations
+        clingo_settings = a.get('@Engine', {}).get('duckdb', {}).get('clingo', False)
+        if 'Clingo' in sql and clingo_settings == False and CLINGO_AD_HOC_PROTECTION:
+          print('[ \033[91m Turn on Clingo \033[0m ] Clingo appears used, but not turned on.')
+          print('Turn on Clingo by including')
+          print('@Engine("duckdb", clingo: {time_limit: ∞, models_limit: ∞});')
+          print('or turn off protection by setting ')
+          print('colab_logica.CLINGO_AD_HOC_PROTECTION = False')
+          print('I hope you enjoy Logica!')
+          assert False, 'Your happyness is my priority.'
+          pass
         executions.append(program.execution)
         ip.push({predicate + '_sql': sql})
       except rule_translate.RuleCompileException as e:
@@ -350,6 +400,14 @@ def Logica(line, cell, run_query):
         else:
           print('Query is stored at %s variable.' %
                 color.Warn(predicate + '_sql'))
+      with sub_bar.output_to(1):
+        print(
+            color.Format(
+                'The following table is stored at {warning}%s{end} '
+                'variable.' %
+                predicate))
+        table_location = display(HTML('<i>table to be rendered</i>'), display_id=True)
+        observer.RegisterTableLocation(predicate, table_location)
 
   with bar.output_to(logs_idx):
     if engine == 'sqlite':
@@ -357,7 +415,15 @@ def Logica(line, cell, run_query):
     elif engine == 'psql':
       sql_runner = PostgresRunner()
     elif engine == 'duckdb':
-      sql_runner = DuckdbRunner() 
+      if program.NeedsClingo():
+        sql_runner = DuckdbRunner(program)
+        # Storing connection for debugging.
+        global CONNECTION_USED
+        CONNECTION_USED = sql_runner.connection
+      else:
+        # Let users set stuff in default connection unless
+        # clingo is actually needed.
+        sql_runner = DuckdbRunner()
     elif engine == 'bigquery':
       EnsureAuthenticatedUser()
       sql_runner = RunSQL
@@ -367,7 +433,8 @@ def Logica(line, cell, run_query):
     try:
       result_map = concertina_lib.ExecuteLogicaProgram(
         executions, sql_runner=sql_runner, sql_engine=engine,
-        display_mode=DISPLAY_MODE)
+        display_mode=DISPLAY_MODE,
+        observer=observer)
     except infer.TypeErrorCaughtException as e:
       e.ShowMessage()
       return
@@ -378,12 +445,7 @@ def Logica(line, cell, run_query):
     with bar.output_to(idx):
       with sub_bars[idx].output_to(1): 
         if run_query:
-          print(
-              color.Format(
-                  'The following table is stored at {warning}%s{end} '
-                  'variable.' %
-                  predicate))
-          display(t)  
+          observer.ObserveTable(predicate, t) 
         else:
           print('The query was not run.')
       print(' ') # To activate the tabbar.

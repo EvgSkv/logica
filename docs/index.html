@@ -157,8 +157,9 @@ limitations under the License.
 </div>
 
 <div class="content">
+  <div style="float: right; display:flex; flex-direction:column;">
   <a href="https://github.com/evgskv/logica" style="text-decoration: none; color: inherit;">
-    <div class="github_button" onclick="thumbsUp()">
+    <div class="github_button" style="float: none;"  onclick="thumbsUp()">
       <img src="github-mark.png" height="80px"/>
       <div style="float: right; margin: 10px;">
         View project on<br/>
@@ -166,10 +167,29 @@ limitations under the License.
       </div>
     </div>
   </a>
+  <a href="https://logica-lang.github.io/" style="text-decoration: none; color: inherit;">
+    <div class="github_button" style="float: none; margin-top: 0px; padding: 5px;" onclick="openBook()">
+      <div style="float: none; text-align: center; display: flex; flex-direction: row;">
+        <div id="closed_book" style="font-size: 4em; display:flex; margin: 0px; width: 80px; text-align: center; justify-content: center;"><span>📘</span></div>
+        <div id="open_book" style="font-size: 4em; display:none; width: 80px; text-align: center; justify-content: center;">📖</div><br/>
+        <div style="display: flex; justify-content: center; align-items: center; padding-left: 15px;">
+          <div>Documentation</div>
+        </div>      
+      </div>
+    </div>
+  </a>
+  </div>
+
 <script>
   function thumbsUp() {
     let s = document.getElementById('thumbs_up');
     s.style.display = 'inline'
+  }
+  function openBook() {
+    let s1 = document.getElementById('open_book');
+    let s2 = document.getElementById('closed_book');
+    s1.style.display = 'flex'
+    s2.style.display = 'none'
   }
 
   function reactToDevice() {
@@ -195,10 +215,24 @@ limitations under the License.
   manipulation. It compiles to SQL thus providing you access to the power
   of SQL engines with the convenience of logic programming syntax.
 </p>
+
+<p>
+  Logica can compiles to SQL dialects of DuckDB, SQLite, Google BigQuery and Postgres. This makes
+  it practical for a wide range of applications. Almost every computational device comes with SQLite
+  and thus you can run Logica there. DuckDB is a powerful on-device computation engine with robust
+  SQL semantics that is easy to install and can efficiently leverage parallelism of modern devices.
+  Google BigQuery is a distributed datawarehouse capable of processing terabytes of data in seconds
+  and PostgreSQL is the most popular open source SQL engine.
+  
+</p>
+<p>
+  Thus Logica reaches widely into
+  SQL ecosystem and can be employed by professionals willing to stay with the clarity of logic reasoning
+  while performing data analysis. 
+</p>
+
 </div>
-
-
-  <h1>Examples</h1>
+<h1>Examples</h1>
 
 
 <p>
@@ -266,16 +300,66 @@ syntax is suited for it naturally. Here is a program finding prime numbers
 that are less than 100.
 
 <div class="code">
-  # Define numbers 1 to 30.
-  Number(x + 1) :- x in Range(30);
-  
-  # Defining composite numbers.
-  Composite(a * b) distinct :- Number(a), Number(b), a > 1, b > 1;
-  
-  # Defining primes as "not composite".
-  Prime(n) distinct :- Number(n), n > 1, ~Composite(n);
+# Define numbers 1 to 30.
+Number(x + 1) :- x in Range(30);
+
+# Defining composite numbers.
+Composite(a * b) distinct :- Number(a), Number(b), a > 1, b > 1;
+
+# Defining primes as "not composite".
+Prime(n) distinct :- Number(n), n > 1, ~Composite(n);
 </div>
 
+<h2>Cities with largest beer variety</h2>
+
+Let's use beer variety dataset from [plotly](https://github.com/plotly/datasets/blob/master/beers.csv).
+
+Let us find top 5 states with largest variety of beers. In each state we will pick city with the largest
+variety in the state.
+
+To run this example you will need to install DuckDB if you don't yet have it on your system. Luckily installing DuckDB is easy:
+
+<div class="code">
+python3 -m pip install duckdb
+</div>
+
+Program <i>beer.l</i>:
+
+<div class="code">
+@Engine("duckdb");
+
+@Ground(Beer);
+Beer(..r) :- 
+    `('https://github.com/plotly/datasets/blob/master/beers.csv?raw=true')`(..r);
+
+BeersInState(state) += 1 :- Beer(state:);
+BeersInCity(state, city) += 1 :- Beer(state:, city:);
+
+ArgMax5(x) = ArgMaxK(x, 5);
+BestCityForBeer(state:, city:,
+                city_beers: BeersInCity(state, city),
+                state_beers: BeersInState(state)) :-
+    state in ArgMax5{s -> BeersInState(s)},
+    city = ArgMax{c -> BeersInCity(state, c)};
+</div>
+
+Running <i>beer.l</i>:
+
+<div class="code">
+# logica beer.l run BestCityForBeer
++-------+--------------+------------+-------------+
+| state | city         | city_beers | state_beers |
++-------+--------------+------------+-------------+
+| IN    | Indianapolis | 43         | 139         |
+| CO    | Boulder      | 41         | 265         |
+| CA    | San Diego    | 42         | 183         |
+| TX    | Austin       | 25         | 130         |
+| MI    | Grand Rapids | 66         | 162         |
++-------+--------------+------------+-------------+
+</div>
+
+
+<!--
 <p>
 Finally here is an example of program that runs over
 <a href="https://www.gdeltproject.org/">GDELT Project</a> dataset,
@@ -318,6 +402,7 @@ AgiMentions(person:, mentions? += 1) distinct :-
 This program completes in interactive time
 when ran over the 4TB dataset
 via BigQuery.
+-->
 
 <div>
   <h1> Why Logica? </h1>
@@ -415,7 +500,7 @@ Logica stands for <b>Logic</b> with <b>a</b>ggregation.
     </div>
   </a>
 
-  <a style="text-decoration: none; color: inherit;" href="https://colab.research.google.com/github/EvgSkv/logica/blob/main/tutorial/Logica_tutorial.ipynb">
+  <a style="text-decoration: none; color: inherit;" href="https://colab.research.google.com/github/EvgSkv/logica/blob/main/tutorial/Logica_DuckDB_tutorial.ipynb">
     <div class="github_button" style="font-size:150%" onclick="graduate()" >
       <span style="display:inline-block;" id="hat">🎓</span> <span style="display:none" id="grad">👨‍🎓</span> Tutorial 
     </div>

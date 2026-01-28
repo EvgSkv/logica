@@ -15,6 +15,8 @@
 
 # Testing SqlExpr built-in function.
 
+@Engine("bigquery");
+
 ExtractHour(datetime) =
   SqlExpr("EXTRACT(HOUR FROM {datetime})", {datetime:});
 

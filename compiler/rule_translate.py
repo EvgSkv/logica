@@ -153,7 +153,9 @@ class NamesAllocator(object):
           for c in hint_for_user if c in allowed_chars)
     else:
       suffix = ''
-    if suffix and suffix not in self.allocated_tables:
+    if (suffix and
+        suffix not in self.allocated_tables and
+        not suffix[0].isdigit()):
       t = suffix
     else:
       if suffix:
@@ -196,6 +198,7 @@ class RuleStructure(object):
     self.tables = collections.OrderedDict()
     # Table variable to clause variable map.
     self.vars_map = {}
+    self.vars_heritage_map = {}
     # Clause variable to one table variable.
     self.inv_vars_map = {}
     self.vars_unification = []
@@ -489,6 +492,10 @@ class RuleStructure(object):
                            custom_udfs=subquery_encoder.execution.custom_udfs,
                            dialect=subquery_encoder.execution.dialect)
     r = 'SELECT\n'
+    if (self.this_predicate_name in
+        subquery_encoder.execution.
+        annotations.annotations['@DifferentiallyPrivate']):
+      r += 'WITH DIFFERENTIAL_PRIVACY\n'
     fields = []
     if not self.select:
       raise RuleCompileException(
@@ -597,10 +604,12 @@ def ExtractPredicateStructure(c, s):
     expr = field_value['value']['expression']
     var_name = s.allocator.AllocateVar('%s_%s' % (table_name, table_var))
     s.vars_map[table_name, table_var] = var_name
+    s.vars_heritage_map[table_name, table_var] = expr.get('expression_heritage')
     s.inv_vars_map[var_name] = (table_name, table_var)
     s.vars_unification.append(
         {
-            'left': {'variable': {'var_name': var_name}},
+            'left': {'variable': {'var_name': var_name},
+                     'expression_heritage': expr.get('expression_heritage')},
             'right': expr
         })
 
@@ -697,6 +706,12 @@ def ExtractConjunctiveStructure(conjuncts, s):
           })
     elif 'inclusion' in c:
       ExtractInclusionStructure(c['inclusion'], s)
+    elif 'disjunction' in c:
+      raise RuleCompileException(
+          color.Format(
+              '{warning}Disjunction{end} is disallowed inside of aggregation '
+              'and negation, please refactor.'),
+          s.full_rule_text)
     else:
       assert False, 'Unsupported conjunct: %s' % c
 
@@ -754,7 +769,9 @@ def InlinePredicateValuesRecursively(r, names_allocator, conjuncts):
         r_predicate['predicate'] = copy.deepcopy(r['call'])
         r_predicate['predicate']['record']['field_value'].append({
             'field': 'logica_value',
-            'value': {'expression': {'variable': {'var_name': aux_var}}}
+            'value': {'expression': {
+              'variable': {'var_name': aux_var},
+              'expression_heritage': r['expression_heritage']}}
         })
         del r['call']
         r['variable'] = {'var_name': aux_var}

@@ -15,6 +15,8 @@
 
 # Testing implication and OrderBy annotation.
 
+@Engine("bigquery");
+
 N(n1 + n2 * 5 + n3 * 25) :- l == [0,1,2,3,4], n1 in l, n2 in l, n3 in l;
 
 Qualify(n) = (

@@ -1,0 +1,10 @@
+{
+    "iconDefinitions": {
+      "_logica_file": {
+        "iconPath": "./images/LogicaIcon.svg"
+      }
+    },
+    "languageIds": {
+      "logica": "_logica_file"
+    }
+}

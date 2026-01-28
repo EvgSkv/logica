@@ -15,6 +15,8 @@
 
 # Test for ++? operator.
 
+@Engine("bigquery");
+
 Character(full_name: "Toby the dog");
 Character(full_name: "Pete the cat");
 Character(full_name: "Sharik the dog");

@@ -29,7 +29,7 @@ limitations under the License. */
     width: auto;
     overflow-x: auto;
 }
-.agg_field, .operator, .variable, .predicate, .field, .keyword, .string, .end_of_line_comment, .multiline_comment {
+.agg_field, .operator, .variable, .predicate, .field, .keyword, .string, .end_of_line_comment, .multiline_comment, .numeric_literal {
     display: inline;
 }
 .predicate {
@@ -54,4 +54,7 @@ limitations under the License. */
 }
 .variable {
     color: #ddd;
+}
+.numeric_literal{
+    color: rgb(255, 150, 108);
 }

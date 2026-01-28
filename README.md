@@ -32,7 +32,7 @@ Logica compiles to SQL and gives you access to the power of SQL ecosystem
 with the convenience of logic programming syntax. 
 
 This is useful because
-SQL enginers are magnitudes more powerful than state of the art native
+SQL engines are magnitudes more powerful than state of the art native
 logic programming engines. For example, BigQuery is a distributed datawarehouse and thus logic programs written
 in Logica can be easily parallelized onto thousands of servers. Postgres and SQLite are among most popular databases, they are
 capable of processing substantial volumes of data right on your machine.
@@ -84,7 +84,7 @@ _Logica_ stands for _**Logic** with **a**ggregation_.
 
 ## How to learn?
 
-Learn basics of Logica with the [CoLab tutorial](https://colab.research.google.com/github/EvgSkv/logica/blob/main/tutorial/Logica_tutorial.ipynb) located at [`tutorial`](https://github.com/EvgSkv/logica/tree/main/tutorial) folder.
+Learn basics of Logica with the [CoLab tutorial](https://colab.research.google.com/github/EvgSkv/logica/blob/main/tutorial/Logica_DuckDB_tutorial.ipynb) located at [`tutorial`](https://github.com/EvgSkv/logica/tree/main/tutorial) folder.
 See examples of using Logica in [`examples`](https://github.com/EvgSkv/logica/tree/main/examples) folder.
 
 Tutorial and examples show how to access Logica from CoLab. You can also install Logica command line tool.
@@ -116,7 +116,9 @@ python3 -m pip install logica
 # To see usage message.
 python3 -m logica
 # To print SQL for HelloWorld program.
-python3 -m logica - print Greet <<<'Greet(greeting: "Hello world!")'
+python3 -m logica - print Greet <<<'@Engine("sqlite"); Greet(greeting: "Hello world!")'
+# To run HelloWorld program on SQLite.
+python3 -m logica - run Greet <<<'@Engine("sqlite"); Greet(greeting: "Hello world!")'
 ```
 
 If your `PATH` includes Python's `bin` folder then you will also be able to
@@ -141,10 +143,13 @@ Here a couple examples of how Logica code looks like.
 
 ### Prime numbers
 
-Find prime numbers less than 30.
+Find prime numbers less than 30 with SQLite.
 
 Program `primes.l`:
 ```
+# Using SQLite engine.
+@Engine("sqlite");
+
 # Define numbers 1 to 30.
 Number(x + 1) :- x in Range(30);
 
@@ -180,6 +185,12 @@ Let's use beer variety dataset from [plotly](https://github.com/plotly/datasets/
 
 Let us find top 5 states with largest variety of beers. In each state we will pick city with the largest
 variety in the state.
+
+To run this example you will need to install DuckDB if you don't yet have it on your system. Luckily installing DuckDB is easy:
+
+```
+python3 -m pip install duckdb
+```
 
 Program `beer.l`:
 
@@ -255,6 +266,10 @@ $ logica mentions.l run Mentions
 Note that cities of Los Angeles and Las Vegas are mentioned in this table due to known
 missclasification issue in the GDELT data analysis.
 --> 
+
+## Citations
+For citations, see our list of [Logica publications](https://logica-lang.github.io/publications/).
+
 ## Feedback
 
 Feel free to create [github issues](https://github.com/EvgSkv/logica/issues)

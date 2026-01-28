@@ -551,9 +551,13 @@ class TypeInferenceForStructure:
         # This is from unnestings. I don't recall why are those even here :-(
         # Need to clarify.
         continue
+      # TODO: Location can be unknown due to injections. We should fix it.
+      heritage = self.structure.vars_heritage_map.get((table_id, field),
+                                                      'UNKNOWN_LOCATION')
       calls[table_id]['predicate']['record']['field_value'].append(
         {'field': field,
-         'value': {'expression': {'variable': {'var_name': variable}}}
+         'value': {'expression': {'variable': {'var_name': variable},
+                                  'expression_heritage': heritage}}
         }
       )
 
@@ -583,7 +587,7 @@ class TypeErrorChecker:
   def __init__(self, typed_rules):
     self.typed_rules = typed_rules
 
-  def CheckForError(self, mode='print'):    
+  def CheckForError(self, mode='print'):
     self.found_error = self.SearchTypeErrors()
     if self.found_error.type_error:
       if mode == 'print':
@@ -700,6 +704,8 @@ class TypeCollector:
     if t == 'Str':
       return 'text'
     if t == 'Num':
+      if self.dialect == 'duckdb':
+        return 'float'  # DuckDB doesn't understand numeric as int anyway.
       return 'numeric'
     if t == 'Bool':
       return 'bool'
@@ -742,7 +748,7 @@ class TypeCollector:
       )
     else:
       assert False, 'Unknown psql dialect: ' + self.dialect
-    
+
     self.definitions = {
       t: wrap(self.psql_struct_type_name[t], self.psql_type_definition[t])
       for t in sorted(self.psql_struct_type_name, key=len)
@@ -750,10 +756,14 @@ class TypeCollector:
     self.typing_preamble = BuildPreamble(self.definitions, self.dialect)
 
 def BuildPreamble(definitions, dialect):
+  # Gentle touch of genious here. Sorting definitions by length of the
+  # full type description automatically means that simpler types are defined
+  # before the ones that depend on them.
+  ordered_definitions = [definitions[k] for k in sorted(definitions, key=len)]
   if dialect in ['psql', 'sqlite', 'bigquery']:
-    return 'DO $$\nBEGIN\n' + '\n'.join(definitions.values()) + '\nEND $$;\n'
+    return 'DO $$\nBEGIN\n' + '\n'.join(ordered_definitions) + '\nEND $$;\n'
   elif dialect == 'duckdb':
-    return '\n'.join(definitions.values())
+    return '\n'.join(ordered_definitions)
   else:
     assert False, 'Unknown psql dialect: ' + dialect
 

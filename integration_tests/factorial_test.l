@@ -13,6 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+@Engine("bigquery");
 
 Prod(x) = Exp(Sum(Log(x)));
 

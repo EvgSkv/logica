@@ -25,10 +25,10 @@ Arrow(left, right) = arrow :-
 PrintToConsole(message) :- 1 == SqlExpr("PrintToConsole({message})", {message:});
 
 ArgMin(arr) = SqlExpr(
-    "argmin({a}, {v})", {a:, v:}) :- Arrow(a, v) == arr;
+    "argmin({a}, {v})", {a: arr.arg, v: arr.value});
 
 ArgMax(arr) = SqlExpr(
-    "argmax({a}, {v})", {a:, v:}) :- Arrow(a, v) == arr;
+    "argmax({a}, {v})", {a: arr.arg, v: arr.value});
 
 ArgMaxK(a, l) = SqlExpr(
   "(array_agg({arg_1} order by {value_1} desc))[1:{lim}]",
@@ -49,7 +49,8 @@ Fingerprint(s) = NaturalHash(s);
 
 ReadFile(filename) = SqlExpr("pg_read_file({filename})", {filename:});
 
-Chr(x) = SqlExpr("Chr({x})", {x:});
+Chr(x) = SqlExpr("Chr(cast({x} as integer))", {x:});
+Ord(x) = SqlExpr("Ord({x})", {x:});
 
 Num(a) = a;
 Str(a) = a;
@@ -75,4 +76,57 @@ UniqueNumber() = SqlExpr("nextval('eternal_logical_sequence')", {});
 # Doing via SqlExpr as Logica for now prohibits list of lists.
 # TODO: We should allow list of lists in DuckDB.
 MergeList(e) = SqlExpr("flatten(array_agg({e}))", {e:});
+
+# Functional predicate for toy examples of solving
+# NP-complete problems.
+ProverChoice(slot, options:) = options[i] :-
+  i = NaturalHash("ProverChoice-" ++
+                  ToString(UniqueNumber())) % Size(options);
+
+#######################
+# Clingo support.
+#
+
+Clingo(p, m) = SqlExpr("Clingo({p}, {m})", {p:, m:}) :-
+  m ~ [{predicate: Str, args: [Str]}];
+CompileClingo(p, m) = SqlExpr("CompileClingo({p}, {m})", {p:, m:}) :-
+  m ~ [{predicate: Str, args: [Str]}];
+
+RunClingo(p) = SqlExpr("RunClingo({p})", {p:});
+RunClingoFile(p) = SqlExpr("RunClingoFile({p})", {p:});
+RunClingoTemplate(p, a) = SqlExpr("RunClingoTemplate({p}, {a})", {p:, a:});
+RunClingoFileTemplate(p, a) = SqlExpr("RunClingoFileTemplate({p}, {a})", {p:, a:});
+
+RenderClingoArgs(args) = (
+  if Size(args) == 0 then
+    "()"
+  else
+    "(" ++ Join(args, ", ") ++ ")"
+);
+
+RenderClingoFact(predicate, args) =  predicate ++ RenderClingoArgs(args);
+
+QuoteIt(x) = Chr(34) ++ x ++ Chr(34);
+ClingoFact(predicate, args) = {predicate:,
+                               args: List{QuoteIt(a) :- a in args}};
+
+ExtractClingoCall(a, b, c, d, e, f, g, h,
+                  predicate:, model_id:) = models :-
+  model in models,
+  model_id = model.model_id,
+  entry in model.model,
+  entry.predicate = predicate,
+  args = entry.args,
+  a = args[0], b = args[1], c = args[2],
+  d = args[3], e = args[4], f = args[5],
+  g = args[6], h = args[7];
+
+JoinOrEmpty(x, s) = Coalesce(Join(x, s), "");
+
+RenderClingoModel(model, sep) = JoinOrEmpty(
+    List{RenderClingoFact(fact.predicate, fact.args) :-
+         fact in model}, sep);
+
+# Indexed sum, that Clingo needs.
+ISum(x) = SqlExpr("SUM({x})", {x:}) :- Error("ISum is to be used only in Clingo.") = true;
 """

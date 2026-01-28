@@ -1,0 +1,16 @@
++--------------------------------+
+| logica_value                   |
++--------------------------------+
+| ['blue' 'green' 'red' 'blue']  |
+| ['blue' 'green' 'red' 'green'] |
+| ['blue' 'red' 'green' 'blue']  |
+| ['blue' 'red' 'green' 'red']   |
+| ['green' 'blue' 'red' 'blue']  |
+| ['green' 'blue' 'red' 'green'] |
+| ['green' 'red' 'blue' 'green'] |
+| ['green' 'red' 'blue' 'red']   |
+| ['red' 'blue' 'green' 'blue']  |
+| ['red' 'blue' 'green' 'red']   |
+| ['red' 'green' 'blue' 'green'] |
+| ['red' 'green' 'blue' 'red']   |
++--------------------------------+

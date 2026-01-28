@@ -15,6 +15,8 @@
 
 # This is to test escaping of quotes in command line flags.
 
+@Engine("bigquery");
+
 @DefineFlag("name", "");
 
 Q(FlagValue("name"));

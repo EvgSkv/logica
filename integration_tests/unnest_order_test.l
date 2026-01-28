@@ -15,6 +15,8 @@
 
 # Testing that unnestings are ordered by dependency.
 
+@Engine("bigquery");
+
 @OrderBy(Test, "col0");
 Test(x) :- x in y.a, y in [{a:[1,2,3]}];
 Test(x) :- y in [{a:[1,2,3]}], x in y.a;

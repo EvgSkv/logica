@@ -152,7 +152,8 @@ class Annotations(object):
       '@Limit', '@OrderBy', '@Ground', '@Flag', '@DefineFlag',
       '@NoInject', '@Make', '@CompileAsTvf', '@With', '@NoWith',
       '@CompileAsUdf', '@ResetFlagValue', '@Dataset', '@AttachDatabase',
-      '@Engine', '@Recursive', '@Iteration', '@BareAggregation'
+      '@Engine', '@Recursive', '@Iteration', '@BareAggregation',
+      '@DifferentiallyPrivate'
   ]
 
   def __init__(self, rules, user_flags):
@@ -161,7 +162,7 @@ class Annotations(object):
     if 'logica_default_engine' in user_flags:
       self.default_engine = user_flags['logica_default_engine']
     else:
-      self.default_engine = 'bigquery'
+      self.default_engine = 'duckdb'
 
     self.annotations = self.ExtractAnnotations(
         rules, restrict_to=['@DefineFlag', '@ResetFlagValue'])
@@ -186,19 +187,23 @@ class Annotations(object):
           '-- Empty logica type: logicarecord893574736;\n'
           "DO $$ BEGIN if not exists (select 'I(am) :- I(think)' from pg_type where typname = 'logicarecord893574736') then create type logicarecord893574736 as (nirvana numeric); end if; END $$;\n\n")
     elif self.Engine() == 'duckdb':
-      preamble += (
-          '-- Initializing DuckDB environment.\n'
+      home_attachment = (
           'create schema if not exists logica_home;\n'
+          if 'logica_home' not in self.AttachedDatabases()
+          else '-- logica_home attached by user.\n')
+      preamble += (
+          '-- Initializing DuckDB environment.\n' +
+          home_attachment +
           '-- Empty record, has to have a field by DuckDB syntax.\n'
           'drop type if exists logicarecord893574736 cascade; create type logicarecord893574736 as struct(nirvana numeric);\n'
       )
-      if self.annotations['@Engine']['duckdb'].get('motherduck'):
+      if self.annotations['@Engine'].get('duckdb', {}).get('motherduck'):
         preamble += '\n'  # Sequences are not supported in MotherDuck.
       else:
         preamble += (
           'create sequence if not exists eternal_logical_sequence;\n\n')
-      if self.annotations['@Engine']['duckdb'].get('threads'):
-        threads = int(self.annotations['@Engine']['duckdb'].get('threads'))
+      if self.annotations['@Engine'].get('duckdb', {}).get('threads'):
+        threads = int(self.annotations['@Engine'].get('duckdb', {}).get('threads'))
         preamble += 'set threads to %d;\n' % threads
     return preamble
 
@@ -252,9 +257,12 @@ class Annotations(object):
   def AttachDatabaseStatements(self):
     lines = []
     for k, v in self.AttachedDatabases().items():
+      type_sqlite = ''
       if self.Engine() == 'duckdb':
         lines.append('DETACH DATABASE IF EXISTS %s;' % k)
-      lines.append('ATTACH DATABASE \'%s\' AS %s;' % (v, k))
+        if v[-7:] == '.sqlite':
+          type_sqlite = ' (TYPE SQLITE)'
+      lines.append('ATTACH DATABASE \'%s\' AS %s%s;' % (v, k, type_sqlite))
     return '\n'.join(lines)
 
   def CompileAsUdf(self, predicate_name):
@@ -328,20 +336,21 @@ class Annotations(object):
                       self.annotations['@Engine'][engine])
     return engine
  
+  def EngineTypechecksByDefault(self, engine):
+    return engine in ['psql', 'duckdb']
+
   def ShouldTypecheck(self):
     engine = self.Engine()
+    typechecks_by_default = self.EngineTypechecksByDefault(engine)
 
     if '@Engine' not in self.annotations:
-      return engine == 'psql'
+      return typechecks_by_default
     if len(self.annotations['@Engine'].values()) == 0:
-      return  engine == 'psql'
+      return typechecks_by_default
     
     engine_annotation = list(self.annotations['@Engine'].values())[0]
     if 'type_checking' not in engine_annotation:
-      if engine in ['psql', 'duckdb']:
-        return True
-      else:
-        return False
+      return typechecks_by_default
     return engine_annotation['type_checking']
 
   def ExtractSingleton(self, annotation_name, default_value):
@@ -565,6 +574,7 @@ class LogicaProgram(object):
         BigQuery table name. This table will be used in place of predicate.
       user_flags: Dictionary of user specified flags.
     """
+    self.raw_rules = rules  # For Clingo.
     rules = self.UnfoldRecursion(rules)
 
     # TODO: Should allocator be a member of Logica?
@@ -683,9 +693,7 @@ class LogicaProgram(object):
     #   for p in depth_map:
     #     # DuckDB struggles with long querries.
     #     depth_map[p]['iterative'] = True
-    quacks_like_a_duck = (
-      annotations.annotations.get(
-        '@Engine', {}).get('duckdb', None) is not None)
+    quacks_like_a_duck = (annotations.Engine() == "duckdb")
     default_iterative = False
     default_depth = 8
     if quacks_like_a_duck:
@@ -1275,6 +1283,11 @@ class LogicaProgram(object):
 
   def MakeSubqueryTranslator(self, allocator):
     return SubqueryTranslator(self, allocator, self.execution)
+
+  def NeedsClingo(self):
+    a = self.annotations.annotations
+    needs_clingo = a.get('@Engine', {}).get('duckdb', {}).get('clingo', False)
+    return needs_clingo
 
 
 class SubqueryTranslator(object):

@@ -17,4 +17,6 @@
 # Please never use it this way.
 # This feature is provided for Spanner indexes specification.
 
+@Engine("bigquery");
+
 Test(result) :- `((select "success" as result))`(result:);

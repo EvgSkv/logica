@@ -1,5 +1,7 @@
 # Testing subscript of implication optimization.
 
+@Engine("bigquery");
+
 Test(n, a, b, c) :-
   n in Range(10),
   r == (

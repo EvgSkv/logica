@@ -15,6 +15,8 @@
 
 # Testing a long sequence of Make statements.
 
+@Engine("bigquery");
+
 S("success");
 
 R(x) :- T(x);

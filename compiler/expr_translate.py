@@ -72,6 +72,7 @@ class QL(object):
       # These functions are treated specially.
       'FlagValue': 'UNUSED',
       'Cast': 'UNUSED',
+      'TryCast': 'UNUSED',
       'SqlExpr': 'UNUSED'
   }
   BUILT_IN_INFIX_OPERATORS = {
@@ -248,7 +249,14 @@ class QL(object):
     return str(literal['number'])
 
   def StrLiteral(self, literal):
-    if self.dialect.Name() in ["PostgreSQL", "Presto", "Trino", "SqLite", "DuckDB"]:
+    if self.dialect.Name() in ["DuckDB"]:  # PostreSQL too?
+      return 'E\'%s\'' % (
+          literal['the_string']
+          .replace('\\', '\\\\')
+          .replace("'", "''")
+          .replace('\t', r'\t')
+          .replace('\n', r'\n'))
+    if self.dialect.Name() in ["PostgreSQL", "Presto", "Trino", "SqLite"]:
       # TODO: Do this safely.
       return '\'%s\'' % (literal['the_string'].replace("'", "''"))
 
@@ -264,7 +272,7 @@ class QL(object):
     if self.dialect.IsPostgreSQLish() and not element_type_name:
         raise self.exception_maker(
           'Type is needed, but not determined for %s. Please give hints with ~ operator!' %
-          color.Warn(full_expression['expression_heritage']))
+          color.Warn(full_expression.get('expression_heritage', str(full_expression))))
 
     suffix = ('::' + element_type_name + '[]'
               if self.dialect.IsPostgreSQLish()
@@ -371,17 +379,17 @@ class QL(object):
 
   def GenericSqlExpression(self, record):
     """Converting SqlExpr to SQL."""
-    top_record = self.ConvertRecord(record)
-    if set(top_record) != set([0, 1]):
+    top_record = lambda: self.ConvertRecord(record)
+    if {fv['field'] for fv in record['field_value']} != {0, 1}:
       raise self.exception_maker(
-          'SqlExpr must have 2 positional arguments, got: %s' % top_record)
+          'SqlExpr must have 2 positional arguments, got: %s' % top_record())
     if ('literal' not in record['field_value'][0]
         ['value']['expression'] or
         'the_string' not in
         record['field_value'][0]['value']['expression']['literal']):
       raise self.exception_maker(
           'SqlExpr must have first argument be string, got: %s' %
-          top_record[0])
+          top_record()[0])
 
     template = (
         record['field_value'][0]['value']['expression']['literal']
@@ -389,7 +397,7 @@ class QL(object):
     if 'record' not in record['field_value'][1]['value']['expression']:
       raise self.exception_maker(
           'Sectond argument of SqlExpr must be record literal. Got: %s' %
-          top_record[1])
+          top_record()[1])
     args = self.ConvertRecord(
         record['field_value'][1]['value']['expression']['record'])
     return template.format(**args)
@@ -533,7 +541,19 @@ class QL(object):
         return self.ConvertAnalytic(call)
       if call['predicate_name'] == 'SqlExpr':
         return self.GenericSqlExpression(call['record'])
-      if call['predicate_name'] == 'Cast':
+      if call['predicate_name'] in ['Cast', 'TryCast']:
+        sql_predicate = 'CAST' if call['predicate_name'] == 'Cast' else 'TRY_CAST'
+        if len(arguments) == 2 and (
+          'record' in call['record']['field_value'][1]['value']['expression']):
+          fvs = call['record']['field_value']
+          type_name = fvs[1]['value']['expression']['type']['type_name']
+          if sql_predicate == 'TRY_CAST':
+            return 'TRY_CAST(%s AS %s)' % (
+                self.ConvertToSql(
+                fvs[0]['value']['expression']), type_name)
+          return (
+            '(' + self.ConvertToSql(
+              fvs[0]['value']['expression']) + '::' + type_name) + ')'
         if (len(arguments) != 2 or
             'literal' not in
             call['record']['field_value'][1]['value']['expression'] or
@@ -545,7 +565,8 @@ class QL(object):
         cast_to = (
             call['record']['field_value'][1]['value']['expression']['literal']
             ['the_string']['the_string'])
-        return 'CAST(%s AS %s)' % (
+        return '%s(%s AS %s)' % (
+            sql_predicate,
             self.ConvertToSql(
                 call['record']['field_value'][0]['value']['expression']),
             cast_to)

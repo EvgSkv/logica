@@ -13,8 +13,10 @@ import re
 
 if '.' not in __package__:
   from common import intelligence
+  from common import callclingo
 else:
   from ..common import intelligence
+  from ..common import callclingo
 
 
 def DeFactoType(value):
@@ -162,7 +164,56 @@ def WriteFile(filename, content):
   return 'OK'
 
 
+def DataframeAsArtisticTable(df):
+  return ArtisticTable(df.columns,
+                       list(df.itertuples(index=False, name=None)))
+
+
 def ArtisticTable(header, rows):
+  """ASCII art table for query output with multiline strings."""
+  def Pad(s, w):
+    return str(s) + ' ' * (w - len(str(s)))
+
+  def RowLines(row, width):
+      row_columns = [str(x).split('\n') for x in row]
+      height = max(len(x) for x in row_columns)
+      result = []
+      for i in range(height):
+          next_row = []
+          for j in range(len(row)):
+              if len(row_columns[j]) > i:
+                  next_row.append(row_columns[j][i])
+              else:
+                  next_row.append('')
+          result.append(next_row)
+      return [
+          '| ' + ' | '.join(Pad(r, w) for r, w in zip(rr, width)) + ' |'
+          for rr in result
+      ]
+  width = [0] * len(header)
+  for r in [header] + rows:
+    for i in range(len(r)):
+      width[i] = max(width[i],
+                     max(len(x) for x in str(r[i]).split('\n')))
+  result = []
+  top_line = '+-' + '-+-'.join('-' * w for w in width) + '-+'
+  header_line = '| ' + ' | '.join(Pad(h, w) for h, w in zip(header, width)) + ' |'
+  result = [top_line, header_line, top_line]
+  for row in rows:
+    line = '| ' + ' | '.join(Pad(r, w) for r, w in zip(row, width)) + ' |'
+    if '\n' in line:
+      sep_up = '/˙' + '˙|˙'.join('˙' * w for r, w in zip(row, width)) + '˙\\'
+      sep_down = '\\.' + '.|.'.join('.' * w for r, w in zip(row, width)) + './'
+      result.append(sep_up)
+      result += RowLines(row, width)
+      result.append(sep_down)
+    else:
+      result.append(line)
+  result.append(top_line)
+  return '\n'.join(result)
+
+
+def ArtisticTableMinimal(header, rows):
   """ASCII art table for query output."""
   width = [0] * len(header)
   for r in [header] + rows:
@@ -178,6 +229,7 @@ def ArtisticTable(header, rows):
     result.append('| ' + ' | '.join(Pad(r, w) for r, w in zip(row, width)) + ' |')
   result.append(top_line)
   return '\n'.join(result)
+
 
 def Csv(header, rows):
   """CSV query output."""
@@ -252,6 +304,8 @@ def ExtendConnectionWithLogicaFunctions(con):
   con.create_function('RE_SUB', 5, lambda string, pattern, repl="", count=0, flags=0: \
                                     re.sub(pattern, repl, string ,count, flags))
   con.create_function('Intelligence', 1, intelligence.Intelligence)
+  con.create_function('RunClingo', 1, callclingo.RunClingo)
+  con.create_function('RunClingoFile', 1, callclingo.RunClingoFile)
   con.create_function('AssembleRecord', 1, AssembleRecord)
   con.create_function('DisassembleRecord', 1, DisassembleRecord)
   sqlite3.enable_callback_tracebacks(True)

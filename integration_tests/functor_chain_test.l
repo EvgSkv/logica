@@ -15,6 +15,8 @@
 
 # Verifying functor call for a chain.
 
+@Engine("bigquery");
+
 A(0);
 B(x) :- A(x);
 C(x) :- B(x);

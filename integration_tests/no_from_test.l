@@ -16,6 +16,8 @@
 # Testing that predicates with no 'FROM' clause, but with constraints are
 # compiled correctly.
 
+@Engine("bigquery");
+
 A() += 1;
 
 Test(x) :- x == "a", x == "b";

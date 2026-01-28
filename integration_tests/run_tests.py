@@ -45,7 +45,7 @@ def RunTest(name, src=None, golden=None, predicate=None,
             duckify_psql=True)
 
 
-def RunAll(test_presto=False, test_trino=False):
+def RunAll(test_presto=False, test_trino=False, test_clingo=True):
   """Running all tests."""
   # Uncomment to test writing tables.
   # RunTest("ground_test")
@@ -64,6 +64,26 @@ def RunAll(test_presto=False, test_trino=False):
     RunTest("dialects/trino/arg_min_max_test")
     RunTest("dialects/trino/joins_test")
     RunTest("dialects/trino/joins_test")
+
+  if test_clingo:
+    from common import duckdb_logica
+    RunTest('clingo_sum_test')
+    RunTest('duckdb_clingo')
+    RunTest('clingo_basic_test')
+    RunTest('manual_coloring_first_test')
+    RunTest('manual_coloring_second_test')
+    RunTest('manual_salesman')
+    RunTest('extract_clingo_test')
+    RunTest('clingo_pipeline_test', use_concertina=True)
+
+  RunTest("duckdb_json_test")
+  RunTest("orderby_limit_test")
+  RunTest("strategic_test")
+  RunTest("string_screening_test")
+  RunTest("propositional_implication_test")
+
+  RunTest("duckdb_negation_test")
+  RunTest("duckdb_is_default")
 
   RunTest("bq_plusplus_test")
   RunTest("sqlite_functors_test")

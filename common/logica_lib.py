@@ -22,6 +22,7 @@ import subprocess
 import sys
 
 if '.' not in __package__:
+  from common import duckdb_logica
   from common import sqlite3_logica
   from common import psql_logica
   from compiler import functors
@@ -30,6 +31,7 @@ if '.' not in __package__:
   from parser_py import parse
   from type_inference.research import infer
 else:
+  from ..common import duckdb_logica
   from ..common import sqlite3_logica
   from ..common import psql_logica
   from ..compiler import functors
@@ -70,7 +72,8 @@ def GetProgramOrExit(filename, user_flags=None, import_root=None):
 
 def RunQuery(sql,
              settings=None,
-             output_format='pretty', engine='bigquery'):
+             output_format='pretty', engine='bigquery',
+             logical_context=None):
   """Run a SQL query on BigQuery."""
   settings = settings or {}
   if engine == 'psql' and os.environ.get('LOGICA_PSQL_CONNECTION'):
@@ -112,6 +115,13 @@ def RunQuery(sql,
                           '--file=/dev/stdin'] +
                           ['--output-format=ALIGNED'],
                           stdin=subprocess.PIPE, stdout=subprocess.PIPE)
+  elif engine == 'duckdb':
+    import duckdb
+    connection = duckdb.connect()
+    if 'clingo' in settings and settings['clingo'] != False:
+      duckdb_logica.ConnectClingo(connection, logical_context=logical_context)
+    df = connection.sql(sql).df()
+    return sqlite3_logica.DataframeAsArtisticTable(df)
   else:
     assert False, 'Unknown engine: %s' % engine
   o, _ = p.communicate(sql.encode())
@@ -132,7 +142,8 @@ def RunPredicate(filename, predicate,
   else:
     settings = {}
   return RunQuery(sql, settings,
-                  output_format, engine=engine)
+                  output_format, engine=engine,
+                  logical_context=p.raw_rules)
 
 
 def RunQueryPandas(sql, engine, connection=None):
@@ -182,6 +193,10 @@ class SqlReceiver:
     self.sql = None
 
 
+def HandleException(exception):
+  sys.exit(1)  # LOL
+
+
 def CompilePredicateFromString(logica_string,
                                predicate_name,
                                user_flags=None):
@@ -189,24 +204,24 @@ def CompilePredicateFromString(logica_string,
     rules = parse.ParseFile(logica_string)['rule']
   except parse.ParsingException as parsing_exception:
     parsing_exception.ShowMessage()
-    sys.exit(1)
-  
+    return HandleException(parsing_exception)
+
   try:
     program = universe.LogicaProgram(rules, user_flags=user_flags)
     sql = program.FormattedPredicateSql(predicate_name)
     engine = program.execution.annotations.Engine()
   except rule_translate.RuleCompileException as rule_compilation_exception:
     rule_compilation_exception.ShowMessage()
-    sys.exit(1)
+    return HandleException(rule_compilation_exception)
   except functors.FunctorError as functor_exception:
     functor_exception.ShowMessage()
-    sys.exit(1)
+    return HandleException(functor_exception)
   except infer.TypeErrorCaughtException as type_error_exception:
     type_error_exception.ShowMessage()
-    sys.exit(1)
+    return HandleException(type_error_exception)
   except parse.ParsingException as parsing_exception:
     parsing_exception.ShowMessage()
-    sys.exit(1)
+    return HandleException(parsing_exception)
   return sql, engine
 
 

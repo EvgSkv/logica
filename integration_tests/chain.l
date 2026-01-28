@@ -16,6 +16,8 @@
 # An example of a chain broken due to lack of files.
 # See chain_test on how to test it.
 
+@Engine("bigquery");
+
 A("data");
 
 B(x) :- A(x);
