@@ -264,6 +264,9 @@ class ClickHouseDialect(Dialect):
         'Count': 'countDistinct(%s)',
         'AnyValue': 'any(%s)',
         'ArrayConcat': 'arrayConcat({0}, {1})',
+        # Used internally to disambiguate aggregation scope inside (combine ...).
+        # Mirrors PostgreSQL/DuckDB behavior.
+        'MagicalEntangle': '(if({1} = 0, {0}, NULL))',
         # The compiler implements "x in some_array" as an UNNEST with a
         # generated table alias; this extracts the element from that alias.
         'ValueOfUnnested': '{0}.unnested_pod',
@@ -294,6 +297,9 @@ class ClickHouseDialect(Dialect):
 
   def GroupBySpecBy(self):
     return 'expr'
+
+  def DecorateCombineRule(self, rule, var):
+    return DecorateCombineRule(rule, var)
 
 
 class Presto(Dialect):
