@@ -674,6 +674,35 @@ class TypeCollector:
     self.psql_type_cache = {}
     self.dialect = dialect
 
+  def ClickHouseType(self, t):
+    def _ClickHouseFieldName(key):
+      if isinstance(key, int):
+        return 'col%d' % key
+      return str(key)
+
+    # Note: this is an informational rendering for ClickHouse, stored in
+    # node['type']['type_name'].
+    if t == 'Str':
+      return 'String'
+    if t == 'Num':
+      return 'Float64'
+    if t == 'Bool':
+      return 'Bool'
+    if t == 'Time':
+      return 'DateTime'
+    if isinstance(t, list):
+      [e] = t
+      return 'Array(%s)' % self.ClickHouseType(e)
+    if isinstance(t, dict):
+      parts = []
+      for k, v in sorted(t.items(), key=reference_algebra.StrIntKey):
+        n = _ClickHouseFieldName(k)
+        rendered_v = self.ClickHouseType(v)
+        assert rendered_v is not None, v
+        parts.append('%s %s' % (n, rendered_v))
+      return 'Tuple(%s)' % ', '.join(parts)
+    assert False, t
+
   def ActPopulatingTypeMap(self, node):
     if 'type' in node:
       t = node['type']['the_type']
@@ -685,10 +714,16 @@ class TypeCollector:
       if reference_algebra.IsFullyDefined(t):
         self.psql_type_cache[t_rendering] = self.PsqlType(t)
       if isinstance(t, dict) and reference_algebra.IsFullyDefined(t):
-        node['type']['type_name'] = RecordTypeName(t_rendering)
+        if self.dialect == 'clickhouse':
+          node['type']['type_name'] = self.ClickHouseType(t)
+        else:
+          node['type']['type_name'] = RecordTypeName(t_rendering)
       if isinstance(t, list) and reference_algebra.IsFullyDefined(t):
         [e] = t
-        node['type']['element_type_name'] = self.PsqlType(e)
+        if self.dialect == 'clickhouse':
+          node['type']['element_type_name'] = self.ClickHouseType(e)
+        else:
+          node['type']['element_type_name'] = self.PsqlType(e)
 
   def CollectTypes(self):
     Walk(self.parsed_rules, self.ActPopulatingTypeMap)
@@ -719,6 +754,14 @@ class TypeCollector:
     assert False, t
 
   def BuildPsqlDefinitions(self):
+    # ClickHouse doesn't need (and doesn't support) PostgreSQL-style CREATE TYPE
+    # preambles. We still run type inference to attach fully-defined record
+    # types to expressions (e.g. for named tuples).
+    if self.dialect == 'clickhouse':
+      self.definitions = {}
+      self.typing_preamble = ''
+      return
+
     for t in self.psql_struct_type_name:
       arg_name = lambda x: (
         '"cast"' if x == 'cast'  # Escaping keyword.
@@ -756,6 +799,8 @@ class TypeCollector:
     self.typing_preamble = BuildPreamble(self.definitions, self.dialect)
 
 def BuildPreamble(definitions, dialect):
+  if dialect == 'clickhouse':
+    return ''
   # Gentle touch of genious here. Sorting definitions by length of the
   # full type description automatically means that simpler types are defined
   # before the ones that depend on them.

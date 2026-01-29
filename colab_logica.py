@@ -18,11 +18,13 @@
 
 from decimal import Decimal
 import getpass
+import io
 import json
 import re
 
 from .common import color
 from .common import concertina_lib
+from .common import clickhouse_logica
 from .common import duckdb_logica
 from .common import psql_logica
 
@@ -215,9 +217,30 @@ def RunSQL(sql, engine, connection=None, is_final=False):
       ShowError("Error while executing SQL:\n%s" % e)
       raise e
     return None
+  elif engine == 'clickhouse':
+    # ClickHouse runner uses HTTP and doesn't require a DB-API connection.
+    # For the final predicate we return a DataFrame for display.
+    # For non-final statements we use FORMAT Null to minimize transfer.
+    if is_final:
+      engine_settings = dict(connection or {})
+      engine_settings['settings'] = dict(engine_settings.get('settings') or {})
+      engine_settings['settings']['output_format_json_named_tuples_as_objects'] = 1
+
+      json_text = clickhouse_logica.RunQuery(
+        sql,
+        output_format='json',
+        engine_settings=engine_settings)
+      if not json_text.strip():
+        return pandas.DataFrame()
+      return pandas.read_json(io.StringIO(json_text), lines=True)
+    else:
+      clickhouse_logica.RunQuery(
+        sql.rstrip().rstrip(';') + ' FORMAT Null',
+        output_format='csv',
+        engine_settings=connection)
+      return None
   else:
-    raise Exception('Logica only supports BigQuery, PostgreSQL and SQLite '
-                    'for now.')
+    raise Exception('Unsupported engine: %s' % engine)
 
 
 def Ingress(table_name, csv_file_name):
@@ -313,6 +336,15 @@ class ExecutionObserver:
     self.table_locations[predicate] = table_location 
 
 CONNECTION_USED = None
+
+
+class ClickHouseRunner(object):
+  def __init__(self, engine_settings=None):
+    # We pass engine_settings via the "connection" parameter of RunSQL.
+    self.engine_settings = engine_settings or {}
+
+  def __call__(self, sql, engine, is_final):
+    return RunSQL(sql, engine, connection=self.engine_settings, is_final=is_final)
 
 def Logica(line, cell, run_query):
   """Running Logica predicates and storing results."""
@@ -427,9 +459,15 @@ def Logica(line, cell, run_query):
     elif engine == 'bigquery':
       EnsureAuthenticatedUser()
       sql_runner = RunSQL
+    elif engine == 'clickhouse':
+      # Connection settings can be provided via @Engine("clickhouse", ...)
+      # annotation or environment variables (see common/clickhouse_logica.py).
+      engine_settings = (
+        program.annotations.annotations.get('@Engine', {})
+          .get('clickhouse', {}))
+      sql_runner = ClickHouseRunner(engine_settings=engine_settings)
     else:
-      raise Exception('Logica only supports BigQuery, PostgreSQL and SQLite '
-                      'for now.')   
+      raise Exception('Unsupported engine: %s' % engine)
     try:
       result_map = concertina_lib.ExecuteLogicaProgram(
         executions, sql_runner=sql_runner, sql_engine=engine,

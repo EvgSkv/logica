@@ -337,7 +337,7 @@ class Annotations(object):
     return engine
  
   def EngineTypechecksByDefault(self, engine):
-    return engine in ['psql', 'duckdb']
+    return engine in ['psql', 'duckdb', 'clickhouse']
 
   def ShouldTypecheck(self):
     engine = self.Engine()
