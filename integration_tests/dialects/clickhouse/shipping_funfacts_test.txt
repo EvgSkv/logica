@@ -1,0 +1,10 @@
++----------------+-----------------------+------------------+
+| kind           | subject               | value            |
++----------------+-----------------------+------------------+
+| Best ship      | Pioneer (captain Rin) | 22 tons/crew     |
+| Busiest day    | 1                     | 49 total tons    |
+| Heaviest route | Draco -> Borealis     | 28 tons          |
+| Hub planet     | Astra                 | 4 destinations   |
+| Most incoming  | Borealis              | 55 tons received |
+| Most outgoing  | Draco                 | 40 tons shipped  |
++----------------+-----------------------+------------------+
