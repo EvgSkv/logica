@@ -43,6 +43,7 @@ import sys
 if __name__ == '__main__' and not __package__:
   from common import color
   from common import sqlite3_logica
+  from common import clickhouse_logica
   from common import clingo_logica
   from common import duckdb_logica
   from compiler import functors
@@ -55,6 +56,7 @@ if __name__ == '__main__' and not __package__:
 else:
   from .common import color
   from .common import sqlite3_logica
+  from .common import clickhouse_logica
   from .common import clingo_logica
   from .common import duckdb_logica
   from .compiler import functors
@@ -210,9 +212,10 @@ def main(argv):
   if command == 'infer_types':
     # This disallows getting types of program with type errors.
     # logic_program = universe.LogicaProgram(parsed_rules)
-    # TODO: Find a way to get engine from program. But it should not matter
-    # for inference. It only patters for compiling.
-    typing_engine = infer.TypesInferenceEngine(parsed_rules, "psql")
+    # Dialect mostly doesn't matter for inference itself, but it does matter
+    # for dialect-specific type renderings stored in the syntax tree.
+    annotations = universe.Annotations(parsed_rules, user_flags={})
+    typing_engine = infer.TypesInferenceEngine(parsed_rules, annotations.Engine())
     typing_engine.InferTypes()
     # print(parsed_rules)
     print(json.dumps(parsed_rules, sort_keys=True, indent=' '))
@@ -331,6 +334,20 @@ def main(argv):
                               ['--output-format=ALIGNED']),
                               stdin=subprocess.PIPE, stdout=subprocess.PIPE)
         o, _ = p.communicate(formatted_sql.encode())
+      elif engine == 'clickhouse':
+        engine_settings = {}
+        if ('@Engine' in logic_program.annotations.annotations and
+            'clickhouse' in logic_program.annotations.annotations['@Engine']):
+          engine_settings = logic_program.annotations.annotations['@Engine']['clickhouse']
+        output_format = 'csv' if command == 'run_to_csv' else 'pretty'
+        try:
+          o = clickhouse_logica.RunQueryCli(
+              formatted_sql,
+              output_format=output_format,
+              engine_settings=engine_settings)
+        except clickhouse_logica.ClickHouseCliError as e:
+          print(str(e))
+          sys.exit(1)
       elif engine == 'presto':
         a = logic_program.annotations.annotations['@Engine']['presto']
         catalog = a.get('catalog', 'memory')

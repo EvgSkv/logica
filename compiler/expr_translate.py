@@ -249,14 +249,14 @@ class QL(object):
     return str(literal['number'])
 
   def StrLiteral(self, literal):
-    if self.dialect.Name() in ["DuckDB"]:  # PostreSQL too?
+    if self.dialect.Name() in ["DuckDB"]:  # PostgreSQL too?
       return 'E\'%s\'' % (
           literal['the_string']
           .replace('\\', '\\\\')
           .replace("'", "''")
           .replace('\t', r'\t')
           .replace('\n', r'\n'))
-    if self.dialect.Name() in ["PostgreSQL", "Presto", "Trino", "SqLite"]:
+    if self.dialect.Name() in ["PostgreSQL", "Presto", "Trino", "SqLite", "ClickHouse"]:
       # TODO: Do this safely.
       return '\'%s\'' % (literal['the_string'].replace("'", "''"))
 
@@ -269,6 +269,18 @@ class QL(object):
   def ListLiteral(self, literal, element_type_name,
                   full_expression):  # <-- for error.
     internals = self.ListLiteralInternals(literal)
+
+    if self.convert_to_json:
+      return '[%s]' % internals
+
+    if self.dialect.Name() == 'ClickHouse':
+      # Be maximally deterministic: always pin the array element type.
+      # This also avoids ClickHouse interpreting [] as Array(Nothing).
+      if not element_type_name:
+        raise self.exception_maker(
+          'Type is needed, but not determined for %s. Please give hints with ~ operator!' %
+          color.Warn(full_expression['expression_heritage']))
+      return "CAST([%s], 'Array(%s)')" % (internals, element_type_name)
     if self.dialect.IsPostgreSQLish() and not element_type_name:
         raise self.exception_maker(
           'Type is needed, but not determined for %s. Please give hints with ~ operator!' %
@@ -278,9 +290,6 @@ class QL(object):
               if self.dialect.IsPostgreSQLish()
               else '')
     array_phrase = self.dialect.ArrayPhrase()
-    if self.convert_to_json:
-      array_phrase = '[%s]'
-      suffix = ''
     return (array_phrase % internals) + suffix
 
   def BoolLiteral(self, literal):
@@ -350,6 +359,15 @@ class QL(object):
     if self.convert_to_json:
       return self.RecordAsJson(record)
     # TODO: Move this to dialects.py.
+    if self.dialect.Name() == 'ClickHouse':
+      # For ClickHouse we rely on type inference to populate type_name with a
+      # rendered Tuple(...) type.
+      assert record_type, json.dumps(record, indent=' ')
+      args = ', '.join(
+        self.ConvertToSql(f_v['value']['expression'])
+        for f_v in sorted(record['field_value'],
+                          key=lambda x: StrIntKey(x['field'])))
+      return "CAST(tuple(%s), '%s')" % (args, record_type)
     if self.dialect.Name() == 'SqLite':
       arguments_str = ', '.join(
           "'%s', %s" % (f_v['field'],
@@ -658,7 +676,16 @@ class QL(object):
             'an incomplete type {warning}{type}{end}.', dict(
                 record=expression['expression_heritage'],
                 type=rendered_type)))
-    
+
+      if self.dialect.Name() == 'ClickHouse' and record_type is None:
+        rendered_type = expression.get('type', {}).get('rendered_type', None)
+        raise self.exception_maker(color.Format(
+            'Record needs type in ClickHouse: '
+            '{warning}{record}{end} was inferred only '
+            'an incomplete type {warning}{type}{end}.', dict(
+                record=expression['expression_heritage'],
+                type=rendered_type)))
+
       return self.Record(
         record,
         record_type=record_type)

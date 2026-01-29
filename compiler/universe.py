@@ -325,6 +325,8 @@ class Annotations(object):
     # This change is intended for all engines in the future.
     if self.Engine() in ['psql', 'duckdb']:
       default_dataset = 'logica_home'
+    if self.Engine() == 'clickhouse':
+      default_dataset = 'default'
     if self.Engine() == 'sqlite' and 'logica_home' in self.AttachedDatabases():
       default_dataset = 'logica_home'
     return self.ExtractSingleton('@Dataset', default_dataset)
@@ -337,7 +339,7 @@ class Annotations(object):
     return engine
  
   def EngineTypechecksByDefault(self, engine):
-    return engine in ['psql', 'duckdb']
+    return engine in ['psql', 'duckdb', 'clickhouse']
 
   def ShouldTypecheck(self):
     engine = self.Engine()
@@ -1298,6 +1300,20 @@ class SubqueryTranslator(object):
     self.allocator = allocator
     self.execution = execution
 
+  def AddClickhouseDropAction(self, table, ground):
+    # Hacking because ClickHouse doesnt support multi-statements.
+    drop_action = '__drop__' + table
+    drop_statement = (
+        'DROP TABLE IF EXISTS %s%s' % (
+            ground.table_name,
+            self.execution.dialect.MaybeCascadingDeletionWord()))
+    drop_statement = FormatSql(drop_statement)
+    drop_statement = self.program.UseFlagsAsParameters(drop_statement)
+    self.execution.table_to_export_map[drop_action] = drop_statement
+    self.execution.export_statements.append(drop_statement)
+    self.execution.defines_and_exports.append(drop_statement)
+    self.execution.dependency_edges.append((drop_action, table))
+
   def TranslateTableAttachedToFile(self, table, ground, external_vocabulary,
                                    edge_needed=True):
     """Translates file-attached table. Appends exports and defines."""
@@ -1332,12 +1348,17 @@ class SubqueryTranslator(object):
       maybe_copy = ''
       if ground.copy_to_file:
         maybe_copy = f'COPY {ground.table_name} TO \'{ground.copy_to_file}\';\n'
-      export_statement = (
-          maybe_drop_table +
+      create_statement = (
           'CREATE TABLE {name} AS {dependency_sql}'.format(
               name=ground.table_name,
-              dependency_sql=FormatSql(dependency_sql)) +
-          maybe_copy)
+              dependency_sql=FormatSql(dependency_sql)))
+
+      if self.program.annotations.Engine() == 'clickhouse':
+        if ground.overwrite:
+          self.AddClickhouseDropAction(table, ground)
+        export_statement = create_statement
+      else:
+        export_statement = maybe_drop_table + create_statement + maybe_copy
 
       export_statement = self.program.UseFlagsAsParameters(export_statement)
       # It's cheap to store a string multiple times in Python, as it's stored
