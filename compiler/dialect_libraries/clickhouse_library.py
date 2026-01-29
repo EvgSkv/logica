@@ -39,7 +39,7 @@ ArgMinK(a, l) = SqlExpr(
   {arg: a.arg, value: a.value, lim: l});
 
 Array(a) = SqlExpr(
-  "groupArray({value} ORDER BY {arg})",
+  "arrayMap(x -> x.2, arraySort(groupArray(({arg}, {value}))))",
   {arg: a.arg, value: a.value});
 
 RecordAsJson(r) = SqlExpr("toJSONString({x})", {x: r});

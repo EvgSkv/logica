@@ -65,8 +65,9 @@ def RunAll(test_presto=False, test_trino=False, test_clingo=True, test_clickhous
     RunTest("dialects/trino/joins_test")
     RunTest("dialects/trino/joins_test")
 
-  if test_clickhouse:
+  if test_clickhouse or logica_test.TestManager.RUN_ONLY:
     RunTest("dialects/clickhouse/shipping_funfacts_test")
+    RunTest("dialects/clickhouse/purchase_test")
 
   if test_clingo:
     from common import duckdb_logica
