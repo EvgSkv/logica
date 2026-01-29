@@ -220,25 +220,34 @@ def RunSQL(sql, engine, connection=None, is_final=False):
   elif engine == 'clickhouse':
     # ClickHouse runner uses HTTP and doesn't require a DB-API connection.
     # For the final predicate we return a DataFrame for display.
-    # For non-final statements we use FORMAT Null to minimize transfer.
+    # For non-final statements we execute raw statements (DDL-safe).
     if is_final:
-      engine_settings = dict(connection or {})
-      engine_settings['settings'] = dict(engine_settings.get('settings') or {})
-      engine_settings['settings']['output_format_json_named_tuples_as_objects'] = 1
+      try:
+        engine_settings = dict(connection or {})
+        engine_settings['settings'] = dict(engine_settings.get('settings') or {})
+        engine_settings['settings']['output_format_json_named_tuples_as_objects'] = 1
 
-      json_text = clickhouse_logica.RunQuery(
-        sql,
-        output_format='json',
-        engine_settings=engine_settings)
-      if not json_text.strip():
-        return pandas.DataFrame()
-      return pandas.read_json(io.StringIO(json_text), lines=True)
+        json_text = clickhouse_logica.RunQuery(
+          sql,
+          output_format='json',
+          engine_settings=engine_settings)
+        if not json_text.strip():
+          return pandas.DataFrame()
+        return pandas.read_json(io.StringIO(json_text), lines=True)
+      except clickhouse_logica.ClickHouseQueryError as e:
+        print("\n--- SQL ---")
+        print(sql)
+        ShowError(clickhouse_logica.FormatQueryError(e))
+        raise
     else:
-      clickhouse_logica.RunQuery(
-        sql.rstrip().rstrip(';') + ' FORMAT Null',
-        output_format='csv',
-        engine_settings=connection)
-      return None
+      try:
+        clickhouse_logica.RunStatement(sql, engine_settings=connection)
+        return None
+      except clickhouse_logica.ClickHouseQueryError as e:
+        print("\n--- SQL ---")
+        print(sql)
+        ShowError(clickhouse_logica.FormatQueryError(e))
+        raise
   else:
     raise Exception('Unsupported engine: %s' % engine)
 

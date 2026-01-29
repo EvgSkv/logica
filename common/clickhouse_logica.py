@@ -47,7 +47,7 @@ else:
   from ..common import color
 
 
-_FORMAT_RE = re.compile(r"\bFORMAT\b", re.IGNORECASE)
+FORMAT_RE = re.compile(r"\bFORMAT\b", re.IGNORECASE)
 
 
 class ClickHouseQueryError(RuntimeError):
@@ -63,17 +63,24 @@ class ClickHouseCliError(RuntimeError):
   pass
 
 
-def _FormatCliError(e: ClickHouseQueryError) -> str:
+def FormatCliError(e: ClickHouseQueryError) -> str:
   details = ''
   if getattr(e, 'status', None) is not None:
     details += f'HTTP {e.status}. '
   body = getattr(e, 'body', None)
   if body:
     details += body.strip()
+    if ('Multi-statements are not allowed' in body or
+        ('Syntax error' in body and '-- Interacting with table' in body)):
+      details += '\nTip: use `logica.py ... run_in_terminal ...` (Concertina) for @Ground/multi-step programs.'
   else:
     details += str(e)
   return color.Format('[ {error}Error{end} ] ClickHouse query failed: {msg}',
                       {'msg': details})
+
+
+def FormatQueryError(e: ClickHouseQueryError) -> str:
+  return FormatCliError(e)
 
 
 def RunQueryCli(sql, *, output_format='pretty', engine_settings=None) -> bytes:
@@ -86,24 +93,24 @@ def RunQueryCli(sql, *, output_format='pretty', engine_settings=None) -> bytes:
     return RunQuery(sql, output_format=output_format,
                     engine_settings=engine_settings).encode()
   except ClickHouseQueryError as e:
-    raise ClickHouseCliError(_FormatCliError(e))
+    raise ClickHouseCliError(FormatCliError(e))
 
 
-def _coalesce(first, second):
+def Coalesce(first, second):
   return first if first is not None else second
 
 
 def GetConnectionSettings(engine_settings=None):
   engine_settings = engine_settings or {}
-  host = _coalesce(engine_settings.get('host'), os.environ.get('LOGICA_CLICKHOUSE_HOST')) or '127.0.0.1'
-  port = int(_coalesce(engine_settings.get('port'), os.environ.get('LOGICA_CLICKHOUSE_PORT')) or 8123)
-  user = _coalesce(engine_settings.get('user'), os.environ.get('LOGICA_CLICKHOUSE_USER')) or 'default'
-  password = _coalesce(engine_settings.get('password'), os.environ.get('LOGICA_CLICKHOUSE_PASSWORD'))
+  host = Coalesce(engine_settings.get('host'), os.environ.get('LOGICA_CLICKHOUSE_HOST')) or '127.0.0.1'
+  port = int(Coalesce(engine_settings.get('port'), os.environ.get('LOGICA_CLICKHOUSE_PORT')) or 8123)
+  user = Coalesce(engine_settings.get('user'), os.environ.get('LOGICA_CLICKHOUSE_USER')) or 'default'
+  password = Coalesce(engine_settings.get('password'), os.environ.get('LOGICA_CLICKHOUSE_PASSWORD'))
   if password is None:
     # Default ClickHouse setups typically have an empty password for user
     # 'default'. Users can override via @Engine(..., password: ...) or env var.
     password = ''
-  database = _coalesce(engine_settings.get('database'), os.environ.get('LOGICA_CLICKHOUSE_DATABASE')) or 'default'
+  database = Coalesce(engine_settings.get('database'), os.environ.get('LOGICA_CLICKHOUSE_DATABASE')) or 'default'
   query_settings = engine_settings.get('settings') or {}
   if query_settings is None:
     query_settings = {}
@@ -119,11 +126,60 @@ def GetConnectionSettings(engine_settings=None):
   }
 
 
-def _http_query(sql, *, settings, fmt):
-  # Use a named format so we can parse results.
-  if not _FORMAT_RE.search(sql):
-    sql = sql.rstrip().rstrip(';') + f' FORMAT {fmt}'
+class Connection(object):
+  def __init__(self, engine_settings=None):
+    self.settings = GetConnectionSettings(engine_settings)
 
+  def RunStatement(self, sql):
+    return HttpRequest(sql, settings=self.settings)
+
+  def RunQueryHeaderRows(self, sql):
+    body = HttpQuery(sql, settings=self.settings, fmt='TabSeparatedWithNames')
+    if not body.strip():
+      return [], []
+    reader = csv.reader(io.StringIO(body), delimiter='\t')
+    try:
+      header = next(reader)
+    except StopIteration:
+      return [], []
+    rows = [row for row in reader]
+    return header, rows
+
+  def RunQuery(self, sql, output_format='pretty'):
+    if output_format == 'csv':
+      return HttpQuery(sql, settings=self.settings, fmt='CSVWithNames')
+    if output_format == 'json':
+      return HttpQuery(sql, settings=self.settings, fmt='JSONEachRow')
+    (header, rows) = self.RunQueryHeaderRows(sql)
+    if not header and not rows:
+      return ''
+    return sqlite3_logica.ArtisticTable(header, rows)
+
+
+def Connect(engine_settings=None):
+  return Connection(engine_settings)
+
+
+def ClickHouseConnect(logic_program_or_engine_settings=None):
+  """Compatibility helper mirroring sqlite3_logica.SqliteConnect().
+
+  By default connects to localhost ClickHouse with user 'default' and empty
+  password (can be overridden by env vars or @Engine("clickhouse", ...) settings).
+  """
+  engine_settings = None
+  if isinstance(logic_program_or_engine_settings, dict) or logic_program_or_engine_settings is None:
+    engine_settings = logic_program_or_engine_settings
+  else:
+    # Treat as LogicaProgram-like object.
+    try:
+      annotations = logic_program_or_engine_settings.annotations.annotations
+      engine_settings = annotations.get('@Engine', {}).get('clickhouse')
+    except Exception:
+      engine_settings = None
+  return Connection(engine_settings)
+
+
+def HttpRequest(sql, *, settings):
   # Use POST to avoid URL length limits (compiled SQL can be large).
   params = {'database': settings['database']}
   for k, v in (settings.get('settings') or {}).items():
@@ -167,26 +223,47 @@ def _http_query(sql, *, settings, fmt):
     )
 
 
-def RunQuery(sql, output_format='pretty', engine_settings=None):
-  """Run a query on ClickHouse and return formatted output as a string."""
+def HttpQuery(sql, *, settings, fmt=None):
+  # Append a FORMAT clause only when requested (DDL doesn't accept FORMAT).
+  if fmt and not FORMAT_RE.search(sql):
+    sql = sql.rstrip().rstrip(';') + f' FORMAT {fmt}'
+  return HttpRequest(sql, settings=settings)
+
+
+def RunStatement(sql, *, engine_settings=None):
+  """Execute a statement and return the raw response body."""
   settings = GetConnectionSettings(engine_settings)
+  return HttpRequest(sql, settings=settings)
 
-  if output_format == 'csv':
-    return _http_query(sql, settings=settings, fmt='CSVWithNames')
 
-  if output_format == 'json':
-    return _http_query(sql, settings=settings, fmt='JSONEachRow')
-
-  # pretty / artistictable
-  body = _http_query(sql, settings=settings, fmt='TabSeparatedWithNames')
+def RunQueryHeaderRows(sql, *, engine_settings=None):
+  """Run a query and return (header, rows) for Concertina runners."""
+  settings = GetConnectionSettings(engine_settings)
+  body = HttpQuery(sql, settings=settings, fmt='TabSeparatedWithNames')
   if not body.strip():
-    return ''
+    return [], []
 
   reader = csv.reader(io.StringIO(body), delimiter='\t')
   try:
     header = next(reader)
   except StopIteration:
-    return ''
-
+    return [], []
   rows = [row for row in reader]
+  return header, rows
+
+
+def RunQuery(sql, output_format='pretty', engine_settings=None):
+  """Run a query on ClickHouse and return formatted output as a string."""
+  settings = GetConnectionSettings(engine_settings)
+
+  if output_format == 'csv':
+    return HttpQuery(sql, settings=settings, fmt='CSVWithNames')
+
+  if output_format == 'json':
+    return HttpQuery(sql, settings=settings, fmt='JSONEachRow')
+
+  # pretty / artistictable
+  (header, rows) = RunQueryHeaderRows(sql, engine_settings=engine_settings)
+  if not header and not rows:
+    return ''
   return sqlite3_logica.ArtisticTable(header, rows)

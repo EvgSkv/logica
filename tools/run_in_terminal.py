@@ -27,6 +27,7 @@ if not __package__ or '.' not in __package__:
   from common import psql_logica
   from common import sqlite3_logica
   from common import duckdb_logica
+  from common import clickhouse_logica
   from compiler import functors
   from compiler import rule_translate
   from type_inference.research import infer
@@ -37,6 +38,7 @@ else:
   from ..common import psql_logica
   from ..common import sqlite3_logica
   from ..common import duckdb_logica
+  from ..common import clickhouse_logica
   from ..compiler import functors
   from ..compiler import rule_translate
   from ..type_inference.research import infer
@@ -45,7 +47,7 @@ else:
 class SqlRunner(object):
   def __init__(self, engine, logic_program=None):
     self.engine = engine
-    assert engine in ['sqlite', 'bigquery', 'psql', 'duckdb']
+    assert engine in ['sqlite', 'bigquery', 'psql', 'duckdb', 'clickhouse']
     if engine == 'sqlite':
       self.connection = sqlite3_logica.SqliteConnect()
     else:
@@ -63,6 +65,8 @@ class SqlRunner(object):
       self.connection = psql_logica.ConnectToPostgres('environment')
     if engine == 'duckdb':
       self.connection = duckdb_logica.GetConnection(logic_program)
+    if engine == 'clickhouse':
+      self.connection = clickhouse_logica.ClickHouseConnect(logic_program)
     self.bq_credentials = credentials
     self.bq_project = project
   
@@ -113,6 +117,11 @@ def RunSQL(sql, engine, connection=None, is_final=False,
       return cur.columns, cur.fetchall()
     else:
       connection.sql(sql)
+  elif engine == 'clickhouse':
+    if is_final:
+      return connection.RunQueryHeaderRows(sql)
+    else:
+      connection.RunStatement(sql)
     
   else:
     raise Exception('Logica only supports BigQuery, PostgreSQL and SQLite '
