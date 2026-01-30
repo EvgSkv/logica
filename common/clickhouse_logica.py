@@ -21,7 +21,7 @@ Connection parameters can be provided either via @Engine("clickhouse", ...)
 settings or via environment variables.
 
 Environment variables:
-  LOGICA_CLICKHOUSE_HOST (default: 127.0.0.1)
+  LOGICA_CLICKHOUSE_HOST (default: 127.0.0.1; may include http:// or https://)
   LOGICA_CLICKHOUSE_PORT (default: 8123)
   LOGICA_CLICKHOUSE_USER (default: default)
   LOGICA_CLICKHOUSE_PASSWORD (default: "")
@@ -186,7 +186,18 @@ def HttpRequest(sql, *, settings):
     if v is None:
       continue
     params[str(k)] = str(v)
-  url = f"http://{settings['host']}:{settings['port']}/?" + urllib.parse.urlencode(params)
+  host = str(settings['host'])
+  port = int(settings['port'])
+  scheme = 'http'
+  if '://' in host:
+    parsed = urllib.parse.urlparse(host)
+    scheme = parsed.scheme or scheme
+    host = parsed.hostname or host
+    port = int(parsed.port or (443 if scheme == 'https' else port))
+
+  base_url = f'{scheme}://{host}:{port}'
+
+  url = base_url.rstrip('/') + '/?' + urllib.parse.urlencode(params)
   req = urllib.request.Request(
       url,
       data=(sql + "\n").encode('utf-8'),
