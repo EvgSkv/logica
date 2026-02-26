@@ -71,6 +71,7 @@ def RunAll(test_presto=False, test_trino=False, test_clingo=True, test_clickhous
 
   if test_clingo:
     from common import duckdb_logica
+    RunTest('clingo_recursive_test')
     RunTest('clingo_sum_test')
     RunTest('duckdb_clingo')
     RunTest('clingo_basic_test')
