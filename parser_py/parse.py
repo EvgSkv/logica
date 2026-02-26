@@ -1771,14 +1771,14 @@ def AnnotationsFromDenotations(rule):
 
 
 def ParseFile(s, this_file_name=None, parsed_imports=None, import_chain=None,
-              import_root=None, exception_thrower=ParsingException):
+              import_root=None):
   """Parsing logica.Logica."""
   if logica_parse_cpp.UseCppParser():
     return logica_parse_cpp.ParseFile(
         s,
         import_root=import_root,
         this_file_name=this_file_name or 'main',
-        exception_thrower=exception_thrower)
+        exception_thrower=ParsingException)
 
   if (this_file_name or 'main') == 'main':
     # Enable experimental features if requested.
