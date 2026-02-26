@@ -2288,7 +2288,9 @@ static std::vector<std::string> SplitLogicapath(const char* lp) {
     size_t pos = s.find(':', start);
     if (pos == std::string::npos) pos = s.size();
     std::string part = s.substr(start, pos - start);
-    if (!part.empty()) roots.push_back(part);
+    // Preserve empty segments: in PATH-like variables (and in python's
+    // LOGICAPATH parsing), an empty entry means "current directory".
+    roots.push_back(part);
     start = pos + 1;
   }
   return roots;
@@ -2413,7 +2415,8 @@ int main(int argc, char** argv) {
         size_t pos = s.find(':', start);
         if (pos == std::string::npos) pos = s.size();
         std::string part = s.substr(start, pos - start);
-        if (!part.empty()) import_root.push_back(part);
+        // Preserve empty segments (see SplitLogicapath).
+        import_root.push_back(part);
         start = pos + 1;
       }
     }
