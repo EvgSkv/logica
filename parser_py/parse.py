@@ -31,8 +31,10 @@ from typing import Dict, Iterator, List, Optional, Tuple
 
 if '.' not in __package__:
   from common import color
+  from parser_cpp import logica_parse_cpp
 else:
   from ..common import color
+  from ..parser_cpp import logica_parse_cpp
 
 CLOSE_TO_OPEN = {
     ')': '(',
@@ -1769,8 +1771,15 @@ def AnnotationsFromDenotations(rule):
 
 
 def ParseFile(s, this_file_name=None, parsed_imports=None, import_chain=None,
-              import_root=None):
+              import_root=None, exception_thrower=ParsingException):
   """Parsing logica.Logica."""
+  if logica_parse_cpp.UseCppParser():
+    return logica_parse_cpp.ParseFile(
+        s,
+        import_root=import_root,
+        this_file_name=this_file_name or 'main',
+        exception_thrower=exception_thrower)
+
   if (this_file_name or 'main') == 'main':
     # Enable experimental features if requested.
     EnactIncantations(s)
