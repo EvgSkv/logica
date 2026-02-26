@@ -278,7 +278,7 @@ def _LogicapathFromImportRoot(import_root) -> Optional[str]:
   if isinstance(import_root, str):
     return import_root
   if isinstance(import_root, (list, tuple)):
-    return ':'.join([str(x) for x in import_root if x])
+    return ':'.join([str(x) for x in import_root])
   raise TypeError('Unexpected import_root type: %r' % (type(import_root),))
 
 
