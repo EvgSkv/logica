@@ -41,6 +41,53 @@ _PARSE_MOD = None
 _LIB: Optional[ctypes.CDLL] = None
 
 
+_KEY_ORDER_PRIORITY = {
+    # High-level rule structure.
+    'head': 0,
+    'body': 1,
+    'full_text': 99,
+
+    # Common predicate/call shapes.
+    'predicate_name': 0,
+    'record': 1,
+    'field_value': 0,
+    'field': 0,
+    'value': 1,
+
+    # Expressions.
+    'expression': 0,
+    'literal': 1,
+    'variable': 2,
+    'predicate': 3,
+
+    # Bodies.
+    'conjunction': 0,
+    'conjunct': 1,
+}
+
+
+def _NormalizeKeyOrder(node):
+  """Recursively normalizes dict insertion order for downstream determinism.
+
+  The C++ parser produces JSON objects backed by `std::map`, so keys are
+  serialized in lexicographic order. The Python parser creates dicts with
+  a more semantic insertion order (e.g. head, body, full_text).
+
+  Some downstream code (notably type inference) walks dicts in insertion order,
+  which can affect outcomes like assigned `type_id`s.
+
+  This function rebuilds dictionaries to approximate the Python parser's key
+  order while preserving values exactly.
+  """
+  if isinstance(node, list):
+    return [_NormalizeKeyOrder(x) for x in node]
+  if isinstance(node, dict):
+    items = list(node.items())
+    items.sort(key=lambda kv: (_KEY_ORDER_PRIORITY.get(kv[0], 50), kv[0]))
+    return {k: _NormalizeKeyOrder(v) for k, v in items}
+  return node
+
+
 def _GetParseModule():
   global _PARSE_MOD
   if _PARSE_MOD is not None:
@@ -267,7 +314,7 @@ def ParseRules(program_text: str,
   if rc != 0:
     raise _CppParsingExceptionClass(exception_thrower)(err)
   try:
-    return json.loads(out)
+    return _NormalizeKeyOrder(json.loads(out))
   except Exception as e:
     raise RuntimeError('Failed to json-parse C++ parser output: %s' % e) from e
 
@@ -302,6 +349,6 @@ def ParseFile(program_text: str,
   if rc != 0:
     raise _CppParsingExceptionClass(exception_thrower)(err)
   try:
-    return json.loads(out)
+    return _NormalizeKeyOrder(json.loads(out))
   except Exception as e:
     raise RuntimeError('Failed to json-parse C++ parser output: %s' % e) from e
