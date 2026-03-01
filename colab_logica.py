@@ -551,3 +551,11 @@ colab_logica.SetDbConnection(connection)
   print('Installation succeeded. Connecting...')
   # Connect to the database.
   ConnectToLocalPostgres()
+
+
+def UseCppParser():
+  os.environ['LOGICA_PARSER'] = 'CPP'
+  from .parser_cpp import logica_parse_cpp  # type: ignore
+  so_path = logica_parse_cpp.EnsureCppParserSharedObject()
+  logica_parse_cpp.LoadCppParserLib()
+  return so_path
