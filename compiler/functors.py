@@ -562,6 +562,10 @@ class Functors(object):
     new_rules = copy.deepcopy(self.rules)
     for p, style in should_recurse.items():
       depth = depth_map.get(p, {}).get('1', default_depth)
+      if not depth:
+        # Do not unfold recursion. This is used e.g. in Clingo
+        # predicates.
+        continue
       if style == 'vertical':
         self.UnfoldRecursivePredicate(p, my_cover[p], depth, new_rules)
       elif style == 'horizontal' or style == 'iterative_horizontal':

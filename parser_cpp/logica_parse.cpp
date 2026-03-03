@@ -414,40 +414,6 @@ static SpanString SpanFromJson(const Json& j) {
   return SpanString(SpanTextFromJson(j));
 }
 
-static void ConvertSpanOffsetsToChar(Json& node) {
-  if (!g_heritage_pool) return;
-  if (node.is_array()) {
-    auto& a = node.as_array();
-    // Span encoding: ["__hs", idx, start, stop]
-    if (a.size() == 4 && a[0].is_string() && a[0].as_string() == "__hs") {
-      const int64_t idx = a[1].as_int();
-      const int64_t start_b = a[2].as_int();
-      const int64_t stop_b = a[3].as_int();
-      a[2] = Json(g_heritage_pool->ByteOffsetToCharOffset(idx, start_b));
-      a[3] = Json(g_heritage_pool->ByteOffsetToCharOffset(idx, stop_b));
-      return;
-    }
-    for (auto& v : a) ConvertSpanOffsetsToChar(v);
-    return;
-  }
-  if (!node.is_object()) return;
-  auto& o = node.as_object();
-  const bool is_span = o.count("__hs") && o.count("start") && o.count("stop") && o.size() <= 3;
-  if (is_span) {
-    const int64_t idx = o.at("__hs").as_int();
-    const int64_t start_b = o.at("start").as_int();
-    const int64_t stop_b = o.at("stop").as_int();
-    const int64_t start_c = g_heritage_pool->ByteOffsetToCharOffset(idx, start_b);
-    const int64_t stop_c = g_heritage_pool->ByteOffsetToCharOffset(idx, stop_b);
-    o["start"] = Json(start_c);
-    o["stop"] = Json(stop_c);
-    return;
-  }
-  for (auto& kv : o) {
-    ConvertSpanOffsetsToChar(kv.second);
-  }
-}
-
 // ------------------------------
 // Parsing exception.
 // ------------------------------
