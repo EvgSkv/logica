@@ -40,52 +40,260 @@ _PARSE_MOD = None
 
 _LIB: Optional[ctypes.CDLL] = None
 
-
-_KEY_ORDER_PRIORITY = {
-    # High-level rule structure.
-    'head': 0,
-    'body': 1,
-    'full_text': 99,
-
-    # Common predicate/call shapes.
-    'predicate_name': 0,
-    'record': 1,
-    'field_value': 0,
-    'field': 0,
-    'value': 1,
-
-    # Expressions.
-    'expression': 0,
-    'literal': 1,
-    'variable': 2,
-    'predicate': 3,
-
-    # Bodies.
-    'conjunction': 0,
-    'conjunct': 1,
-}
+# NOTE: This bridge always prefers the pooled-heritage C++ ABI when present.
+# The previous env toggles were removed to prevent accidental benchmarking or
+# correctness testing of the wrong mode.
 
 
-def _NormalizeKeyOrder(node):
-  """Recursively normalizes dict insertion order for downstream determinism.
+def _WrapHeritageAwareStrings(node, heritage_root=None, _match_state=None):
+  """Rehydrates heritage-aware strings for parity with the Python parser.
 
-  The C++ parser produces JSON objects backed by `std::map`, so keys are
-  serialized in lexicographic order. The Python parser creates dicts with
-  a more semantic insertion order (e.g. head, body, full_text).
+  The Python parser uses `parser_py.parse.HeritageAwareString` for fields like
+  `expression_heritage` (and `full_text`) so error reporting/type inference can
+  call `.Display()` and highlight the relevant span within the *full* statement.
 
-  Some downstream code (notably type inference) walks dicts in insertion order,
-  which can affect outcomes like assigned `type_id`s.
+  The C++ parser serializes these fields as plain JSON strings. We can't always
+  reconstruct exact spans (ambiguity, whitespace normalization, repeated
+  substrings), but we can do a best-effort rehydration:
 
-  This function rebuilds dictionaries to approximate the Python parser's key
-  order while preserving values exactly.
+  - Always wrap `full_text` into `HeritageAwareString`.
+  - Wrap `expression_heritage` into `HeritageAwareString`.
+  - If a surrounding `full_text` exists, try to locate `expression_heritage`
+    within it and set `.start/.stop/.heritage` accordingly.
+
+  This keeps downstream code working and typically restores meaningful context
+  in `.Display()`.
   """
+  if _match_state is None:
+    # Tracks matching progress for repeated substrings within the same
+    # `full_text` heritage. Keyed by (root_id, substring).
+    _match_state = {}
+
   if isinstance(node, list):
-    return [_NormalizeKeyOrder(x) for x in node]
+    return [_WrapHeritageAwareStrings(x, heritage_root, _match_state) for x in node]
+
   if isinstance(node, dict):
-    items = list(node.items())
-    items.sort(key=lambda kv: (_KEY_ORDER_PRIORITY.get(kv[0], 50), kv[0]))
-    return {k: _NormalizeKeyOrder(v) for k, v in items}
+    parse_mod = _GetParseModule()
+    HeritageAwareString = getattr(parse_mod, 'HeritageAwareString', str)
+
+    def _needs_alignment(x) -> bool:
+      if not isinstance(x, HeritageAwareString):
+        return True
+      try:
+        text = str(x)
+        return (
+            getattr(x, 'heritage', text) == text and
+            getattr(x, 'start', 0) == 0 and
+            getattr(x, 'stop', len(text)) == len(text)
+        )
+      except Exception:  # pylint: disable=broad-exception-caught
+        return True
+
+    local_root = heritage_root
+    if 'full_text' in node and isinstance(node.get('full_text'), str):
+      full_text_value = node.get('full_text')
+      if not isinstance(full_text_value, HeritageAwareString):
+        full_text_value = HeritageAwareString(full_text_value)
+      local_root = full_text_value
+
+    result = {}
+    for key, value in node.items():
+      if key == 'full_text' and local_root is not None:
+        result[key] = local_root
+        continue
+
+      if key == 'expression_heritage' and isinstance(value, str):
+        # If expression_heritage is exactly the same text as the surrounding
+        # full_text, reuse the same HeritageAwareString instance. This avoids
+        # retaining multiple copies of large rule texts that JSON decoding would
+        # otherwise duplicate.
+        if local_root is not None and str(value) == str(local_root):
+          result[key] = local_root
+          continue
+
+        expr_value = value
+        if not isinstance(expr_value, HeritageAwareString):
+          expr_value = HeritageAwareString(expr_value)
+
+        if local_root is not None and _needs_alignment(expr_value):
+          heritage_text = getattr(local_root, 'heritage', str(local_root))
+          substring = str(expr_value)
+          root_id = id(local_root)
+          start_from = _match_state.get((root_id, substring), 0)
+          idx = str(heritage_text).find(substring, start_from)
+          if idx == -1 and start_from:
+            # Fallback if traversal order doesn't align with textual order.
+            idx = str(heritage_text).find(substring)
+          if idx != -1:
+            expr_value.heritage = heritage_text
+            expr_value.start = idx
+            expr_value.stop = idx + len(substring)
+            _match_state[(root_id, substring)] = idx + len(substring)
+
+        result[key] = expr_value
+        continue
+
+      result[key] = _WrapHeritageAwareStrings(value, local_root, _match_state)
+    return result
+
   return node
+
+
+def _DecodePooledHeritageOutput(node):
+  """Decodes pooled-heritage JSON output from the C++ parser.
+
+  When available, the C++ shared library can emit a wrapper JSON object:
+    {"__string_table": [...], "tree": ...}
+
+  In the tree, spans are represented as:
+    ["__hs", <idx>, <start_byte>, <stop_byte>]
+
+  (Legacy format is also accepted for forward/backward compatibility:
+    {"__hs": <idx>, "start": <start_byte>, "stop": <stop_byte>})
+
+  This function reconstructs `parser_py.parse.HeritageAwareString` objects so
+  downstream code sees the same types as the Python parser.
+  """
+  if not (isinstance(node, dict) and '__string_table' in node and 'tree' in node):
+    return node
+
+  string_table = node.get('__string_table')
+  tree = node.get('tree')
+  if not isinstance(string_table, list):
+    return tree
+
+  parse_mod = _GetParseModule()
+  HeritageAwareString = getattr(parse_mod, 'HeritageAwareString', str)
+
+  table_len = len(string_table)
+
+  # Cache: idx -> bool (isascii). Built lazily.
+  ascii_flags = [None] * table_len
+
+  # Cache: idx -> (utf8_byte_len, byte_offset->char_offset mapping)
+  # Built lazily only for non-ascii strings.
+  byte_to_char_map = [None] * table_len
+
+  # Cache: (idx, start_off, stop_off) -> HeritageAwareString
+  span_cache = {}
+
+  def is_ascii(idx: int, heritage: str) -> bool:
+    v = ascii_flags[idx]
+    if v is None:
+      v = heritage.isascii()
+      ascii_flags[idx] = v
+    return bool(v)
+
+  def get_map(idx: int, heritage: str):
+    cached = byte_to_char_map[idx]
+    if cached is not None:
+      return cached
+    b = heritage.encode('utf-8')
+    mapping = [0] * (len(b) + 1)
+    chars = 0
+    for i, byt in enumerate(b):
+      # UTF-8 continuation bytes are 10xxxxxx.
+      if (byt & 0xC0) != 0x80:
+        chars += 1
+      mapping[i + 1] = chars
+    cached = (len(b), mapping)
+    byte_to_char_map[idx] = cached
+    return cached
+
+  def decode_span(idx: int, start_b: int, stop_b: int):
+    if idx < 0 or idx >= table_len:
+      return None
+    heritage = string_table[idx]
+    if not isinstance(heritage, str):
+      return None
+    if start_b < 0:
+      start_b = 0
+    if stop_b < start_b:
+      stop_b = start_b
+
+    cache_key = (idx, start_b, stop_b)
+    cached = span_cache.get(cache_key)
+    if cached is not None:
+      return cached
+
+    if is_ascii(idx, heritage):
+      start_c = min(start_b, len(heritage))
+      stop_c = min(stop_b, len(heritage))
+    else:
+      blen, mapping = get_map(idx, heritage)
+      if start_b > blen:
+        start_b = blen
+      if stop_b > blen:
+        stop_b = blen
+      start_c = mapping[start_b]
+      stop_c = mapping[stop_b]
+
+    text = heritage[start_c:stop_c]
+    hs = HeritageAwareString(text)
+    try:
+      hs.heritage = heritage
+      hs.start = start_c
+      hs.stop = stop_c
+    except Exception:  # pylint: disable=broad-exception-caught
+      pass
+    span_cache[cache_key] = hs
+    return hs
+
+  def decode_known_key_span(value):
+    # New compact encoding: [idx, start_b, stop_b].
+    if isinstance(value, list) and len(value) == 3:
+      idx, start_b, stop_b = value
+      if isinstance(idx, int) and isinstance(start_b, int) and isinstance(stop_b, int):
+        hs = decode_span(idx, start_b, stop_b)
+        if hs is not None:
+          return hs
+    # Legacy v1 encoding: ["__hs", idx, start_b, stop_b].
+    if isinstance(value, list) and len(value) == 4 and value and value[0] == '__hs':
+      idx = value[1]
+      start_b = value[2]
+      stop_b = value[3]
+      if isinstance(idx, int) and isinstance(start_b, int) and isinstance(stop_b, int):
+        hs = decode_span(idx, start_b, stop_b)
+        if hs is not None:
+          return hs
+    # Legacy dict encoding: {"__hs": idx, "start": b, "stop": b}
+    if isinstance(value, dict) and len(value) == 3 and '__hs' in value and 'start' in value and 'stop' in value:
+      idx = value.get('__hs')
+      start_b = value.get('start')
+      stop_b = value.get('stop')
+      if isinstance(idx, int) and isinstance(start_b, int) and isinstance(stop_b, int):
+        hs = decode_span(idx, start_b, stop_b)
+        if hs is not None:
+          return hs
+    return value
+
+  def decode(x):
+    # Mutate containers in-place to avoid allocating a fresh list/dict for every
+    # node; the JSON tree returned by json.loads is not shared.
+    if isinstance(x, list):
+      for i, v in enumerate(x):
+        if isinstance(v, (list, dict)):
+          x[i] = decode(v)
+      return x
+
+    if isinstance(x, dict):
+      # Decode spans only under known keys to avoid misinterpreting ordinary
+      # numeric lists elsewhere in the AST.
+      if 'full_text' in x:
+        x['full_text'] = decode_known_key_span(x.get('full_text'))
+      if 'expression_heritage' in x:
+        x['expression_heritage'] = decode_known_key_span(x.get('expression_heritage'))
+
+      for k, v in x.items():
+        if k in ('full_text', 'expression_heritage'):
+          continue
+        if isinstance(v, (list, dict)):
+          x[k] = decode(v)
+      return x
+
+    return x
+
+  return decode(tree)
 
 
 def _GetParseModule():
@@ -260,6 +468,18 @@ def LoadCppParserLib(repo_root: Optional[str] = None) -> ctypes.CDLL:
   ]
   lib.logica_cpp_parse_rules_json.restype = ctypes.c_int
 
+  pooled = getattr(lib, 'logica_cpp_parse_rules_json_pooled', None)
+  if pooled is not None:
+    pooled.argtypes = [
+        ctypes.c_char_p,  # program_text
+        ctypes.c_char_p,  # file_name
+        ctypes.c_char_p,  # logicapath (colon-separated)
+        ctypes.c_int,     # full
+        ctypes.POINTER(ctypes.c_void_p),
+        ctypes.POINTER(ctypes.c_void_p),
+    ]
+    pooled.restype = ctypes.c_int
+
   lib.logica_cpp_free.argtypes = [ctypes.c_void_p]
   lib.logica_cpp_free.restype = None
 
@@ -276,7 +496,16 @@ def ParseRulesJsonNative(program_text: str,
   out_ptr = ctypes.c_void_p()
   err_ptr = ctypes.c_void_p()
 
-  rc = lib.logica_cpp_parse_rules_json(
+  # Pooled heritage ABI is the only supported mode for the C++ parser bridge.
+  # If the symbol is missing, we likely loaded a stale/older shared library.
+  fn = getattr(lib, 'logica_cpp_parse_rules_json_pooled', None)
+  if fn is None:
+    raise RuntimeError(
+        'C++ parser shared library does not export logica_cpp_parse_rules_json_pooled. '
+        'This likely means a stale/older liblogica_parse_cpp.so is being used. '
+        'Try deleting the cache dir and re-running to rebuild.'
+    )
+  rc = fn(
       program_text.encode('utf-8'),
       file_name.encode('utf-8'),
       logicapath.encode('utf-8') if logicapath else None,
@@ -314,7 +543,12 @@ def ParseRules(program_text: str,
   if rc != 0:
     raise _CppParsingExceptionClass(exception_thrower)(err)
   try:
-    return _NormalizeKeyOrder(json.loads(out))
+    loaded = json.loads(out)
+    pooled = isinstance(loaded, dict) and '__string_table' in loaded and 'tree' in loaded
+    loaded = _DecodePooledHeritageOutput(loaded)
+    if pooled:
+      return loaded
+    return _WrapHeritageAwareStrings(loaded)
   except Exception as e:
     raise RuntimeError('Failed to json-parse C++ parser output: %s' % e) from e
 
@@ -349,6 +583,11 @@ def ParseFile(program_text: str,
   if rc != 0:
     raise _CppParsingExceptionClass(exception_thrower)(err)
   try:
-    return _NormalizeKeyOrder(json.loads(out))
+    loaded = json.loads(out)
+    pooled = isinstance(loaded, dict) and '__string_table' in loaded and 'tree' in loaded
+    loaded = _DecodePooledHeritageOutput(loaded)
+    if pooled:
+      return loaded
+    return _WrapHeritageAwareStrings(loaded)
   except Exception as e:
     raise RuntimeError('Failed to json-parse C++ parser output: %s' % e) from e

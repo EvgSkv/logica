@@ -16,7 +16,7 @@
 Data() = Join(['{"a": 1, "b": [1,2]', ' "c": {"d": "A", "e": [1,2,3]}}'], ",");
 Data() = '{"a": 2, "b": [3,4], "c": {"d": "B", "e": [4,5,6]}}';
 
-Test(a: record.a, e_element: x, record:) order_by("record") :-
+Test(a: record.a, e_element: x, record:) order_by("record", "e_element") :-
   d = Data(),
   record = Cast(d, {a: Num, b: [Num], c: {d: Str, e: [Num]}}),
   x in record.c.e;
