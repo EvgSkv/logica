@@ -47,6 +47,7 @@
 #include <variant>
 #include <vector>
 #include <cstring>
+#include <unordered_map>
 
 namespace logica::parser {
 
@@ -55,6 +56,7 @@ namespace logica::parser {
 // ------------------------------
 
 struct Json;
+
 using JsonObject = std::map<std::string, Json>;
 using JsonArray = std::vector<Json>;
 
@@ -110,6 +112,35 @@ struct Json {
     return out;
   }
 
+  // Match the Python parser's dict insertion order for key traversal.
+  // This matters because some downstream code walks dicts in insertion order
+  // (e.g. type inference assigns stable-but-order-dependent type_id values).
+  static int KeyPriority(std::string_view k) {
+    // High-level rule structure.
+    if (k == "head") return 0;
+    if (k == "body") return 1;
+    if (k == "full_text") return 99;
+
+    // Common predicate/call shapes.
+    if (k == "predicate_name") return 0;
+    if (k == "record") return 1;
+    if (k == "field_value") return 0;
+    if (k == "field") return 0;
+    if (k == "value") return 1;
+
+    // Expressions.
+    if (k == "expression") return 0;
+    if (k == "literal") return 1;
+    if (k == "variable") return 2;
+    if (k == "predicate") return 3;
+
+    // Bodies.
+    if (k == "conjunction") return 0;
+    if (k == "conjunct") return 1;
+
+    return 50;
+  }
+
   void Dump(std::ostream& os, bool pretty, int indent, int depth) const {
     const auto pad = [&](int d) {
       if (!pretty) return;
@@ -143,13 +174,25 @@ struct Json {
       os << '{';
       if (!o.empty()) {
         if (pretty) os << '\n';
-        size_t i = 0;
-        for (const auto& [k, val] : o) {
+        // Iterate keys in a stable Python-like order.
+        std::vector<const std::pair<const std::string, Json>*> items;
+        items.reserve(o.size());
+        for (const auto& kv : o) items.push_back(&kv);
+        std::sort(items.begin(), items.end(), [](const auto* a, const auto* b) {
+          int pa = KeyPriority(a->first);
+          int pb = KeyPriority(b->first);
+          if (pa != pb) return pa < pb;
+          return a->first < b->first;
+        });
+
+        for (size_t i = 0; i < items.size(); ++i) {
+          const auto& k = items[i]->first;
+          const auto& val = items[i]->second;
           pad(depth + 1);
           os << '"' << Escape(k) << '"' << ':';
           if (pretty) os << ' ';
           val.Dump(os, pretty, indent, depth + 1);
-          if (++i < o.size()) os << ',';
+          if (i + 1 < items.size()) os << ',';
           if (pretty) os << '\n';
         }
         pad(depth);
@@ -221,6 +264,189 @@ struct SpanString {
     return {before, mid, after};
   }
 };
+
+// ------------------------------
+// Pooled heritage emission (for Python bridge).
+// ------------------------------
+
+struct HeritagePool {
+  struct Entry {
+    std::shared_ptr<std::string> bytes;
+    bool has_non_ascii = false;
+    std::vector<int64_t> byte_to_char;  // size = bytes->size() + 1, built lazily.
+  };
+
+  std::unordered_map<const std::string*, int64_t> index;
+  std::vector<Entry> heritage;
+
+  int64_t Intern(const std::shared_ptr<std::string>& h) {
+    const std::string* p = h.get();
+    auto it = index.find(p);
+    if (it != index.end()) return it->second;
+    int64_t idx = static_cast<int64_t>(heritage.size());
+    index[p] = idx;
+    Entry e;
+    e.bytes = h;
+    e.has_non_ascii = false;
+    for (unsigned char c : *h) {
+      if (c >= 0x80) { e.has_non_ascii = true; break; }
+    }
+    heritage.push_back(std::move(e));
+    return idx;
+  }
+
+  int64_t ByteOffsetToCharOffset(int64_t idx, int64_t byte_offset) {
+    if (idx < 0 || static_cast<size_t>(idx) >= heritage.size()) return 0;
+    Entry& e = heritage[static_cast<size_t>(idx)];
+    const std::string& s = *(e.bytes);
+    if (byte_offset < 0) byte_offset = 0;
+    if (static_cast<size_t>(byte_offset) > s.size()) byte_offset = static_cast<int64_t>(s.size());
+    if (!e.has_non_ascii) return byte_offset;
+    if (e.byte_to_char.empty()) {
+      e.byte_to_char.resize(s.size() + 1);
+      int64_t chars = 0;
+      e.byte_to_char[0] = 0;
+      for (size_t i = 0; i < s.size(); ++i) {
+        unsigned char c = static_cast<unsigned char>(s[i]);
+        // UTF-8 continuation bytes are 10xxxxxx.
+        if ((c & 0xC0) != 0x80) {
+          ++chars;
+        }
+        e.byte_to_char[i + 1] = chars;
+      }
+    }
+    return e.byte_to_char[static_cast<size_t>(byte_offset)];
+  }
+};
+
+static thread_local bool g_emit_pooled_heritage = false;
+static thread_local HeritagePool* g_heritage_pool = nullptr;
+
+static Json SpanRefJson(const SpanString& s) {
+  if (!g_emit_pooled_heritage || !g_heritage_pool) {
+    return Json(s.str());
+  }
+  int64_t idx = g_heritage_pool->Intern(s.heritage);
+  // Hot path: keep spans compact to reduce JSON size and Python json.loads
+  // allocations.
+  // Encoding (v2): [idx, start, stop]
+  // Legacy encoding (v1): ["__hs", idx, start, stop]
+  JsonArray a;
+  a.reserve(3);
+  a.push_back(Json(idx));
+  a.push_back(Json(static_cast<int64_t>(s.start)));
+  a.push_back(Json(static_cast<int64_t>(s.stop)));
+  return Json(a);
+}
+
+static std::string SpanTextFromJson(const Json& j) {
+  if (j.is_string()) return j.as_string();
+  if (j.is_array()) {
+    const auto& a = j.as_array();
+    // v2: [idx, start, stop]
+    if (a.size() == 3 && a[0].is_int() && g_heritage_pool) {
+      const int64_t idx = a[0].as_int();
+      int64_t start = a[1].as_int();
+      int64_t stop = a[2].as_int();
+      const auto& h = *g_heritage_pool->heritage.at(idx).bytes;
+      if (start < 0) start = 0;
+      if (stop < start) stop = start;
+      if (static_cast<size_t>(stop) > h.size()) stop = static_cast<int64_t>(h.size());
+      return h.substr(static_cast<size_t>(start), static_cast<size_t>(stop - start));
+    }
+    // v1: ["__hs", idx, start, stop]
+    if (a.size() == 4 && a[0].is_string() && a[0].as_string() == "__hs" && g_heritage_pool) {
+      const int64_t idx = a[1].as_int();
+      int64_t start = a[2].as_int();
+      int64_t stop = a[3].as_int();
+      const auto& h = *g_heritage_pool->heritage.at(idx).bytes;
+      if (start < 0) start = 0;
+      if (stop < start) stop = start;
+      if (static_cast<size_t>(stop) > h.size()) stop = static_cast<int64_t>(h.size());
+      return h.substr(static_cast<size_t>(start), static_cast<size_t>(stop - start));
+    }
+  }
+  if (j.is_object()) {
+    const auto& o = j.as_object();
+    auto it = o.find("__hs");
+    if (it != o.end() && g_heritage_pool) {
+      int64_t idx = it->second.as_int();
+      int64_t start = o.count("start") ? o.at("start").as_int() : 0;
+      int64_t stop = o.count("stop") ? o.at("stop").as_int() : static_cast<int64_t>(g_heritage_pool->heritage.at(idx).bytes->size());
+      const auto& h = *g_heritage_pool->heritage.at(idx).bytes;
+      if (start < 0) start = 0;
+      if (stop < start) stop = start;
+      if (static_cast<size_t>(stop) > h.size()) stop = static_cast<int64_t>(h.size());
+      return h.substr(static_cast<size_t>(start), static_cast<size_t>(stop - start));
+    }
+  }
+  return std::string();
+}
+
+static SpanString SpanFromJson(const Json& j) {
+  if (j.is_string()) return SpanString(j.as_string());
+  if (j.is_array()) {
+    const auto& a = j.as_array();
+    // v2: [idx, start, stop]
+    if (a.size() == 3 && a[0].is_int() && g_heritage_pool) {
+      const int64_t idx = a[0].as_int();
+      const size_t start = static_cast<size_t>(a[1].as_int());
+      const size_t stop = static_cast<size_t>(a[2].as_int());
+      return SpanString(g_heritage_pool->heritage.at(idx).bytes, start, stop);
+    }
+    // v1: ["__hs", idx, start, stop]
+    if (a.size() == 4 && a[0].is_string() && a[0].as_string() == "__hs" && g_heritage_pool) {
+      const int64_t idx = a[1].as_int();
+      const size_t start = static_cast<size_t>(a[2].as_int());
+      const size_t stop = static_cast<size_t>(a[3].as_int());
+      return SpanString(g_heritage_pool->heritage.at(idx).bytes, start, stop);
+    }
+  }
+  if (j.is_object()) {
+    const auto& o = j.as_object();
+    if (o.count("__hs") && g_heritage_pool) {
+      int64_t idx = o.at("__hs").as_int();
+      size_t start = o.count("start") ? static_cast<size_t>(o.at("start").as_int()) : 0;
+      size_t stop = o.count("stop") ? static_cast<size_t>(o.at("stop").as_int()) : g_heritage_pool->heritage.at(idx).bytes->size();
+      return SpanString(g_heritage_pool->heritage.at(idx).bytes, start, stop);
+    }
+  }
+  return SpanString(SpanTextFromJson(j));
+}
+
+static void ConvertSpanOffsetsToChar(Json& node) {
+  if (!g_heritage_pool) return;
+  if (node.is_array()) {
+    auto& a = node.as_array();
+    // Span encoding: ["__hs", idx, start, stop]
+    if (a.size() == 4 && a[0].is_string() && a[0].as_string() == "__hs") {
+      const int64_t idx = a[1].as_int();
+      const int64_t start_b = a[2].as_int();
+      const int64_t stop_b = a[3].as_int();
+      a[2] = Json(g_heritage_pool->ByteOffsetToCharOffset(idx, start_b));
+      a[3] = Json(g_heritage_pool->ByteOffsetToCharOffset(idx, stop_b));
+      return;
+    }
+    for (auto& v : a) ConvertSpanOffsetsToChar(v);
+    return;
+  }
+  if (!node.is_object()) return;
+  auto& o = node.as_object();
+  const bool is_span = o.count("__hs") && o.count("start") && o.count("stop") && o.size() <= 3;
+  if (is_span) {
+    const int64_t idx = o.at("__hs").as_int();
+    const int64_t start_b = o.at("start").as_int();
+    const int64_t stop_b = o.at("stop").as_int();
+    const int64_t start_c = g_heritage_pool->ByteOffsetToCharOffset(idx, start_b);
+    const int64_t stop_c = g_heritage_pool->ByteOffsetToCharOffset(idx, stop_b);
+    o["start"] = Json(start_c);
+    o["stop"] = Json(stop_c);
+    return;
+  }
+  for (auto& kv : o) {
+    ConvertSpanOffsetsToChar(kv.second);
+  }
+}
 
 // ------------------------------
 // Parsing exception.
@@ -953,7 +1179,7 @@ static Json ParseRecordInternals(const SpanString& in, bool is_record_literal, b
           JsonObject agg;
           agg["operator"] = Json(op.str());
           agg["argument"] = ParseExpression(expr);
-          agg["expression_heritage"] = Json(value.str());
+          agg["expression_heritage"] = SpanRefJson(value);
 
           JsonObject fv;
           fv["field"] = Json(field.str());
@@ -1107,7 +1333,7 @@ static Json BuildTreeForCombine(const Json& parsed_expression, const SpanString&
   JsonObject agg;
   agg["operator"] = Json(op.str());
   agg["argument"] = parsed_expression;
-  agg["expression_heritage"] = Json(full_text.str());
+  agg["expression_heritage"] = SpanRefJson(full_text);
 
   JsonObject agg_fv;
   agg_fv["field"] = Json("logica_value");
@@ -1120,7 +1346,7 @@ static Json BuildTreeForCombine(const Json& parsed_expression, const SpanString&
   JsonObject result;
   result["head"] = Json(head);
   result["distinct_denoted"] = Json(true);
-  result["full_text"] = Json(full_text.str());
+  result["full_text"] = SpanRefJson(full_text);
   if (parsed_body) {
     result["body"] = Json(JsonObject{{"conjunction", *parsed_body}});
   }
@@ -1205,7 +1431,7 @@ static std::optional<Json> ParseConciseCombine(const SpanString& s) {
   Json right_expr = BuildTreeForCombine(parsed_expression, op, parsed_body ? &*parsed_body : nullptr, s);
   JsonObject rhs;
   rhs["combine"] = right_expr;
-  rhs["expression_heritage"] = Json(s.str());
+  rhs["expression_heritage"] = SpanRefJson(s);
   JsonObject uni;
   uni["left_hand_side"] = left_expr;
   uni["right_hand_side"] = Json(rhs);
@@ -1306,12 +1532,12 @@ static Json NegationTree(const SpanString& s, const Json& negated_proposition) {
   JsonObject combine;
   combine["body"] = negated_proposition;
   combine["distinct_denoted"] = Json(true);
-  combine["full_text"] = Json(s.str());
+  combine["full_text"] = SpanRefJson(s);
 
   JsonObject agg;
   agg["operator"] = Json("Min");
   agg["argument"] = number_one;
-  agg["expression_heritage"] = Json(s.str());
+  agg["expression_heritage"] = SpanRefJson(s);
   JsonObject fv;
   fv["field"] = Json("logica_value");
   fv["value"] = Json(JsonObject{{"aggregation", Json(agg)}});
@@ -1510,7 +1736,7 @@ static Json ActuallyParseExpression(const SpanString& s) {
 
 static Json ParseExpression(const SpanString& s) {
   Json e = ActuallyParseExpression(s);
-  e.as_object()["expression_heritage"] = Json(s.str());
+  e.as_object()["expression_heritage"] = SpanRefJson(s);
   return e;
 }
 
@@ -1577,7 +1803,7 @@ static std::pair<Json, bool> ParseHeadCall(const SpanString& s, bool distinct_fr
   JsonObject agg;
   agg["operator"] = Json(op_str.str());
   agg["argument"] = ParseExpression(expr_str);
-  agg["expression_heritage"] = Json(post_call_str.str());
+  agg["expression_heritage"] = SpanRefJson(post_call_str);
   JsonObject fv;
   fv["field"] = Json("logica_value");
   fv["value"] = Json(JsonObject{{"aggregation", Json(agg)}});
@@ -1602,7 +1828,7 @@ static std::optional<Json> ParseFunctorRule(const SpanString& s) {
   Json applicant = Json(JsonObject{{"expression", Json(JsonObject{{"literal", Json(JsonObject{{"the_predicate", Json(JsonObject{{"predicate_name", definition.as_object().at("predicate_name")}})}})}})}});
   Json arguments = Json(JsonObject{{"expression", Json(JsonObject{{"record", definition.as_object().at("record")}})}});
   JsonObject rule;
-  rule["full_text"] = Json(s.str());
+  rule["full_text"] = SpanRefJson(s);
   JsonObject head;
   head["predicate_name"] = Json("@Make");
   JsonArray fvs;
@@ -1690,7 +1916,7 @@ static Json ParseRule(const SpanString& s) {
   if (parts.size() == 2) {
     result["body"] = ParseProposition(parts[1]);
   }
-  result["full_text"] = Json(s.str());
+  result["full_text"] = SpanRefJson(s);
   return Json(result);
 }
 
@@ -1815,7 +2041,7 @@ static Json MultiBodyAggregationRewrite(const Json& rules_json) {
 
   JsonArray new_rules;
   std::map<std::string, Json> agg_fvs_per_pred;
-  std::map<std::string, std::string> original_full_text;
+  std::map<std::string, Json> original_full_text;
 
   auto split_aggregation = [&](const Json& rule) -> std::pair<Json, Json> {
     Json r = rule;
@@ -1852,14 +2078,14 @@ static Json MultiBodyAggregationRewrite(const Json& rules_json) {
 
   for (const auto& rule : rules) {
     std::string name = rule.as_object().at("head").as_object().at("predicate_name").as_string();
-    original_full_text[name] = rule.as_object().at("full_text").as_string();
+    original_full_text[name] = rule.as_object().at("full_text");
     if (std::find(multi.begin(), multi.end(), name) != multi.end()) {
       auto [aggregation_fvs, new_rule] = split_aggregation(rule);
       if (agg_fvs_per_pred.count(name)) {
         Json expected = StripAggregationHeritage(agg_fvs_per_pred[name].as_object().at("field_value"));
         Json observed = StripAggregationHeritage(aggregation_fvs);
         if (expected.ToString(false) != observed.ToString(false)) {
-          throw ParsingException("Signature differs for bodies.", SpanString(rule.as_object().at("full_text").as_string()));
+          throw ParsingException("Signature differs for bodies.", SpanFromJson(rule.as_object().at("full_text")));
         }
       } else {
         agg_fvs_per_pred[name] = Json(JsonObject{{"field_value", aggregation_fvs}});
@@ -1899,7 +2125,7 @@ static Json MultiBodyAggregationRewrite(const Json& rules_json) {
       body["conjunction"] = Json(conjunction);
       aggregating_rule["body"] = Json(body);
     }
-    aggregating_rule["full_text"] = Json(original_full_text[name]);
+    aggregating_rule["full_text"] = original_full_text[name];
     aggregating_rule["distinct_denoted"] = Json(true);
     new_rules.push_back(Json(aggregating_rule));
   }
@@ -2145,16 +2371,25 @@ static Json ParseFileInternal(const std::string& content,
       continue;
     }
 
+    // Match Python parser semantics:
+    // - `Split(s, ';')` returns a slice whose *heritage* is the full program.
+    // - Python then wraps each non-import statement as `HeritageAwareString(str_statement)`
+    //   which resets `.heritage` to the statement text itself.
+    //
+    // Downstream error reporting/type inference expects `expression_heritage` to be
+    // rooted in the rule text (statement), not the entire program.
+    SpanString statement{st.str()};
+
     std::optional<Json> rule;
-    if (auto ann = ParseFunctionRuleImpl(st)) {
+    if (auto ann = ParseFunctionRuleImpl(statement)) {
       rules.push_back(ann->first);
       rule = ann->second;
     }
     if (!rule) {
-      rule = ParseFunctorRule(st);
+      rule = ParseFunctorRule(statement);
     }
     if (!rule) {
-      Json r = ParseRule(st);
+      Json r = ParseRule(statement);
       if (!r.is_null()) {
         auto anns = AnnotationsFromDenotations(r);
         for (const auto& a : anns) rules.push_back(a);
@@ -2325,12 +2560,90 @@ int logica_cpp_parse_rules_json(const char* program_text,
     logica::parser::Json parsed = logica::parser::ParseFile(content, fname, import_root);
     std::string out;
     if (full) {
-      out = parsed.ToString(true, 1);
+      // C ABI is consumed by Python and immediately parsed; compact JSON is
+      // significantly faster to serialize and decode than pretty output.
+      out = parsed.ToString(false, 1);
     } else {
       const auto& obj = parsed.as_object();
       auto it = obj.find("rule");
-      out = (it == obj.end()) ? std::string("[]") : it->second.ToString(true, 1);
+      out = (it == obj.end()) ? std::string("[]") : it->second.ToString(false, 1);
     }
+    if (out_json) {
+      *out_json = DupToMalloc(out);
+    }
+    return 0;
+  } catch (const logica::parser::ParsingException& e) {
+    std::ostringstream oss;
+    e.ShowMessage(oss);
+    if (out_err) {
+      *out_err = DupToMalloc(oss.str());
+    }
+    return 1;
+  } catch (const std::exception& e) {
+    std::string msg = std::string("Error: ") + e.what() + "\n";
+    if (out_err) {
+      *out_err = DupToMalloc(msg);
+    }
+    return 2;
+  }
+}
+
+// Same as logica_cpp_parse_rules_json, but emits pooled heritage spans.
+//
+// Output JSON shape:
+//   {"__string_table": [<heritage strings>], "tree": <ast or rules array>}
+//
+// In the returned tree, `full_text` and `expression_heritage` are encoded as:
+//   ["__hs", <table_index>, <start_byte>, <stop_byte>]
+int logica_cpp_parse_rules_json_pooled(const char* program_text,
+                                       const char* file_name,
+                                       const char* logicapath,
+                                       int full,
+                                       void** out_json,
+                                       void** out_err) {
+  if (out_json) *out_json = nullptr;
+  if (out_err) *out_err = nullptr;
+
+  logica::parser::HeritagePool pool;
+  struct Reset {
+    ~Reset() {
+      logica::parser::g_emit_pooled_heritage = false;
+      logica::parser::g_heritage_pool = nullptr;
+    }
+  } reset;
+  logica::parser::g_emit_pooled_heritage = true;
+  logica::parser::g_heritage_pool = &pool;
+
+  try {
+    const std::string content = program_text ? std::string(program_text) : std::string();
+    const std::string fname = file_name ? std::string(file_name) : std::string("main");
+    std::vector<std::string> import_root = SplitLogicapath(logicapath);
+
+    logica::parser::Json parsed = logica::parser::ParseFile(content, fname, import_root);
+
+    // Prepare string table.
+    logica::parser::JsonArray table;
+    table.reserve(pool.heritage.size());
+    for (const auto& e : pool.heritage) {
+      table.push_back(logica::parser::Json(e.bytes ? *(e.bytes) : std::string()));
+    }
+
+    logica::parser::Json tree;
+    if (full) {
+      tree = parsed;
+    } else {
+      const auto& obj = parsed.as_object();
+      auto it = obj.find("rule");
+      tree = (it == obj.end()) ? logica::parser::Json(logica::parser::JsonArray{}) : it->second;
+    }
+
+    logica::parser::JsonObject wrapped;
+    wrapped["__string_table"] = logica::parser::Json(table);
+    wrapped["tree"] = tree;
+
+    // Compact JSON for performance; Python re-dumps in canonical form when
+    // needed for diffs.
+    std::string out = logica::parser::Json(wrapped).ToString(false, 1);
     if (out_json) {
       *out_json = DupToMalloc(out);
     }
