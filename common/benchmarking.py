@@ -28,7 +28,7 @@ def loop(line, cell):
   for item in iterator:
     if stop:
       print('Skipping %s (previous timeout).' % item)
-      timing[item] = local_timing[item] = 'TIMEOUT'
+      timing[item] = local_timing[item] = 'TIMEOUT (> %d)' % timeout
       continue
 
     print('Running %s.' % item)
@@ -54,7 +54,7 @@ def loop(line, cell):
     if timed_out[0]:
       print('*** TIMEOUT on %s ***' % item)
       stop = True
-      elapsed = 'TIMEOUT'
+      elapsed = 'TIMEOUT (> %d)' % timeout
 
     timing[item] = elapsed
     local_timing[item] = elapsed
