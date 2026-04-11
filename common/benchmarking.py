@@ -5,12 +5,14 @@ from IPython import get_ipython
 import time
 from logica.common import sqlite3_logica
 import pandas
+import signal
 
 timing = {}
 reports = []
 
 
 def Clear():
+  global timing, reports
   timing = {}
   reports = []
 
@@ -20,19 +22,43 @@ def loop(line, cell):
   global timing
   local_timing = {}
   ip = get_ipython()
-  # Evaluate the line to get the list (e.g., "my_files")
-  problem_name, iterator = ip.ev(line) 
-  
+  problem_name, iterator = ip.ev(line)
+  stop = False
+
   for item in iterator:
-    # Inject 'item' into global namespace so the inner magic sees it
-    ip.user_ns['loop_parameter'] = item 
-    # Run the content as a new cell execution
+    if stop:
+      print('Skipping %s (previous timeout).' % item)
+      timing[item] = local_timing[item] = 'TIMEOUT'
+      continue
+
+    print('Running %s.' % item)
+    ip.user_ns['loop_parameter'] = item
+
+    timed_out = [False]
+    def handler(signum, frame):
+      timed_out[0] = True
+      raise KeyboardInterrupt("Timeout")
+
+    old_handler = signal.getsignal(signal.SIGALRM)
+    signal.signal(signal.SIGALRM, handler)
+    signal.alarm(200)
+
     start_time = time.perf_counter()
-    ip.run_cell(cell.replace('{loop_parameter}', item))
-    end_time = time.perf_counter()
-    elapsed = end_time - start_time
+    try:
+      ip.run_cell(cell.replace('{loop_parameter}', item))
+    finally:
+      signal.alarm(0)
+      signal.signal(signal.SIGALRM, old_handler)
+    elapsed = time.perf_counter() - start_time
+
+    if timed_out[0]:
+      print('*** TIMEOUT on %s ***' % item)
+      stop = True
+      elapsed = 'TIMEOUT'
+
     timing[item] = elapsed
     local_timing[item] = elapsed
+
   report = (' === Timing for %s ===\n' % problem_name) + (
     sqlite3_logica.DataframeAsArtisticTable(
         pandas.DataFrame({'problem': list(local_timing.keys()),
