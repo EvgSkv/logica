@@ -47,7 +47,7 @@ RecordAsJson(r) = SqlExpr(
 
 Fingerprint(s) = NaturalHash(s);
 
-ReadFile(filename) = SqlExpr("pg_read_file({filename})", {filename:});
+ReadFile(filename) = SqlExpr("(select struct_pack(size := any_value(size), content := any_value(content), filename := any_value(filename)) from read_text({filename}))", {filename:});
 
 Chr(x) = SqlExpr("Chr(cast({x} as integer))", {x:});
 Ord(x) = SqlExpr("Ord({x})", {x:});
