@@ -218,3 +218,16 @@ def Graph(nodes, edges, options=None, width=640, height=480):
 def HierarchicalOptions():
   return {'layout': {'hierarchical': {'direction': 'UD',
                                       'sortMethod': 'directed'}}}
+
+def InstallRequire():
+  from IPython.display import display, HTML
+  # This script manually loads RequireJS so that logica/vis.js can work
+  display(HTML('''
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.6/require.min.js"></script>
+      <script>
+          // This ensures that even if require is loaded late,
+          // the logica script can still find it.
+          window.require = require;
+      </script>
+  '''))
+
