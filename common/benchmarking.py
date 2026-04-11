@@ -9,7 +9,7 @@ import signal
 
 timing = {}
 reports = []
-
+timeout = 200
 
 def Clear():
   global timing, reports
@@ -41,7 +41,7 @@ def loop(line, cell):
 
     old_handler = signal.getsignal(signal.SIGALRM)
     signal.signal(signal.SIGALRM, handler)
-    signal.alarm(200)
+    signal.alarm(timeout)
 
     start_time = time.perf_counter()
     try:
