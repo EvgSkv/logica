@@ -16,7 +16,8 @@ pairwise distances, same generation):
 - **DuckPGQ** — DuckDB extension implementing SQL/PGQ (Cypher-style queries)
 
 All benchmarks were run on a Google Cloud **c2d-standard-32** instance
-(32 vCPUs, 128 GB RAM).
+(32 vCPUs, 128 GB RAM) using Logica 1.3.1415926535897, DuckDB 1.3.2,
+and Soufflé 2.4.
 
 ### Main notebooks
 
