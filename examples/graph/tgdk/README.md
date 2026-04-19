@@ -36,29 +36,6 @@ Soufflé 2.4, and Nemo 0.10.0.
 | `auxiliary/benchmark_logica_with_output_sizes.ipynb` | Logica notebook computing output sizes for the table in the paper |
 | `auxiliary/souffle_compiled_vs_interpreted.md` | Comparison of Soufflé compiled vs. interpreted modes |
 
-### Nemo comparison
-
-| File | Description |
-|------|-------------|
-| `benchmark_and_collect.py` | Runs all TC and SG benchmarks on both Logica and Nemo, collects wall/CPU times and fact counts into `benchmark_results.txt` (ASCII table) and `benchmark_results.csv`. Generates the `.l` and `.nemo` programs from templates. |
-| `tc_g1k.l`, `tc_g1k.nemo` | Example Logica and Nemo programs for transitive closure (shown for reference — the script regenerates all sizes). |
-| `sg_tree7.l`, `sg_tree7.nemo` | Example Logica and Nemo programs for same generation. |
-| `benchmark_results.txt` | Output of `benchmark_and_collect.py` from our run. |
-
-To run the Nemo comparison:
-
-1. Install Nemo 0.10.0 (see [nemo rule engine](https://github.com/knowsys/nemo)).
-   The `nmo` binary must be on `PATH` (we invoke it as `nemo` in the script —
-   adjust the command there if your binary is named `nmo`).
-2. Make sure the CSV inputs (`g1k.csv`..`g5k.csv`, `tree7.csv`..`tree12.csv`)
-   are present in the same directory. They are produced by running
-   `benchmark_logica.ipynb`.
-3. Run the script from this directory:
-   ```
-   python3 benchmark_and_collect.py
-   ```
-   It writes `benchmark_results.txt` and `benchmark_results.csv`.
-
 ## Reproducing the results
 
 1. Install Jupyter Notebook:
@@ -92,3 +69,28 @@ To run the Nemo comparison:
    generates the input data (CSV files and `graphs.db`) used by the
    Soufflé and DuckPGQ notebooks. Then proceed to `benchmark_souffle.ipynb`
    and `benchmark_cypher.ipynb`.
+
+For the Nemo comparison, see the [Nemo section](#nemo-comparison) below.
+
+## Nemo comparison
+
+| File | Description |
+|------|-------------|
+| `benchmark_and_collect.py` | Runs all TC and SG benchmarks on both Logica and Nemo, collects wall/CPU times and fact counts into `benchmark_results.txt` (ASCII table) and `benchmark_results.csv`. Generates the `.l` and `.nemo` programs from templates. |
+| `tc_g1k.l`, `tc_g1k.nemo` | Example Logica and Nemo programs for transitive closure (shown for reference — the script regenerates all sizes). |
+| `sg_tree7.l`, `sg_tree7.nemo` | Example Logica and Nemo programs for same generation. |
+| `benchmark_results.txt` | Output of `benchmark_and_collect.py` from our run. |
+
+To run the Nemo comparison:
+
+1. Install Nemo 0.10.0 (see [nemo rule engine](https://github.com/knowsys/nemo)).
+   The `nmo` binary must be on `PATH` (we invoke it as `nemo` in the script —
+   adjust the command there if your binary is named `nmo`).
+2. Make sure the CSV inputs (`g1k.csv`..`g5k.csv`, `tree7.csv`..`tree12.csv`)
+   are present in the same directory. They are produced by running
+   `benchmark_logica.ipynb`.
+3. Run the script from this directory:
+   ```
+   python3 benchmark_and_collect.py
+   ```
+   It writes `benchmark_results.txt` and `benchmark_results.csv`.
