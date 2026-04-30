@@ -1,0 +1,8 @@
+@import tree :- csv{resource="tree7.csv", ignore_headers=true, format=(string,string)}.
+
+SG(?X, ?Y) :- tree(?A, ?X), tree(?A, ?Y).
+SG(?X, ?Y) :- SG(?A, ?B), tree(?A, ?X), tree(?B, ?Y).
+
+N(#count(?X, ?Y)) :- SG(?X, ?Y).
+
+@export N :- csv{resource="n.csv"}.

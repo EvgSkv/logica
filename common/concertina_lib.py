@@ -176,7 +176,11 @@ class Concertina(object):
     self.all_actions = {a["name"] for a in self.config}
     self.complete_actions = set()
     self.running_actions = set()
-    assert display_mode in ('colab', 'terminal', 'colab-text', 'silent'), (
+    self.show_only_running = False
+    if os.getenv('LOGICA_TERMINAL_ONELINE', 'no') == 'yes':
+      self.show_only_running = True
+    assert display_mode in ('colab', 'terminal',
+                            'colab-text', 'silent'), (
       'Unrecognized display mode: %s' % display_mode)
     self.display_mode = display_mode
     self.display_id = self.GetDisplayId()
@@ -293,6 +297,13 @@ class Concertina(object):
     extra_lines = self.ProgressBar().split('\n')
     return AsArtGraph().GetPicture(updating=updating,
                                    extra_lines=extra_lines)
+  def ShowRunning(self, updating):
+     nodes, edges = self.AsNodesAndEdges()
+     running = [n for n in nodes if n.startswith('\033[1m')]
+     if not running:
+       return '*'
+     return '[%d / %d] ' % (len(self.complete_actions),
+                            len(self.all_actions)) + running[0]
 
   def AsNodesAndEdges(self):
     """Nodes and edges to display in terminal."""
@@ -405,14 +416,18 @@ class Concertina(object):
     self.display_update_period = min(0.5, self.display_update_period * 1.2)
     if (now - self.recent_display_update_seconds <
         self.display_update_period and
-        not final):
+        not final and
+        not self.show_only_running):
       # Avoid frequent display updates slowing down execution.
       return
     self.recent_display_update_seconds = now
     if self.display_mode == 'colab':
       update_display(self.AsGraphViz(), display_id=self.display_id)
     elif self.display_mode == 'terminal':
-      print(self.AsTextPicture(updating=True))
+      if self.show_only_running:
+        print(self.ShowRunning(updating=True))
+      else:
+        print(self.AsTextPicture(updating=True))
     elif self.display_mode == 'colab-text':
       update_display(
         self.StateAsSimpleHTML(),

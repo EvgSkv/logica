@@ -1,0 +1,8 @@
+@import edge :- csv{resource="g1k.csv", ignore_headers=true}.
+
+TC(?A, ?B) :- edge(?A, ?B).
+TC(?A, ?C) :- TC(?A, ?B), edge(?B, ?C).
+
+N(#count(?A, ?B)) :- TC(?A, ?B).
+
+@export N :- csv{resource="n.csv"}.
