@@ -18,6 +18,7 @@
 
 @Engine("duckdb");
 
+@Recursive(A, 32, mode: "iterative");
 A() = 0;
 B() = A() + 1;
 C() = B() + 1;

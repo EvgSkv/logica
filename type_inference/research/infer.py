@@ -207,6 +207,13 @@ class TypesInferenceEngine:
       t.PerformInference()
       self.UpdateTypes(rule)
 
+    # Resolve TypeRepr now that all predicates are typed.
+    for rule in self.parsed_rules:
+      if rule['head']['predicate_name'][0] == '@':
+        continue
+      t = TypeInferenceForRule(rule, self.predicate_signature)
+      Walk(rule, t.ActMindingTypeRepr)
+
     for rule in self.parsed_rules:
       Walk(rule, ConcretizeTypes)
     self.CollectTypes()
@@ -460,6 +467,36 @@ class TypeInferenceForRule:
         node['type']['the_type'],
         node['implication']['otherwise']['type']['the_type']
       )
+
+  def ActMindingTypeRepr(self, node):
+    for e in ExpressionsIterator(node):
+      if 'call' in e and e['call']['predicate_name'] == 'TypeRepr':
+        fvs = e['call']['record']['field_value']
+        pred = fvs[0]['value']['expression']['literal']['the_string']['the_string']
+        field = fvs[1]['value']['expression']['literal']['the_string']['the_string']
+        if isinstance(field, str):
+          try:
+            field = int(field)
+          except ValueError:
+            if field.startswith('col'):
+              try:
+                field = int(field[3:])
+              except ValueError:
+                pass  # Maybe this is "colhoz"?
+        if pred not in self.types_of_builtins:
+          raise TypeErrorCaughtException(
+            color.Format(
+              'TypeRepr references unknown predicate {warning}%s{end}.' % pred))
+        sig = self.types_of_builtins[pred]
+        if field not in sig:
+          raise TypeErrorCaughtException(
+            color.Format(
+              'TypeRepr references unknown field {warning}%s{end} '
+              'of predicate {warning}%s{end}.' % (field, pred)))
+        copier = reference_algebra.TypeStructureCopier()
+        reference_algebra.Unify(
+          e['type']['the_type'],
+          copier.CopyConcreteOrReferenceType(sig[field]))
 
   def IterateInference(self):
     Walk(self.rule, self.ActMindingTypingPredicateLiterals)

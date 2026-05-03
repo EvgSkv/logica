@@ -73,7 +73,8 @@ class QL(object):
       'FlagValue': 'UNUSED',
       'Cast': 'UNUSED',
       'TryCast': 'UNUSED',
-      'SqlExpr': 'UNUSED'
+      'SqlExpr': 'UNUSED',
+      'TypeRepr': 'UNUSED'
   }
   BUILT_IN_INFIX_OPERATORS = {
       '==': '%s = %s',
@@ -303,6 +304,33 @@ class QL(object):
     if self.convert_to_json:
       return '{"predicate_name": "%s"}' % (literal['predicate_name'])
     return self.dialect.PredicateLiteral(literal['predicate_name'])
+
+  def SqlLiteralForType(self, t):
+    if t == 'Num':
+      return '0'
+    if t == 'Str':
+      return "E'a'" if self.dialect.Name() == 'DuckDB' else "'a'"
+    if t == 'Bool':
+      return 'true'
+    if t == 'Time':
+      return "CAST('2000-01-01' AS TIMESTAMP)"
+    if isinstance(t, list):
+      [e] = t
+      return '[%s]' % self.SqlLiteralForType(e)
+    if isinstance(t, dict):
+      parts = ', '.join(
+        '%s: %s' % (
+          f if isinstance(f, str) else 'col%d' % f,
+          self.SqlLiteralForType(v))
+        for f, v in sorted(t.items(), key=lambda kv: StrIntKey(kv[0])))
+      return '{%s}' % parts
+    return 'NULL'
+
+  def TypeReprLiteral(self, expression):
+    t = expression.get('type', {}).get('the_type')
+    if t is None:
+      raise self.exception_maker('TypeRepr has no resolved type.')
+    return self.SqlLiteralForType(t)
 
   def VariableMaybeTableSQLite(self, variable, expression_type):
     def MakeSubscript(subscripted_variable, subscripted_field):
@@ -559,6 +587,8 @@ class QL(object):
         return self.ConvertAnalytic(call)
       if call['predicate_name'] == 'SqlExpr':
         return self.GenericSqlExpression(call['record'])
+      if call['predicate_name'] == 'TypeRepr':
+        return self.TypeReprLiteral(expression)
       if call['predicate_name'] in ['Cast', 'TryCast']:
         sql_predicate = 'CAST' if call['predicate_name'] == 'Cast' else 'TRY_CAST'
         if len(arguments) == 2 and (

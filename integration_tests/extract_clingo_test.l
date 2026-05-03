@@ -42,4 +42,5 @@ ProposesInWorld(a, b, model_id:) :-
 HappyInWorld(person:, model_id:) :-
   ExtractClingoCall(person, predicate: "Happy", model_id:) = Worlds();
 
+@OrderBy(Test, "model_id", "person");
 Test(person:, model_id:) :- HappyInWorld(person:, model_id:);

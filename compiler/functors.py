@@ -499,6 +499,82 @@ class Functors(object):
     rules.extend(lib_rules)
 
 
+  def UnfoldRecursivePredicateDiamondFashion(self, cover, main, depth, rules,
+                                             stop):
+    """Diamond: in-place rewrite per iteration step, no ignition.
+
+    Renames cover member rules P -> P_ROne with body refs c -> c_RZero
+    (same convention as the flat fashion). The diamond functor then binds
+    every c_RZero to c_portal. P_portal owns the table (via TypeRepr-seeded
+    rule), P_diamond is @Ground'd to P_portal's table — so each iteration
+    step does CREATE OR REPLACE reading the freshest values written earlier
+    in the same step.
+    """
+    visible = lambda p: '_MultBodyAggAux' not in p
+    simplified_cover = {c for c in cover if visible(c)}
+    direct_args_of = {c: [] for c in cover if visible(c)}
+    for p, args in self.direct_args_of.items():
+      if p in simplified_cover:
+        for a in args:
+          if a in cover:
+            if visible(a):
+              direct_args_of[p].append(a)
+            else:
+              for a2 in self.direct_args_of[a]:
+                if a2 in cover:
+                  direct_args_of[p].append(a2)
+    def ReplacePredicate(original, new):
+      def Replace(x):
+        if isinstance(x, dict) and 'predicate_name' in x:
+          if x['predicate_name'] == original:
+            x['predicate_name'] = new
+        return []
+      return Replace
+    def AnnotationSubject(rule):
+      try:
+        fv = rule['head']['record']['field_value'][0]
+        return fv['value']['expression']['literal']['the_predicate'][
+          'predicate_name']
+      except (KeyError, IndexError, TypeError):
+        return None
+    new_rules = []
+    for r in rules:
+      if r['head']['predicate_name'] in cover:
+        p = r['head']['predicate_name']
+        if visible(p):
+          r['head']['predicate_name'] = p + '_ROne'
+        for c in simplified_cover:
+          Walk(r, ReplacePredicate(c, c + '_RZero'))
+        new_rules.append(r)
+      elif (r['head']['predicate_name'] == '@Ground' and
+            AnnotationSubject(r) in cover):
+        # Diamond owns @Ground for cover members (it generates @Ground for
+        # both p_diamond and p via @Make-inherited annotations). Drop the
+        # user's @Ground on the cover member to avoid a duplicate.
+        continue
+      else:
+        # Other annotations (@Limit, @OrderBy, @NoInject, @Recursive, @Ground
+        # on non-cover predicates, regular rules, etc.) pass through. After
+        # @Make creates p as Flow_diamond's alias, p still exists as a
+        # predicate, so annotations referencing it stay accurate.
+        new_rules.append(r)
+    rules[:] = new_rules
+
+    if main not in simplified_cover:
+      main = min(simplified_cover)
+    head_records = {}
+    for p in sorted(simplified_cover):
+      head = next((r['head'] for r in rules
+                   if r['head']['predicate_name'] == p + '_ROne'), None)
+      if head is not None:
+        head_records[p] = head['record']
+    lib = recursion_library.GetDiamondRecursionFunctor(
+      simplified_cover, direct_args_of, main, depth, stop,
+      head_records)
+    lib_rules = parse.ParseFile(lib)['rule']
+    rules.extend(lib_rules)
+
+
   def UnfoldRecursivePredicate(self, predicate, cover, depth, rules):   
     """Unfolds recurive predicate.""" 
     new_predicate_name = predicate + '_recursive'
@@ -555,10 +631,10 @@ class Functors(object):
       stop = stop['predicate_name']
     return stop
 
-  def UnfoldRecursions(self, depth_map, default_iterative, default_depth):
+  def UnfoldRecursions(self, depth_map, default_mode, default_depth):
     """Unfolds all recursions."""
     should_recurse, my_cover = self.RecursiveAnalysis(
-      depth_map, default_iterative, default_depth)
+      depth_map, default_mode, default_depth)
     new_rules = copy.deepcopy(self.rules)
     for p, style in should_recurse.items():
       depth = depth_map.get(p, {}).get('1', default_depth)
@@ -568,6 +644,16 @@ class Functors(object):
         continue
       if style == 'vertical':
         self.UnfoldRecursivePredicate(p, my_cover[p], depth, new_rules)
+      elif style == 'diamond':
+        stop = self.GetStop(depth_map, p)
+        if stop and stop not in my_cover[p]:
+          raise FunctorError(
+            color.Format(
+              'Recursive predicate {warning}{p}{end} uses stop signal '
+              '{warning}{stop}{end} that does not belong to its '
+              'recursive component.', {'p': p, 'stop': stop}), p)
+        self.UnfoldRecursivePredicateDiamondFashion(
+          my_cover[p], p, depth, new_rules, stop=stop)
       elif style == 'horizontal' or style == 'iterative_horizontal':
         # Old ad-hoc formula:
         # ignition = len(my_cover[p]) * 3 + 4
@@ -675,7 +761,7 @@ class Functors(object):
           stack.append((x, (u | {t})))
     return True
 
-  def RecursiveAnalysis(self, depth_map, default_iterative, default_depth):
+  def RecursiveAnalysis(self, depth_map, default_mode, default_depth):
     """Finds recursive cycles and predicates that would unfold them."""
     # TODO: Select unfolding predicates to guarantee unfolding.
     cover = []
@@ -696,6 +782,17 @@ class Functors(object):
       for p in c:
         my_cover[p] = c
 
+    valid_modes = {None, 'diamond', 'iterative'}
+    for p, attrs in depth_map.items():
+      mode = attrs.get('mode')
+      if mode not in valid_modes:
+        raise FunctorError(
+          color.Format(
+            'Recursive predicate {warning}{p}{end} has unknown mode '
+            '{warning}{mode}{end}. Valid modes: diamond, iterative.',
+            dict(p=p, mode=mode)),
+          p)
+
     recursion_covered = set()
     should_recurse = {}
     for c in cover:
@@ -707,9 +804,12 @@ class Functors(object):
         depth_map[p]['1'] = 1000000000
       # Iterate if explicitly requested or unspecified
       # and number of steps is greater than 20.
-      if (depth_map.get(p, {}).get('iterative', default_iterative) or
-          depth_map.get(p, {}).get('iterative', True) == True and
-          depth_map.get(p, {}).get('1', default_depth) > 20):
+      if depth_map.get(p, {}).get('mode', default_mode) == 'diamond':
+        should_recurse[p] = 'diamond'
+      elif (depth_map.get(p, {}).get('mode') == 'iterative' or
+            depth_map.get(p, {}).get('iterative', default_mode == 'iterative') or
+            depth_map.get(p, {}).get('iterative', True) == True and
+            depth_map.get(p, {}).get('1', default_depth) > 20):
         should_recurse[p] = 'iterative_horizontal'
       elif self.IsCutOfCover(p, c):
         should_recurse[p] = 'vertical'
