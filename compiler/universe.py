@@ -700,7 +700,7 @@ class LogicaProgram(object):
     default_mode = None
     default_depth = 8
     if quacks_like_a_duck:
-      default_mode = 'diamond'
+      default_mode = 'iterative'
       default_depth = 32
     return f.UnfoldRecursions(depth_map, default_mode, default_depth)
 
