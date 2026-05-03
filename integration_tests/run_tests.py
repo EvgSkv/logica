@@ -141,6 +141,7 @@ def RunAll(test_presto=False, test_trino=False, test_clingo=True, test_clickhous
           use_concertina=True)
   RunTest("duckdb_diamond_abc_test",
           use_concertina=True)
+  RunTest("duckdb_diamond_stop_order_test", use_concertina=True)
   RunTest("duckdb_stop_test",
           src="duckdb_stop_test.l",
           use_concertina=True)
