@@ -72,6 +72,17 @@ class Concertina(object):
     # 2. Iterations come together, in the order specified in @Iteration.
     # 3. Lex tiebreak for full determinism.
     actions_to_assign = {a['name'] for a in self.config}
+
+    atamans = []
+    for a in actions_to_assign:
+      if a not in self.action_iteration:
+        atamans.append(a)
+      elif self.iteration_actions[self.action_iteration[a]][0] == a:
+        atamans.append(a)
+      else:
+        pass  # Hold on cossack!
+    atamans = set(atamans)
+
     complete = set()
     result = []
     assigning_iteration = None
@@ -82,7 +93,7 @@ class Concertina(object):
         eligible = [a for a in self.iteration_actions[assigning_iteration]
                     if a in actions_to_assign]
       else:
-        eligible = sorted(actions_to_assign)
+        eligible = sorted(actions_to_assign & atamans)
       for a in eligible:
         if complete >= set(self.action_requires[a]):
           result.append(a)

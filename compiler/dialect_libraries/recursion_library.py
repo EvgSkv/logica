@@ -100,18 +100,19 @@ def GetFlatRecursionFunctor(depth, cover, direct_args_of):
   program = '\n'.join(result_rules)
   return program
 
-def DiamondOrder(cover, direct_args_of, main):
+def DiamondOrder(cover, direct_args_of, main, stop):
   """Order of cover members for one diamond iteration.
 
   Main goes first (its in-cover dependencies inevitably read previous
-  iteration). The rest is filled greedily, each time picking the predicate
+  iteration). Stop goes after main to see incremental difference of
+  main. The rest is filled greedily, each time picking the predicate
   with the highest fraction of in-cover dependencies already computed in
   this iteration. Lexicographic name as tiebreak — fully deterministic.
   """
   cover = set(cover)
-  done = {main}
-  order = [main]
-  remaining = cover - {main}
+  order = [main, stop] if stop else [main]
+  done = set(order)
+  remaining = cover - done
   while remaining:
     def fraction(p):
       deps = set(direct_args_of[p]) & cover
@@ -188,7 +189,7 @@ def GetDiamondRecursionFunctor(cover, direct_args_of, main,
              repetitions: <N>);
   """
   cover = set(cover)
-  order = DiamondOrder(cover, direct_args_of, main)
+  order = DiamondOrder(cover, direct_args_of, main, stop)
   position = {p: i for i, p in enumerate(order)}
   stop_file_name = ''
   if stop:
@@ -227,6 +228,13 @@ def GetDiamondRecursionFunctor(cover, direct_args_of, main,
       else:
         args.append(f'{a}_RZero: {a}_diamond')
     result_rules.append(f'{p} := {p}_ROne({", ".join(args)});')
+
+  # For optional fixpoint detection:
+  # result_rules.append('{main}_before(..r) :- {main}(..r);'.format(main=main))
+  # result_rules.append(
+  #     'MAIN_fixpoint() :- '
+  #     'Array{ r -> r :- MAIN_before(..r)} == Array{ r -> r :- MAIN_diamond(..r)}')
+
   iter_predicates = ', '.join(f'{p}_diamond' for p in order)
   maybe_stop = ''
   if stop:
