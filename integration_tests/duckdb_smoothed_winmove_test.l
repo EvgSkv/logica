@@ -25,7 +25,7 @@ Node(x) distinct :- Move(a, b), x in [a, b];
 N() += N();
 N() += 1;
 
-@Recursive(Win, 101, satellites: [SmoothedWin, N]);
+@Recursive(Win, 101, mode: "iterative", satellites: [SmoothedWin, N]);
 Win(x) :- Move(x, y), ~Win(y);
 
 SmoothedWin(x) += SmoothedWin(x) * (N() - 1) / N();

@@ -36,7 +36,7 @@ E(a, b) :- G(a, b) | G(b, a);
 # Finding connected components.
 #
 
-@Recursive(ComponentOf, 25);
+@Recursive(ComponentOf, 25, mode: "iterative");
 ComponentOf(x) Min= x :- E(x);
 ComponentOf(x) Min= ComponentOf(y) :- E(x, y);
 
@@ -51,7 +51,7 @@ Black() = "#bbb";
 Other(White()) = Black();
 Other(Black()) = White();
     
-@Recursive(Color, 30);
+@Recursive(Color, 30, mode: "iterative");
 Color(ComponentStart()) = White() distinct;
 Color(y) = Other(Color(x)) distinct :- E(x, y);
 

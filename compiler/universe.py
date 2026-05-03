@@ -300,7 +300,8 @@ class Annotations(object):
       predicates = [p['predicate_name'] for p in args['predicates']]
       result[iteration_name] = {'predicates': predicates,
                                 'repetitions': args['repetitions'],
-                                'stop_signal': args.get('stop_signal')}
+                                'stop_signal': args.get('stop_signal'),
+                                'mode': args.get('mode')}
     return result
 
   def LimitOf(self, predicate_name):
@@ -696,12 +697,12 @@ class LogicaProgram(object):
     #     # DuckDB struggles with long querries.
     #     depth_map[p]['iterative'] = True
     quacks_like_a_duck = (annotations.Engine() == "duckdb")
-    default_iterative = False
+    default_mode = None
     default_depth = 8
     if quacks_like_a_duck:
-      default_iterative = True
+      default_mode = 'diamond'
       default_depth = 32
-    return f.UnfoldRecursions(depth_map, default_iterative, default_depth)
+    return f.UnfoldRecursions(depth_map, default_mode, default_depth)
 
   def BuildUdfs(self):
     """Build UDF definitions."""
@@ -1341,15 +1342,27 @@ class SubqueryTranslator(object):
 
       dependency_sql = self.program.UseFlagsAsParameters(dependency_sql)
       self.execution.workflow_predicates_stack.pop()
+      # This is buggy, but we never use overwrite.
       maybe_drop_table = (
           'DROP TABLE IF EXISTS %s%s;\n' % ((
               ground.table_name if ground.overwrite else '',
               self.execution.dialect.MaybeCascadingDeletionWord())))
+      is_duckdb = self.program.annotations.Engine() == 'duckdb'
+      if is_duckdb:
+        if ground.overwrite:
+          create_keyword = 'CREATE OR REPLACE TABLE'
+        else:
+          create_keyword = 'CREATE TABLE'
+        maybe_drop_table = ''
+      else:
+        create_keyword = 'CREATE TABLE'
+
       maybe_copy = ''
       if ground.copy_to_file:
         maybe_copy = f'COPY {ground.table_name} TO \'{ground.copy_to_file}\';\n'
       create_statement = (
-          'CREATE TABLE {name} AS {dependency_sql}'.format(
+          '{create_keyword} {name} AS {dependency_sql}'.format(
+              create_keyword=create_keyword,
               name=ground.table_name,
               dependency_sql=FormatSql(dependency_sql)))
 

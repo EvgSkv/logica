@@ -69,7 +69,8 @@ class Concertina(object):
   def SortActions(self):
     # Sorting so that:
     # 1. Order respects dependency.
-    # 2. Iterations come together.
+    # 2. Iterations come together, in the order specified in @Iteration.
+    # 3. Lex tiebreak for full determinism.
     actions_to_assign = {a['name'] for a in self.config}
     complete = set()
     result = []
@@ -78,10 +79,11 @@ class Concertina(object):
     while actions_to_assign:
       remains = len(actions_to_assign)
       if assigning_iteration:
-        eligible = actions_to_assign & self.iteration_actions[assigning_iteration]
+        eligible = [a for a in self.iteration_actions[assigning_iteration]
+                    if a in actions_to_assign]
       else:
-        eligible = actions_to_assign
-      for a in list(eligible):
+        eligible = sorted(actions_to_assign)
+      for a in eligible:
         if complete >= set(self.action_requires[a]):
           result.append(a)
           if a in self.action_iteration:
@@ -92,7 +94,8 @@ class Concertina(object):
           complete |= {a}
           actions_to_assign -= {a}
           if assigning_iteration:
-            if not (self.iteration_actions[assigning_iteration] & actions_to_assign):
+            if not (set(self.iteration_actions[assigning_iteration]) &
+                    actions_to_assign):
               assigning_iteration = None
           if exit_for:
             exit_for = False
@@ -123,7 +126,7 @@ class Concertina(object):
       for p in self.iterations[iteration]['predicates']
     }
     self.iteration_actions = {
-      iteration: set(self.iterations[iteration]['predicates'])
+      iteration: list(self.iterations[iteration]['predicates'])
       for iteration in self.iterations
     }
     self.iteration_stop_signal = {
@@ -133,9 +136,14 @@ class Concertina(object):
     self.half_iteration_actions = {}
     for iteration in self.iterations:
       predicates = self.iterations[iteration]['predicates']
-      assert len(predicates) % 2 == 0, predicates
-      self.half_iteration_actions[iteration+'_upper'] = set(predicates[:(len(predicates) // 2)])
-      self.half_iteration_actions[iteration+'_lower'] = set(predicates[(len(predicates) // 2):])
+      if self.iterations[iteration].get('mode') == 'diamond':
+        upper, lower = predicates, []
+      else:
+        assert len(predicates) % 2 == 0, predicates
+        mid = len(predicates) // 2
+        upper, lower = predicates[:mid], predicates[mid:]
+      self.half_iteration_actions[iteration+'_upper'] = set(upper)
+      self.half_iteration_actions[iteration+'_lower'] = set(lower)
     self.action_half_iteration = {}
     for hi, ps in self.half_iteration_actions.items():
       for p in ps:
