@@ -190,6 +190,10 @@ def GetDiamondRecursionFunctor(cover, direct_args_of, main,
   """
   cover = set(cover)
   order = DiamondOrder(cover, direct_args_of, main, stop)
+
+  if not stop and repetitions == 1000000000:  # 1000000000 = ∞.
+    stop = main + '_fixpoint'
+
   position = {p: i for i, p in enumerate(order)}
   stop_file_name = ''
   if stop:
@@ -230,12 +234,21 @@ def GetDiamondRecursionFunctor(cover, direct_args_of, main,
     result_rules.append(f'{p} := {p}_ROne({", ".join(args)});')
 
   # For optional fixpoint detection:
-  # result_rules.append('{main}_before(..r) :- {main}(..r);'.format(main=main))
-  # result_rules.append(
-  #     'MAIN_fixpoint() :- '
-  #     'Array{ r -> r :- MAIN_before(..r)} == Array{ r -> r :- MAIN_diamond(..r)}')
+  recurring_list = [f'{p}_diamond' for p in order]
 
-  iter_predicates = ', '.join(f'{p}_diamond' for p in order)
+  if stop == main + '_fixpoint':
+    result_rules.append(f'@Ground({main}_before);')
+    result_rules.append(f'@Ground({stop}, copy_to_file: "{stop_file_name}");')
+    result_rules.append('{main}_before(..r) :- {main}_portal(..r);'.format(main=main))
+    fixpoint_rule = (
+      'MAIN_fixpoint() :- '
+      'Array{ r -> r :- MAIN_before(..r)} == Array{ r -> r :- MAIN_diamond(..r)};')
+    fixpoint_rule = fixpoint_rule.replace('MAIN', main)
+    result_rules.append(fixpoint_rule)
+    recurring_list = [main + '_before'] + recurring_list + [stop]
+
+  iter_predicates = ', '.join(recurring_list)
+
   maybe_stop = ''
   if stop:
     maybe_stop = ', stop_signal: "%s"' % stop_file_name
