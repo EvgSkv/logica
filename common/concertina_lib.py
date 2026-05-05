@@ -92,6 +92,11 @@ class Concertina(object):
       if assigning_iteration:
         eligible = [a for a in self.iteration_actions[assigning_iteration]
                     if a in actions_to_assign]
+        result += eligible
+        complete |= set(eligible)
+        actions_to_assign -= set(eligible)
+        assigning_iteration = None
+        continue
       else:
         eligible = sorted(actions_to_assign & atamans)
       for a in eligible:

@@ -571,7 +571,14 @@ class Functors(object):
     lib = recursion_library.GetDiamondRecursionFunctor(
       simplified_cover, direct_args_of, main, depth, stop,
       head_records)
-    lib_rules = parse.ParseFile(lib)['rule']
+    try:
+      lib_rules = parse.ParseFile(lib)['rule']
+    except parse.ParsingException as e:
+      print('This should never happen. Please file an issue at '
+            'https://github.com/evgskv/logica')
+      e.ShowMessage()
+      import sys
+      sys.exit()
     rules.extend(lib_rules)
 
 
