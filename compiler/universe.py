@@ -19,6 +19,7 @@
 
 import collections
 import copy
+import os
 import re
 import sys
 import traceback
@@ -153,7 +154,8 @@ class Annotations(object):
       '@NoInject', '@Make', '@CompileAsTvf', '@With', '@NoWith',
       '@CompileAsUdf', '@ResetFlagValue', '@Dataset', '@AttachDatabase',
       '@Engine', '@Recursive', '@Iteration', '@BareAggregation',
-      '@DifferentiallyPrivate'
+      '@DifferentiallyPrivate',
+      '@Extension'
   ]
 
   def __init__(self, rules, user_flags):
@@ -205,7 +207,25 @@ class Annotations(object):
       if self.annotations['@Engine'].get('duckdb', {}).get('threads'):
         threads = int(self.annotations['@Engine'].get('duckdb', {}).get('threads'))
         preamble += 'set threads to %d;\n' % threads
+      extensions = self.annotations['@Engine'].get('duckdb', {}).get('extensions')
+      if extensions:
+        if isinstance(extensions, str):
+          extensions = [extensions]
+        for ext in extensions:
+          preamble += "LOAD '%s';\n" % self.ResolveExtension(ext)
+      for ext_name in self.annotations.get('@Extension', {}):
+        preamble += "LOAD '%s';\n" % self.ResolveExtension(ext_name)
     return preamble
+
+  @staticmethod
+  def ResolveExtension(ext):
+    if os.path.isabs(ext) or os.path.exists(ext):
+      return ext
+    global_path = os.path.join(
+        os.path.expanduser('~'), '.logica', 'extensions', ext)
+    if os.path.exists(global_path):
+      return global_path
+    return ext
 
   def BuildFlagValues(self):
     """Building values by overriding defaults with user flags."""
