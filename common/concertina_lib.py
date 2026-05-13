@@ -90,6 +90,7 @@ class Concertina(object):
     while actions_to_assign:
       remains = len(actions_to_assign)
       if assigning_iteration:
+        # Just get the whole iteration onto the wagon!
         eligible = [a for a in self.iteration_actions[assigning_iteration]
                     if a in actions_to_assign]
         result += eligible

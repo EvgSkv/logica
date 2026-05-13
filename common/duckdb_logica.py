@@ -41,7 +41,14 @@ display_id_counter = 0
 
 def GetConnection(logica_program=None):
   import duckdb
-  connection = duckdb.connect()
+  config = {}
+  if logica_program:
+    a = logica_program.annotations.annotations
+    if (a.get('@Engine', {}).get('duckdb', {}).get('extensions') or
+        a.get('@Extension', {})):
+      config['allow_unsigned_extensions'] = 'true'
+      config['allow_extensions_metadata_mismatch'] = 'true'
+  connection = duckdb.connect(config=config)
   if logica_program:
     a = logica_program.annotations.annotations
     clingo_settings = a.get('@Engine', {}).get('duckdb', {}).get('clingo', False)

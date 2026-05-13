@@ -53,6 +53,8 @@ if __name__ == '__main__' and not __package__:
   from type_inference.research import infer
   from type_inference import type_retrieval_service_discovery
   from tools import proposition_repl
+  from tools import tranc
+  from tools import make_extension
 else:
   from .common import color
   from .common import sqlite3_logica
@@ -66,6 +68,8 @@ else:
   from .type_inference.research import infer
   from .type_inference import type_retrieval_service_discovery
   from .tools import proposition_repl
+  from .tools import tranc
+  from .tools import make_extension
 
 
 def ReadUserFlags(rules, argv):
@@ -143,7 +147,9 @@ def main(argv):
     return 1
 
   if len(argv) == 3 and argv[2] in ['parse', 'infer_types', 'show_signatures',
-                                    'propositional_playground']:
+                                    'propositional_playground',
+                                    'trancpy', 'trancpy_run',
+                                    'make_extension']:
     pass  # compile needs just 2 actual arguments.
   else:
     if len(argv) < 4:
@@ -161,7 +167,8 @@ def main(argv):
 
   commands = ['parse', 'print', 'run', 'run_to_csv', 'run_in_terminal',
               'infer_types', 'show_signatures', 'build_schema',
-              'propositional_playground', 'print_clingo', 'run_clingo']
+              'propositional_playground', 'print_clingo', 'run_clingo',
+              'trancpy', 'trancpy_run', 'make_extension']
 
   if command not in commands:
     print(color.Format('Unknown command {warning}{command}{end}. '
@@ -189,6 +196,19 @@ def main(argv):
     else:
       artistic_table = run_in_terminal.Run(filename, predicates)
       print(artistic_table)
+    return
+
+  if command == 'trancpy':
+    exe_path = filename.removesuffix('.py')
+    tranc.CompileTo(tranc.transpile(open(filename).read()), exe_path)
+    return
+
+  if command == 'trancpy_run':
+    tranc.CompileAndRun(tranc.transpile(open(filename).read()))
+    return
+
+  if command == 'make_extension':
+    make_extension.BuildExtension(filename)
     return
 
   program_text = open(filename).read()
