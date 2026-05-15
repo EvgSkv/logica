@@ -777,7 +777,7 @@ class TypeCollector:
       return 'text'
     if t == 'Num':
       if self.dialect == 'duckdb':
-        return 'float'  # DuckDB doesn't understand numeric as int anyway.
+        return 'double' # DuckDB doesn't understand numeric as int anyway.
       return 'numeric'
     if t == 'Bool':
       return 'bool'
