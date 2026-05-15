@@ -285,7 +285,7 @@ class DuckdbRunner(object):
   def GetGlobalConnection(cls):
     global DB_CONNECTION
     if not DB_CONNECTION:
-      DB_CONNECTION = duckdb.connect()
+      DB_CONNECTION = duckdb_logica.GetConnection()
     return DB_CONNECTION
   
   @classmethod
