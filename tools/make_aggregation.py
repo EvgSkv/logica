@@ -92,15 +92,8 @@ def append_extension_metadata(path, ext_name):
 
 
 def _detect_platform():
-    import struct
-    arch = platform.machine()
-    if arch == "arm64":
-        arch = "aarch64"
-    if platform.system() == "Darwin":
-        return f"osx_{arch}"
-    if platform.system() == "Linux":
-        return f"linux_{arch}_gcc4"
-    return f"{platform.system().lower()}_{arch}"
+    import duckdb
+    return duckdb.execute('PRAGMA platform').fetchone()[0]
 
 
 def parse_function(source, func_name):

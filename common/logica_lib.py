@@ -118,8 +118,7 @@ def RunQuery(sql,
                           ['--output-format=ALIGNED'],
                           stdin=subprocess.PIPE, stdout=subprocess.PIPE)
   elif engine == 'duckdb':
-    import duckdb
-    connection = duckdb.connect()
+    connection = duckdb_logica.GetConnection()
     if 'clingo' in settings and settings['clingo'] != False:
       duckdb_logica.ConnectClingo(connection, logical_context=logical_context)
     df = connection.sql(sql).df()
@@ -159,8 +158,7 @@ def RunQueryPandas(sql, engine, connection=None):
   if connection is None and engine == 'sqlite':
     connection = sqlite3_logica.SqliteConnect()
   if connection is None and engine == 'duckdb':
-    import duckdb
-    connection = duckdb.connect()
+    connection = duckdb_logica.GetConnection()
   if connection is None:
     assert False, 'Connection is required for engines other than SQLite.'
   if engine == 'bigquery':

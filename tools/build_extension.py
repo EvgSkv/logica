@@ -29,6 +29,7 @@ Transpiles via tranc, generates C++ DuckDB callbacks, compiles.
 import sys
 import ast
 import os
+import platform
 import subprocess
 
 if __name__ == '__main__' and not __package__:
@@ -79,7 +80,7 @@ def extract_all_functions(cpp_body, func_names):
 
     if current_func is None:
       matched = None
-      for fname in func_names:
+      for fname in sorted(func_names, key=len, reverse=True):
         if fname in line and "(" in line and not line.strip().startswith("//"):
           matched = fname
           break
@@ -118,6 +119,14 @@ def _list_inner(ptype):
   return ptype[5:-1].strip()
 
 
+def _is_struct_list(ptype):
+  if not _is_list_type(ptype):
+    return False
+  inner = _list_inner(ptype)
+  _, dbt, _ = ma.classify_type(inner)
+  return dbt == "DUCKDB_TYPE_STRUCT"
+
+
 def scalar_callback(func_name, params, ret_type):
   """Generate C++ scalar function callback."""
   read_lines = []
@@ -126,6 +135,8 @@ def scalar_callback(func_name, params, ret_type):
     read_lines.append(f"    auto _v{i} = duckdb_data_chunk_get_vector(input, {i});")
     if ptype == "str":
       read_lines.append(f"    auto _d{i} = (duckdb_string_t *)duckdb_vector_get_data(_v{i});")
+    elif _is_struct_list(ptype):
+      pass
     elif _is_list_type(ptype):
       read_lines.append(f"    auto _ld{i} = (duckdb_list_entry *)duckdb_vector_get_data(_v{i});")
       read_lines.append(f"    auto _lc{i} = duckdb_list_vector_get_child(_v{i});")
@@ -141,6 +152,9 @@ def scalar_callback(func_name, params, ret_type):
       call_args.append(
         f"std::string(duckdb_string_t_data(&_d{i}[i]), "
         f"duckdb_string_t_length(_d{i}[i]))")
+    elif _is_struct_list(ptype):
+      inner_cpp = _list_inner(ptype)
+      call_args.append(f"read_list_{inner_cpp}(_v{i}, i)")
     elif _is_list_type(ptype):
       inner = _list_inner(ptype)
       inner_cpp, _, _ = ma.classify_type(inner)
@@ -151,6 +165,30 @@ def scalar_callback(func_name, params, ret_type):
       call_args.append(f"_d{i}[i]")
 
   cpp_ret, _, _ = ma.classify_type(ret_type)
+
+  if _is_struct_list(ret_type):
+    ret_class = _list_inner(ret_type)
+    return f"""
+static void {func_name}_scalar(duckdb_function_info info, duckdb_data_chunk input,
+                duckdb_vector output) {{
+  idx_t count = duckdb_data_chunk_get_size(input);
+{chr(10).join(read_lines)}
+  auto list_data = (duckdb_list_entry *)duckdb_vector_get_data(output);
+  idx_t current_offset = duckdb_list_vector_get_size(output);
+  for (idx_t i = 0; i < count; i++) {{
+        auto _r = {func_name}({', '.join(call_args)});
+        list_data[i].offset = current_offset;
+        list_data[i].length = _r.size();
+        duckdb_list_vector_reserve(output, current_offset + _r.size());
+        auto child = duckdb_list_vector_get_child(output);
+        for (size_t j = 0; j < _r.size(); j++) {{
+            write_{ret_class}(child, current_offset++, _r[j]);
+        }}
+        duckdb_list_vector_set_size(output, current_offset);
+  }}
+}}
+"""
+
   if ret_type == "str":
     write = (f"        auto _r = {func_name}({', '.join(call_args)});\n"
         f"        duckdb_vector_assign_string_element_len("
@@ -400,11 +438,16 @@ def generate_extension(source, ext_config, mode):
       parts.append(func_codes[fname])
       parts.append("")
 
-  # Struct read/write helpers (if needed by any aggregate)
+  # Struct read/write helpers (if needed by any aggregate or scalar function)
   needed_classes = set()
   list_classes = set()
-  for fname in aggregations:
-    _, ret_type = parse_function_signature(source, fname)
+  for fname in all_names:
+    params, ret_type = parse_function_signature(source, fname)
+    for _, ptype in params:
+      if _is_struct_list(ptype):
+        cn = _list_inner(ptype)
+        needed_classes.add(cn)
+        list_classes.add(cn)
     _, duckdb_type, _ = ma.classify_type(ret_type)
     class_name = ma._parse_list_type(ret_type) if duckdb_type == "DUCKDB_TYPE_LIST_STRUCT" else None
     if duckdb_type == "DUCKDB_TYPE_STRUCT":
@@ -503,7 +546,7 @@ int main() {{
   return "\n".join(parts)
 
 
-def BuildExtension(script_path):
+def BuildExtension(script_path, install=False):
  with open(script_path) as f:
   source = f.read()
 
@@ -524,25 +567,21 @@ def BuildExtension(script_path):
  compile_cmd = [
   "g++", "-std=c++20", "-O2", "-shared", "-fPIC",
   f"-I{ma.GetDuckdbHeaders()}",
-  "-undefined", "dynamic_lookup",
-  "-o", out_bin,
-  out_cpp,
  ]
+ if platform.system() == "Darwin":
+  compile_cmd += ["-undefined", "dynamic_lookup"]
+ compile_cmd += ["-o", out_bin, out_cpp]
  subprocess.run(compile_cmd, check=True)
- os.makedirs(os.path.expanduser("~/.logica/extensions"), exist_ok=True)
+ ext_dir = os.path.expanduser("~/.logica/extensions")
+ os.makedirs(ext_dir, exist_ok=True)
 
  ma.append_extension_metadata(out_bin, ext_name)
  os.unlink(out_cpp)
  ext_file = f"{ext_name}.duckdb_extension"
- print(f"Built: {out_bin}")
- print()
- print("To install globally:")
- print(f"  mv {ext_file} ~/.logica/extensions/")
-
  out_l = f"{ext_name}.l"
  lines = [
-  f'# Autogenerated header for Logica-DuckDB extension {ext_file}.',
-  f'@Extension("{ext_file}");']
+  f'# Autogenerated header for Logica-DuckDB extension {ext_name}.',
+  f'@Extension("{ext_name}");']
  for fname in ext_config.get("functions", []):
   params, _ = parse_function_signature(source, fname)
   args = ", ".join(p[0] for p in params)
@@ -556,7 +595,15 @@ def BuildExtension(script_path):
  lines.append('')
  with open(out_l, "w") as f:
   f.write("\n".join(lines))
- print(f"Header: {out_l}")
+ print(f"\033[1mBuilt:\033[0m {out_bin}")
+ print(f"\033[1mHeader:\033[0m {out_l}")
+ if install:
+  import shutil
+  os.replace(out_bin, os.path.join(ext_dir, os.path.basename(out_bin)))
+  print(f"\033[1mInstalled to:\033[0m {ext_dir}/")
+ else:
+  print(f"To install globally:")
+  print(f"  mv {ext_file} {ext_dir}/")
 
 
 def main():
@@ -603,10 +650,10 @@ def main():
       compile_cmd = [
         "g++", "-std=c++20", "-O2", "-shared", "-fPIC",
         f"-I{ma.GetDuckdbHeaders()}",
-        "-undefined", "dynamic_lookup",
-        "-o", out_bin,
-        out_cpp,
       ]
+      if platform.system() == "Darwin":
+        compile_cmd += ["-undefined", "dynamic_lookup"]
+      compile_cmd += ["-o", out_bin, out_cpp]
     else:
       out_bin = f"{ext_name}_ext"
       compile_cmd = [

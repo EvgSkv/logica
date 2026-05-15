@@ -219,6 +219,8 @@ class Annotations(object):
 
   @staticmethod
   def ResolveExtension(ext):
+    if not ext.endswith('.duckdb_extension'):
+      ext = ext + '.duckdb_extension'
     if os.path.isabs(ext) or os.path.exists(ext):
       return ext
     global_path = os.path.join(
