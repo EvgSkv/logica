@@ -37,20 +37,28 @@ def GetDuckdbHeaders():
   path = os.environ.get("DUCKDB_HEADERS")
   if path:
     return path
-  print("Error: DUCKDB_HEADERS environment variable is not set.")
+  default_path = os.path.expanduser("~/.logica/duckdb_headers")
+  if os.path.exists(os.path.join(default_path, "duckdb_extension.h")):
+    return default_path
+  import duckdb
+  ver = duckdb.__version__
+  plat = _detect_platform()
+  if "osx" in plat:
+    lib_zip = f"libduckdb-osx-universal.zip"
+  elif "linux" in plat and "aarch64" in plat:
+    lib_zip = f"libduckdb-linux-aarch64.zip"
+  else:
+    lib_zip = f"libduckdb-linux-amd64.zip"
+  print("Error: DuckDB C headers not found.")
   print()
-  print("To install DuckDB C headers, run:")
+  print("To install, run:")
   print()
-  print("  mkdir -p ~/.logica/duckdb_headers && cd ~/.logica/duckdb_headers \\")
-  print("    && curl -LO https://github.com/duckdb/duckdb/releases/download/"
-        "v1.3.1/libduckdb-osx-universal.zip \\")
-  print("    && unzip -o libduckdb-osx-universal.zip && rm -f libduckdb-osx-universal.zip \\")
-  print("    && curl -LO https://raw.githubusercontent.com/duckdb/duckdb/"
-        "v1.3.1/src/include/duckdb_extension.h")
-  print()
-  print("Then add to your shell profile:")
-  print()
-  print("  export DUCKDB_HEADERS=~/.logica/duckdb_headers")
+  print(f"  mkdir -p ~/.logica/duckdb_headers && cd ~/.logica/duckdb_headers \\")
+  print(f"    && curl -LO https://github.com/duckdb/duckdb/releases/download/"
+        f"v{ver}/{lib_zip} \\")
+  print(f"    && unzip -o {lib_zip} && rm -f {lib_zip} \\")
+  print(f"    && curl -LO https://raw.githubusercontent.com/duckdb/duckdb/"
+        f"v{ver}/src/include/duckdb_extension.h")
   sys.exit(1)
 
 
