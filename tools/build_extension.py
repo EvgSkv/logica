@@ -38,6 +38,27 @@ else:
  from . import make_aggregation as ma
 
 
+def parse_agg_spec(spec):
+  """Parse aggregation specification.
+
+  Simple:    "PulseAdd"  ->  (PulseAdd, PulseAdd, None, None)
+  Composed:  "TimelineUnionAgg = F * G * H"  ->  (TimelineUnionAgg, G, H, F)
+
+  Returns (sql_name, agg_func, wrapper, unwrapper).
+  wrapper/unwrapper are None for identity (1).
+  """
+  spec = spec.strip()
+  if '=' not in spec:
+    return spec, spec, None, None
+  name, composition = spec.split('=', 1)
+  name = name.strip()
+  parts = [p.strip() for p in composition.strip().split('*')]
+  if len(parts) != 3:
+    raise ValueError(f"Expected 'name = f * g * h', got: {spec}")
+  f, g, h = parts
+  return name, g, (None if h == '1' else h), (None if f == '1' else f)
+
+
 def parse_logica_extension(source):
   """Extract LOGICA_EXTENSION dict from source."""
   tree = ast.parse(source)
@@ -237,33 +258,51 @@ def scalar_registration(func_name, params, ret_type):
 # Aggregate — prefixed callbacks for multi-function extensions
 # ---------------------------------------------------------------------------
 
-def agg_callbacks(func_name, ret_type):
-  """Generate aggregate callbacks with func_name-prefixed names."""
+def agg_callbacks(sql_name, ret_type,
+                  agg_func=None, wrapper=None, unwrapper=None):
+  """Generate aggregate callbacks with sql_name-prefixed names."""
+  if agg_func is None:
+    agg_func = sql_name
   _, duckdb_type, is_complex = ma.classify_type(ret_type)
   class_name = ma._parse_list_type(ret_type) if duckdb_type == "DUCKDB_TYPE_LIST_STRUCT" else None
   if duckdb_type == "DUCKDB_TYPE_STRUCT":
     class_name = ret_type
 
-  P = func_name  # prefix
+  P = sql_name
 
   if duckdb_type == "DUCKDB_TYPE_LIST_STRUCT":
     return _agg_heap(P, f"std::vector<{class_name}>",
-            f"read_list_{class_name}(vec, i)", class_name)
+            f"read_list_{class_name}(vec, i)", class_name,
+            agg_func=agg_func, wrapper=wrapper, unwrapper=unwrapper)
   elif duckdb_type == "DUCKDB_TYPE_STRUCT":
     return _agg_value(P, class_name, f"read_{class_name}(vec, i)",
-             f"write_{class_name}(result, offset + i, s->value);")
+             f"write_{class_name}(result, offset + i, s->value);",
+             agg_func=agg_func, wrapper=wrapper, unwrapper=unwrapper)
   elif is_complex and duckdb_type == "DUCKDB_TYPE_VARCHAR":
     cpp_t, _, _ = ma.classify_type(ret_type)
     return _agg_heap(P, "AggValueType",
             "parse_json(duckdb_string_t_data(&((duckdb_string_t *)duckdb_vector_get_data(vec))[i]), "
-            "duckdb_string_t_length(((duckdb_string_t *)duckdb_vector_get_data(vec))[i]))")
+            "duckdb_string_t_length(((duckdb_string_t *)duckdb_vector_get_data(vec))[i]))",
+            agg_func=agg_func, wrapper=wrapper, unwrapper=unwrapper)
   else:
     cpp_t, _, _ = ma.classify_type(ret_type)
     return _agg_value(P, cpp_t, f"(({cpp_t} *)duckdb_vector_get_data(vec))[i]",
-             f"(({cpp_t} *)duckdb_vector_get_data(result))[offset + i] = s->value;")
+             f"(({cpp_t} *)duckdb_vector_get_data(result))[offset + i] = s->value;",
+             agg_func=agg_func, wrapper=wrapper, unwrapper=unwrapper)
 
 
-def _agg_value(P, vtype, read_expr, write_expr):
+def _agg_value(P, vtype, read_expr, write_expr,
+               agg_func=None, wrapper=None, unwrapper=None):
+  if agg_func is None:
+    agg_func = P
+  if wrapper:
+    read_block = f"auto _raw = {read_expr};\n    auto incoming = {wrapper}(_raw);"
+  else:
+    read_block = f"auto incoming = {read_expr};"
+  if unwrapper:
+    actual_write = write_expr.replace("s->value", f"{unwrapper}(s->value)")
+  else:
+    actual_write = write_expr
   return f"""
 struct {P}_State {{ bool has_value; {vtype} value; }};
 static idx_t {P}_size(duckdb_function_info info) {{ return sizeof({P}_State); }}
@@ -278,9 +317,9 @@ static void {P}_update(duckdb_function_info info, duckdb_data_chunk input,
   for (idx_t i = 0; i < count; i++) {{
     if (validity && !duckdb_validity_row_is_valid(validity, i)) continue;
     auto s = reinterpret_cast<{P}_State *>(states[i]);
-    auto incoming = {read_expr};
+    {read_block}
     if (!s->has_value) {{ s->has_value = true; s->value = incoming; }}
-    else {{ s->value = {P}(s->value, incoming); }}
+    else {{ s->value = {agg_func}(s->value, incoming); }}
   }}
 }}
 static void {P}_combine(duckdb_function_info info,
@@ -291,7 +330,7 @@ static void {P}_combine(duckdb_function_info info,
     auto tgt = reinterpret_cast<{P}_State *>(target[i]);
     if (!src->has_value) continue;
     if (!tgt->has_value) {{ *tgt = *src; }}
-    else {{ tgt->value = {P}(tgt->value, src->value); }}
+    else {{ tgt->value = {agg_func}(tgt->value, src->value); }}
   }}
 }}
 static void {P}_finalize(duckdb_function_info info,
@@ -302,17 +341,44 @@ static void {P}_finalize(duckdb_function_info info,
   for (idx_t i = 0; i < count; i++) {{
     auto s = reinterpret_cast<{P}_State *>(states[i]);
     if (!s->has_value) {{ duckdb_validity_set_row_invalid(validity, offset + i); }}
-    else {{ {write_expr} }}
+    else {{ {actual_write} }}
   }}
 }}
 """
 
 
-def _agg_heap(P, vtype, read_expr, class_name=None):
+def _agg_heap_update(agg_func, vtype):
+  if agg_func == '++':
+    return "s->value->insert(s->value->end(), incoming.begin(), incoming.end());"
+  return f"*s->value = {agg_func}(*s->value, incoming);"
+
+def _agg_heap_combine(agg_func, vtype):
+  if agg_func == '++':
+    return "tgt->value->insert(tgt->value->end(), src->value->begin(), src->value->end());"
+  return f"*tgt->value = {agg_func}(*tgt->value, *src->value);"
+
+def _agg_heap(P, vtype, read_expr, class_name=None,
+              agg_func=None, wrapper=None, unwrapper=None):
+  if agg_func is None:
+    agg_func = P
   is_list = "std::vector" in vtype
+  if wrapper:
+    update_read = f"""auto _raw = {read_expr};
+    auto incoming = {wrapper}(_raw);"""
+  else:
+    update_read = f"auto incoming = {read_expr};"
   if is_list:
     write_fn = f"write_{class_name}" if class_name else "write_struct"
-    finalize_write = f"""list_data[offset + i].offset = current_offset;
+    if unwrapper:
+      finalize_write = f"""auto _final = {unwrapper}(*s->value);
+      list_data[offset + i].offset = current_offset;
+      list_data[offset + i].length = _final.size();
+      duckdb_list_vector_reserve(result, current_offset + _final.size());
+      child = duckdb_list_vector_get_child(result);
+      for (auto& elem : _final) {{ {write_fn}(child, current_offset++, elem); }}
+      duckdb_list_vector_set_size(result, current_offset);"""
+    else:
+      finalize_write = f"""list_data[offset + i].offset = current_offset;
       list_data[offset + i].length = s->value->size();
       duckdb_list_vector_reserve(result, current_offset + s->value->size());
       child = duckdb_list_vector_get_child(result);
@@ -323,7 +389,11 @@ def _agg_heap(P, vtype, read_expr, class_name=None):
   idx_t current_offset = duckdb_list_vector_get_size(result);"""
     null_extra = "list_data[offset + i].offset = current_offset; list_data[offset + i].length = 0;"
   else:
-    finalize_write = f"""auto json = serialize_json(*s->value);
+    if unwrapper:
+      finalize_write = f"""auto _json = serialize_json({unwrapper}(*s->value));
+      duckdb_vector_assign_string_element_len(result, offset + i, _json.c_str(), _json.size());"""
+    else:
+      finalize_write = f"""auto json = serialize_json(*s->value);
       duckdb_vector_assign_string_element_len(result, offset + i, json.c_str(), json.size());"""
     extra_finalize_vars = ""
     null_extra = ""
@@ -347,9 +417,9 @@ static void {P}_update(duckdb_function_info info, duckdb_data_chunk input,
   for (idx_t i = 0; i < count; i++) {{
     if (validity && !duckdb_validity_row_is_valid(validity, i)) continue;
     auto s = reinterpret_cast<{P}_State *>(states[i]);
-    auto incoming = {read_expr};
+    {update_read}
     if (!s->has_value) {{ s->has_value = true; s->value = new {vtype}(std::move(incoming)); }}
-    else {{ *s->value = {P}(*s->value, incoming); }}
+    else {{ {_agg_heap_update(agg_func, vtype)} }}
   }}
 }}
 static void {P}_combine(duckdb_function_info info,
@@ -360,7 +430,7 @@ static void {P}_combine(duckdb_function_info info,
     auto tgt = reinterpret_cast<{P}_State *>(target[i]);
     if (!src->has_value) continue;
     if (!tgt->has_value) {{ tgt->has_value = true; tgt->value = new {vtype}(*src->value); }}
-    else {{ *tgt->value = {P}(*tgt->value, *src->value); }}
+    else {{ {_agg_heap_combine(agg_func, vtype)} }}
   }}
 }}
 static void {P}_finalize(duckdb_function_info info,
@@ -409,14 +479,37 @@ def agg_registration(func_name, ret_type):
 # Top-level generation
 # ---------------------------------------------------------------------------
 
+def _agg_state_type(source, agg_func, wrapper):
+  """Return the Python type string for the aggregation state.
+  For '++', infer from wrapper's return type (or first param if no wrapper)."""
+  if agg_func == '++':
+    if wrapper:
+      _, ret_type = parse_function_signature(source, wrapper)
+      return ret_type
+    raise ValueError("++ aggregation requires a wrapper function")
+  _, ret_type = parse_function_signature(source, agg_func)
+  return ret_type
+
+
 def generate_extension(source, ext_config, mode):
   functions = ext_config.get("functions", [])
-  aggregations = ext_config.get("aggregations", [])
+  raw_aggregations = ext_config.get("aggregations", [])
   ext_name = ext_config.get("name", "logica_ext")
 
+  agg_specs = [parse_agg_spec(a) for a in raw_aggregations]
+
+  agg_cpp_funcs = []
+  seen = set()
+  for sql_name, agg_func, wrapper, unwrapper in agg_specs:
+    for f in [agg_func, wrapper, unwrapper]:
+      if f and f not in seen and f != '++':
+        agg_cpp_funcs.append(f)
+        seen.add(f)
+
+  all_cpp_names = list(dict.fromkeys(functions + agg_cpp_funcs))
+
   cpp_body = ma.TranspileSource(source)
-  all_names = functions + aggregations
-  preamble, func_codes = extract_all_functions(cpp_body, all_names)
+  preamble, func_codes = extract_all_functions(cpp_body, all_cpp_names)
 
   include = ma.duckdb_include(mode, ext_name)
 
@@ -432,22 +525,29 @@ def generate_extension(source, ext_config, mode):
 {preamble}
 """]
 
-  # Emit each function body once
-  for fname in all_names:
-    if fname in func_codes:
-      parts.append(func_codes[fname])
-      parts.append("")
+  for fname in func_codes:
+    parts.append(func_codes[fname])
+    parts.append("")
 
-  # Struct read/write helpers (if needed by any aggregate or scalar function)
   needed_classes = set()
   list_classes = set()
-  for fname in all_names:
+  for fname in functions:
     params, ret_type = parse_function_signature(source, fname)
     for _, ptype in params:
       if _is_struct_list(ptype):
         cn = _list_inner(ptype)
         needed_classes.add(cn)
         list_classes.add(cn)
+    _, duckdb_type, _ = ma.classify_type(ret_type)
+    class_name = ma._parse_list_type(ret_type) if duckdb_type == "DUCKDB_TYPE_LIST_STRUCT" else None
+    if duckdb_type == "DUCKDB_TYPE_STRUCT":
+      class_name = ret_type
+    if class_name:
+      needed_classes.add(class_name)
+      if duckdb_type == "DUCKDB_TYPE_LIST_STRUCT":
+        list_classes.add(class_name)
+  for sql_name, agg_func, wrapper, unwrapper in agg_specs:
+    ret_type = _agg_state_type(source, agg_func, wrapper)
     _, duckdb_type, _ = ma.classify_type(ret_type)
     class_name = ma._parse_list_type(ret_type) if duckdb_type == "DUCKDB_TYPE_LIST_STRUCT" else None
     if duckdb_type == "DUCKDB_TYPE_STRUCT":
@@ -472,33 +572,34 @@ static std::vector<{cn}> read_list_{cn}(duckdb_vector vec, idx_t i) {{
 }}
 """)
 
-  # JSON helpers (if needed by varchar aggregates)
-  for fname in aggregations:
-    _, ret_type = parse_function_signature(source, fname)
+  for sql_name, agg_func, wrapper, unwrapper in agg_specs:
+    ret_type = _agg_state_type(source, agg_func, wrapper)
     cpp_t, duckdb_type, _ = ma.classify_type(ret_type)
     if duckdb_type == "DUCKDB_TYPE_VARCHAR" and "map" in cpp_t:
       parts.append(ma.json_helpers(cpp_t))
       break
 
-  # Scalar callbacks
   for fname in functions:
     params, ret_type = parse_function_signature(source, fname)
     parts.append(scalar_callback(fname, params, ret_type))
 
-  # Aggregate callbacks
-  for fname in aggregations:
-    _, ret_type = parse_function_signature(source, fname)
-    parts.append(agg_callbacks(fname, ret_type))
+  for sql_name, agg_func, wrapper, unwrapper in agg_specs:
+    ret_type = _agg_state_type(source, agg_func, wrapper)
+    parts.append(agg_callbacks(sql_name, ret_type,
+                               agg_func=agg_func,
+                               wrapper=wrapper,
+                               unwrapper=unwrapper))
 
-  # Build all registrations
   all_regs = []
   for fname in functions:
     params, ret_type = parse_function_signature(source, fname)
     all_regs.append(scalar_registration(fname, params, ret_type))
-  for fname in aggregations:
-    _, ret_type = parse_function_signature(source, fname)
-    all_regs.append(agg_registration(fname, ret_type))
+  for sql_name, agg_func, wrapper, unwrapper in agg_specs:
+    ret_type = _agg_state_type(source, agg_func, wrapper)
+    all_regs.append(agg_registration(sql_name, ret_type))
   reg_block = "\n".join(all_regs)
+
+  all_sql_names = functions + [s[0] for s in agg_specs]
 
   if mode == "extension":
     parts.append(f"""
@@ -533,7 +634,7 @@ int main() {{
   if (duckdb_open(nullptr, &db) == DuckDBError) {{ printf("FAIL: open\\n"); return 1; }}
   if (duckdb_connect(db, &con) == DuckDBError) {{ printf("FAIL: connect\\n"); return 1; }}
 {reg_block}
-  printf("Registered: {', '.join(all_names)}\\n");
+  printf("Registered: {', '.join(all_sql_names)}\\n");
   duckdb_result res;
 {"".join(test_queries)}
   duckdb_disconnect(&con);
@@ -588,10 +689,14 @@ def BuildExtension(script_path, install=False):
   sql_args = ", ".join(f"{{{p[0]}}}" for p in params)
   record = ", ".join(f"{p[0]}:" for p in params)
   lines.append(f'{fname}({args}) = SqlExpr("{fname}({sql_args})", {{{record}}});')
- for fname in ext_config.get("aggregations", []):
-  params, _ = parse_function_signature(source, fname)
+ for agg_spec in ext_config.get("aggregations", []):
+  sql_name, agg_func, wrapper, unwrapper = parse_agg_spec(agg_spec)
+  if wrapper:
+   params, _ = parse_function_signature(source, wrapper)
+  else:
+   params, _ = parse_function_signature(source, agg_func)
   arg_name = params[0][0]
-  lines.append(f'{fname}({arg_name}) = SqlExpr("{fname}({{{arg_name}}})", {{{arg_name}:}});')
+  lines.append(f'{sql_name}({arg_name}) = SqlExpr("{sql_name}({{{arg_name}}})", {{{arg_name}:}});')
  lines.append('')
  with open(out_l, "w") as f:
   f.write("\n".join(lines))
@@ -631,9 +736,15 @@ def main():
     params, ret = parse_function_signature(source, f)
     ptypes = ", ".join(t for _, t in params)
     print(f"  function {f}({ptypes}) -> {ret}")
-  for f in aggregations:
-    _, ret = parse_function_signature(source, f)
-    print(f"  aggregation {f}({ret}, {ret}) -> {ret}")
+  for agg_spec in aggregations:
+    sql_name, agg_func, wrapper, unwrapper = parse_agg_spec(agg_spec)
+    if wrapper or unwrapper:
+      w = wrapper or '1'
+      u = unwrapper or '1'
+      print(f"  aggregation {sql_name} = {u} * {agg_func} * {w}")
+    else:
+      _, ret = parse_function_signature(source, agg_func)
+      print(f"  aggregation {sql_name}({ret}, {ret}) -> {ret}")
 
   ext_config["name"] = ext_name
   mode = "extension" if extension else "test"
