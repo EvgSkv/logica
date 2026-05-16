@@ -15,7 +15,10 @@
 # limitations under the License.
 
 LOGICA_EXTENSION = {
-  "aggregations": ["PulseAdd", "TimelineUnionAgg", "TimelineIntersectAgg"],
+  "aggregations": [
+      "PulseAdd",
+      "TimelineUnionAgg = TimelineUnionFinalize * PulseConcat * TimelineToPulse",
+      "TimelineIntersectAgg"],
   "functions": ["PulseMult", "PulseSum", "Threshold",
                 "TimelineUnion", "TimelineIntersect", "TimelineRender"]
 }
@@ -152,11 +155,36 @@ def TimelineIntersect(a: list[KeyValue], b: list[KeyValue]) -> list[KeyValue]:
   thresholded: list[KeyValue] = Threshold(merged, 2.0)
   return PulseToTimeline(thresholded)
 
-def TimelineUnionAgg(a: list[KeyValue], b: list[KeyValue]) -> list[KeyValue]:
-  pa: list[KeyValue] = TimelineToPulse(a)
-  pb: list[KeyValue] = TimelineToPulse(b)
-  merged: list[KeyValue] = MergePulses(pa, pb)
-  thresholded: list[KeyValue] = Threshold(merged, 1.0)
+def PulseConcat(a: list[KeyValue], b: list[KeyValue]) -> list[KeyValue]:
+  result: list[KeyValue] = []
+  i: int = 0
+  while i < len(a):
+    result.append(a[i])
+    i = i + 1
+  i = 0
+  while i < len(b):
+    result.append(b[i])
+    i = i + 1
+  return result
+
+def CollapsePulses(a: list[KeyValue]) -> list[KeyValue]:
+  sa = sorted(a, key=lambda x: x.arg)
+  result: list[KeyValue] = []
+  i: int = 0
+  while i < len(sa):
+    if len(result) > 0 and result[len(result) - 1].arg == sa[i].arg:
+      result[len(result) - 1].value = result[len(result) - 1].value + sa[i].value
+    else:
+      e = KeyValue()
+      e.arg = sa[i].arg
+      e.value = sa[i].value
+      result.append(e)
+    i = i + 1
+  return result
+
+def TimelineUnionFinalize(a: list[KeyValue]) -> list[KeyValue]:
+  collapsed: list[KeyValue] = CollapsePulses(a)
+  thresholded: list[KeyValue] = Threshold(collapsed, 1.0)
   return PulseToTimeline(thresholded)
 
 def TimelineIntersectAgg(a: list[KeyValue], b: list[KeyValue]) -> list[KeyValue]:
