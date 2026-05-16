@@ -17,7 +17,7 @@
 LOGICA_EXTENSION = {
   "aggregations": [
       "PulseAdd",
-      "TimelineUnionAgg = TimelineUnionFinalize * PulseConcat * TimelineToPulse",
+      "TimelineUnionAgg = TimelineUnionFinalize * ++ * TimelineToPulse",
       "TimelineIntersectAgg"],
   "functions": ["PulseMult", "PulseSum", "Threshold",
                 "TimelineUnion", "TimelineIntersect", "TimelineRender"]
