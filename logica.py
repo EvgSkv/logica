@@ -324,13 +324,28 @@ def main(argv):
         o = sqlite3_logica.RunSqlScript(statements_to_execute,
                                         format).encode()
       elif engine == 'duckdb':
-        connection = duckdb_logica.GetConnection(logic_program)
-        cur = connection.sql(formatted_sql)
-        formatter = (sqlite3_logica.ArtisticTable
-                     if command == 'run'
-                     else sqlite3_logica.Csv)
-        o = formatter(cur.columns,
-                      cur.fetchall()).encode()
+        if __name__ == '__main__' and not __package__:
+          from tools import run_in_terminal
+        else:
+          from .tools import run_in_terminal
+        import tempfile
+        run_filename = filename
+        if filename == '/dev/stdin':
+          tmp = tempfile.NamedTemporaryFile(
+              mode='w', suffix='.l', delete=False)
+          tmp.write(program_text)
+          tmp.close()
+          run_filename = tmp.name
+        if command == 'run_to_csv':
+          header, rows = run_in_terminal.Run(
+              run_filename, predicate,
+              output_format='header_rows',
+              display_mode='silent')
+          o = sqlite3_logica.Csv(header, rows).encode()
+        else:
+          o = run_in_terminal.Run(
+              run_filename, predicate,
+              display_mode='silent').encode()
       elif engine == 'psql':
         connection_str = os.environ.get('LOGICA_PSQL_CONNECTION')
         if connection_str:
