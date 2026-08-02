@@ -157,7 +157,7 @@ class Annotations(object):
       '@CompileAsUdf', '@ResetFlagValue', '@Dataset', '@AttachDatabase',
       '@Engine', '@Recursive', '@Iteration', '@BareAggregation',
       '@DifferentiallyPrivate',
-      '@Extension'
+      '@Extension', '@NeuralTarget'
   ]
 
   def __init__(self, rules, user_flags):
@@ -325,8 +325,7 @@ class Annotations(object):
       result[iteration_name] = {'predicates': predicates,
                                 'repetitions': args['repetitions'],
                                 'stop_signal': args.get('stop_signal'),
-                                'mode': args.get('mode'),
-                                'neural': args.get('neural')}
+                                'mode': args.get('mode')}
     return result
 
   def LimitOf(self, predicate_name):
@@ -629,7 +628,7 @@ class LogicaProgram(object):
               list(set(self.dollar_params) - set(self.flag_values))),
           str(list(set(self.dollar_params) - set(self.flag_values))))
     self.functors = None
-    self.neural_plans = {}
+    self.neural_plans = {}  # Compiled after type inference below.
 
     # Extending rules with functors.
     extended_rules = self.RunMakes(rules)  # Populates self.functors.
@@ -639,9 +638,10 @@ class LogicaProgram(object):
         dialects.Get(self.annotations.Engine()).LibraryProgram())['rule']
     extended_rules.extend(library_rules)
 
-    # Neural iterations read their input relations from tables:
-    # ground the inputs.
-    neural_logica.AppendAutoGrounds(extended_rules)
+    # Neural iterations and neural targets read their input relations
+    # from tables: ground the inputs. Functors already know the
+    # dependencies.
+    neural_logica.AppendAutoGrounds(extended_rules, self.functors)
 
     for rule in extended_rules:
       predicate_name = rule['head']['predicate_name']
@@ -660,6 +660,11 @@ class LogicaProgram(object):
     self.typing_engine = None
     if self.annotations.ShouldTypecheck():
       self.typing_preamble = self.RunTypechecker()
+
+    # Plans of neural iterations are a pure function of the program:
+    # compiled here once, attached to every execution's iterations in
+    # InitializeExecution.
+    self.neural_plans = neural_logica.CompilePlans(self)
 
     # Build udfs, populating custom_udfs and custom_udf_definitions.
     self.BuildUdfs()
@@ -712,17 +717,16 @@ class LogicaProgram(object):
   def UnfoldRecursion(self, rules):
     annotations = Annotations(rules, {})
     depth_map = annotations.annotations.get('@Recursive', {})
-    # @Recursive(P, k, mode: "neural") is diamond recursion whose loop
-    # runs on tensors. Without an explicit repetition count it runs until
-    # stabilization (-1 turns into ∞ in RecursiveAnalysis). The neural
-    # mark travels through the diamond functor into @Iteration.
-    for entry in depth_map.values():
-      if entry.get('mode') == 'neural':
-        entry['mode'] = 'diamond'
-        entry.setdefault('1', -1)
-        entry['neural'] = True
+    # For @NeuralTarget(Loss, learn: [W]) the rules of W are renamed
+    # into W_init — the initialization — while W becomes a stored copy
+    # of W_init that training overwrites with learned values; a
+    # one-repetition @Iteration is added to run the training.
+    rules = neural_logica.RewriteNeuralTargets(rules)
     self.InscribeOrbits(rules, depth_map)
     f = functors.Functors(rules)
+    # Components of learning cones are extracted before recursion
+    # unfolding, while recursion is still visible as dependency cycles.
+    self.neural_components = neural_logica.ExtractNeuralComponents(f)
     # Annotations are not ready at this point.
     # if (self.execution.annotations.Engine() == 'duckdb'):
     #   for p in depth_map:
@@ -1060,16 +1064,8 @@ class LogicaProgram(object):
     self.execution.dependencies_of = self.functors.args_of
     self.execution.dialect = dialects.Get(self.annotations.Engine())
     self.execution.iterations = self.annotations.Iterations()
-    for iteration_name, iteration in self.execution.iterations.items():
-      if iteration.get('neural'):
-        iteration['plan'] = self.NeuralPlan(iteration_name, iteration)
-
-  def NeuralPlan(self, iteration_name, iteration):
-    """Compiled neural plan of an iteration, built once per program."""
-    if iteration_name not in self.neural_plans:
-      self.neural_plans[iteration_name] = neural_logica.NeuralPlan(
-          self, iteration_name, iteration)
-    return self.neural_plans[iteration_name]
+    # Iterations marked neural execute as their compiled plans.
+    neural_logica.AttachPlans(self.neural_plans, self.execution.iterations)
   
   def UpdateExecutionWithTyping(self):
     if self.execution.dialect.IsPostgreSQLish():
@@ -1093,6 +1089,11 @@ class LogicaProgram(object):
             # We don't have actual dependency on top of stack, so we
             # do not add any dependency edge.
             translator.TranslateTable(d, None, edge_needed=False)
+    # Training is a collapsed dependency cycle: Weight <- Loss <-
+    # Prediction <- Weight spins inside one node. The scheduler sees the
+    # acyclic condensation, and here the collapsed loop receives its
+    # in-edges: dependencies on the data the loop consumes.
+    neural_logica.AddLearningLoopDependencies(self.execution, translator)
 
   def FormattedPredicateSql(self, name, allocator=None):
     """Printing top-level formatted SQL statement with defines and exports."""

@@ -64,6 +64,16 @@ ToTime(a) = SqlExpr("cast({a} as timestamp)", {a:});
 
 NaturalHash(x) = ToInt64(SqlExpr("hash(cast({x} as string)) // cast(2 as ubigint)", {x:}));
 
+# Deterministic hash-based pseudo-random value, uniform in (0, 1).
+UniformHash(x) = (NaturalHash(x) + 0.5) / 9223372036854775808.0;
+
+# Deterministic hash-based pseudo-random value, standard normal:
+# Box-Muller transform of two independently salted uniform hashes.
+NormalHash(x) =
+    Sqrt(-2.0 * Log(UniformHash(ToString(x) ++ "|normal-radius"))) *
+    Cos(2.0 * 3.141592653589793 *
+        UniformHash(ToString(x) ++ "|normal-angle"));
+
 # This is unsafe to use because due to the way Logica compiles this number
 # will be unique for each use of the variable, which can be a pain to debug.
 # It is OK to use it as long as you undertand and are OK with the difficulty.

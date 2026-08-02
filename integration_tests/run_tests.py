@@ -66,6 +66,16 @@ def NeuralTests():
           golden='neural/neural_const_keys.txt', use_concertina=True)
   RunTest('neural/neural_game_of_life', src='neural/neural_game_of_life.l',
           golden='neural/neural_game_of_life.txt', use_concertina=True)
+  RunTest('neural/neural_hash_functions', src='neural/neural_hash_functions.l',
+          golden='neural/neural_hash_functions.txt', use_concertina=True)
+  RunTest('neural/neural_target_linear', src='neural/neural_target_linear.l',
+          golden='neural/neural_target_linear.txt', use_concertina=True)
+  RunTest('neural/neural_animal_fights', src='neural/neural_animal_fights.l',
+          golden='neural/neural_animal_fights.txt', use_concertina=True)
+  RunTest('neural/neural_mlp', src='neural/neural_mlp.l',
+          golden='neural/neural_mlp.txt', use_concertina=True)
+  RunTest('neural/neural_xor', src='neural/neural_xor.l',
+          golden='neural/neural_xor.txt', use_concertina=True)
 
 
 def RunAll(test_presto=False, test_trino=False, test_clingo=True, test_clickhouse=False,
