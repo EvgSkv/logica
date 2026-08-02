@@ -485,6 +485,10 @@ def Logica(line, cell, run_query):
     except infer.TypeErrorCaughtException as e:
       e.ShowMessage()
       return
+    except rule_translate.RuleCompileException as e:
+      # E.g. a neural plan may reject a program at execution time.
+      e.ShowMessage()
+      return
 
   for idx, predicate in enumerate(predicates):
     t = result_map[predicate]

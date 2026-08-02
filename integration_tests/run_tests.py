@@ -45,6 +45,29 @@ def RunTest(name, src=None, golden=None, predicate=None,
             duckify_psql=True)
 
 
+def NeuralTests():
+  """Tests of @Neural execution; need JAX."""
+  try:
+    import jax
+  except ImportError:
+    print('Skipping neural tests: JAX is not installed.')
+    return
+  RunTest('neural/neural_basic', src='neural/neural_basic.l',
+          golden='neural/neural_basic.txt', use_concertina=True)
+  RunTest('neural/neural_d', src='neural/neural_d.l',
+          golden='neural/neural_d.txt', use_concertina=True)
+  RunTest('neural/neural_pagerank', src='neural/neural_pagerank.l',
+          golden='neural/neural_pagerank.txt', use_concertina=True)
+  RunTest('neural/neural_flow', src='neural/neural_flow.l',
+          golden='neural/neural_flow.txt', use_concertina=True)
+  RunTest('neural/neural_counter', src='neural/neural_counter.l',
+          golden='neural/neural_counter.txt', use_concertina=True)
+  RunTest('neural/neural_const_keys', src='neural/neural_const_keys.l',
+          golden='neural/neural_const_keys.txt', use_concertina=True)
+  RunTest('neural/neural_game_of_life', src='neural/neural_game_of_life.l',
+          golden='neural/neural_game_of_life.txt', use_concertina=True)
+
+
 def RunAll(test_presto=False, test_trino=False, test_clingo=True, test_clickhouse=False,
            test_extension=False):
   """Running all tests."""
@@ -53,6 +76,8 @@ def RunAll(test_presto=False, test_trino=False, test_clingo=True, test_clickhous
   # RunTest("ground_psql_test")
   # RunTest("closure_test")
   # RunTest("dialects/trino/grounding_test")
+
+  NeuralTests()
 
   if test_presto:
     RunTest("dialects/presto/basics_test")

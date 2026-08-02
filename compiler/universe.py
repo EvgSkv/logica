@@ -33,6 +33,7 @@ if '.' not in __package__:
   from compiler import dialects
   from compiler import expr_translate
   from compiler import functors
+  from compiler import neural_logica
   from compiler import rule_translate
   from parser_py import parse
   from type_inference.research import infer
@@ -41,6 +42,7 @@ else:
   from ..compiler import dialects
   from ..compiler import expr_translate
   from ..compiler import functors
+  from ..compiler import neural_logica
   from ..compiler import rule_translate
   from ..parser_py import parse
   from ..type_inference.research import infer
@@ -323,7 +325,8 @@ class Annotations(object):
       result[iteration_name] = {'predicates': predicates,
                                 'repetitions': args['repetitions'],
                                 'stop_signal': args.get('stop_signal'),
-                                'mode': args.get('mode')}
+                                'mode': args.get('mode'),
+                                'neural': args.get('neural')}
     return result
 
   def LimitOf(self, predicate_name):
@@ -626,6 +629,7 @@ class LogicaProgram(object):
               list(set(self.dollar_params) - set(self.flag_values))),
           str(list(set(self.dollar_params) - set(self.flag_values))))
     self.functors = None
+    self.neural_plans = {}
 
     # Extending rules with functors.
     extended_rules = self.RunMakes(rules)  # Populates self.functors.
@@ -635,6 +639,10 @@ class LogicaProgram(object):
         dialects.Get(self.annotations.Engine()).LibraryProgram())['rule']
     extended_rules.extend(library_rules)
 
+    # Neural iterations read their input relations from tables:
+    # ground the inputs.
+    neural_logica.AppendAutoGrounds(extended_rules)
+
     for rule in extended_rules:
       predicate_name = rule['head']['predicate_name']
       self.defined_predicates.add(predicate_name)
@@ -643,6 +651,7 @@ class LogicaProgram(object):
     # We need to recompute annotations, because 'Make' created more rules and
     # annotations.
     self.annotations = Annotations(extended_rules, self.user_flags)
+    neural_logica.CheckNeuralPredicatesIterate(self.annotations)
 
     # Infering types if requested.
     self.typing_preamble = ''
@@ -703,6 +712,15 @@ class LogicaProgram(object):
   def UnfoldRecursion(self, rules):
     annotations = Annotations(rules, {})
     depth_map = annotations.annotations.get('@Recursive', {})
+    # @Recursive(P, k, mode: "neural") is diamond recursion whose loop
+    # runs on tensors. Without an explicit repetition count it runs until
+    # stabilization (-1 turns into ∞ in RecursiveAnalysis). The neural
+    # mark travels through the diamond functor into @Iteration.
+    for entry in depth_map.values():
+      if entry.get('mode') == 'neural':
+        entry['mode'] = 'diamond'
+        entry.setdefault('1', -1)
+        entry['neural'] = True
     self.InscribeOrbits(rules, depth_map)
     f = functors.Functors(rules)
     # Annotations are not ready at this point.
@@ -1042,6 +1060,16 @@ class LogicaProgram(object):
     self.execution.dependencies_of = self.functors.args_of
     self.execution.dialect = dialects.Get(self.annotations.Engine())
     self.execution.iterations = self.annotations.Iterations()
+    for iteration_name, iteration in self.execution.iterations.items():
+      if iteration.get('neural'):
+        iteration['plan'] = self.NeuralPlan(iteration_name, iteration)
+
+  def NeuralPlan(self, iteration_name, iteration):
+    """Compiled neural plan of an iteration, built once per program."""
+    if iteration_name not in self.neural_plans:
+      self.neural_plans[iteration_name] = neural_logica.NeuralPlan(
+          self, iteration_name, iteration)
+    return self.neural_plans[iteration_name]
   
   def UpdateExecutionWithTyping(self):
     if self.execution.dialect.IsPostgreSQLish():

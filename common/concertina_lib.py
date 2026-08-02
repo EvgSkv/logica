@@ -52,10 +52,27 @@ class ConcertinaQueryEngine(object):
         if self.observer:
           self.observer.ObserveTable(predicate, result)
 
+  def RunPlan(self, iteration_name, plan, progress=None):
+    """Runs a whole iteration as a single Python plan (e.g. neural recursion)."""
+    if self.print_running_predicate:
+      print('Running iteration:', iteration_name, end='')
+    start = datetime.datetime.now()
+    stats = plan.Run(self.sql_runner, progress=progress)
+    end = datetime.datetime.now()
+    self.completion_time[iteration_name] = int(
+        (end - start).total_seconds() * 1000)
+    if self.print_running_predicate:
+      print(' (%d ms)' % self.completion_time[iteration_name])
+    return stats
+
 
 class ConcertinaDryRunEngine(object):
   def Run(self, action):
     print(action)
+
+  def RunPlan(self, iteration_name, plan, progress=None):
+    print('Python plan of iteration %s:' % iteration_name, plan)
+    return {}
 
 
 class Concertina(object):
@@ -253,6 +270,10 @@ class Concertina(object):
     # self.UpdateDisplay()
     one_action = self.actions_to_run[0]
     del self.actions_to_run[0]
+    iteration = self.action_iteration.get(one_action)
+    if iteration and self.iterations[iteration].get('plan') is not None:
+      self.RunIterationAsPlan(iteration)
+      return
     self.running_actions |= {one_action}
     self.UpdateDisplay()
     self.engine.Run(self.action[one_action].get('action', {}))
@@ -262,6 +283,32 @@ class Concertina(object):
     else:
       self.UpdateStateForIterativeAction(one_action)
     # self.UpdateDisplay()
+
+  def RunIterationAsPlan(self, iteration):
+    """Runs the whole iteration as a single Python plan (e.g. neural recursion)."""
+    members = [a for a in self.iteration_actions[iteration]
+               if a in self.action]
+    self.running_actions |= set(members)
+    self.UpdateDisplay()
+
+    def Progress(sweeps):
+      for a in members:
+        self.action_iterations_complete[a] = sweeps
+      self.UpdateDisplay()  # Internally throttled.
+
+    stats = self.engine.RunPlan(iteration, self.iterations[iteration]['plan'],
+                                progress=Progress)
+    self.running_actions -= set(members)
+    # The plan ran the whole iteration: display the number of sweeps it
+    # actually took and retire all of the iteration's actions.
+    executed = stats.get('iterations', 1) if stats else 1
+    self.iteration_repetitions[iteration] = executed
+    completion_time = getattr(self.engine, 'completion_time', {})
+    for a in members:
+      self.action_iterations_complete[a] = executed
+      self.complete_actions |= {a}
+      completion_time.setdefault(a, completion_time.get(iteration, 0))
+    self.actions_to_run = [a for a in self.actions_to_run if a not in members]
 
   def Run(self):
     while self.actions_to_run:
@@ -347,7 +394,7 @@ class Concertina(object):
           return '\033[1m\033[93m' + node + maybe_iteration_info + '\033[0m'
         elif self.display_mode == 'colab-text':
           return (
-            '<b>' + node + ' <= running</b>'
+            '<b>' + node + maybe_iteration_info + ' <= running</b>'
           )
         else:
           assert False, self.display_mode

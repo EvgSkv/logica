@@ -149,7 +149,8 @@ def BuildTypeReprPortalRule(portal_name, source_predicate, head_record):
 
 def GetDiamondRecursionFunctor(cover, direct_args_of, main,
                                repetitions, stop,
-                               head_records=None):
+                               head_records=None,
+                               neural=False):
   """Diamond recursion: in-place rewrite, single flat iteration step.
 
   p_diamond is the iteration target: it carries the cover member's actual
@@ -191,7 +192,9 @@ def GetDiamondRecursionFunctor(cover, direct_args_of, main,
   cover = set(cover)
   order = DiamondOrder(cover, direct_args_of, main, stop)
 
-  if not stop and repetitions == 1000000000:  # 1000000000 = ∞.
+  # Neural iterations detect stabilization themselves, so they need no
+  # SQL fixpoint scaffolding.
+  if not neural and not stop and repetitions == 1000000000:  # 1000000000 = ∞.
     stop = main + '_fixpoint'
 
   position = {p: i for i, p in enumerate(order)}
@@ -252,9 +255,10 @@ def GetDiamondRecursionFunctor(cover, direct_args_of, main,
   maybe_stop = ''
   if stop:
     maybe_stop = ', stop_signal: "%s"' % stop_file_name
+  maybe_neural = ', neural: true' if neural else ''
   result_rules.append(
     f'@Iteration({main}_diamond_iter, predicates: [{iter_predicates}], '
-    f'repetitions: {repetitions}, mode: "diamond"{maybe_stop});')
+    f'repetitions: {repetitions}, mode: "diamond"{maybe_stop}{maybe_neural});')
   return '\n'.join(result_rules)
 
 

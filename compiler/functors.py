@@ -500,7 +500,7 @@ class Functors(object):
 
 
   def UnfoldRecursivePredicateDiamondFashion(self, cover, main, depth, rules,
-                                             stop):
+                                             stop, neural=False):
     """Diamond: in-place rewrite per iteration step, no ignition.
 
     Renames cover member rules P -> P_ROne with body refs c -> c_RZero
@@ -570,7 +570,7 @@ class Functors(object):
         head_records[p] = head['record']
     lib = recursion_library.GetDiamondRecursionFunctor(
       simplified_cover, direct_args_of, main, depth, stop,
-      head_records)
+      head_records, neural=neural)
     try:
       lib_rules = parse.ParseFile(lib)['rule']
     except parse.ParsingException as e:
@@ -659,8 +659,10 @@ class Functors(object):
               'Recursive predicate {warning}{p}{end} uses stop signal '
               '{warning}{stop}{end} that does not belong to its '
               'recursive component.', {'p': p, 'stop': stop}), p)
+        neural = any(depth_map.get(c, {}).get('neural')
+                     for c in my_cover[p])
         self.UnfoldRecursivePredicateDiamondFashion(
-          my_cover[p], p, depth, new_rules, stop=stop)
+          my_cover[p], p, depth, new_rules, stop=stop, neural=neural)
       elif style == 'horizontal' or style == 'iterative_horizontal':
         # Old ad-hoc formula:
         # ignition = len(my_cover[p]) * 3 + 4
