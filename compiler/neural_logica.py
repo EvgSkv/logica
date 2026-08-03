@@ -14,46 +14,60 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Neural execution of Logica recursive covers.
+"""Neural execution of Logica: tensor recursion and learning.
 
-@Recursive(P, mode: "neural") makes the recursive cover of P iterate as a
-dense tensor computation in JAX instead of a SQL loop.
+Two annotations turn parts of a Logica program into JAX tensor programs:
 
-The diamond recursion functor produces for every cover member p a predicate
-p_diamond whose single aggregated rule is exactly the rewrite w_p of the
-stabilization semantics: it reads portal predicates (the previous state)
-and extensional relations, and combines candidate values with its
-aggregation (+= / Min= / Max=). NeuralPlan translates these rules into a
-tensor program:
+  * @Recursive(P, mode: "neural") iterates the recursive cover of P as a
+    jitted tensor computation instead of a SQL loop;
+  * @NeuralTarget(Loss, learn: [W]) trains the predicates W by gradient
+    descent of the scalar Loss; the rules of W serve as initialization,
+    and after training every reader of W sees the learned relation.
 
-  * string and numeric keys are indexed into dense axes (one shared domain
-    per key type);
-  * every relation becomes a pair of dense arrays (support mask, values),
-    so that "row is absent" is distinguished from "value is 0";
-  * every rule contribution becomes broadcast + elementwise ops + a
-    reduction in the semiring of the head aggregation;
-  * inner aggregating expressions (Sum{...}) reduce local axes; an empty
-    inner aggregation makes the contribution invalid for that row, exactly
-    like the NULL it produces in SQL.
+Both rest on the same translation. A rule with an aggregation is a
+masked contraction: string and numeric keys are indexed into dense axes,
+every relation becomes a pair of arrays (support mask, values), a rule
+contribution becomes broadcast + elementwise operations + a reduction in
+the semiring of its aggregation (+= / Min= / Max=; a functional = rule
+derives one value per key, which the runtime verifies). A recursive
+cover iterates its rewrite to stabilization; a learning cone evaluates
+feed-forward, iterating recursion loops inside it with a gradient
+through a scan of the stabilization depth.
 
-At run time the plan reads its input tables through the SQL runner,
-iterates the jitted sweep in DiamondOrder until stabilization (or the
-repetition cap), and writes the stabilized relations of all cover members
-back into their portal tables. The final Gauss-Seidel SQL pass computing p
-from p_diamond is unchanged and runs on top of the written tables.
+The file is ordered the way a program lives through it:
+
+  1. before recursion unfolding, while every predicate bears its own
+     name, the original rules are analyzed: columns are partitioned into
+     join-classes (each class is a tensor axis with its own numbering of
+     values and its own type), learning cones are condensed into
+     components, and @NeuralTarget programs are rewritten;
+  2. after @Make, input relations of neural iterations are grounded;
+  3. after type inference, plans are compiled and attached to the
+     executions' iterations; concertina runs a plan when it reaches the
+     iteration, and the plan writes its results into the same tables the
+     SQL loop would have written.
+
+Semantics mirrors the SQL engine: an empty inner aggregation is the SQL
+NULL — a validity mask flowing through expressions; an `if` with an
+invalid condition falls to else exactly like CASE WHEN; conflicting =
+definitions are reported. Sum-of-product contractions compile to einsum
+and never materialize the cube of rule variables.
+
+Set LOGICA_NEURAL_TRACE=1 to print the loss and gradient norms of
+training at power-of-two steps.
 """
 
 import collections
+import math
+import os
 
 if '.' not in __package__:
   from common import color
-  from compiler import functors
   from compiler import rule_translate
   from parser_py import parse
   from type_inference.research import reference_algebra
 else:
   from ..common import color
-  from ..compiler import functors
   from ..compiler import rule_translate
   from ..parser_py import parse
   from ..type_inference.research import reference_algebra
@@ -94,6 +108,8 @@ COMPARISON_OPS = {'==', '!=', '<', '<=', '>', '>='}
 
 LOGICAL_OPS = {'&&', '||', '!'}
 
+
+# ========================= Expression tree helpers ========================
 
 def ExpressionText(node):
   """Source text of an expression, if the parser recorded it."""
@@ -172,283 +188,240 @@ class UnionFind(object):
     self.parent[self.Find(a)] = self.Find(b)
 
 
-class Relation(object):
-  """A relation participating in the tensor program."""
+# ==================== Before unfolding: column classes ====================
 
-  def __init__(self, name, key_fields, key_types, has_value):
-    self.name = name
-    self.key_fields = key_fields  # Field names in table column order.
-    self.key_types = key_types    # 'Str' | 'Num' per key field.
-    self.has_value = has_value
+class ColumnClasses(object):
+  """Join-equivalence classes of predicate columns.
 
-  def __repr__(self):
-    return 'Relation(%s, %s, value: %s)' % (
-        self.name, list(zip(self.key_fields, self.key_types)), self.has_value)
+  Extracted from the original rules before recursion unfolding: a rule
+  variable binding two columns (in reads or between a read and a head
+  position), an equality or a comparison between two variables — all
+  unite the columns' classes. Every class receives its own numbering of
+  values (its own tensor axis) and, later, its own type.
 
-
-class Contribution(object):
-  """One rule contribution to a member: a masked expression over axes."""
+  Functional predicates (Clip, ToString wrappers and alike) are macro
+  parameters, not tensor axes: they are excluded, otherwise a helper
+  called with pixels here and examples there would glue unrelated axes
+  together."""
 
   def __init__(self):
-    self.axes = []              # Canonical variables, ordered.
-    self.axis_type = {}         # var -> 'Str' | 'Num'.
-    self.reads = []             # (relation name, {field -> var}, value var).
-    self.head = []              # Per member key: ('var', v) or ('const', c).
-    self.value_expr = None      # Expression AST or None.
-    self.constraints = []       # Comparison expression ASTs.
-    self.memberships = []       # (var, values): axes over literal lists.
-    self.definitions = {}       # var -> expression AST.
-    self.canonical = {}         # var -> canonical var.
-    self.rule_text = ''
+    self.union = UnionFind()
+    self.known_columns = set()
+
+  def ColumnNode(self, predicate, field):
+    return ('column', predicate, field)
+
+  def UniteColumnWithVariable(self, predicate, field, variable_node):
+    self.known_columns.add((predicate, field))
+    self.union.Union(self.ColumnNode(predicate, field), variable_node)
+
+  def OfColumn(self, predicate, field):
+    """Class of a column; unfolding machinery inherits from its origin."""
+    origin = OriginPredicate(predicate)
+    return self.union.Find(self.ColumnNode(origin, field))
 
   def __repr__(self):
-    return 'Contribution(axes: %s, reads: %s)' % (self.axes, self.reads)
+    by_root = collections.defaultdict(list)
+    for predicate, field in sorted(self.known_columns, key=str):
+      by_root[self.OfColumn(predicate, field)].append(
+          '%s.%s' % (predicate, field))
+    return 'ColumnClasses(%s)' % '; '.join(
+        '{%s}' % ', '.join(columns) for columns in by_root.values())
 
 
-class Member(object):
-  """A cover member: its key signature and rule contributions."""
-
-  def __init__(self, name, diamond_name):
-    self.name = name
-    self.diamond_name = diamond_name
-    self.table = None           # Portal table to write back.
-    self.key_fields = []
-    self.key_types = []
-    self.has_value = True
-    self.aggregation = None     # 'sum' | 'min' | 'max' | 'or'.
-    self.neutral = None
-    self.contributions = []
+MACHINERY_SUFFIXES = ['_portal', '_diamond', '_init', '_before',
+                      '_fixpoint']
 
 
-def ExtractStructure(program, rule, allocator):
-  """Rule -> normalized RuleStructure with injections applied."""
-  rs = rule_translate.ExtractRuleStructure(rule, allocator, None)
-  rs.ElliminateInternalVariables(assert_full_ellimination=False)
-  program.RunInjections(rs, allocator)
-  rs.ElliminateInternalVariables(assert_full_ellimination=False)
-  return rs
+def OriginPredicate(name):
+  """The original predicate whose columns an unfolding artifact carries."""
+  if AUX_MARKER in name:
+    return name[:name.index(AUX_MARKER)]
+  if '_ROne' in name:
+    return name[:name.index('_ROne')]
+  if '_RZero' in name:
+    return name[:name.index('_RZero')]
+  for suffix in MACHINERY_SUFFIXES:
+    if name.endswith(suffix):
+      return name[:-len(suffix)]
+  return name
 
 
-def BoundVariables(rs):
-  """Variables of the structure bound by tables or unnestings."""
-  bound = set(rs.vars_map.values())
-  changed = True
-  while changed:
-    changed = False
-    for unnesting in rs.unnestings:
-      element, source = unnesting[0], unnesting[1]
-      element_vars = set(rule_translate.AllMentionedVariables(element))
-      source_vars = set(rule_translate.AllMentionedVariables(
-          source, dive_in_combines=True))
-      if source_vars <= bound and not element_vars <= bound:
-        bound |= element_vars
-        changed = True
-    for u in rs.vars_unification:
-      for a, b in [(u['left'], u['right']), (u['right'], u['left'])]:
-        a_vars = set(rule_translate.AllMentionedVariables(a))
-        b_vars = set(rule_translate.AllMentionedVariables(b))
-        if b_vars <= bound and not a_vars <= bound and IsVariable(a):
-          bound |= a_vars
-          changed = True
-  return bound
+def ProgramIsNeural(rules):
+  """Whether the program uses neural execution at all."""
+  for rule in rules:
+    head = rule['head']['predicate_name']
+    if head == '@NeuralTarget':
+      return True
+    if head == '@Recursive':
+      for field_value in rule['head']['record']['field_value']:
+        if (field_value['field'] == 'mode' and
+            LiteralValue(field_value['value']['expression']) == 'neural'):
+          return True
+  return False
 
 
-def IsFunctional(predicate_name, rules_of):
-  """A predicate is functional if its head needs externally bound variables.
+def ExtractColumnClasses(dependencies):
+  """Extracts column classes of the program's original rules.
 
-  Such predicates (e.g. Clip(a, b, c) = ..., or s(x) = ToString(x)) have no
-  finite table and are always injected into their callers.
-  """
-  for rule in rules_of[predicate_name]:
+  Runs before recursion unfolding, alongside ExtractNeuralComponents:
+  in the original rules every predicate — including its own recursive
+  reads — appears under its own name, so variables, head positions and
+  comparisons carry the complete join structure. Returns an empty
+  structure for programs without neural execution."""
+  classes = ColumnClasses()
+  if not ProgramIsNeural(dependencies.rules):
+    return classes
+
+  rules_of = collections.defaultdict(list)
+  for rule in dependencies.rules:
+    head = rule['head']['predicate_name']
+    if head[0] != '@':
+      rules_of[head].append(rule)
+  functional = {p for p in rules_of if IsFunctional(p, rules_of)}
+
+  rule_counter = [0]
+
+  def WalkRule(rule, head_bridge, stack):
+    """Glues one rule's structure into the classes.
+
+    head_bridge is None for an ordinary rule — its head positions are
+    registered as columns. For the rule of a functional predicate walked
+    at a call site, head_bridge maps head fields to the caller's
+    variable nodes: the functional is injected into the caller, so its
+    head columns are macro parameters, not tensor axes, and its body
+    glues through the bridge. A fresh scope per call site keeps
+    unrelated call sites unglued."""
+    head_name = rule['head']['predicate_name']
+    rule_counter[0] += 1
+    scope = rule_counter[0]
     allocator = rule_translate.NamesAllocator()
     try:
       rs = rule_translate.ExtractRuleStructure(rule, allocator, None)
       rs.ElliminateInternalVariables(assert_full_ellimination=False)
     except rule_translate.RuleCompileException:
-      return False
-    select_vars = set(rule_translate.AllMentionedVariables(
-        rs.select, dive_in_combines=True))
-    if select_vars - BoundVariables(rs):
-      return True
-  return False
+      return  # SQL compilation will report this rule properly.
 
+    def VariableNode(variable):
+      return ('variable', scope, variable)
 
-def AppendAutoGrounds(rules, dependencies):
-  """Grounds input relations of neural iterations and neural targets, so
-  that the neural runtime can read them from tables.
+    # Reads bind columns to variables.
+    for (alias, field), variable in rs.vars_map.items():
+      if alias is None or field == 'logica_value':
+        continue
+      predicate = rs.tables[alias]
+      if predicate == '=':
+        continue
+      if predicate in functional:
+        continue
+      classes.UniteColumnWithVariable(predicate, field,
+                                      VariableNode(variable))
+    # The two sides of the `=` pseudo-relation are equal.
+    equality_sides = collections.defaultdict(dict)
+    for (alias, field), variable in rs.vars_map.items():
+      if alias is not None and rs.tables[alias] == '=':
+        equality_sides[alias][field] = variable
+    for sides in equality_sides.values():
+      classes.union.Union(VariableNode(sides['left']),
+                          VariableNode(sides['right']))
+    # Head positions are written by variables; an injected functional
+    # bridges them to the caller's arguments instead.
+    for field, expression in rs.select.items():
+      if field == 'logica_value':
+        continue
+      if IsVariable(expression):
+        node = VariableNode(VariableName(expression))
+        if head_bridge is None:
+          classes.UniteColumnWithVariable(head_name, field, node)
+        elif field in head_bridge:
+          classes.union.Union(head_bridge[field], node)
+    # Explicit equalities and comparisons between variables.
+    def UniteComparedVariables(node):
+      if isinstance(node, dict) and 'call' in node:
+        call = node['call']
+        if call['predicate_name'] in COMPARISON_OPS:
+          arguments = FieldValues(call)
+          if (len(arguments) == 2 and IsVariable(arguments[0]) and
+              IsVariable(arguments[1])):
+            classes.union.Union(
+                VariableNode(VariableName(arguments[0])),
+                VariableNode(VariableName(arguments[1])))
+      if isinstance(node, dict):
+        for value in node.values():
+          UniteComparedVariables(value)
+      elif isinstance(node, list):
+        for value in node:
+          UniteComparedVariables(value)
+    UniteComparedVariables(rs.constraints)
+    for unification in rs.vars_unification:
+      if (IsVariable(unification['left']) and
+          IsVariable(unification['right'])):
+        classes.union.Union(
+            VariableNode(VariableName(unification['left'])),
+            VariableNode(VariableName(unification['right'])))
+    # Relation reads inside aggregating expressions.
+    def UniteCombineReads(node):
+      if isinstance(node, dict) and 'call' in node:
+        call = node['call']
+        name = call['predicate_name']
+        if name in rules_of and name not in functional:
+          for field_value in call['record']['field_value']:
+            expression = field_value['value']['expression']
+            if IsVariable(expression):
+              classes.UniteColumnWithVariable(
+                  name, field_value['field'],
+                  VariableNode(VariableName(expression)))
+      if isinstance(node, dict):
+        for value in node.values():
+          UniteCombineReads(value)
+      elif isinstance(node, list):
+        for value in node:
+          UniteCombineReads(value)
+    UniteCombineReads(rs.select)
+    UniteCombineReads(rs.vars_unification)
+    UniteCombineReads(rs.constraints)
+    # Functional predicates are injected into their callers: walk their
+    # rules per expression call site with the head-to-arguments bridge.
+    def ExpandFunctionalCalls(node):
+      if isinstance(node, dict):
+        if 'call' in node:
+          call = node['call']
+          name = call['predicate_name']
+          if name in functional and name not in stack:
+            bridge = {}
+            for field_value in call['record']['field_value']:
+              expression = field_value['value']['expression']
+              if IsVariable(expression):
+                bridge[field_value['field']] = VariableNode(
+                    VariableName(expression))
+            for functional_rule in rules_of[name]:
+              WalkRule(functional_rule, bridge, stack | {name})
+        for value in node.values():
+          ExpandFunctionalCalls(value)
+      elif isinstance(node, list):
+        for value in node:
+          ExpandFunctionalCalls(value)
+    ExpandFunctionalCalls(rs.select)
+    ExpandFunctionalCalls(rs.vars_unification)
+    ExpandFunctionalCalls(rs.constraints)
+    # A functional read as a body conjunct bridges through vars_map.
+    for alias, predicate in rs.tables.items():
+      if predicate in functional and predicate not in stack:
+        bridge = {}
+        for (a, field), variable in rs.vars_map.items():
+          if a == alias and field != 'logica_value':
+            bridge[field] = VariableNode(variable)
+        for functional_rule in rules_of[predicate]:
+          WalkRule(functional_rule, bridge, stack | {predicate})
 
-  `dependencies` is the functors.Functors object of the program: it
-  already knows what depends on what (direct_args_of / args_of)."""
-  neural_iterations = []
-  target_iterations = []
-  for rule in rules:
-    if rule['head']['predicate_name'] != '@Iteration':
+  for rule in dependencies.rules:
+    head_name = rule['head']['predicate_name']
+    if head_name[0] == '@' or head_name in functional:
       continue
-    fields = {fv['field']: fv['value']['expression']
-              for fv in rule['head']['record']['field_value']}
-    if 'neural' in fields and LiteralValue(fields['neural']) is True:
-      neural_iterations.append(fields)
-    if 'neural_target' in fields:
-      target_iterations.append(fields)
-  if not neural_iterations and not target_iterations:
-    return
+    WalkRule(rule, None, set())
+  return classes
 
-  rules_of = collections.defaultdict(list)
-  grounded = set()
-  for rule in rules:
-    head = rule['head']['predicate_name']
-    if head == '@Ground':
-      subject = rule['head']['record']['field_value'][0]['value'][
-          'expression'].get('literal', {}).get('the_predicate', {}).get(
-          'predicate_name')
-      if subject:
-        grounded.add(subject)
-    elif head[0] != '@':
-      rules_of[head].append(rule)
-
-  def IterationPredicates(fields):
-    return [e['literal']['the_predicate']['predicate_name']
-            for e in fields['predicates']['literal']['the_list']['element']]
-
-  candidates = set()
-
-  for fields in neural_iterations:
-    diamond_predicates = IterationPredicates(fields)
-    members = {p[:-len(DIAMOND_SUFFIX)] for p in diamond_predicates
-               if p.endswith(DIAMOND_SUFFIX)}
-    frontier = list(diamond_predicates)
-    seen = set(frontier)
-    while frontier:
-      p = frontier.pop()
-      for name in dependencies.direct_args_of.get(p, []):
-        if name in seen:
-          continue
-        seen.add(name)
-        if AUX_MARKER in name:
-          frontier.append(name)
-          continue
-        if (name in members or name[0] == '@' or
-            name.endswith(PORTAL_SUFFIX) or name.endswith('_RZero') or
-            name.endswith(DIAMOND_SUFFIX) or '_ROne' in name):
-          continue
-        if name not in rules_of:
-          continue  # Built-in or external table.
-        candidates.add(name)
-
-  for fields in target_iterations:
-    learn = set(IterationPredicates(fields))
-    target = fields['neural_target']['literal']['the_predicate'][
-        'predicate_name']
-
-    def DependsOnLearned(p):
-      return bool(learn & set(dependencies.args_of.get(p, [])))
-
-    frontier = [target]
-    seen = set(frontier)
-    while frontier:
-      p = frontier.pop()
-      for name in dependencies.direct_args_of.get(p, []):
-        if name in seen:
-          continue
-        seen.add(name)
-        if name in learn or name[0] == '@' or name.endswith('_init'):
-          continue
-        if name not in rules_of:
-          continue  # Built-in or external table.
-        if DependsOnLearned(name):
-          frontier.append(name)  # Inside the cone: recurse, don't ground.
-        else:
-          candidates.add(name)   # An input of the cone.
-
-  for name in sorted(candidates):
-    if name in grounded or IsFunctional(name, rules_of):
-      continue
-    rules.extend(parse.ParseFile('@Ground(%s);' % name)['rule'])
-
-
-def CheckNeuralPredicatesIterate(annotations):
-  """Neural mode of a non-recursive predicate would be silently ignored;
-  telling the user instead."""
-  requested = {
-      p for p, entry in annotations.annotations.get('@Recursive', {}).items()
-      if entry.get('mode') == 'neural'}
-  if not requested:
-    return
-  covered = set()
-  for args in annotations.annotations.get('@Iteration', {}).values():
-    neural, _ = IterationPlanKind(args)
-    if neural:
-      covered |= {p['predicate_name'][:-len(DIAMOND_SUFFIX)]
-                  for p in args['predicates']
-                  if p['predicate_name'].endswith(DIAMOND_SUFFIX)}
-  for p in sorted(requested - covered):
-    Error('Predicate %s requests neural recursion, but it is not '
-          'recursive. Neural execution iterates a recursive predicate to '
-          'stabilization, so %s must depend on itself (directly or '
-          'through other predicates).' % (color.Warn(p), color.Warn(p)), p)
-
-
-def IterationPlanKind(args):
-  """(neural, target) marks of an @Iteration's raw annotation."""
-  target = args.get('neural_target')
-  if isinstance(target, dict):
-    target = target.get('predicate_name')
-  return bool(args.get('neural')), target
-
-
-def CompilePlans(program):
-  """Compiles the plan of every neural iteration of the program.
-
-  An @Iteration marked neural: true (tensor recursion) or neural_target
-  (learning) executes as a single Python plan; concertina runs the plan
-  when it reaches the iteration. A plan is a pure function of the
-  program — its rules, annotations, inferred types and cone components —
-  so plans are compiled once, right after type inference."""
-  plans = {}
-  iteration_annotations = program.annotations.annotations.get(
-      '@Iteration', {})
-  for name, iteration in program.annotations.Iterations().items():
-    neural, target = IterationPlanKind(iteration_annotations.get(name, {}))
-    if target:
-      plans[name] = NeuralTargetPlan(program, name, iteration, target)
-    elif neural:
-      plans[name] = NeuralPlan(program, name, iteration)
-  return plans
-
-
-def AttachPlans(plans, iterations):
-  """Points each iteration at its compiled plan."""
-  for name, iteration in iterations.items():
-    if name in plans:
-      iteration['plan'] = plans[name]
-
-
-def AddLearningLoopDependencies(execution, translator):
-  """Adds the in-edges of collapsed learning loops.
-
-  Recursive plans need no help: their loop body is also compiled into
-  the diamond SQL actions, which naturally depend on every table the
-  loop reads. A learning loop is different: its scheduled action is the
-  plain copy W = W_init, silent about the data of the objective, while
-  the loop also consumes that data. Those in-edges are added here. For
-  a learned predicate W the initialization table W_init is read instead
-  of W itself: W is the loop's own output."""
-  for iteration in execution.iterations.values():
-    plan = iteration.get('plan')
-    if plan is None or getattr(plan, 'target', None) is None:
-      continue
-    learned = set(plan.learned)
-    for input_name in plan.input_tables:
-      input_action = (input_name + '_init'
-                      if input_name in learned else input_name)
-      translator.TranslateTable(input_action, None, edge_needed=False)
-      for plan_action in iteration['predicates']:
-        if input_action != plan_action:
-          # An edge (a, b) means: b depends on a. The plan runs when
-          # concertina reaches any action of its iteration, so every one
-          # of them must wait for every input table.
-          execution.dependency_edges.append((input_action, plan_action))
-
+# ==================== Before unfolding: learning cones ====================
 
 def NeuralTargetAnnotations(rules):
   """[(target, learned predicates)] of the @NeuralTarget annotations."""
@@ -491,6 +464,17 @@ def ConeComponents(dependencies, target, learn):
   def DependsOnLearned(p):
     return bool(learned & set(dependencies.args_of.get(p, [])))
 
+  def DirectDependencies(p):
+    """Direct dependencies, looking through multi-body auxiliaries:
+    an auxiliary is the inside of its parent, not a member itself."""
+    result = []
+    for d in dependencies.direct_args_of.get(p, []):
+      if AUX_MARKER in d:
+        result.extend(DirectDependencies(d))
+      else:
+        result.append(d)
+    return result
+
   if not DependsOnLearned(target):
     Error('Target %s does not depend on the learned predicates %s.' %
           (color.Warn(target), sorted(learned)), target)
@@ -502,7 +486,7 @@ def ConeComponents(dependencies, target, learn):
     if p in cone:
       continue
     cone.add(p)
-    for d in dependencies.direct_args_of.get(p, []):
+    for d in DirectDependencies(p):
       if d not in learned and d not in cone and DependsOnLearned(d):
         stack.append(d)
 
@@ -517,8 +501,7 @@ def ConeComponents(dependencies, target, learn):
   counter = [0]
 
   def Edges(p):
-    return [d for d in sorted(dependencies.direct_args_of.get(p, []))
-            if d in cone]
+    return [d for d in sorted(DirectDependencies(p)) if d in cone]
 
   def Connect(p):
     index_of[p] = lowlink[p] = counter[0]
@@ -611,6 +594,310 @@ def RewriteNeuralTargets(rules):
   return rules + parse.ParseFile('\n'.join(extra_rules))['rule']
 
 
+# ==================== After @Make: grounding of inputs ====================
+
+def ExtractStructure(program, rule, allocator):
+  """Rule -> normalized RuleStructure with injections applied."""
+  rs = rule_translate.ExtractRuleStructure(rule, allocator, None)
+  rs.ElliminateInternalVariables(assert_full_ellimination=False)
+  program.RunInjections(rs, allocator)
+  rs.ElliminateInternalVariables(assert_full_ellimination=False)
+  return rs
+
+
+def BoundVariables(rs):
+  """Variables of the structure bound by tables or unnestings."""
+  bound = set(rs.vars_map.values())
+  changed = True
+  while changed:
+    changed = False
+    for unnesting in rs.unnestings:
+      element, source = unnesting[0], unnesting[1]
+      element_vars = set(rule_translate.AllMentionedVariables(element))
+      source_vars = set(rule_translate.AllMentionedVariables(
+          source, dive_in_combines=True))
+      if source_vars <= bound and not element_vars <= bound:
+        bound |= element_vars
+        changed = True
+    for u in rs.vars_unification:
+      for a, b in [(u['left'], u['right']), (u['right'], u['left'])]:
+        a_vars = set(rule_translate.AllMentionedVariables(a))
+        b_vars = set(rule_translate.AllMentionedVariables(b))
+        if b_vars <= bound and not a_vars <= bound and IsVariable(a):
+          bound |= a_vars
+          changed = True
+  return bound
+
+
+def IsFunctional(predicate_name, rules_of):
+  """A predicate is functional if its head needs externally bound variables.
+
+  Such predicates (e.g. Clip(a, b, c) = ..., or s(x) = ToString(x)) have no
+  finite table and are always injected into their callers.
+  """
+  for rule in rules_of[predicate_name]:
+    allocator = rule_translate.NamesAllocator()
+    try:
+      rs = rule_translate.ExtractRuleStructure(rule, allocator, None)
+      rs.ElliminateInternalVariables(assert_full_ellimination=False)
+    except rule_translate.RuleCompileException:
+      return False
+    # Combine-local variables (Sum{...}) are bound by their own group,
+    # not by the rule body: they must not make the predicate functional.
+    select_vars = set(rule_translate.AllMentionedVariables(
+        rs.select, dive_in_combines=False))
+    if select_vars - BoundVariables(rs):
+      return True
+  return False
+
+
+def AppendAutoGrounds(rules, dependencies):
+  """Grounds input relations of neural iterations and neural targets, so
+  that the neural runtime can read them from tables.
+
+  `dependencies` is the functors.Functors object of the program: it
+  already knows what depends on what (direct_args_of / args_of)."""
+  neural_iterations = []
+  target_iterations = []
+  for rule in rules:
+    if rule['head']['predicate_name'] != '@Iteration':
+      continue
+    fields = {fv['field']: fv['value']['expression']
+              for fv in rule['head']['record']['field_value']}
+    if 'neural' in fields and LiteralValue(fields['neural']) is True:
+      neural_iterations.append(fields)
+    if 'neural_target' in fields:
+      target_iterations.append(fields)
+  if not neural_iterations and not target_iterations:
+    return
+
+  rules_of = collections.defaultdict(list)
+  grounded = set()
+  for rule in rules:
+    head = rule['head']['predicate_name']
+    if head == '@Ground':
+      subject = rule['head']['record']['field_value'][0]['value'][
+          'expression'].get('literal', {}).get('the_predicate', {}).get(
+          'predicate_name')
+      if subject:
+        grounded.add(subject)
+    elif head[0] != '@':
+      rules_of[head].append(rule)
+
+  def IterationPredicates(fields):
+    return [e['literal']['the_predicate']['predicate_name']
+            for e in fields['predicates']['literal']['the_list']['element']]
+
+  candidates = set()
+
+  for fields in neural_iterations:
+    diamond_predicates = IterationPredicates(fields)
+    members = {p[:-len(DIAMOND_SUFFIX)] for p in diamond_predicates
+               if p.endswith(DIAMOND_SUFFIX)}
+    frontier = list(diamond_predicates)
+    seen = set(frontier)
+    while frontier:
+      p = frontier.pop()
+      for name in dependencies.direct_args_of.get(p, []):
+        if name in seen:
+          continue
+        seen.add(name)
+        if AUX_MARKER in name:
+          frontier.append(name)
+          continue
+        if (name in members or name[0] == '@' or
+            name.endswith(PORTAL_SUFFIX) or name.endswith('_RZero') or
+            name.endswith(DIAMOND_SUFFIX) or '_ROne' in name):
+          continue
+        if name not in rules_of:
+          continue  # Built-in or external table.
+        if IsFunctional(name, rules_of):
+          frontier.append(name)  # Injected into callers: walk through.
+          continue
+        candidates.add(name)
+
+  for fields in target_iterations:
+    learn = set(IterationPredicates(fields))
+    target = fields['neural_target']['literal']['the_predicate'][
+        'predicate_name']
+
+    def DependsOnLearned(p):
+      return bool(learn & set(dependencies.args_of.get(p, [])))
+
+    frontier = [target]
+    seen = set(frontier)
+    while frontier:
+      p = frontier.pop()
+      for name in dependencies.direct_args_of.get(p, []):
+        if name in seen:
+          continue
+        seen.add(name)
+        if name in learn or name[0] == '@' or name.endswith('_init'):
+          continue
+        if name not in rules_of:
+          continue  # Built-in or external table.
+        if DependsOnLearned(name) or IsFunctional(name, rules_of):
+          frontier.append(name)  # Inside the cone or injected: walk through.
+        else:
+          candidates.add(name)   # An input of the cone.
+
+  for name in sorted(candidates):
+    if name in grounded or IsFunctional(name, rules_of):
+      continue
+    rules.extend(parse.ParseFile('@Ground(%s);' % name)['rule'])
+
+
+def CheckNeuralPredicatesIterate(annotations):
+  """Neural mode of a non-recursive predicate would be silently ignored;
+  telling the user instead."""
+  requested = {
+      p for p, entry in annotations.annotations.get('@Recursive', {}).items()
+      if entry.get('mode') == 'neural'}
+  if not requested:
+    return
+  covered = set()
+  for args in annotations.annotations.get('@Iteration', {}).values():
+    neural, _ = IterationPlanKind(args)
+    if neural:
+      covered |= {p['predicate_name'][:-len(DIAMOND_SUFFIX)]
+                  for p in args['predicates']
+                  if p['predicate_name'].endswith(DIAMOND_SUFFIX)}
+  for p in sorted(requested - covered):
+    Error('Predicate %s requests neural recursion, but it is not '
+          'recursive. Neural execution iterates a recursive predicate to '
+          'stabilization, so %s must depend on itself (directly or '
+          'through other predicates).' % (color.Warn(p), color.Warn(p)), p)
+
+
+# ======================= After type inference: plans ======================
+
+def IterationPlanKind(args):
+  """(neural, target) marks of an @Iteration's raw annotation."""
+  target = args.get('neural_target')
+  if isinstance(target, dict):
+    target = target.get('predicate_name')
+  return bool(args.get('neural')), target
+
+
+def CompilePlans(program):
+  """Compiles the plan of every neural iteration of the program.
+
+  An @Iteration marked neural: true (tensor recursion) or neural_target
+  (learning) executes as a single Python plan; concertina runs the plan
+  when it reaches the iteration. A plan is a pure function of the
+  program — its rules, annotations, inferred types and cone components —
+  so plans are compiled once, right after type inference."""
+  plans = {}
+  iteration_annotations = program.annotations.annotations.get(
+      '@Iteration', {})
+  for name, iteration in program.annotations.Iterations().items():
+    neural, target = IterationPlanKind(iteration_annotations.get(name, {}))
+    if target:
+      plans[name] = NeuralTargetPlan(program, name, iteration, target)
+    elif neural:
+      plans[name] = NeuralPlan(program, name, iteration)
+  return plans
+
+
+def AttachPlans(plans, iterations):
+  """Points each iteration at its compiled plan."""
+  for name, iteration in iterations.items():
+    if name in plans:
+      iteration['plan'] = plans[name]
+
+
+def AddLearningLoopDependencies(execution, translator):
+  """Adds the in-edges of collapsed learning loops.
+
+  Recursive plans need no help: their loop body is also compiled into
+  the diamond SQL actions, which naturally depend on every table the
+  loop reads. A learning loop is different: its scheduled action is the
+  plain copy W = W_init, silent about the data of the objective, while
+  the loop also consumes that data. Those in-edges are added here. For
+  a learned predicate W the initialization table W_init is read instead
+  of W itself: W is the loop's own output."""
+  for iteration in execution.iterations.values():
+    plan = iteration.get('plan')
+    if plan is None or getattr(plan, 'target', None) is None:
+      continue
+    learned = set(plan.learned)
+    for input_name in plan.input_tables:
+      input_action = (input_name + '_init'
+                      if input_name in learned else input_name)
+      translator.TranslateTable(input_action, None, edge_needed=False)
+      for plan_action in iteration['predicates']:
+        if input_action != plan_action:
+          # An edge (a, b) means: b depends on a. The plan runs when
+          # concertina reaches any action of its iteration, so every one
+          # of them must wait for every input table.
+          execution.dependency_edges.append((input_action, plan_action))
+
+
+# ======================== The tensor program model ========================
+
+class Relation(object):
+  """A relation participating in the tensor program."""
+
+  def __init__(self, name, key_fields, key_types, has_value):
+    self.name = name
+    self.key_fields = key_fields  # Field names in table column order.
+    self.key_types = key_types    # Column class per key field.
+    self.has_value = has_value
+
+  def __repr__(self):
+    return 'Relation(%s, %s, value: %s)' % (
+        self.name, list(zip(self.key_fields, self.key_types)), self.has_value)
+
+
+class Contribution(object):
+  """One rule contribution to a member: a masked expression over axes."""
+
+  def __init__(self):
+    self.axes = []              # Canonical variables, ordered.
+    self.axis_type = {}         # var -> 'Str' | 'Num'.
+    self.reads = []             # (relation name, {field -> var}, value var).
+    self.head = []              # Per member key: ('var', v) or ('const', c).
+    self.value_expr = None      # Expression AST or None.
+    self.constraints = []       # Comparison expression ASTs.
+    self.memberships = []       # (var, values): axes over literal lists.
+    self.definitions = {}       # var -> expression AST.
+    self.canonical = None       # UnionFind of the rule's variables.
+    self.rule_text = ''
+
+  def __repr__(self):
+    return 'Contribution(axes: %s, reads: %s)' % (self.axes, self.reads)
+
+
+class Member(object):
+  """A cover member: its key signature and rule contributions."""
+
+  def __init__(self, name, diamond_name):
+    self.name = name
+    self.diamond_name = diamond_name
+    self.table = None           # Portal table to write back.
+    self.key_fields = []
+    self.key_types = []
+    self.has_value = True
+    self.aggregation = None     # 'sum' | 'min' | 'max' | 'or'.
+    self.neutral = None
+    self.functional = False     # Defined with = : one value per key.
+    self.contributions = []
+
+
+class LoopGroup(object):
+  """A recursion loop inside a learning cone.
+
+  Its members are compiled from their diamond forms and iterated to
+  stabilization; the forward probe determines the sweep count, and the
+  gradient flows through a scan of that length."""
+
+  def __init__(self, origins):
+    self.origins = list(origins)
+    self.members = []
+    self.repetitions = 1000  # Sweep cap of the probe.
+    self.sweeps = None       # Determined by the forward probe.
+
+
 class NeuralPlan(object):
   """Tensor program of one neural iteration.
 
@@ -631,7 +918,8 @@ class NeuralPlan(object):
     self.members = []           # In DiamondOrder.
     self.relations = {}         # name -> Relation, inputs and state.
     self.input_tables = {}      # relation name -> physical table.
-    self.constant_keys = {'Str': set(), 'Num': set()}  # Keys from rules.
+    self.constant_keys = collections.defaultdict(set)  # class -> keys.
+    self.class_types = {}       # column class -> 'Str' | 'Num'.
     self.synthetic_count = 0    # For axes of computed head keys.
     self.allocator = rule_translate.NamesAllocator()
     for diamond_name in iteration['predicates']:
@@ -639,66 +927,29 @@ class NeuralPlan(object):
         Error('Neural iteration got a non-diamond predicate %s.' %
               color.Warn(diamond_name), self.name)
       self.members.append(self.CompileMember(diamond_name))
-    self.FinalizeTypes()
+    self.ResolveClassTypes()
 
-  def FinalizeTypes(self):
-    """Resolves key types that SQL inference left as Any.
+  def ResolveClassTypes(self):
+    """Checks that every axis class received a type.
 
-    Types flow through the join structure: a variable joining a typed key
-    types the untyped keys it joins, member keys are typed by their head
-    variables. Iterates to fixpoint.
+    Types spread through the shared classes by construction: any typed
+    column of a class types the whole class, so no fixpoint is needed.
     """
-    changed = True
-    while changed:
-      changed = False
-      for member in self.members:
-        for contribution in member.contributions:
-          axis_type = contribution.axis_type
-          for name, key_map, _ in contribution.reads:
-            relation = self.relations[name]
-            for field, var in key_map.items():
-              position = relation.key_fields.index(field)
-              relation_type = relation.key_types[position]
-              known = axis_type.get(var)
-              if relation_type and not known:
-                axis_type[var] = relation_type
-                changed = True
-              elif known and not relation_type:
-                relation.key_types[position] = known
-                changed = True
-          for position, (kind, key) in enumerate(contribution.head):
-            if kind != 'var':
-              continue
-            known = axis_type.get(key)
-            member_type = member.key_types[position]
-            if member_type and not known:
-              axis_type[key] = member_type
-              changed = True
-            elif known and not member_type:
-              member.key_types[position] = known
-              changed = True
+    def Ensure(column_class, description, context):
+      if self.ClassType(column_class) is None:
+        Error('Could not infer whether %s holds strings or numbers; '
+              'bind it through a typed relation.' % description, context)
     for member in self.members:
-      for position, member_type in enumerate(member.key_types):
-        if member_type is None:
-          Error('Could not infer whether key column %s of %s holds '
-                'strings or numbers; bind it through a typed relation.' %
-                (color.Warn(str(member.key_fields[position])),
-                 color.Warn(member.name)), member.name)
+      for position, column_class in enumerate(member.key_types):
+        Ensure(column_class,
+               'key column %s of %s' % (
+                   color.Warn(str(member.key_fields[position])),
+                   color.Warn(member.name)), member.name)
       for contribution in member.contributions:
         for variable in contribution.axes:
-          if contribution.axis_type.get(variable) is None:
-            Error('Could not infer whether a join variable of %s holds '
-                  'strings or numbers; bind it through a typed relation. '
-                  'Rule: %s' % (color.Warn(member.name),
-                                contribution.rule_text),
-                  contribution.rule_text)
-    for name, relation in self.relations.items():
-      for position, relation_type in enumerate(relation.key_types):
-        if relation_type is None and name in self.input_tables:
-          Error('Could not infer whether key column %s of %s holds '
-                'strings or numbers.' %
-                (color.Warn(str(relation.key_fields[position])),
-                 color.Warn(name)), name)
+          Ensure(contribution.axis_type.get(variable),
+                 'a join variable of %s' % color.Warn(member.name),
+                 contribution.rule_text)
 
   # ----------------------------- Compilation -----------------------------
 
@@ -711,11 +962,15 @@ class NeuralPlan(object):
     return signatures[predicate_name]
 
   def Signature(self, predicate_name, display_name=None):
-    """([key fields], [key types], has_value) of a predicate."""
+    """([key fields], [column classes], has_value) of a predicate.
+
+    Every key column belongs to a join-class of columns (its own tensor
+    axis with its own numbering); the SQL-inferred type, when known,
+    types the whole class."""
     display_name = display_name or predicate_name
     signature = self.PredicateSignature(predicate_name)
     key_fields = []
-    key_types = []
+    key_classes = []
     has_value = False
     for field in sorted(signature,
                         key=lambda f: (isinstance(f, str), f)):
@@ -729,21 +984,29 @@ class NeuralPlan(object):
                 (color.Warn(display_name), color.Warn(rendered)),
                 display_name)
         continue
-      if rendered == 'Any':
-        # SQL inference could not pin the type (e.g. a column typed only
-        # through a portal); the join structure of the plan resolves it
-        # in FinalizeTypes.
-        key_fields.append(field)
-        key_types.append(None)
-        continue
-      if rendered not in ('Str', 'Num'):
+      if rendered not in ('Str', 'Num', 'Any'):
         Error('Neural keys must be strings or numbers; column %s of %s '
               'is %s.' %
               (color.Warn(str(field)), color.Warn(display_name),
                color.Warn(rendered)), display_name)
+      column_class = self.program.column_classes.OfColumn(
+          predicate_name, field)
+      if rendered != 'Any':
+        self.SetClassType(column_class, rendered, display_name)
       key_fields.append(field)
-      key_types.append(rendered)
-    return key_fields, key_types, has_value
+      key_classes.append(column_class)
+    return key_fields, key_classes, has_value
+
+  def SetClassType(self, column_class, class_type, context):
+    known = self.class_types.get(column_class)
+    if known is None:
+      self.class_types[column_class] = class_type
+    elif known != class_type:
+      Error('A column class mixes strings and numbers near %s.' %
+            color.Warn(str(context)), str(context))
+
+  def ClassType(self, column_class):
+    return self.class_types.get(column_class)
 
   def IsStateRelation(self, predicate_name):
     """State relations live in the plan's memory, not in stored tables."""
@@ -789,6 +1052,7 @@ class NeuralPlan(object):
     which Max is exact. A rule that aggregates over the multi-body
     auxiliary predicate is expanded into the auxiliary's rules."""
     aggregations = set()
+    functional_rules = 0
     pending = []  # (structure, aggregated expression).
     for rule in rules:
       rs = ExtractStructure(self.program, rule, self.allocator)
@@ -803,6 +1067,7 @@ class NeuralPlan(object):
         pending.append((rs, FieldValues(value['call'])[0]))
       else:
         aggregations.add('Max')
+        functional_rules += 1
         pending.append((rs, value))
     if len(aggregations) != 1:
       Error('Rules of %s mix different aggregations.' %
@@ -812,6 +1077,9 @@ class NeuralPlan(object):
       member.aggregation, member.neutral = 'or', False
     else:
       member.aggregation, member.neutral = AGGREGATIONS[aggregation]
+    # Defined purely with = : the runtime verifies one value per key.
+    member.functional = (member.has_value and
+                         functional_rules == len(rules))
     for rs, aggregated_expr in pending:
       aux_predicates = [p for p in rs.tables.values() if AUX_MARKER in p]
       if aux_predicates and len(rs.tables) == 1:
@@ -871,17 +1139,16 @@ class NeuralPlan(object):
                sorted(map(str, relation.key_fields))),
               contribution.rule_text)
       for field, var in key_map.items():
-        field_type = relation.key_types[relation.key_fields.index(field)]
+        field_class = relation.key_types[relation.key_fields.index(field)]
         if var in value_vars:
           Error('Neural fragment does not allow joining a key with a '
                 'value; variable in rule of %s.' % color.Warn(member.name),
                 contribution.rule_text)
-        known = axis_of.get(var)
-        if known and field_type and known != field_type:
-          Error('Variable joins keys of different types (Str vs Num) in '
+        if axis_of.get(var) not in (None, field_class):
+          Error('Variable joins keys of unrelated column classes in '
                 'rule of %s.' % color.Warn(member.name),
                 contribution.rule_text)
-        axis_of[var] = known or field_type
+        axis_of[var] = field_class
       contribution.reads.append(
           (relation.name, dict(key_map), value_var))
 
@@ -902,12 +1169,13 @@ class NeuralPlan(object):
       else:
         Error('Neural unnested lists must hold numbers or strings: %s' %
               contribution.rule_text, contribution.rule_text)
-      if axis_of.get(var) not in (None, element_type):
-        Error('Variable joins keys of different types (Str vs Num) in '
-              'rule of %s.' % color.Warn(member.name),
-              contribution.rule_text)
-      axis_of[var] = element_type
-      self.constant_keys[element_type] |= set(values)
+      if var not in axis_of:
+        # A variable bound only by the list gets its own axis class.
+        self.synthetic_count += 1
+        axis_of[var] = ('list-axis', self.name, self.synthetic_count)
+      self.SetClassType(axis_of[var], element_type,
+                        contribution.rule_text)
+      self.constant_keys[axis_of[var]] |= set(values)
       contribution.memberships.append((var, tuple(values)))
 
     # Remaining unifications: a variable bound by tables gets an equality
@@ -943,9 +1211,10 @@ class NeuralPlan(object):
         variable = canonical(VariableName(variable_node))
         literal = LiteralValue(literal_node)
         if variable in axis_of and literal is not None:
-          key_type = axis_of[variable] or (
-              'Str' if isinstance(literal, str) else 'Num')
-          self.constant_keys[key_type].add(literal)
+          self.SetClassType(axis_of[variable],
+                            'Str' if isinstance(literal, str) else 'Num',
+                            contribution.rule_text)
+          self.constant_keys[axis_of[variable]].add(literal)
 
     # Head keys.
     key_selects = [(k, v) for k, v in rs.select.items()
@@ -1013,7 +1282,7 @@ class NeuralPlan(object):
     for name in sorted(names, key=str):
       if not isinstance(name, str) or name in self.relations:
         continue
-      if (name.endswith(PORTAL_SUFFIX) or
+      if (self.IsStateRelation(name) or
           self.program.annotations.Ground(name) is not None):
         self.RelationOf(name, contribution.rule_text)
 
@@ -1075,6 +1344,9 @@ class NeuralPlan(object):
       if progress and iterations % 32 == 0:
         progress(iterations)
 
+    self.CheckFunctionalConsistency(runtime, state, tensors, domains,
+                                    jnp, np)
+
     # 6. Write the stabilized relations back into portal tables.
     for member in self.members:
       self.WriteBack(sql_runner, member,
@@ -1084,6 +1356,37 @@ class NeuralPlan(object):
 
   def FieldColumn(self, field):
     return 'col%d' % field if isinstance(field, int) else field
+
+  def CheckFunctionalConsistency(self, runtime, state, tensors, domains,
+                                 jnp, np):
+    """Verifies that every =-defined member derives one value per key.
+
+    A functional member is consistent iff aggregating its candidates
+    with min gives the same relation as aggregating with max: one
+    comparison catches conflicts both between rules and within a rule.
+    """
+    for member in self.members:
+      if not member.functional:
+        continue
+      shadow = Member(member.name, member.diamond_name)
+      shadow.key_fields = member.key_fields
+      shadow.key_types = member.key_types
+      shadow.has_value = True
+      shadow.aggregation, shadow.neutral = 'min', float('inf')
+      shadow.contributions = member.contributions
+      max_mask, max_values = runtime.MemberFunction(member)(state, tensors)
+      unused_mask, min_values = runtime.MemberFunction(shadow)(state,
+                                                              tensors)
+      conflict = np.asarray(max_mask & (max_values != min_values))
+      if conflict.any():
+        position = tuple(int(i) for i in np.argwhere(conflict)[0])
+        keys = tuple(domains[c][i]
+                     for c, i in zip(member.key_types, position))
+        Error('Predicate %s is defined with = but is not a function: '
+              'key %s derives both %s and %s.' %
+              (color.Warn(member.name), keys,
+               float(np.asarray(min_values)[position]),
+               float(np.asarray(max_values)[position])), member.name)
 
   def LoadInputs(self, sql_runner):
     """Reads input tables. Terminal runners return (header, rows),
@@ -1099,25 +1402,41 @@ class NeuralPlan(object):
         input_data[name] = (list(result.columns), result.values.tolist())
     return input_data
 
+  def AxisClasses(self):
+    """Every column class that serves as a tensor axis of this plan."""
+    classes = set()
+    for relation in self.relations.values():
+      classes.update(relation.key_types)
+    for member in self.members:
+      classes.update(member.key_types)
+      for contribution in member.contributions:
+        classes.update(contribution.axis_type.values())
+    classes.update(self.constant_keys)
+    return classes
+
   def BuildDomains(self, input_data, jnp):
-    """Builds one domain per key type. Constant keys of the rules
-    participate even when no input relation mentions them."""
-    domain_values = {'Str': set(self.constant_keys['Str']),
-                     'Num': set(self.constant_keys['Num'])}
+    """Builds one domain per column class: each axis numbers its own
+    values. Constant keys of the rules participate even when no input
+    relation mentions them."""
+    domain_values = {column_class: set(constants)
+                     for column_class, constants
+                     in self.constant_keys.items()}
+    for column_class in self.AxisClasses():
+      domain_values.setdefault(column_class, set())
     for name, (header, rows) in input_data.items():
       relation = self.relations[name]
       for row in rows:
-        for field, field_type in zip(relation.key_fields,
-                                     relation.key_types):
+        for field, column_class in zip(relation.key_fields,
+                                       relation.key_types):
           value = row[header.index(self.FieldColumn(field))]
-          domain_values[field_type].add(value)
-    domains = {t: sorted(domain_values[t]) for t in domain_values}
-    index = {t: {v: i for i, v in enumerate(domains[t])} for t in domains}
+          domain_values[column_class].add(value)
+    domains = {c: sorted(domain_values[c], key=lambda v: (str(type(v)), v))
+               for c in domain_values}
+    index = {c: {v: i for i, v in enumerate(domains[c])} for c in domains}
     domain_arrays = {
-        'Num': jnp.array([float(v) for v in domains['Num']],
-                         dtype=jnp.float64),
-        'Str': None,  # Strings never participate in arithmetic.
-    }
+        c: (jnp.array([float(v) for v in domains[c]], dtype=jnp.float64)
+            if self.ClassType(c) != 'Str' else None)
+        for c in domains}
     return domains, index, domain_arrays
 
   def BuildTensors(self, input_data, domains, index, jnp, np):
@@ -1130,13 +1449,33 @@ class NeuralPlan(object):
       values = np.zeros(dims, dtype=np.float64)
       value_column = (header.index('logica_value')
                       if relation.has_value else None)
-      for row in rows:
-        position = tuple(
-            index[t][row[header.index(self.FieldColumn(f))]]
-            for f, t in zip(relation.key_fields, relation.key_types))
+      if len(rows) > self.BULK_ROWS:
+        position = []
+        for field, column_class in zip(relation.key_fields,
+                                       relation.key_types):
+          column = [row[header.index(self.FieldColumn(field))]
+                    for row in rows]
+          mapping = index[column_class]
+          domain = np.asarray(domains[column_class])
+          if domain.dtype.kind in 'if':
+            indices = np.searchsorted(domain, np.asarray(column))
+          else:
+            indices = np.fromiter((mapping[v] for v in column),
+                                  dtype=np.int64, count=len(column))
+          position.append(indices)
+        position = tuple(position)
         mask[position] = True
         if value_column is not None:
-          values[position] = float(row[value_column])
+          values[position] = np.asarray(
+              [row[value_column] for row in rows], dtype=np.float64)
+      else:
+        for row in rows:
+          position = tuple(
+              index[t][row[header.index(self.FieldColumn(f))]]
+              for f, t in zip(relation.key_fields, relation.key_types))
+          mask[position] = True
+          if value_column is not None:
+            values[position] = float(row[value_column])
       tensors[name] = (jnp.array(mask), jnp.array(values))
     return tensors
 
@@ -1154,6 +1493,8 @@ class NeuralPlan(object):
         return False
     return True
 
+  BULK_ROWS = 100000  # Above this, tables travel through a CSV file.
+
   def WriteBack(self, sql_runner, member, state_tensor, domains, np):
     """Writes a member's stabilized relation into its portal table."""
     mask, values = state_tensor
@@ -1166,6 +1507,11 @@ class NeuralPlan(object):
     columns = [self.FieldColumn(f) for f in member.key_fields]
     if member.has_value:
       columns.append('logica_value')
+
+    if len(positions) > self.BULK_ROWS and self.engine == 'duckdb':
+      self.BulkWriteBack(sql_runner, member, positions, values, domains,
+                         columns, np)
+      return
 
     def SqlLiteral(value):
       if isinstance(value, str):
@@ -1191,9 +1537,330 @@ class NeuralPlan(object):
                member.table, ', '.join(rows), ', '.join(columns)))
     sql_runner(sql, self.engine, is_final=False)
 
+  def BulkWriteBack(self, sql_runner, member, positions, values, domains,
+                    columns, np):
+    """Writes a large relation through a CSV file: a VALUES literal of
+    millions of rows would dwarf the data itself."""
+    import csv
+    import tempfile
+    frame = []
+    for axis, column_class in enumerate(member.key_types):
+      domain = np.asarray(domains[column_class], dtype=object)
+      frame.append(domain[positions[:, axis]])
+    if member.has_value:
+      frame.append(values[tuple(positions.T)])
+    with tempfile.NamedTemporaryFile(
+        'w', suffix='.csv', delete=False, newline='') as f:
+      writer = csv.writer(f)
+      writer.writerow(columns)
+      writer.writerows(zip(*frame))
+      temporary = f.name
+    sql_runner("CREATE OR REPLACE TABLE %s AS "
+               "SELECT * FROM read_csv_auto('%s', header=true)" %
+               (member.table, temporary), self.engine, is_final=False)
+    os.remove(temporary)
+
   def __repr__(self):
     return 'NeuralPlan(%s: %s)' % (
         self.name, [m.name for m in self.members])
+
+
+class NeuralTargetPlan(NeuralPlan):
+  """Gradient descent of a scalar target over learned predicates.
+
+  Training is a genuine dependency cycle: the parameters depend on the
+  objective (Weight <- Loss) while the objective depends on the
+  parameters (Loss <- Prediction <- Weight). Exactly as with recursive
+  predicates, the cycle collapses into a single iterated node: this
+  plan. Concertina schedules the acyclic condensation — the plan's
+  inputs are the in-edges of the collapsed cycle (data and W_init) and
+  its output is the learned W — while the cycle itself spins inside,
+  as gradient descent, until the target stabilizes.
+
+  The learning cone — every predicate on a path from a learned predicate
+  to the target — is tensorized by the same fragment translator as
+  neural recursion and evaluated as a differentiable function of the
+  learned tensors. The learned predicates' own rules act purely as
+  initialization: ordinary SQL computes them into <predicate>_init
+  tables, which the plan reads as the starting point; the learned
+  relations are then written into the learned predicates' tables, so
+  every reader sees the trained values.
+  """
+
+  def __init__(self, program, iteration_name, iteration, target):
+    self.program = program
+    self.name = iteration_name
+    self.engine = program.annotations.Engine()
+    self.target = target
+    self.learned = list(iteration['predicates'])
+    self.members = []           # Cone members in topological order.
+    self.relations = {}
+    self.input_tables = {}
+    self.constant_keys = collections.defaultdict(set)
+    self.class_types = {}
+    self.synthetic_count = 0
+    self.allocator = rule_translate.NamesAllocator()
+
+    annotation = program.annotations.annotations.get(
+        '@NeuralTarget', {}).get(self.target, {})
+    self.learning_rate = float(annotation.get('learning_rate', 0.01))
+    self.steps = int(annotation.get('steps', 10000))
+    self.epsilon = float(annotation.get('epsilon', 1e-12))
+    optimize = annotation.get('optimize')
+    if isinstance(optimize, dict):
+      optimize = optimize.get('predicate_name')
+    if optimize not in (None, 'Min', 'Max'):
+      Error('@NeuralTarget optimize must be Min or Max, got %s.' %
+            color.Warn(str(optimize)), self.target)
+    self.maximize = (optimize == 'Max')
+
+    self.CompileCone()
+
+  # ----------------------------- Compilation -----------------------------
+
+  def CompileCone(self):
+    """Assembles the plan from the pre-extracted cone components."""
+    components = self.program.neural_components.get(self.target)
+    assert components is not None, (
+        'Cone components of %s were not extracted.' % self.target)
+
+    # Names computable as plan state: single members and loop members.
+    self.cone_state = set()
+    for kind, content in components:
+      if kind == 'single':
+        self.cone_state.add(content)
+      else:
+        self.cone_state.update(content)
+
+    # Learned predicates are parameter leaves; their current value is
+    # read from the initialization tables.
+    for predicate in self.learned:
+      self.RelationOf(predicate, self.name)
+      init_ground = self.program.annotations.Ground(predicate + '_init')
+      assert init_ground, 'Learned predicates are initialized and grounded.'
+      self.input_tables[predicate] = init_ground.table_name
+
+    # Stages: ('member', m) is evaluated once, ('loop', g) iterates the
+    # diamond members of a recursion loop to stabilization.
+    self.stages = []
+    for kind, content in components:
+      if kind == 'single':
+        member = self.CompileConeMember(content)
+        self.members.append(member)
+        self.stages.append(('member', member))
+      else:
+        group = LoopGroup(content)
+        for origin in content:
+          group.members.append(self.CompileMember(origin + DIAMOND_SUFFIX))
+        self.members.extend(group.members)
+        group.repetitions = self.LoopRepetitions(content)
+        self.stages.append(('loop', group))
+
+    if components[-1][0] != 'single':
+      Error('The target %s of @NeuralTarget is recursive; recursive '
+            'targets are not supported.' % color.Warn(self.target),
+            self.target)
+    target_member = self.stages[-1][1]
+    if target_member.key_fields:
+      Error('The target of @NeuralTarget must be a zero-argument '
+            'predicate; %s has keys.' % color.Warn(self.target),
+            self.target)
+    if not target_member.has_value:
+      Error('The target %s of @NeuralTarget carries no numeric value.' %
+            color.Warn(self.target), self.target)
+    self.ResolveClassTypes()
+
+  def LoopRepetitions(self, origins):
+    """Sweep cap of a loop: its @Recursive counts, or the default."""
+    recursive = self.program.annotations.annotations.get('@Recursive', {})
+    counts = [int(recursive[p]['1']) for p in origins
+              if p in recursive and '1' in recursive[p]]
+    counts = [1000000000 if c == -1 else c for c in counts]
+    return max(counts) if counts else 1000
+
+  def CompileConeMember(self, predicate):
+    member = Member(predicate, predicate)
+    member.key_fields, member.key_types, member.has_value = self.Signature(
+        predicate)
+    rules = [r for name, r in self.program.rules if name == predicate]
+    self.CompileContributions(member, rules)
+    return member
+
+  def IsStateRelation(self, predicate_name):
+    return (predicate_name in self.cone_state or
+            predicate_name.endswith(PORTAL_SUFFIX))
+
+  # ------------------------------- Runtime -------------------------------
+
+  def Run(self, sql_runner, progress=None):
+    try:
+      import jax
+    except ImportError:
+      raise NeuralCompileException(
+          'Neural execution requires JAX. Please run: '
+          'python3 -m pip install jax', self.name)
+    jax.config.update('jax_enable_x64', True)
+    import jax.numpy as jnp
+    import numpy as np
+
+    input_data = self.LoadInputs(sql_runner)
+    domains, index, domain_arrays = self.BuildDomains(input_data, jnp)
+    tensors = self.BuildTensors(input_data, domains, index, jnp, np)
+
+    parameters = {p: tensors[p][1] for p in self.learned}
+    masks = {p: tensors[p][0] for p in self.learned}
+
+    runtime = Runtime(self, jnp, domains, domain_arrays, index)
+    stage_functions = []
+    for kind, content in self.stages:
+      if kind == 'member':
+        stage_functions.append(
+            ('member', content, runtime.MemberFunction(content)))
+      else:
+        stage_functions.append(
+            ('loop', content,
+             [(m, runtime.MemberFunction(m)) for m in content.members]))
+    sign = -1.0 if self.maximize else 1.0
+
+    def Overlay(parameters):
+      current = dict(tensors)
+      for p in self.learned:
+        current[p] = (masks[p], parameters[p])
+      return current
+
+    def EmptyLoopState(group):
+      state = {}
+      for member in group.members:
+        shape = tuple(len(domains[t]) for t in member.key_types)
+        values = (jnp.full(shape, member.neutral, dtype=jnp.float64)
+                  if member.has_value else None)
+        state[member.name + PORTAL_SUFFIX] = (
+            jnp.zeros(shape, dtype=bool), values)
+      return state
+
+    def LoopSweep(functions, loop_state, environment):
+      state = dict(loop_state)
+      for member, function in functions:
+        state[member.name + PORTAL_SUFFIX] = function(state, environment)
+      return state
+
+    def PublishLoop(group, loop_state, state):
+      # At the fixpoint a loop member equals its portal; downstream
+      # members read it by its own name.
+      for member in group.members:
+        stabilized = loop_state[member.name + PORTAL_SUFFIX]
+        state[member.name] = stabilized
+        state[member.name + PORTAL_SUFFIX] = stabilized
+
+    def Probe(parameters):
+      """Concrete forward pass, finding the sweep count of every loop.
+
+      Structural recursion (layers, time as a key) stabilizes after a
+      parameter-independent number of sweeps, so the count found under
+      the initial parameters is frozen for training, with a margin of
+      two sweeps: at the fixpoint extra sweeps are the identity."""
+      current = Overlay(parameters)
+      state = {}
+      for kind, content, functions in stage_functions:
+        if kind == 'member':
+          state[content.name] = functions(state, current)
+          continue
+        environment = dict(current)
+        environment.update(state)
+        loop_state = EmptyLoopState(content)
+        converged = False
+        sweeps = 0
+        for sweeps in range(1, content.repetitions + 1):
+          new_loop_state = LoopSweep(functions, loop_state, environment)
+          if self.Converged(loop_state, new_loop_state, jnp):
+            loop_state = new_loop_state
+            converged = True
+            break
+          loop_state = new_loop_state
+        if not converged:
+          Error('Recursion of %s does not stabilize within %d sweeps '
+                'under the initial parameters; learning through dynamic '
+                'equilibria is not supported yet.' %
+                (color.Warn(', '.join(content.origins)),
+                 content.repetitions), self.target)
+        content.sweeps = sweeps + 2
+        if content.sweeps > 100:
+          print('Warning: differentiating through %d sweeps of %s; '
+                'memory of the gradient grows linearly with the sweep '
+                'count.' % (content.sweeps, ', '.join(content.origins)))
+        PublishLoop(content, loop_state, state)
+      return state
+
+    probe_state = Probe(parameters)
+    self.CheckFunctionalConsistency(runtime, probe_state,
+                                    Overlay(parameters), domains, jnp, np)
+
+    def Target(parameters):
+      current = Overlay(parameters)
+      state = {}
+      for kind, content, functions in stage_functions:
+        if kind == 'member':
+          state[content.name] = functions(state, current)
+          continue
+        environment = dict(current)
+        environment.update(state)
+
+        def OneSweep(carry, unused_x, functions=functions,
+                     environment=environment):
+          return LoopSweep(functions, carry, environment), None
+
+        loop_state, _ = jax.lax.scan(OneSweep, EmptyLoopState(content),
+                                     None, length=content.sweeps)
+        PublishLoop(content, loop_state, state)
+      target_mask, target_value = state[self.target]
+      return sign * target_value
+
+    value_and_gradient = jax.jit(jax.value_and_grad(Target))
+
+    trace = os.getenv('LOGICA_NEURAL_TRACE')
+    previous = None
+    steps_done = 0
+    converged = False
+    for steps_done in range(1, self.steps + 1):
+      value, gradient = value_and_gradient(parameters)
+      parameters = {p: parameters[p] - self.learning_rate * gradient[p]
+                    for p in self.learned}
+      value = float(value)
+      if trace and (steps_done & (steps_done - 1)) == 0:  # Powers of two.
+        norms = ' '.join(
+            '|grad %s|=%.3g' % (p, float(abs(gradient[p]).sum()))
+            for p in self.learned)
+        print('step %d: target %g %s' % (steps_done, float(value), norms))
+      if not math.isfinite(value):
+        Error('Training of %s diverged (the target is %s at step %d); '
+              'lower the learning_rate.' %
+              (color.Warn(self.target), value, steps_done), self.target)
+      if previous is not None and abs(previous - value) <= self.epsilon:
+        converged = True
+        break
+      previous = value
+      if progress and steps_done % 64 == 0:
+        progress(steps_done)
+
+    # Write the learned relations into the learned predicates' tables.
+    for predicate in self.learned:
+      relation = self.relations[predicate]
+      learned_member = Member(predicate, predicate)
+      learned_member.key_fields = relation.key_fields
+      learned_member.key_types = relation.key_types
+      learned_member.has_value = True
+      ground = self.program.annotations.Ground(predicate)
+      assert ground, 'Learned predicates are grounded by the rewrite.'
+      learned_member.table = ground.table_name
+      self.WriteBack(sql_runner, learned_member,
+                     (masks[predicate], parameters[predicate]),
+                     domains, np)
+
+    return {'iterations': steps_done, 'converged': converged}
+
+  def __repr__(self):
+    return 'NeuralTargetPlan(%s -> %s, learn: %s)' % (
+        self.name, self.target, self.learned)
 
 
 class Runtime(object):
@@ -1509,6 +2176,65 @@ class EvalContext(object):
     # keeps infinities out of the arithmetic and out of the gradient.
     return self.jnp.where(aligned_mask, aligned_values, 0.0), aligned_mask
 
+  def TryEinsumContraction(self, inner):
+    """Sum{R1(...) * R2(...)} as an einsum, when the pattern fits.
+
+    A sum over a product of relation reads is a contraction: einsum
+    computes it without materializing the cube of all variables — the
+    memory stays linear in the inputs and the output. Rows absent from a
+    relation read as 0, which for summation is exactly absence; validity
+    of an output cell is the positive count of contributing row pairs.
+    Returns None when the expression is not such a contraction."""
+    jnp = self.jnp
+    call = inner.get('call') if isinstance(inner, dict) else None
+    if not call or call['predicate_name'] != '*':
+      return None
+    reads = []
+    for factor in FieldValues(call):
+      factor_call = factor.get('call') if isinstance(factor, dict) else None
+      if (not factor_call or
+          factor_call['predicate_name'] not in self.runtime.plan.relations):
+        return None
+      relation = self.runtime.plan.relations[factor_call['predicate_name']]
+      if not relation.has_value:
+        return None
+      variables = []
+      for field_value in factor_call['record']['field_value']:
+        expression = field_value['value']['expression']
+        if not IsVariable(expression):
+          return None
+        variables.append(self.Canonical(VariableName(expression)))
+      if len(set(variables)) != len(variables):
+        return None  # A diagonal read; the general path handles it.
+      reads.append((relation, variables))
+
+    letters = {}
+    def LetterOf(variable):
+      if variable not in letters:
+        letters[variable] = chr(ord('a') + len(letters))
+      return letters[variable]
+    operand_specs = [''.join(LetterOf(v) for v in variables)
+                     for _, variables in reads]
+    for variable in letters:
+      if (variable not in self.axis_position and
+          self.KnowsVariable(variable)):
+        return None  # Bound by a definition: the general path handles it.
+    output_variables = [v for v in letters if v in self.axis_position]
+    specification = '%s->%s' % (
+        ','.join(operand_specs),
+        ''.join(LetterOf(v) for v in output_variables))
+
+    operands = []
+    counting_operands = []
+    for relation, variables in reads:
+      mask, values = self.Tensor(relation.name)
+      operands.append(jnp.where(mask, values, 0.0))
+      counting_operands.append(mask.astype(jnp.float64))
+    value = jnp.einsum(specification, *operands)
+    counts = jnp.einsum(specification, *counting_operands)
+    return (self.Aligned(value, output_variables),
+            self.Aligned(counts > 0.0, output_variables))
+
   def EvalCombine(self, combine):
     """Inner aggregating expression: Sum{...}, Take{...}, etc."""
     jnp = self.jnp
@@ -1521,6 +2247,11 @@ class EvalContext(object):
     aggregation = field_value['value']['aggregation']['expression']
     op = aggregation['call']['predicate_name']
     inner = FieldValues(aggregation['call'])[0]
+
+    if op == 'Sum':
+      contraction = self.TryEinsumContraction(inner)
+      if contraction is not None:
+        return contraction
 
     # Local variables: arguments of relation reads not known to this
     # context become fresh axes of a child context.
@@ -1692,7 +2423,8 @@ class EvalContext(object):
     def StringAxis(node):
       if IsVariable(node):
         v = self.Canonical(VariableName(node))
-        if (v in self.axis_position and self.axis_type[v] == 'Str'):
+        if (v in self.axis_position and
+            self.runtime.plan.ClassType(self.axis_type[v]) == 'Str'):
           return v
       return None
 
@@ -1703,12 +2435,15 @@ class EvalContext(object):
 
     left_axis, right_axis = StringAxis(left_node), StringAxis(right_node)
     if left_axis or right_axis:
-      # The domain is sorted, so index order coincides with the
+      # A class domain is sorted, so index order coincides with the
       # lexicographic order of the strings: comparisons act on indices
-      # (axis vs axis) or on a precomputed boolean vector (axis vs
-      # literal).
-      size = len(self.runtime.domains['Str'])
+      # (axis vs axis of the same class) or on a precomputed boolean
+      # vector (axis vs literal).
       if left_axis and right_axis:
+        if self.axis_type[left_axis] != self.axis_type[right_axis]:
+          Error('String keys of unrelated column classes cannot be '
+                'compared.', self.contribution.rule_text)
+        size = len(self.runtime.domains[self.axis_type[left_axis]])
         positions = jnp.arange(size)
         return operations[op](self.Aligned(positions, [left_axis]),
                               self.Aligned(positions, [right_axis]))
@@ -1723,7 +2458,8 @@ class EvalContext(object):
       vector = jnp.array(
           [bool(compare(value, literal)) if left_axis
            else bool(compare(literal, value))
-           for value in self.runtime.domains['Str']], dtype=bool)
+           for value in self.runtime.domains[self.axis_type[axis]]],
+          dtype=bool)
       return self.Aligned(vector, [axis])
 
     (left, left_valid), (right, right_valid) = (
@@ -1761,311 +2497,3 @@ class EvalContext(object):
     return unary[op](arguments[0])
 
 
-class LoopGroup(object):
-  """A recursion loop inside a learning cone.
-
-  Its members are compiled from their diamond forms and iterated to
-  stabilization; the forward probe determines the sweep count, and the
-  gradient flows through a scan of that length."""
-
-  def __init__(self, origins):
-    self.origins = list(origins)
-    self.members = []
-    self.repetitions = 1000  # Sweep cap of the probe.
-    self.sweeps = None       # Determined by the forward probe.
-
-
-class NeuralTargetPlan(NeuralPlan):
-  """Gradient descent of a scalar target over learned predicates.
-
-  Training is a genuine dependency cycle: the parameters depend on the
-  objective (Weight <- Loss) while the objective depends on the
-  parameters (Loss <- Prediction <- Weight). Exactly as with recursive
-  predicates, the cycle collapses into a single iterated node: this
-  plan. Concertina schedules the acyclic condensation — the plan's
-  inputs are the in-edges of the collapsed cycle (data and W_init) and
-  its output is the learned W — while the cycle itself spins inside,
-  as gradient descent, until the target stabilizes.
-
-  The learning cone — every predicate on a path from a learned predicate
-  to the target — is tensorized by the same fragment translator as
-  neural recursion and evaluated as a differentiable function of the
-  learned tensors. The learned predicates' own rules act purely as
-  initialization: ordinary SQL computes them into <predicate>_init
-  tables, which the plan reads as the starting point; the learned
-  relations are then written into the learned predicates' tables, so
-  every reader sees the trained values.
-  """
-
-  def __init__(self, program, iteration_name, iteration, target):
-    self.program = program
-    self.name = iteration_name
-    self.engine = program.annotations.Engine()
-    self.target = target
-    self.learned = list(iteration['predicates'])
-    self.members = []           # Cone members in topological order.
-    self.relations = {}
-    self.input_tables = {}
-    self.constant_keys = {'Str': set(), 'Num': set()}
-    self.synthetic_count = 0
-    self.allocator = rule_translate.NamesAllocator()
-
-    annotation = program.annotations.annotations.get(
-        '@NeuralTarget', {}).get(self.target, {})
-    self.learning_rate = float(annotation.get('learning_rate', 0.01))
-    self.steps = int(annotation.get('steps', 10000))
-    self.epsilon = float(annotation.get('epsilon', 1e-12))
-    optimize = annotation.get('optimize')
-    if isinstance(optimize, dict):
-      optimize = optimize.get('predicate_name')
-    if optimize not in (None, 'Min', 'Max'):
-      Error('@NeuralTarget optimize must be Min or Max, got %s.' %
-            color.Warn(str(optimize)), self.target)
-    self.maximize = (optimize == 'Max')
-
-    self.CompileCone()
-
-  # ----------------------------- Compilation -----------------------------
-
-  def CompileCone(self):
-    """Assembles the plan from the pre-extracted cone components."""
-    components = self.program.neural_components.get(self.target)
-    assert components is not None, (
-        'Cone components of %s were not extracted.' % self.target)
-
-    # Names computable as plan state: single members and loop members.
-    self.cone_state = set()
-    for kind, content in components:
-      if kind == 'single':
-        self.cone_state.add(content)
-      else:
-        self.cone_state.update(content)
-
-    # Learned predicates are parameter leaves; their current value is
-    # read from the initialization tables.
-    for predicate in self.learned:
-      self.RelationOf(predicate, self.name)
-      init_ground = self.program.annotations.Ground(predicate + '_init')
-      assert init_ground, 'Learned predicates are initialized and grounded.'
-      self.input_tables[predicate] = init_ground.table_name
-
-    # Stages: ('member', m) is evaluated once, ('loop', g) iterates the
-    # diamond members of a recursion loop to stabilization.
-    self.stages = []
-    for kind, content in components:
-      if kind == 'single':
-        member = self.CompileConeMember(content)
-        self.members.append(member)
-        self.stages.append(('member', member))
-      else:
-        group = LoopGroup(content)
-        for origin in content:
-          group.members.append(self.CompileMember(origin + DIAMOND_SUFFIX))
-        self.members.extend(group.members)
-        group.repetitions = self.LoopRepetitions(content)
-        self.stages.append(('loop', group))
-
-    if components[-1][0] != 'single':
-      Error('The target %s of @NeuralTarget is recursive; recursive '
-            'targets are not supported.' % color.Warn(self.target),
-            self.target)
-    target_member = self.stages[-1][1]
-    if target_member.key_fields:
-      Error('The target of @NeuralTarget must be a zero-argument '
-            'predicate; %s has keys.' % color.Warn(self.target),
-            self.target)
-    if not target_member.has_value:
-      Error('The target %s of @NeuralTarget carries no numeric value.' %
-            color.Warn(self.target), self.target)
-    self.FinalizeTypes()
-
-  def LoopRepetitions(self, origins):
-    """Sweep cap of a loop: its @Recursive counts, or the default."""
-    recursive = self.program.annotations.annotations.get('@Recursive', {})
-    counts = [int(recursive[p]['1']) for p in origins
-              if p in recursive and '1' in recursive[p]]
-    counts = [1000000000 if c == -1 else c for c in counts]
-    return max(counts) if counts else 1000
-
-  def CompileConeMember(self, predicate):
-    member = Member(predicate, predicate)
-    member.key_fields, member.key_types, member.has_value = self.Signature(
-        predicate)
-    rules = [r for name, r in self.program.rules if name == predicate]
-    self.CompileContributions(member, rules)
-    return member
-
-  def IsStateRelation(self, predicate_name):
-    return (predicate_name in self.cone_state or
-            predicate_name.endswith(PORTAL_SUFFIX))
-
-  # ------------------------------- Runtime -------------------------------
-
-  def Run(self, sql_runner, progress=None):
-    try:
-      import jax
-    except ImportError:
-      raise NeuralCompileException(
-          'Neural execution requires JAX. Please run: '
-          'python3 -m pip install jax', self.name)
-    jax.config.update('jax_enable_x64', True)
-    import jax.numpy as jnp
-    import numpy as np
-
-    input_data = self.LoadInputs(sql_runner)
-    domains, index, domain_arrays = self.BuildDomains(input_data, jnp)
-    tensors = self.BuildTensors(input_data, domains, index, jnp, np)
-
-    parameters = {p: tensors[p][1] for p in self.learned}
-    masks = {p: tensors[p][0] for p in self.learned}
-
-    runtime = Runtime(self, jnp, domains, domain_arrays, index)
-    stage_functions = []
-    for kind, content in self.stages:
-      if kind == 'member':
-        stage_functions.append(
-            ('member', content, runtime.MemberFunction(content)))
-      else:
-        stage_functions.append(
-            ('loop', content,
-             [(m, runtime.MemberFunction(m)) for m in content.members]))
-    sign = -1.0 if self.maximize else 1.0
-
-    def Overlay(parameters):
-      current = dict(tensors)
-      for p in self.learned:
-        current[p] = (masks[p], parameters[p])
-      return current
-
-    def EmptyLoopState(group):
-      state = {}
-      for member in group.members:
-        shape = tuple(len(domains[t]) for t in member.key_types)
-        values = (jnp.full(shape, member.neutral, dtype=jnp.float64)
-                  if member.has_value else None)
-        state[member.name + PORTAL_SUFFIX] = (
-            jnp.zeros(shape, dtype=bool), values)
-      return state
-
-    def LoopSweep(functions, loop_state, environment):
-      state = dict(loop_state)
-      for member, function in functions:
-        state[member.name + PORTAL_SUFFIX] = function(state, environment)
-      return state
-
-    def PublishLoop(group, loop_state, state):
-      # At the fixpoint a loop member equals its portal; downstream
-      # members read it by its own name.
-      for member in group.members:
-        stabilized = loop_state[member.name + PORTAL_SUFFIX]
-        state[member.name] = stabilized
-        state[member.name + PORTAL_SUFFIX] = stabilized
-
-    def Probe(parameters):
-      """Concrete forward pass, finding the sweep count of every loop.
-
-      Structural recursion (layers, time as a key) stabilizes after a
-      parameter-independent number of sweeps, so the count found under
-      the initial parameters is frozen for training, with a margin of
-      two sweeps: at the fixpoint extra sweeps are the identity."""
-      current = Overlay(parameters)
-      state = {}
-      for kind, content, functions in stage_functions:
-        if kind == 'member':
-          state[content.name] = functions(state, current)
-          continue
-        environment = dict(current)
-        environment.update(state)
-        loop_state = EmptyLoopState(content)
-        converged = False
-        sweeps = 0
-        for sweeps in range(1, content.repetitions + 1):
-          new_loop_state = LoopSweep(functions, loop_state, environment)
-          if self.Converged(loop_state, new_loop_state, jnp):
-            loop_state = new_loop_state
-            converged = True
-            break
-          loop_state = new_loop_state
-        if not converged:
-          Error('Recursion of %s does not stabilize within %d sweeps '
-                'under the initial parameters; learning through dynamic '
-                'equilibria is not supported yet.' %
-                (color.Warn(', '.join(content.origins)),
-                 content.repetitions), self.target)
-        content.sweeps = sweeps + 2
-        if content.sweeps > 100:
-          print('Warning: differentiating through %d sweeps of %s; '
-                'memory of the gradient grows linearly with the sweep '
-                'count.' % (content.sweeps, ', '.join(content.origins)))
-        PublishLoop(content, loop_state, state)
-
-    Probe(parameters)
-
-    def Target(parameters):
-      current = Overlay(parameters)
-      state = {}
-      for kind, content, functions in stage_functions:
-        if kind == 'member':
-          state[content.name] = functions(state, current)
-          continue
-        environment = dict(current)
-        environment.update(state)
-
-        def OneSweep(carry, unused_x, functions=functions,
-                     environment=environment):
-          return LoopSweep(functions, carry, environment), None
-
-        loop_state, _ = jax.lax.scan(OneSweep, EmptyLoopState(content),
-                                     None, length=content.sweeps)
-        PublishLoop(content, loop_state, state)
-      target_mask, target_value = state[self.target]
-      return sign * target_value
-
-    value_and_gradient = jax.jit(jax.value_and_grad(Target))
-
-    import math
-    import os
-    trace = os.getenv('LOGICA_NEURAL_TRACE')
-    previous = None
-    steps_done = 0
-    converged = False
-    for steps_done in range(1, self.steps + 1):
-      value, gradient = value_and_gradient(parameters)
-      parameters = {p: parameters[p] - self.learning_rate * gradient[p]
-                    for p in self.learned}
-      value = float(value)
-      if trace and (steps_done & (steps_done - 1)) == 0:  # Powers of two.
-        norms = ' '.join(
-            '|grad %s|=%.3g' % (p, float(abs(gradient[p]).sum()))
-            for p in self.learned)
-        print('step %d: target %g %s' % (steps_done, float(value), norms))
-      if not math.isfinite(value):
-        Error('Training of %s diverged (the target is %s at step %d); '
-              'lower the learning_rate.' %
-              (color.Warn(self.target), value, steps_done), self.target)
-      if previous is not None and abs(previous - value) <= self.epsilon:
-        converged = True
-        break
-      previous = value
-      if progress and steps_done % 64 == 0:
-        progress(steps_done)
-
-    # Write the learned relations into the learned predicates' tables.
-    for predicate in self.learned:
-      relation = self.relations[predicate]
-      learned_member = Member(predicate, predicate)
-      learned_member.key_fields = relation.key_fields
-      learned_member.key_types = relation.key_types
-      learned_member.has_value = True
-      ground = self.program.annotations.Ground(predicate)
-      assert ground, 'Learned predicates are grounded by the rewrite.'
-      learned_member.table = ground.table_name
-      self.WriteBack(sql_runner, learned_member,
-                     (masks[predicate], parameters[predicate]),
-                     domains, np)
-
-    return {'iterations': steps_done, 'converged': converged}
-
-  def __repr__(self):
-    return 'NeuralTargetPlan(%s -> %s, learn: %s)' % (
-        self.name, self.target, self.learned)

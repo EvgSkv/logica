@@ -724,9 +724,12 @@ class LogicaProgram(object):
     rules = neural_logica.RewriteNeuralTargets(rules)
     self.InscribeOrbits(rules, depth_map)
     f = functors.Functors(rules)
-    # Components of learning cones are extracted before recursion
-    # unfolding, while recursion is still visible as dependency cycles.
+    # Components of learning cones and join-classes of columns are
+    # extracted before recursion unfolding, while recursion is still
+    # visible as dependency cycles and every predicate bears its own
+    # name.
     self.neural_components = neural_logica.ExtractNeuralComponents(f)
+    self.column_classes = neural_logica.ExtractColumnClasses(f)
     # Annotations are not ready at this point.
     # if (self.execution.annotations.Engine() == 'duckdb'):
     #   for p in depth_map:
