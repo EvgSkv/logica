@@ -58,8 +58,10 @@ training at power-of-two steps.
 """
 
 import collections
+import copy
 import math
 import os
+import re
 
 if '.' not in __package__:
   from common import color
@@ -209,16 +211,15 @@ class ColumnClasses(object):
     self.known_columns = set()
 
   def ColumnNode(self, predicate, field):
-    return ('column', predicate, field)
+    return ('column', FamilyOrigin(predicate), field)
 
   def UniteColumnWithVariable(self, predicate, field, variable_node):
     self.known_columns.add((predicate, field))
     self.union.Union(self.ColumnNode(predicate, field), variable_node)
 
   def OfColumn(self, predicate, field):
-    """Class of a column; unfolding machinery inherits from its origin."""
-    origin = OriginPredicate(predicate)
-    return self.union.Find(self.ColumnNode(origin, field))
+    """Class of a column; phases of a family carry the family's columns."""
+    return self.union.Find(self.ColumnNode(predicate, field))
 
   def __repr__(self):
     by_root = collections.defaultdict(list)
@@ -247,6 +248,38 @@ def OriginPredicate(name):
   return name
 
 
+PHASE_PATTERN = re.compile(
+    r'^(?P<base>.*?)_(?P<phase>diamond|portal)(?P<family>(?:_f\d+)*)$')
+
+
+def ParsePhase(name):
+  """(base, phase, family) of an unfolding-phase name.
+
+  The unfolder derives phase names from the predicate name (X_diamond,
+  X_portal), and functors append _fN to the names they copy — nothing
+  runs after functors that would rename, so the shape of the name is a
+  stable output format of the last two transformations. X_diamond ->
+  (X, 'diamond', ''); X_portal_f3 -> (X, 'portal', '_f3'); a name with
+  no phase parses as (name, None, '')."""
+  match = PHASE_PATTERN.match(name)
+  if not match:
+    return name, None, ''
+  return match.group('base'), match.group('phase'), match.group('family')
+
+
+def FamilyOrigin(name):
+  """The relation whose column classes a phase name carries.
+
+  X_portal is always logically X: diamond and portal are phases of the
+  final predicate of their family. X_diamond_f3 and X_portal_f3 are
+  phases of the f3 functor copy — the copy's own family, with its own
+  axes."""
+  base, phase, family = ParsePhase(name)
+  if phase is None:
+    return name
+  return base + family
+
+
 def ProgramIsNeural(rules):
   """Whether the program uses neural execution at all."""
   for rule in rules:
@@ -261,20 +294,22 @@ def ProgramIsNeural(rules):
   return False
 
 
-def ExtractColumnClasses(dependencies):
-  """Extracts column classes of the program's original rules.
+def ExtractColumnClasses(rules):
+  """Extracts column classes of the program's rules.
 
-  Runs before recursion unfolding, alongside ExtractNeuralComponents:
-  in the original rules every predicate — including its own recursive
-  reads — appears under its own name, so variables, head positions and
-  comparisons carry the complete join structure. Returns an empty
-  structure for programs without neural execution."""
+  Runs on the final program — recursion unfolded, functors applied: the
+  machinery reads are physical there (the final pass reads the diamond,
+  the diamond reads the portal), so the join structure glues through
+  live rule variables, and phases funnel onto their family's final name
+  by FamilyOrigin. Functor copies are self-contained families with
+  their own axes. Returns an empty structure for programs without
+  neural execution."""
   classes = ColumnClasses()
-  if not ProgramIsNeural(dependencies.rules):
+  if not ProgramIsNeural(rules):
     return classes
 
   rules_of = collections.defaultdict(list)
-  for rule in dependencies.rules:
+  for rule in rules:
     head = rule['head']['predicate_name']
     if head[0] != '@':
       rules_of[head].append(rule)
@@ -414,7 +449,7 @@ def ExtractColumnClasses(dependencies):
         for functional_rule in rules_of[predicate]:
           WalkRule(functional_rule, bridge, stack | {predicate})
 
-  for rule in dependencies.rules:
+  for rule in rules:
     head_name = rule['head']['predicate_name']
     if head_name[0] == '@' or head_name in functional:
       continue
@@ -706,8 +741,8 @@ def AppendAutoGrounds(rules, dependencies):
           frontier.append(name)
           continue
         if (name in members or name[0] == '@' or
-            name.endswith(PORTAL_SUFFIX) or name.endswith('_RZero') or
-            name.endswith(DIAMOND_SUFFIX) or '_ROne' in name):
+            ParsePhase(name)[1] is not None or name.endswith('_RZero') or
+            '_ROne' in name):
           continue
         if name not in rules_of:
           continue  # Built-in or external table.
@@ -745,6 +780,119 @@ def AppendAutoGrounds(rules, dependencies):
     if name in grounded or IsFunctional(name, rules_of):
       continue
     rules.extend(parse.ParseFile('@Ground(%s);' % name)['rule'])
+
+
+def RenamePredicates(node, mapping):
+  """Renames predicate references of an AST node in place."""
+  if isinstance(node, dict):
+    name = node.get('predicate_name')
+    if name in mapping:
+      node['predicate_name'] = mapping[name]
+    for value in node.values():
+      RenamePredicates(value, mapping)
+  elif isinstance(node, list):
+    for value in node:
+      RenamePredicates(value, mapping)
+
+
+def AnnotationSubjectName(rule):
+  """Predicate name of an annotation's first argument, or None."""
+  try:
+    return rule['head']['record']['field_value'][0]['value'][
+        'expression']['literal']['the_predicate']['predicate_name']
+  except (KeyError, IndexError, TypeError):
+    return None
+
+
+def CompleteFunctorIslands(rules):
+  """Completes functor copies of neural recursion islands.
+
+  A functor copies what the rules show: the diamonds of a neural
+  recursion (the final pass reads them, so they are in the cone) — but
+  not the @Iteration that runs them, whose subject heads no rule, and
+  not the portal state, whose connection to the diamonds lives in the
+  execution plan. The copy is completed here from the names:
+  X_diamond<family> can only be a functor copy of X_diamond, and
+  X_portal is always logically X. A mutually recursive cover is a
+  strongly connected component, so a family copies an island whole or
+  not at all.
+
+  For every copied family this reroutes the family's portal reads and
+  diamond @Grounds onto the family's own portals, clones the portals'
+  typed seed rules and @Grounds, and clones the original @Iteration
+  with the family's names."""
+  rules_of = collections.defaultdict(list)
+  for rule in rules:
+    rules_of[rule['head']['predicate_name']].append(rule)
+
+  # Diamond -> its (neural) @Iteration rule.
+  iteration_of = {}
+  for iteration_rule in rules_of.get('@Iteration', []):
+    fields = {fv['field']: fv['value']['expression']
+              for fv in iteration_rule['head']['record']['field_value']}
+    if LiteralValue(fields.get('neural', {})) is not True:
+      continue
+    for element in fields.get('predicates', {}).get(
+        'literal', {}).get('the_list', {}).get('element', []):
+      name = element.get('literal', {}).get(
+          'the_predicate', {}).get('predicate_name')
+      if name:
+        iteration_of[name] = iteration_rule
+
+  # (family, id of the original iteration) -> copied diamond bases.
+  copies = collections.defaultdict(set)
+  iteration_by_id = {}
+  for head in list(rules_of):
+    base, phase, family = ParsePhase(head)
+    if phase != 'diamond' or not family:
+      continue
+    original = iteration_of.get(base + DIAMOND_SUFFIX)
+    if original is None:
+      continue  # Not a neural island (e.g. a classic recursion copy).
+    iteration_by_id[id(original)] = original
+    copies[family, id(original)].add(base)
+
+  new_rules = []
+  for (family, iteration_id), bases in sorted(
+      copies.items(), key=lambda item: (item[0][0], sorted(item[1]))):
+    original = iteration_by_id[iteration_id]
+    island = {ParsePhase(d)[0] for d in iteration_of
+              if iteration_of[d] is original}
+    if bases != island:
+      Error('Functor copied only part of recursion island %s: %s.' %
+            (color.Warn(', '.join(sorted(island))),
+             color.Warn(', '.join(sorted(bases)))), str(sorted(bases)))
+    portal_map = {b + PORTAL_SUFFIX: b + PORTAL_SUFFIX + family
+                  for b in island}
+    diamond_map = {b + DIAMOND_SUFFIX: b + DIAMOND_SUFFIX + family
+                   for b in island}
+    # Family rules read the family's own state. Portal reads live only
+    # in diamond rules and their copied auxiliaries — all of which bear
+    # the family suffix.
+    for head in rules_of:
+      if head[0] != '@' and head.endswith(family):
+        for rule in rules_of[head]:
+          RenamePredicates(rule, portal_map)
+    # The copied diamonds' @Ground reroutes into the family's portals.
+    for ground_rule in rules_of.get('@Ground', []):
+      if AnnotationSubjectName(ground_rule) in diamond_map.values():
+        RenamePredicates(ground_rule, portal_map)
+    for b in sorted(island):
+      # The portal: its typed seed rule and its @Ground.
+      for seed in rules_of[b + PORTAL_SUFFIX]:
+        clone = copy.deepcopy(seed)
+        clone['head']['predicate_name'] = b + PORTAL_SUFFIX + family
+        new_rules.append(clone)
+      new_rules.extend(parse.ParseFile(
+          '@Ground(%s);' % (b + PORTAL_SUFFIX + family))['rule'])
+    # The iteration, renamed onto the family.
+    iteration_clone = copy.deepcopy(original)
+    subject = iteration_clone['head']['record']['field_value'][0][
+        'value']['expression']['literal']['the_predicate']
+    subject['predicate_name'] = subject['predicate_name'] + family
+    RenamePredicates(iteration_clone, diamond_map)
+    new_rules.append(iteration_clone)
+  rules.extend(new_rules)
 
 
 def CheckNeuralPredicatesIterate(annotations):
@@ -874,6 +1022,13 @@ class Member(object):
   def __init__(self, name, diamond_name):
     self.name = name
     self.diamond_name = diamond_name
+    # The state relation this member's rules read and write: the family's
+    # portal (X_portal of X_diamond, X_portal_f3 of X_diamond_f3).
+    base, phase, family = ParsePhase(diamond_name)
+    if phase == 'diamond':
+      self.portal = base + PORTAL_SUFFIX + family
+    else:
+      self.portal = name + PORTAL_SUFFIX
     self.table = None           # Portal table to write back.
     self.key_fields = []
     self.key_types = []
@@ -923,7 +1078,7 @@ class NeuralPlan(object):
     self.synthetic_count = 0    # For axes of computed head keys.
     self.allocator = rule_translate.NamesAllocator()
     for diamond_name in iteration['predicates']:
-      if not diamond_name.endswith(DIAMOND_SUFFIX):
+      if ParsePhase(diamond_name)[1] != 'diamond':
         Error('Neural iteration got a non-diamond predicate %s.' %
               color.Warn(diamond_name), self.name)
       self.members.append(self.CompileMember(diamond_name))
@@ -1010,7 +1165,7 @@ class NeuralPlan(object):
 
   def IsStateRelation(self, predicate_name):
     """State relations live in the plan's memory, not in stored tables."""
-    return predicate_name.endswith(PORTAL_SUFFIX)
+    return ParsePhase(predicate_name)[1] == 'portal'
 
   def RelationOf(self, predicate_name, context):
     """Relation spec of a leaf predicate: plan state or a stored input."""
@@ -1030,7 +1185,8 @@ class NeuralPlan(object):
 
   def CompileMember(self, diamond_name):
     """Member of a recursion loop, compiled from its diamond rules."""
-    member_name = diamond_name[:-len(DIAMOND_SUFFIX)]
+    base, phase, family = ParsePhase(diamond_name)
+    member_name = base + family
     member = Member(member_name, diamond_name)
     # Checking the signature first: it produces the clearest errors
     # (e.g. string-valued predicates are outside of the fragment).
@@ -1311,7 +1467,7 @@ class NeuralPlan(object):
     # 4. State: portals start empty.
     state = {}
     for member in self.members:
-      portal = member.name + PORTAL_SUFFIX
+      portal = member.portal
       relation = Relation(portal, member.key_fields, member.key_types,
                           member.has_value)
       self.relations.setdefault(portal, relation)
@@ -1326,7 +1482,7 @@ class NeuralPlan(object):
     def Sweep(state, tensors):
       state = dict(state)
       for member, function in member_functions:
-        state[member.name + PORTAL_SUFFIX] = function(state, tensors)
+        state[member.portal] = function(state, tensors)
       return state
 
     sweep = jax.jit(Sweep)
@@ -1350,7 +1506,7 @@ class NeuralPlan(object):
     # 6. Write the stabilized relations back into portal tables.
     for member in self.members:
       self.WriteBack(sql_runner, member,
-                     state[member.name + PORTAL_SUFFIX], domains, np)
+                     state[member.portal], domains, np)
 
     return {'iterations': iterations, 'converged': converged}
 
@@ -1688,7 +1844,7 @@ class NeuralTargetPlan(NeuralPlan):
 
   def IsStateRelation(self, predicate_name):
     return (predicate_name in self.cone_state or
-            predicate_name.endswith(PORTAL_SUFFIX))
+            ParsePhase(predicate_name)[1] == 'portal')
 
   # ------------------------------- Runtime -------------------------------
 
@@ -1734,23 +1890,23 @@ class NeuralTargetPlan(NeuralPlan):
         shape = tuple(len(domains[t]) for t in member.key_types)
         values = (jnp.full(shape, member.neutral, dtype=jnp.float64)
                   if member.has_value else None)
-        state[member.name + PORTAL_SUFFIX] = (
+        state[member.portal] = (
             jnp.zeros(shape, dtype=bool), values)
       return state
 
     def LoopSweep(functions, loop_state, environment):
       state = dict(loop_state)
       for member, function in functions:
-        state[member.name + PORTAL_SUFFIX] = function(state, environment)
+        state[member.portal] = function(state, environment)
       return state
 
     def PublishLoop(group, loop_state, state):
       # At the fixpoint a loop member equals its portal; downstream
       # members read it by its own name.
       for member in group.members:
-        stabilized = loop_state[member.name + PORTAL_SUFFIX]
+        stabilized = loop_state[member.portal]
         state[member.name] = stabilized
-        state[member.name + PORTAL_SUFFIX] = stabilized
+        state[member.portal] = stabilized
 
     def Probe(parameters):
       """Concrete forward pass, finding the sweep count of every loop.

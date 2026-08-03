@@ -78,6 +78,8 @@ def NeuralTests():
           golden='neural/neural_xor.txt', use_concertina=True)
   RunTest('neural/neural_heat', src='neural/neural_heat.l',
           golden='neural/neural_heat.txt', use_concertina=True)
+  RunTest('neural/neural_functor_walk', src='neural/neural_functor_walk.l',
+          golden='neural/neural_functor_walk.txt', use_concertina=True)
 
 
 def RunAll(test_presto=False, test_trino=False, test_clingo=True, test_clickhouse=False,

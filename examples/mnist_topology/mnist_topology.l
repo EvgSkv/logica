@@ -31,6 +31,13 @@
 # reachable from the border holds -1, and a hole holds the smallest cell
 # number of its component: holes are the labels in [0, 999999).
 #
+# The whole pipeline — ink, holes, inputs, network — is written once,
+# over the training data; test-set evaluation is a single functor call
+# substituting the test data. The learned parameters do not depend on
+# the substituted data, so the evaluation reads the same trained
+# tables, while the hole-counting recursion is copied and recomputes
+# the holes of the test images.
+#
 # Run with: examples/mnist_topology/run_mnist_topology.sh
 # (shares the /tmp/logica_mnist dataset with examples/mnist).
 
@@ -63,12 +70,8 @@ Ink() = 999999.0;
 TrainInk(e, i, j) = 1.0 :-
   v == TrainPixelData(e, p), v > 0.25, TrainExample(e),
   i == (p - p % 28) / 28, j == p % 28;
-TestInk(e, i, j) = 1.0 :-
-  v == TestPixelData(e, p), v > 0.25, TestExample(e),
-  i == (p - p % 28) / 28, j == p % 28;
 
 TrainBlocked(e, i, j) = Take{TrainInk(e, i, j)} > 0.5;
-TestBlocked(e, i, j) = Take{TestInk(e, i, j)} > 0.5;
 
 @Recursive(TrainRegion, mode: "neural");
 TrainRegion(e, i, j) Min= (if TrainBlocked(e, i, j) then Ink() else -1.0) :-
@@ -83,16 +86,6 @@ TrainRegion(e, i, j) Min= (if TrainBlocked(e, i, j)
   TrainExample(e), Coordinate(i), Coordinate(j),
   di in [-1, 0, 1], dj in [-1, 0, 1], Abs(di) + Abs(dj) == 1;
 
-@Recursive(TestRegion, mode: "neural");
-TestRegion(e, i, j) Min= (if TestBlocked(e, i, j) then Ink() else -1.0) :-
-  TestExample(e), Coordinate(i), Coordinate(j), (Edge(i) | Edge(j));
-TestRegion(e, i, j) Min= (if TestBlocked(e, i, j)
-                          then Ink() else i * 28.0 + j) :-
-  TestExample(e), Coordinate(i), Coordinate(j);
-TestRegion(e, i, j) Min= (if TestBlocked(e, i, j)
-                          then Ink() else TestRegion(e, i + di, j + dj)) :-
-  TestExample(e), Coordinate(i), Coordinate(j),
-  di in [-1, 0, 1], dj in [-1, 0, 1], Abs(di) + Abs(dj) == 1;
 
 # A hole is a region that neither reached the border nor is ink.
 TrainHoleComponent(e, l) distinct :-
@@ -101,11 +94,6 @@ TrainHoleCount(e) += 1 :- TrainHoleComponent(e, l);
 TrainHoleArea(e) += 1 :-
   l == TrainRegion(e, i, j), l >= 0.0, l < Ink();
 
-TestHoleComponent(e, l) distinct :-
-  l == TestRegion(e, i, j), l >= 0.0, l < Ink();
-TestHoleCount(e) += 1 :- TestHoleComponent(e, l);
-TestHoleArea(e) += 1 :-
-  l == TestRegion(e, i, j), l >= 0.0, l < Ink();
 
 # ================ The neural part: the same perceptron ================
 
@@ -122,16 +110,6 @@ TrainInput(e, 786) = (if Take{TrainHoleCount(e)} >= 2 then 1.0 else 0.0) :-
 TrainInput(e, 787) = Least(1.0, Take{TrainHoleArea(e)} / 60.0) :-
   TrainExample(e);
 
-TestInput(e, i) = 0.0 + TestPixelData(e, i) :-
-  TestExample(e), PixelId(i);
-TestInput(e, 784) = (if Take{TestHoleCount(e)} == 0 then 1.0 else 0.0) :-
-  TestExample(e);
-TestInput(e, 785) = (if Take{TestHoleCount(e)} == 1 then 1.0 else 0.0) :-
-  TestExample(e);
-TestInput(e, 786) = (if Take{TestHoleCount(e)} >= 2 then 1.0 else 0.0) :-
-  TestExample(e);
-TestInput(e, 787) = Least(1.0, Take{TestHoleArea(e)} / 60.0) :-
-  TestExample(e);
 
 TrainLabel(e, d) distinct :-
   TrainLabelData(e, d), TrainExample(e), Digit(d);
@@ -154,20 +132,22 @@ Hidden(e, j) = LeakyRelu(HiddenBias(j) +
 Score(e, d) = OutputBias(d) + Sum{Hidden(e, j) * W2(j, d)} :-
   TrainExample(e), Digit(d);
 
-Loss() += Log(Sum{Exp(Score(e, d))}) / 60000.0 :- TrainExample(e);
-Loss() += -1.0 * Score(e, d) / 60000.0 :- TrainLabel(e, d);
+# Cross-entropy of an example: log-sum-exp of all scores minus the
+# score of the true class.
+Loss() += (Log(Sum{Exp(Score(e, d2))}) - Score(e, d)) / 60000.0 :-
+  TrainLabel(e, d);
 
 @NeuralTarget(Loss, learn: [W1, HiddenBias, W2, OutputBias],
               steps: 1200, learning_rate: 0.5, epsilon: 1e-9);
 
-# ================= Evaluation: ordinary SQL as always =================
+# ================= Evaluation: the network as a functor =================
+# The whole test half of the program — hole counting by the recursive
+# rule included — is the same network applied to the test data. The
+# learned parameters do not depend on the substituted data, so the copy
+# reads the same trained tables; the recursion island is copied and
+# recomputes the holes of the test images.
 
-TestHidden(e, j) = LeakyRelu(HiddenBias(j) +
-                             Sum{TestInput(e, i) * W1(i, j)}) :-
-  TestExample(e), HiddenNeuron(j);
-
-TestScore(e, d) = OutputBias(d) + Sum{TestHidden(e, j) * W2(j, d)} :-
-  TestExample(e), Digit(d);
+TestScore := Score(TrainPixelData: TestPixelData, TrainExample: TestExample);
 
 Predicted(e) ArgMax= d -> TestScore(e, d);
 

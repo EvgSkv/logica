@@ -69,9 +69,10 @@ Hidden(e, j) = LeakyRelu(HiddenBias(j) +
 Score(e, d) = OutputBias(d) + Sum{Hidden(e, j) * W2(j, d)} :-
   TrainExample(e), Digit(d);
 
-# Cross-entropy: log-sum-exp of the scores minus the true class score.
-Loss() += Log(Sum{Exp(Score(e, d))}) / 60000.0 :- TrainExample(e);
-Loss() += -1.0 * Score(e, d) / 60000.0 :- TrainLabel(e, d);
+# Cross-entropy of an example: log-sum-exp of all scores minus the
+# score of the true class.
+Loss() += (Log(Sum{Exp(Score(e, d2))}) - Score(e, d)) / 60000.0 :-
+  TrainLabel(e, d);
 
 @NeuralTarget(Loss, learn: [W1, HiddenBias, W2, OutputBias],
               steps: 1200, learning_rate: 0.5, epsilon: 1e-9);

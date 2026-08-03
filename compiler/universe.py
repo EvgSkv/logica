@@ -638,10 +638,20 @@ class LogicaProgram(object):
         dialects.Get(self.annotations.Engine()).LibraryProgram())['rule']
     extended_rules.extend(library_rules)
 
+    # A functor copy of a neural recursion carries the diamonds but not
+    # the iteration or the portal state: complete such islands from the
+    # names (X_portal is always logically X).
+    neural_logica.CompleteFunctorIslands(extended_rules)
+
     # Neural iterations and neural targets read their input relations
     # from tables: ground the inputs. Functors already know the
     # dependencies.
     neural_logica.AppendAutoGrounds(extended_rules, self.functors)
+
+    # Column classes are extracted from the final rules: machinery reads
+    # are physical after unfolding, functor copies are self-contained
+    # families, and phases funnel onto their family by name.
+    self.column_classes = neural_logica.ExtractColumnClasses(extended_rules)
 
     for rule in extended_rules:
       predicate_name = rule['head']['predicate_name']
@@ -729,7 +739,6 @@ class LogicaProgram(object):
     # visible as dependency cycles and every predicate bears its own
     # name.
     self.neural_components = neural_logica.ExtractNeuralComponents(f)
-    self.column_classes = neural_logica.ExtractColumnClasses(f)
     # Annotations are not ready at this point.
     # if (self.execution.annotations.Engine() == 'duckdb'):
     #   for p in depth_map:
