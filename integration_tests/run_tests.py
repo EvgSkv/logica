@@ -124,6 +124,8 @@ def RunAll(test_presto=False, test_trino=False, test_clingo=True, test_clickhous
   if test_extension or logica_test.TestManager.RUN_ONLY:
     RunTest('duckdb_timeline_test')
 
+  RunTest("duckdb_plusplus_agg_test")
+
   RunTest("duckdb_json_test")
   RunTest("orderby_limit_test")
   RunTest("strategic_test")

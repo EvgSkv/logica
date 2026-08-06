@@ -487,7 +487,8 @@ class DuckDB(Dialect):
           'TimeAdd': '{0} + to_microseconds(cast(1000000 * {1} as int64))',
           'Rand': 'RANDOM(%s)',
           'Log': 'LN(%s)',  # Log is natural logarithm!
-          'Set': 'ARRAY_AGG(DISTINCT {0} ORDER BY {0})'
+          'Set': 'ARRAY_AGG(DISTINCT {0} ORDER BY {0})',
+          'Agg++': 'LIST_REDUCE(LIST(%s), (a, b) -> a || b)'
       }
 
     def DecorateCombineRule(self, rule, var):
