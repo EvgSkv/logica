@@ -129,16 +129,18 @@ def RunSQL(sql, engine, connection=None, is_final=False,
 
 
 def Run(filename, predicate_name,
-        output_format='artistic_table', display_mode='terminal'):
-  try:
-    rules = parse.ParseFile(open(filename).read())['rule']
-  except parse.ParsingException as parsing_exception:
-    parsing_exception.ShowMessage()
-    sys.exit(1)
+        output_format='artistic_table', display_mode='terminal',
+        user_flags=None, rules=None):
+  if rules is None:
+    try:
+      rules = parse.ParseFile(open(filename).read())['rule']
+    except parse.ParsingException as parsing_exception:
+      parsing_exception.ShowMessage()
+      sys.exit(1)
 
 
   try:
-    program = universe.LogicaProgram(rules)
+    program = universe.LogicaProgram(rules, user_flags=user_flags)
     engine = program.annotations.Engine()
 
     # This is needed to build the program execution.
@@ -167,15 +169,17 @@ def Run(filename, predicate_name,
 
 
 def RunMany(filename, predicate_names,
-            output_format='artistic_table', display_mode='terminal'):
-  try:
-    rules = parse.ParseFile(open(filename).read())['rule']
-  except parse.ParsingException as parsing_exception:
-    parsing_exception.ShowMessage()
-    sys.exit(1)
+            output_format='artistic_table', display_mode='terminal',
+            user_flags=None, rules=None):
+  if rules is None:
+    try:
+      rules = parse.ParseFile(open(filename).read())['rule']
+    except parse.ParsingException as parsing_exception:
+      parsing_exception.ShowMessage()
+      sys.exit(1)
 
   try:
-    program = universe.LogicaProgram(rules)
+    program = universe.LogicaProgram(rules, user_flags=user_flags)
     engine = program.annotations.Engine()
 
     executions = []

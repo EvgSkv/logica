@@ -136,8 +136,12 @@ def main(argv):
     print('  logica <l file> <command> <predicate name> [flags]')
     print('  Commands are:')
     print('    print: prints the StandardSQL query for the predicate.')
-    print('    run: runs the StandardSQL query on BigQuery with pretty output.')
-    print('    run_to_csv: runs the query on BigQuery with csv output.')
+    print('    run: runs the predicate, prints the result.')
+    print('    run_to_csv: runs the predicate, prints the result as csv.')
+    print('    run_raw_sql: runs the StandardSQL query of the predicate '
+          'as-is.')
+    print('    run_raw_sql_to_csv: runs the StandardSQL query of the '
+          'predicate as-is, prints the result as csv.')
 
     print('')
     print('')
@@ -166,7 +170,8 @@ def main(argv):
 
   command = argv[2]
 
-  commands = ['parse', 'print', 'run', 'run_to_csv', 'run_in_terminal',
+  commands = ['parse', 'print', 'run', 'run_to_csv', 'run_raw_sql',
+              'run_raw_sql_to_csv', 'run_in_terminal',
               'infer_types', 'show_signatures', 'build_schema',
               'propositional_playground', 'print_clingo', 'run_clingo',
               'trancpy', 'trancpy_run', 'build_extension',
@@ -198,6 +203,42 @@ def main(argv):
     else:
       artistic_table = run_in_terminal.Run(filename, predicates)
       print(artistic_table)
+    return
+
+  # Like run_in_terminal, but only the result is printed.
+  if command == 'run' or command == 'run_to_csv':
+    if __name__ == '__main__' and not __package__:
+      from tools import run_in_terminal
+    else:
+      from .tools import run_in_terminal
+    try:
+      parsed_rules = parse.ParseFile(open(filename).read(),
+                                     import_root=GetImportRoot())['rule']
+    except parse.ParsingException as parsing_exception:
+      parsing_exception.ShowMessage()
+      sys.exit(1)
+    user_flags = ReadUserFlags(parsed_rules, argv[4:])
+    output_format = ('header_rows' if command == 'run_to_csv'
+                     else 'artistic_table')
+    predicates_list = predicates.split(',')
+    if len(predicates_list) > 1:
+      results = run_in_terminal.RunMany(filename, predicates_list,
+                                        output_format=output_format,
+                                        display_mode='silent',
+                                        user_flags=user_flags,
+                                        rules=parsed_rules)
+    else:
+      results = {predicates: run_in_terminal.Run(filename, predicates,
+                                                 output_format=output_format,
+                                                 display_mode='silent',
+                                                 user_flags=user_flags,
+                                                 rules=parsed_rules)}
+    for predicate_name in predicates_list:
+      if command == 'run_to_csv':
+        header, rows = results[predicate_name]
+        print(sqlite3_logica.Csv(header, rows), flush=True)
+      else:
+        print(results[predicate_name], flush=True)
     return
 
   if command == 'trancpy':
@@ -303,14 +344,24 @@ def main(argv):
       sys.exit(1)
 
     if command == 'print':
+      if logic_program.execution.iterations:
+        print('SELECT Error("This program requires iteration '
+              'via Concertina engine.");')
       print(formatted_sql)
 
     engine = logic_program.annotations.Engine()
 
-    if command == 'run' or command == 'run_to_csv':
+    if command == 'run_raw_sql' or command == 'run_raw_sql_to_csv':
+      if logic_program.execution.iterations:
+        print(color.Format(
+            '[ {error}Error{end} ] This program requires iteration via '
+            'Concertina engine. Use the {warning}run{end} or '
+            '{warning}run_to_csv{end} command.'))
+        sys.exit(1)
       # We should split and move this logic to dialects.
       if engine == 'bigquery':
-        output_format = 'csv' if command == 'run_to_csv' else 'pretty'
+        output_format = ('csv' if command == 'run_raw_sql_to_csv'
+                         else 'pretty')
         p = subprocess.Popen(['bq', 'query',
                               '--use_legacy_sql=false',
                               '--format=%s' % output_format],
@@ -318,7 +369,7 @@ def main(argv):
         o, _ = p.communicate(formatted_sql.encode())
       elif engine == 'sqlite':
         # TODO: Make multi-statement scripts work.
-        format = ('artistictable' if command == 'run' else 'csv')
+        format = ('artistictable' if command == 'run_raw_sql' else 'csv')
         statements_to_execute = (
           [preamble] + defines_and_exports + [main_predicate_sql])
         o = sqlite3_logica.RunSqlScript(statements_to_execute,
@@ -327,7 +378,7 @@ def main(argv):
         connection = duckdb_logica.GetConnection(logic_program)
         cur = connection.sql(formatted_sql)
         formatter = (sqlite3_logica.ArtisticTable
-                     if command == 'run'
+                     if command == 'run_raw_sql'
                      else sqlite3_logica.Csv)
         o = formatter(cur.columns,
                       cur.fetchall()).encode()
@@ -346,7 +397,8 @@ def main(argv):
                                            rows).encode()
         else:
           p = subprocess.Popen(['psql', '--quiet'] +
-                              (['--csv'] if command == 'run_to_csv' else []),
+                              (['--csv']
+                               if command == 'run_raw_sql_to_csv' else []),
                               stdin=subprocess.PIPE, stdout=subprocess.PIPE)
           commands = []
           o, _ = p.communicate(
@@ -356,7 +408,7 @@ def main(argv):
         params = GetTrinoParameters(a)
         p = subprocess.Popen(['trino'] + params +
                              (['--output-format=CSV_HEADER_UNQUOTED']
-                              if command == 'run_to_csv' else
+                              if command == 'run_raw_sql_to_csv' else
                               ['--output-format=ALIGNED']),
                               stdin=subprocess.PIPE, stdout=subprocess.PIPE)
         o, _ = p.communicate(formatted_sql.encode())
@@ -365,7 +417,8 @@ def main(argv):
         if ('@Engine' in logic_program.annotations.annotations and
             'clickhouse' in logic_program.annotations.annotations['@Engine']):
           engine_settings = logic_program.annotations.annotations['@Engine']['clickhouse']
-        output_format = 'csv' if command == 'run_to_csv' else 'pretty'
+        output_format = ('csv' if command == 'run_raw_sql_to_csv'
+                         else 'pretty')
         try:
           o = clickhouse_logica.RunQueryCli(
               formatted_sql,
@@ -383,7 +436,7 @@ def main(argv):
                               '--server=%s' % server,
                               '--file=/dev/stdin'] +
                              (['--output-format=CSV_HEADER_UNQUOTED']
-                              if command == 'run_to_csv' else
+                              if command == 'run_raw_sql_to_csv' else
                               ['--output-format=ALIGNED']),
                               stdin=subprocess.PIPE, stdout=subprocess.PIPE)
         o, _ = p.communicate(formatted_sql.encode())
