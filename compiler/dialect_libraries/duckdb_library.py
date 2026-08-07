@@ -97,8 +97,11 @@ ProverChoice(slot, options:) = options[i] :-
 # Clingo support.
 #
 
-Clingo(p, m) = SqlExpr("Clingo({p}, {m})", {p:, m:}) :-
-  m ~ [{predicate: Str, args: [Str]}];
+Clingo(p, m) = result :-
+  m ~ [{predicate: Str, args: [Str]}],
+  result = SqlExpr("Clingo({p}, {m})", {p:, m:}),
+  result ~ [{model_id: Num, model: [{predicate: Str, args: [Str]}]}];
+
 CompileClingo(p, m) = SqlExpr("CompileClingo({p}, {m})", {p:, m:}) :-
   m ~ [{predicate: Str, args: [Str]}];
 
