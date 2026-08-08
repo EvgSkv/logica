@@ -304,6 +304,19 @@ class Concertina(object):
     executed = stats.get('iterations', 1) if stats else 1
     self.iteration_repetitions[iteration] = executed
     completion_time = getattr(self.engine, 'completion_time', {})
+    # The plan wrote the learned tables back, but the members' query
+    # actions never ran. Final predicates among the members still need
+    # a query to deliver the result to the caller — reading the
+    # written-back table, not the member's defining SQL: for a learned
+    # predicate the latter reads the initialization.
+    written_tables = getattr(self.iterations[iteration].get('plan'),
+                             'written_tables', {})
+    for a in members:
+      if self.action[a].get('type') == 'final':
+        action = dict(self.action[a].get('action', {}))
+        if a in written_tables:
+          action['sql'] = 'SELECT * FROM %s;' % written_tables[a]
+        self.engine.Run(action)
     for a in members:
       self.action_iterations_complete[a] = executed
       self.complete_actions |= {a}

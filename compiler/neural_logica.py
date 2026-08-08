@@ -952,6 +952,12 @@ def AttachPlans(plans, iterations):
   for name, iteration in iterations.items():
     if name in plans:
       iteration['plan'] = plans[name]
+      # A learning loop is scheduled as a one-repetition iteration, but
+      # its plan runs up to `steps` training steps: show those in the
+      # progress display.
+      steps = getattr(plans[name], 'steps', None)
+      if steps:
+        iteration['repetitions'] = steps
 
 
 def AddLearningLoopDependencies(execution, translator):
@@ -1073,6 +1079,7 @@ class NeuralPlan(object):
     self.members = []           # In DiamondOrder.
     self.relations = {}         # name -> Relation, inputs and state.
     self.input_tables = {}      # relation name -> physical table.
+    self.written_tables = {}    # predicate -> table filled by WriteBack.
     self.constant_keys = collections.defaultdict(set)  # class -> keys.
     self.class_types = {}       # column class -> 'Str' | 'Num'.
     self.synthetic_count = 0    # For axes of computed head keys.
@@ -1452,7 +1459,7 @@ class NeuralPlan(object):
       raise NeuralCompileException(
           'Neural execution requires JAX. Please run: '
           'python3 -m pip install jax', self.name)
-    jax.config.update('jax_enable_x64', True)
+    ConfigureJax(jax)
     import jax.numpy as jnp
     import numpy as np
 
@@ -1479,7 +1486,9 @@ class NeuralPlan(object):
     runtime = Runtime(self, jnp, domains, domain_arrays, index)
     member_functions = [(m, runtime.MemberFunction(m)) for m in self.members]
 
-    def Sweep(state, tensors):
+    # Tensors ride as a closure constant: lazily built entries are not
+    # a pytree, and only the state changes between sweeps anyway.
+    def Sweep(state):
       state = dict(state)
       for member, function in member_functions:
         state[member.portal] = function(state, tensors)
@@ -1491,7 +1500,7 @@ class NeuralPlan(object):
     iterations = 0
     converged = False
     for iterations in range(1, self.repetitions + 1):
-      new_state = sweep(state, tensors)
+      new_state = sweep(state)
       if self.Converged(state, new_state, jnp):
         state = new_state
         converged = True
@@ -1596,44 +1605,61 @@ class NeuralPlan(object):
     return domains, index, domain_arrays
 
   def BuildTensors(self, input_data, domains, index, jnp, np):
-    """Dense (mask, values) pairs of the input relations."""
-    tensors = {}
+    """Row forms of the input relations; their dense (mask, values)
+    pairs are built lazily — a relation fully served by the row path
+    never pays for its dense cube."""
+    self.input_rows = {}
     for name, (header, rows) in input_data.items():
+      relation = self.relations[name]
+      if not relation.key_fields:
+        continue
+      position = []
+      for field, column_class in zip(relation.key_fields,
+                                     relation.key_types):
+        column = [row[header.index(self.FieldColumn(field))]
+                  for row in rows]
+        mapping = index[column_class]
+        domain = np.asarray(domains[column_class])
+        if domain.dtype.kind in 'if':
+          indices = np.searchsorted(domain, np.asarray(column))
+        else:
+          indices = np.fromiter((mapping[v] for v in column),
+                                dtype=np.int64, count=len(column))
+        position.append(indices)
+      # A table is a set: deduplicate the rows. Dense assignment keeps
+      # the last write of a duplicated key and np.unique keeps the
+      # first: reverse to agree.
+      keys = np.stack(position, axis=1)[::-1]
+      keys, kept = np.unique(keys, axis=0, return_index=True)
+      row_values = None
+      if relation.has_value:
+        value_column = header.index('logica_value')
+        row_values = np.asarray([row[value_column] for row in rows],
+                                dtype=np.float64)[::-1][kept]
+      self.input_rows[name] = (
+          tuple(keys[:, d] for d in range(keys.shape[1])), row_values)
+
+    def DenseTensor(name):
+      header, rows = input_data[name]
       relation = self.relations[name]
       dims = tuple(len(domains[t]) for t in relation.key_types)
       mask = np.zeros(dims, dtype=bool)
       values = np.zeros(dims, dtype=np.float64)
-      value_column = (header.index('logica_value')
-                      if relation.has_value else None)
-      if len(rows) > self.BULK_ROWS:
-        position = []
-        for field, column_class in zip(relation.key_fields,
-                                       relation.key_types):
-          column = [row[header.index(self.FieldColumn(field))]
-                    for row in rows]
-          mapping = index[column_class]
-          domain = np.asarray(domains[column_class])
-          if domain.dtype.kind in 'if':
-            indices = np.searchsorted(domain, np.asarray(column))
-          else:
-            indices = np.fromiter((mapping[v] for v in column),
-                                  dtype=np.int64, count=len(column))
-          position.append(indices)
-        position = tuple(position)
+      if relation.key_fields:
+        position, row_values = self.input_rows[name]
         mask[position] = True
-        if value_column is not None:
-          values[position] = np.asarray(
-              [row[value_column] for row in rows], dtype=np.float64)
+        if row_values is not None:
+          values[position] = row_values
       else:
+        value_column = (header.index('logica_value')
+                        if relation.has_value else None)
         for row in rows:
-          position = tuple(
-              index[t][row[header.index(self.FieldColumn(f))]]
-              for f, t in zip(relation.key_fields, relation.key_types))
-          mask[position] = True
+          mask[()] = True
           if value_column is not None:
-            values[position] = float(row[value_column])
-      tensors[name] = (jnp.array(mask), jnp.array(values))
-    return tensors
+            values[()] = float(row[value_column])
+      return (jnp.array(mask), jnp.array(values))
+
+    return LazyTensors(DenseTensor)
 
   def Converged(self, state, new_state, jnp):
     for name in state:
@@ -1653,6 +1679,7 @@ class NeuralPlan(object):
 
   def WriteBack(self, sql_runner, member, state_tensor, domains, np):
     """Writes a member's stabilized relation into its portal table."""
+    self.written_tables[member.name] = member.table
     mask, values = state_tensor
     mask = np.asarray(mask)
     if values is not None:
@@ -1752,6 +1779,7 @@ class NeuralTargetPlan(NeuralPlan):
     self.members = []           # Cone members in topological order.
     self.relations = {}
     self.input_tables = {}
+    self.written_tables = {}    # predicate -> table filled by WriteBack.
     self.constant_keys = collections.defaultdict(set)
     self.class_types = {}
     self.synthetic_count = 0
@@ -1855,7 +1883,7 @@ class NeuralTargetPlan(NeuralPlan):
       raise NeuralCompileException(
           'Neural execution requires JAX. Please run: '
           'python3 -m pip install jax', self.name)
-    jax.config.update('jax_enable_x64', True)
+    ConfigureJax(jax)
     import jax.numpy as jnp
     import numpy as np
 
@@ -1879,10 +1907,8 @@ class NeuralTargetPlan(NeuralPlan):
     sign = -1.0 if self.maximize else 1.0
 
     def Overlay(parameters):
-      current = dict(tensors)
-      for p in self.learned:
-        current[p] = (masks[p], parameters[p])
-      return current
+      return tensors.Overlay(
+          {p: (masks[p], parameters[p]) for p in self.learned})
 
     def EmptyLoopState(group):
       state = {}
@@ -1921,8 +1947,7 @@ class NeuralTargetPlan(NeuralPlan):
         if kind == 'member':
           state[content.name] = functions(state, current)
           continue
-        environment = dict(current)
-        environment.update(state)
+        environment = current.Overlay(state)
         loop_state = EmptyLoopState(content)
         converged = False
         sweeps = 0
@@ -1958,8 +1983,7 @@ class NeuralTargetPlan(NeuralPlan):
         if kind == 'member':
           state[content.name] = functions(state, current)
           continue
-        environment = dict(current)
-        environment.update(state)
+        environment = current.Overlay(state)
 
         def OneSweep(carry, unused_x, functions=functions,
                      environment=environment):
@@ -2017,6 +2041,81 @@ class NeuralTargetPlan(NeuralPlan):
   def __repr__(self):
     return 'NeuralTargetPlan(%s -> %s, learn: %s)' % (
         self.name, self.target, self.learned)
+
+
+class LazyTensors(object):
+  """Dense input tensors built on first read: a table fully served by
+  the row path never pays for its dense form."""
+
+  def __init__(self, build):
+    self.build = build
+    self.cache = {}
+
+  def __getitem__(self, name):
+    if name not in self.cache:
+      import jax
+      # The first read may happen inside a jit trace; the built tensor
+      # is a constant and must stay concrete to be cached and reused
+      # outside of the trace.
+      with jax.ensure_compile_time_eval():
+        self.cache[name] = self.build(name)
+    return self.cache[name]
+
+  def Overlay(self, overrides):
+    """A view with some entries replaced, e.g. the learned parameters
+    of the current step."""
+    result = LazyTensors(self.__getitem__)
+    result.cache = dict(overrides)
+    return result
+
+
+def NeedsDenseEvaluator(node, relations, row_variables, string_variables,
+                        canonical):
+  """True when an expression needs the dense axes. A combine opens a
+  child axis context; a keyed relation read is a row-wise gather only
+  when every key is a row-bound variable; a string key may serve as a
+  gather key but cannot enter arithmetic or comparisons."""
+  def Scan(node):
+    if isinstance(node, dict):
+      if 'combine' in node:
+        return True
+      call = node.get('call')
+      if (call and call['predicate_name'] in relations and
+          call['record']['field_value']):
+        for field_value in call['record']['field_value']:
+          expression = field_value['value']['expression']
+          if (not IsVariable(expression) or
+              canonical(VariableName(expression)) not in row_variables):
+            return True
+        return False  # A gather; its keys need no further scanning.
+      if IsVariable(node):
+        return canonical(VariableName(node)) in string_variables
+      return any(Scan(v) for v in node.values())
+    if isinstance(node, list):
+      return any(Scan(v) for v in node)
+    return False
+  return Scan(node)
+
+
+def ConfigureJax(jax):
+  """Numeric precision and the persistent compilation cache.
+
+  The programs are small, so XLA compilation (~hundreds of ms) dominates
+  a CLI run; the on-disk cache brings repeat runs to the training cost
+  itself. LOGICA_JAX_CACHE overrides the location, empty disables."""
+  jax.config.update('jax_enable_x64', True)
+  cache_dir = os.environ.get(
+      'LOGICA_JAX_CACHE', os.path.expanduser('~/.cache/logica/jax'))
+  if not cache_dir:
+    return
+  try:
+    jax.config.update('jax_compilation_cache_dir', cache_dir)
+    # Default thresholds only cache compilations over a second: exactly
+    # backwards for a fleet of small graphs.
+    jax.config.update('jax_persistent_cache_min_compile_time_secs', 0.0)
+    jax.config.update('jax_persistent_cache_min_entry_size_bytes', 0)
+  except Exception:
+    pass  # An older JAX without the persistent cache: run without it.
 
 
 class Runtime(object):
@@ -2142,6 +2241,118 @@ class Runtime(object):
         value = jnp.where(mask, value, member.neutral)
       return mask, value
 
+    return self.RowContributionFunction(member, contribution,
+                                        Evaluate) or Evaluate
+
+  def RowContributionFunction(self, member, contribution, dense_evaluate):
+    """A single-read contribution rides the rows of its input table:
+    O(rows) work and memory instead of a dense cube over the domains.
+    Returns None when the contribution does not fit the pattern."""
+    jnp = self.jnp
+    keyed = [r for r in contribution.reads
+             if self.plan.relations[r[0]].key_fields]
+    scalars = [r for r in contribution.reads
+               if not self.plan.relations[r[0]].key_fields]
+
+    def KeyVariables(read):
+      read_name, read_key_map, _ = read
+      return [read_key_map[f]
+              for f in self.plan.relations[read_name].key_fields]
+
+    # The driver is an input-table read binding every axis: the rule's
+    # derivations are exactly its rows. Other keyed reads join on the
+    # driver's variables — gathers at the rows' key positions.
+    drivers = [
+        r for r in keyed
+        if r[0] in getattr(self.plan, 'input_rows', {})
+        and len(set(KeyVariables(r))) == len(KeyVariables(r))
+        and set(KeyVariables(r)) == set(contribution.axes)]
+    if not drivers:
+      return None
+    name, key_map, value_var = drivers[0]
+    relation = self.plan.relations[name]
+    key_variables = [key_map[f] for f in relation.key_fields]
+    others = [r for r in keyed if r is not drivers[0]]
+    if any(kind != 'var' for kind, _ in contribution.head):
+      return None
+    if member.has_value and member.aggregation not in ('sum', 'min', 'max'):
+      return None
+    string_variables = {v for v, t in zip(key_variables, relation.key_types)
+                        if self.domain_arrays[t] is None}
+    scanned = ([contribution.value_expr] if member.has_value else [])
+    scanned += list(contribution.definitions.values())
+    scanned += list(contribution.constraints)
+    if NeedsDenseEvaluator(scanned, self.plan.relations,
+                           set(key_variables), string_variables,
+                           contribution.canonical.Find):
+      return None
+
+    def Evaluate(state, tensors):
+      if name in state or name not in getattr(self.plan, 'input_rows', {}):
+        return dense_evaluate(state, tensors)
+      positions, row_values = self.plan.input_rows[name]
+      n = positions[0].shape[0]
+      position_of = dict(zip(key_variables, positions))
+      context = EvalContext(self, member, contribution, [], {},
+                            state, tensors, row_positions=position_of)
+      for variable, column_class, p in zip(key_variables,
+                                           relation.key_types, positions):
+        if self.domain_arrays[column_class] is not None:
+          context.environment[variable] = self.domain_arrays[column_class][p]
+      if value_var is not None:
+        context.environment[value_var] = row_values
+      valid = jnp.ones(n, dtype=bool)
+      for scalar_name, _, scalar_value_var in scalars:
+        scalar_mask, scalar_values = context.Tensor(scalar_name)
+        valid = valid & jnp.broadcast_to(scalar_mask, (n,))
+        if scalar_value_var is not None:
+          context.environment[scalar_value_var] = jnp.where(
+              scalar_mask, scalar_values, 0.0)
+      for other in others:
+        other_name, _, other_value_var = other
+        other_mask, other_values = context.Tensor(other_name)
+        position = tuple(position_of[v] for v in KeyVariables(other))
+        other_mask = other_mask[position]
+        valid = valid & other_mask
+        if other_value_var is not None:
+          context.environment[other_value_var] = jnp.where(
+              other_mask, other_values[position], 0.0)
+      for variable, values in contribution.memberships:
+        allowed = set(values)
+        domain = self.domains[contribution.axis_type[variable]]
+        vector = jnp.array([v in allowed for v in domain], dtype=bool)
+        valid = valid & vector[position_of[variable]]
+      for constraint in contribution.constraints:
+        valid = valid & jnp.broadcast_to(
+            context.EvalConstraint(constraint), (n,))
+      value = None
+      if member.has_value:
+        value, value_valid = context.Eval(contribution.value_expr)
+        value = jnp.broadcast_to(value, (n,))
+        if value_valid is not True:
+          valid = valid & jnp.broadcast_to(value_valid, (n,))
+
+      # Scatter the rows onto the member's key cells.
+      sizes = [len(self.domains[t]) for t in member.key_types]
+      total = 1
+      flat = jnp.zeros(n, dtype=jnp.int64)
+      for (_, variable), size in zip(contribution.head, sizes):
+        flat = flat * size + position_of[variable]
+        total *= size
+      mask = jnp.zeros(total, dtype=bool).at[flat].max(valid)
+      if value is not None:
+        # Invalid rows carry the neutral: identity for their cell.
+        contributed = jnp.where(valid, value, member.neutral)
+        out = jnp.full(total, member.neutral, dtype=jnp.float64)
+        if member.aggregation == 'sum':
+          out = out.at[flat].add(contributed)
+        elif member.aggregation == 'min':
+          out = out.at[flat].min(contributed)
+        else:
+          out = out.at[flat].max(contributed)
+        value = out.reshape(sizes)
+      return mask.reshape(sizes), value
+
     return Evaluate
 
 
@@ -2154,7 +2365,7 @@ class EvalContext(object):
   """
 
   def __init__(self, runtime, member, contribution, axes, axis_type,
-               state, tensors, parent=None):
+               state, tensors, parent=None, row_positions=None):
     self.runtime = runtime
     self.jnp = runtime.jnp
     self.member = member
@@ -2167,6 +2378,9 @@ class EvalContext(object):
     self.parent = parent
     self.environment = {}
     self.memo = {}
+    # In a row context variables are bound to rows of a table rather
+    # than to axes: keyed relation reads gather at these positions.
+    self.row_positions = row_positions or {}
 
   def Tensor(self, name):
     if name in self.state:
@@ -2326,6 +2540,11 @@ class EvalContext(object):
       Error('Relation %s has no value to read.' %
             color.Warn(relation.name),
             self.contribution.rule_text)
+    if variables and all(v in self.row_positions for v in variables):
+      # A row context: gather the read at the rows' key positions.
+      position = tuple(self.row_positions[v] for v in variables)
+      row_mask = mask[position]
+      return (self.jnp.where(row_mask, values[position], 0.0), row_mask)
     aligned_values = self.Aligned(values, variables) if variables else values
     aligned_mask = self.Aligned(mask, variables) if variables else mask
     # Masked-out cells hold the semiring neutral; reading them as 0

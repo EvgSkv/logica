@@ -52,6 +52,8 @@ def NeuralTests():
   except ImportError:
     print('Skipping neural tests: JAX is not installed.')
     return
+  RunTest('neural/neural_coordinate_use', src='neural/neural_coordinate_use.l',
+          golden='neural/neural_coordinate_use.txt', use_concertina=True)
   RunTest('neural/neural_basic', src='neural/neural_basic.l',
           golden='neural/neural_basic.txt', use_concertina=True)
   RunTest('neural/neural_d', src='neural/neural_d.l',
