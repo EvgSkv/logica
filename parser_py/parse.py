@@ -888,6 +888,11 @@ def ParseGenericCall(s, opening, closing):
             s[:idx] == '++?' or
             idx >= 2 and s[0] == '`' and s[idx - 1] == '`'):
           predicate = s[:idx]
+          if predicate.startswith('-'):
+            # A minus may occur inside a name, but a name never starts
+            # with one: -A() is the unary minus of A(), not a call of
+            # predicate '-A'. ('->' is specialcased above.)
+            return None
           break
         else:
           return None

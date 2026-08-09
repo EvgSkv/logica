@@ -2291,6 +2291,10 @@ class Runtime(object):
     drivers = [
         r for r in keyed
         if r[0] in getattr(self.plan, 'input_rows', {})
+        # A learned relation's input rows are only the initialization:
+        # at run time its tensor is overlaid with the current
+        # parameters, which the row form would bypass.
+        and r[0] not in getattr(self.plan, 'learned', ())
         and len(set(KeyVariables(r))) == len(KeyVariables(r))
         and set(KeyVariables(r)) == set(contribution.axes)]
     if not drivers:

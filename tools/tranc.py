@@ -932,7 +932,7 @@ class Transpiler:
     self.emit("}")
     self.emit("template<typename T, typename F>")
     self.emit("std::vector<T> tranc_sorted_by(const std::vector<T>& v, F key) {")
-    self.emit("  std::vector<T> r(v); std::sort(r.begin(), r.end(), [&](auto& a, auto& b) { return key(a) < key(b); }); return r;")
+    self.emit("  std::vector<T> r(v); std::stable_sort(r.begin(), r.end(), [&](auto& a, auto& b) { return key(a) < key(b); }); return r;")
     self.emit("}")
     self.emit("std::vector<std::vector<std::string>> tranc_csv_read(std::ifstream& file) {")
     self.emit("  std::vector<std::vector<std::string>> rows;")
