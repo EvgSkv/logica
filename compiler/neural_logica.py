@@ -65,11 +65,13 @@ import re
 
 if '.' not in __package__:
   from common import color
+  from common import logix
   from compiler import rule_translate
   from parser_py import parse
   from type_inference.research import reference_algebra
 else:
   from ..common import color
+  from ..common import logix
   from ..compiler import rule_translate
   from ..parser_py import parse
   from ..type_inference.research import reference_algebra
@@ -1453,14 +1455,7 @@ class NeuralPlan(object):
 
   def Run(self, sql_runner, progress=None):
     """Executes the plan: read inputs, iterate, write back portals."""
-    try:
-      import jax
-    except ImportError:
-      raise NeuralCompileException(
-          'Neural execution requires JAX. Please run: '
-          'python3 -m pip install jax', self.name)
-    ConfigureJax(jax)
-    import jax.numpy as jnp
+    jax, jnp = ImportTensorEngine(self)
     import numpy as np
 
     # 1-3. Input tables -> domains -> dense tensors.
@@ -1659,20 +1654,24 @@ class NeuralPlan(object):
             values[()] = float(row[value_column])
       return (jnp.array(mask), jnp.array(values))
 
-    return LazyTensors(DenseTensor)
+    return LazyTensors(DenseTensor, self.tensor_engine_module)
 
   def Converged(self, state, new_state, jnp):
-    for name in state:
-      old_mask, old_values = state[name]
-      new_mask, new_values = new_state[name]
-      if bool(jnp.any(old_mask != new_mask)):
-        return False
-      if old_values is None:
-        continue
-      both = old_mask & new_mask
-      delta = jnp.where(both, jnp.abs(new_values - old_values), 0.0)
-      if both.size and float(jnp.max(delta, initial=0.0)) > self.epsilon:
-        return False
+    import numpy
+    # Masked-out cells hold inf/nan garbage by design; the deltas of
+    # such cells are discarded by the mask, their warnings are noise.
+    with numpy.errstate(invalid='ignore', divide='ignore', over='ignore'):
+      for name in state:
+        old_mask, old_values = state[name]
+        new_mask, new_values = new_state[name]
+        if bool(jnp.any(old_mask != new_mask)):
+          return False
+        if old_values is None:
+          continue
+        both = old_mask & new_mask
+        delta = jnp.where(both, jnp.abs(new_values - old_values), 0.0)
+        if both.size and float(jnp.max(delta, initial=0.0)) > self.epsilon:
+          return False
     return True
 
   BULK_ROWS = 100000  # Above this, tables travel through a CSV file.
@@ -1871,20 +1870,17 @@ class NeuralTargetPlan(NeuralPlan):
     return member
 
   def IsStateRelation(self, predicate_name):
-    return (predicate_name in self.cone_state or
-            ParsePhase(predicate_name)[1] == 'portal')
+    # A cone member may be read by its plain name or — after recursion
+    # unfolding rewrote the reader — by its diamond or portal name.
+    base, phase, family = ParsePhase(predicate_name)
+    if phase in ('diamond', 'portal') and base + family in self.cone_state:
+      return True
+    return (predicate_name in self.cone_state or phase == 'portal')
 
   # ------------------------------- Runtime -------------------------------
 
   def Run(self, sql_runner, progress=None):
-    try:
-      import jax
-    except ImportError:
-      raise NeuralCompileException(
-          'Neural execution requires JAX. Please run: '
-          'python3 -m pip install jax', self.name)
-    ConfigureJax(jax)
-    import jax.numpy as jnp
+    jax, jnp = ImportTensorEngine(self)
     import numpy as np
 
     input_data = self.LoadInputs(sql_runner)
@@ -1928,11 +1924,13 @@ class NeuralTargetPlan(NeuralPlan):
 
     def PublishLoop(group, loop_state, state):
       # At the fixpoint a loop member equals its portal; downstream
-      # members read it by its own name.
+      # members read it by its own name — or, when recursion unfolding
+      # rewrote the reader, by the diamond name.
       for member in group.members:
         stabilized = loop_state[member.portal]
         state[member.name] = stabilized
         state[member.portal] = stabilized
+        state[member.diamond_name] = stabilized
 
     def Probe(parameters):
       """Concrete forward pass, finding the sweep count of every loop.
@@ -2043,28 +2041,56 @@ class NeuralTargetPlan(NeuralPlan):
         self.name, self.target, self.learned)
 
 
+def ImportTensorEngine(plan):
+  """The tensor backend of a plan: jax by default, logix over numpy.
+
+  Selected by @Engine(..., tensor_engine: "jax" | "numpy");
+  the LOGICA_TENSOR_ENGINE environment variable overrides. The chosen
+  jax-like module is also remembered on the plan for LazyTensors."""
+  settings = plan.program.annotations.annotations.get(
+      '@Engine', {}).get(plan.engine, {})
+  choice = settings.get('tensor_engine', 'jax')
+  choice = os.environ.get('LOGICA_TENSOR_ENGINE', choice)
+  if choice == 'numpy':
+    plan.tensor_engine_module = logix
+    return logix, logix.numpy
+  if choice != 'jax':
+    Error('Unknown tensor_engine %s; use "jax" or "numpy".' %
+          color.Warn(str(choice)), plan.name)
+  try:
+    import jax
+  except ImportError:
+    raise NeuralCompileException(
+        'Neural execution requires JAX. Please run: '
+        'python3 -m pip install jax', plan.name)
+  ConfigureJax(jax)
+  import jax.numpy as jnp
+  plan.tensor_engine_module = jax
+  return jax, jnp
+
+
 class LazyTensors(object):
   """Dense input tensors built on first read: a table fully served by
   the row path never pays for its dense form."""
 
-  def __init__(self, build):
+  def __init__(self, build, engine):
     self.build = build
+    self.engine = engine  # The jax-like module of the tensor engine.
     self.cache = {}
 
   def __getitem__(self, name):
     if name not in self.cache:
-      import jax
       # The first read may happen inside a jit trace; the built tensor
       # is a constant and must stay concrete to be cached and reused
       # outside of the trace.
-      with jax.ensure_compile_time_eval():
+      with self.engine.ensure_compile_time_eval():
         self.cache[name] = self.build(name)
     return self.cache[name]
 
   def Overlay(self, overrides):
     """A view with some entries replaced, e.g. the learned parameters
     of the current step."""
-    result = LazyTensors(self.__getitem__)
+    result = LazyTensors(self.__getitem__, self.engine)
     result.cache = dict(overrides)
     return result
 

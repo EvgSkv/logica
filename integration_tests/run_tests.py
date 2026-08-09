@@ -82,6 +82,28 @@ def NeuralTests():
           golden='neural/neural_heat.txt', use_concertina=True)
   RunTest('neural/neural_functor_walk', src='neural/neural_functor_walk.l',
           golden='neural/neural_functor_walk.txt', use_concertina=True)
+  LogixTests()
+
+
+def LogixTests():
+  """Neural tests through the logix (pure numpy) tensor engine.
+
+  neural_coordinate_use is excluded on purpose: with epsilon: 0 its
+  stopping point is sensitive to the summation order of einsum, which
+  legitimately differs between XLA and numpy."""
+  import os
+  os.environ['LOGICA_TENSOR_ENGINE'] = 'numpy'
+  try:
+    for name in ['neural_basic', 'neural_d', 'neural_pagerank',
+                 'neural_flow', 'neural_counter', 'neural_const_keys',
+                 'neural_game_of_life', 'neural_hash_functions',
+                 'neural_target_linear', 'neural_animal_fights',
+                 'neural_mlp', 'neural_xor', 'neural_heat',
+                 'neural_functor_walk']:
+      RunTest('logix/' + name, src='neural/%s.l' % name,
+              golden='neural/%s.txt' % name, use_concertina=True)
+  finally:
+    os.environ.pop('LOGICA_TENSOR_ENGINE')
 
 
 def RunAll(test_presto=False, test_trino=False, test_clingo=True, test_clickhouse=False,

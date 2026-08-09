@@ -282,7 +282,8 @@ def TypesOfBultins():
     }
     types_of_predicate['<'] = types_of_predicate['<='] = types_of_predicate['>='] = types_of_predicate['>']
     types_of_predicate['Sin'] = types_of_predicate['Cos'] = types_of_predicate['Log'
-      ] = types_of_predicate['Exp'] = types_of_predicate['Abs']
+      ] = types_of_predicate['Exp'] = types_of_predicate['Sqrt'
+      ] = types_of_predicate['Floor'] = types_of_predicate['Abs']
     types_of_predicate['%'] = types_of_predicate['/'] = types_of_predicate['*']
     types_of_predicate['&&'] = types_of_predicate['||']
     return {

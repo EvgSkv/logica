@@ -39,4 +39,6 @@ M() = Clingo(["Pick", "Cand", "CantPick", "Blk"], Facts());
 Out(x) distinct :-
   ExtractClingoCall(x, predicate: "Pick", model_id:) = M();
 
-Test(x, M()) :- Out(x);
+SortList(l) = Array{x -> x :- x in l};
+
+Test(x, SortList(M())) :- Out(x);
