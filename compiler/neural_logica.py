@@ -1980,13 +1980,10 @@ class NeuralTargetPlan(NeuralPlan):
           {p: (masks[p], parameters[p]) for p in self.learned})
 
     def EmptyLoopState(group):
+      # TKP groups never reach here: they run as sparse nodes.
       state = {}
       for member in group.members:
         shape = tuple(len(domains[t]) for t in member.key_types)
-        if getattr(member, 'is_tkp', False):
-          state[member.portal] = self.tkp.EmptyState(
-              self, member, domains, jnp, np)
-          continue
         values = (jnp.full(shape, member.neutral, dtype=jnp.float64)
                   if member.has_value else None)
         state[member.portal] = (
@@ -2009,22 +2006,28 @@ class NeuralTargetPlan(NeuralPlan):
         state[member.portal] = stabilized
         state[member.diamond_name] = stabilized
 
-    def SweepContext(group):
-      """TKP sweeps on the numpy engine run off the tape.
+    def RunTkpGroup(content, state, environment, stage):
+      """A TKP recursion group runs as ONE sparse symbolic node.
 
-      Their state is integer proof ids, structurally outside the
-      gradient (theta only ranks candidates, and ranks are indices);
-      the loss recomputes the probability from theta at the end. Yet
-      both the tape and the node ancestry retain every sweep
-      intermediate — for a 5x5 grid world that once cost gigabytes.
-      Real jax frees dead intermediates itself; logix suspends
-      recording instead."""
-      suspend = getattr(jax, 'suspend_tape', None)
-      if suspend is None:
-        return contextlib.nullcontext()
-      if not any(self.tkp.Owns(member.name) for member in group.members):
-        return contextlib.nullcontext()
-      return suspend()
+      The fixpoint executes on python symbols — proofs are data,
+      selection carries no gradient — and must re-run each training
+      step under the current theta; the probability members publish
+      its results onto the tape with the explicit polynomial
+      derivative. Nothing of the group itself enters the state: the
+      only readers of proof-valued predicates are their probability
+      relations."""
+      node = runtime.tkp_nodes.get(content.members[0].name)
+      if node is None:
+        node = tkp_logica.SparseTkpNode(runtime, content)
+        for member in content.members:
+          runtime.tkp_nodes[member.name] = node
+      theta = node.Theta(state, environment)
+      node.Run(np.asarray(theta), content.repetitions, stage,
+               self.target)
+
+    def IsTkpGroup(content):
+      return any(self.tkp.Owns(member.name)
+                 for member in content.members)
 
     def Probe(parameters, stage='the initial parameters'):
       """Concrete forward pass, finding the sweep count of every loop.
@@ -2034,13 +2037,10 @@ class NeuralTargetPlan(NeuralPlan):
       the initial parameters is frozen for training, with a margin of
       two sweeps: at the fixpoint extra sweeps are the identity.
 
-      TKP recursion is NOT structural in this sense: absorption and
-      the top-k composition depend on theta, so a count probed under
-      the current parameters is no bound for the parameters of later
-      training steps. Such loops train through the full user-declared
-      @Recursive bound instead — extra sweeps at the fixpoint are the
-      identity — and the probe (re-run after training as well) only
-      checks that the declared bound suffices at this stage."""
+      TKP recursion is different: it runs as a sparse symbolic node,
+      iterating to its true fixpoint every step; @Recursive is the
+      correctness bound, loud when exceeded — here and in the re-probe
+      after training."""
       current = Overlay(parameters)
       state = {}
       for kind, content, functions in stage_functions:
@@ -2048,13 +2048,14 @@ class NeuralTargetPlan(NeuralPlan):
           state[content.name] = functions(state, current)
           continue
         environment = current.Overlay(state)
+        if IsTkpGroup(content):
+          RunTkpGroup(content, state, environment, stage)
+          continue
         loop_state = EmptyLoopState(content)
         converged = False
         sweeps = 0
         for sweeps in range(1, content.repetitions + 1):
-          with SweepContext(content):
-            new_loop_state = LoopSweep(functions, loop_state,
-                                       environment)
+          new_loop_state = LoopSweep(functions, loop_state, environment)
           if self.Converged(loop_state, new_loop_state, jnp):
             loop_state = new_loop_state
             converged = True
@@ -2066,10 +2067,7 @@ class NeuralTargetPlan(NeuralPlan):
                 'equilibria is not supported yet.' %
                 (color.Warn(', '.join(content.origins)),
                  content.repetitions, stage), self.target)
-        if any(self.tkp.Owns(member.name) for member in content.members):
-          content.sweeps = content.repetitions
-        else:
-          content.sweeps = sweeps + 2
+        content.sweeps = sweeps + 2
         if content.sweeps > 100:
           print('Warning: differentiating through %d sweeps of %s; '
                 'memory of the gradient grows linearly with the sweep '
@@ -2092,23 +2090,16 @@ class NeuralTargetPlan(NeuralPlan):
           state[content.name] = functions(state, current)
           continue
         environment = current.Overlay(state)
+        if IsTkpGroup(content):
+          RunTkpGroup(content, state, environment, 'a training step')
+          continue
 
         def OneSweep(carry, unused_x, functions=functions,
                      environment=environment):
           return LoopSweep(functions, carry, environment), None
 
-        with SweepContext(content):
-          loop_state, _ = jax.lax.scan(OneSweep, EmptyLoopState(content),
-                                       None, length=content.sweeps)
-        if (hasattr(jax.lax, 'stop_gradient') and
-            any(self.tkp.Owns(member.name)
-                for member in content.members)):
-          # TKP state is proof ids — outside the gradient (the loss
-          # recomputes probabilities from theta). Cutting the cotangent
-          # here lets jax prune the backward scan and its per-sweep
-          # residuals, which otherwise cost gigabytes; on logix the
-          # suspended sweeps are constants already.
-          loop_state = jax.lax.stop_gradient(loop_state)
+        loop_state, _ = jax.lax.scan(OneSweep, EmptyLoopState(content),
+                                     None, length=content.sweeps)
         PublishLoop(content, loop_state, state)
       target_mask, target_value = state[self.target]
       return sign * target_value
@@ -2118,10 +2109,10 @@ class NeuralTargetPlan(NeuralPlan):
         any(self.tkp.Owns(member.name) for member in content.members)
         for kind, content, unused_functions in stage_functions)
 
-    if tkp_loops and hasattr(jax, 'suspend_tape'):
-      # The suspended TKP sweeps must re-run per step (the top-k
-      # selection follows theta); a compiled cache would freeze their
-      # trace-step proofs. Uncompiled, the tape holds only the small
+    if tkp_loops and hasattr(jax.numpy, 'custom'):
+      # The sparse TKP nodes must re-run per step (the top-k selection
+      # follows theta); a compiled cache would freeze their trace-step
+      # proofs. Uncompiled, the tape holds only the small
       # differentiable tail — the probability polynomial.
       value_and_gradient = jax.value_and_grad(Target)
     else:
@@ -2303,6 +2294,7 @@ class Runtime(object):
     self.domains = domains
     self.domain_arrays = domain_arrays
     self.index = index
+    self.tkp_nodes = {}  # TKP member name -> its group's sparse node.
 
   def MemberFunction(self, member):
     """state, tensors -> (mask, values): the member's rewrite w_p."""

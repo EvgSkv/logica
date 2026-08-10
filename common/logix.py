@@ -275,11 +275,6 @@ def _Record(op, args):
   # `where` discards; their floating-point warnings are pure noise.
   with onp.errstate(invalid='ignore', divide='ignore', over='ignore'):
     value = _FORWARD[op](*values)
-  if getattr(_STATE, 'suspended', False):
-    # A suspended region retains nothing: no tape entry and no
-    # ancestry (args would chain-retain every intermediate of the
-    # region). The result is a plain constant.
-    return _Constant(value)
   tape = _Tape()
   traced = tape is not None and any(
       isinstance(a, Tensor) and a.node.recorded for a in args)
@@ -291,25 +286,6 @@ def _Record(op, args):
     node = Node(op, node_args, value)
   return Tensor(node)
 
-
-@contextlib.contextmanager
-def suspend_tape():
-  """A gradient-free region: compute plainly, retain nothing.
-
-  The TKP sweep phase runs here. Its state is integer proof ids —
-  structurally outside the gradient (theta only ranks, and ranks are
-  indices) — yet on the tape ten sweeps of intermediates once cost
-  gigabytes; and even off the tape, node ancestry chain-retains the
-  whole history. Inside the region every operation returns a plain
-  constant. NEVER use under a jit trace: the region would bake its
-  trace-step results into the compiled cache — run such functions
-  uncompiled (the TKP-on-logix training loop does)."""
-  previous = getattr(_STATE, 'suspended', False)
-  _STATE.suspended = True
-  try:
-    yield
-  finally:
-    _STATE.suspended = previous
 
 
 def _Constant(value):
@@ -400,6 +376,8 @@ _FORWARD = {
     'take_along_axis': lambda a, index, axis: onp.take_along_axis(
         a, index, axis=axis),
     'scatter_add_along': _ScatterAddAlong,
+    # A node with a user-supplied derivative (the TKP polynomial).
+    'custom': lambda forward, backward, *values: forward(*values),
 }
 
 
@@ -500,6 +478,20 @@ def _GradTakeAlongAxis(node, g):
   zeros = onp.zeros(_ShapeOf(a), dtype=onp.float64)
   return [numpy.scatter_add_along(zeros, _TensorOf(index), g, axis),
           None, None]
+
+
+def _GradCustom(node, g):
+  """custom(forward, backward, *args): the user supplies the rule.
+
+  backward(cotangent, *arg_values) returns one cotangent per data
+  argument (None where non-differentiable). This is how a node whose
+  forward is arbitrary python — e.g. the sparse TKP fixpoint — joins
+  the tape with an explicit hand derivative."""
+  backward = node.args[1]
+  values = [_Value(_TensorOf(a)) if isinstance(a, (Node, Tensor)) else a
+            for a in node.args[2:]]
+  cotangents = backward(onp.asarray(_Value(g)), *values)
+  return [None, None] + list(cotangents)
 
 
 def _GradGather(node, g):
@@ -703,6 +695,7 @@ _GRAD = {
     'astype': _GradAstype,
     'concatenate': _GradConcatenate,
     'take_along_axis': _GradTakeAlongAxis,
+    'custom': _GradCustom,
     # lexsort, sort, prod and scatter_add_along carry no gradient:
     # sorting indices, rank keys, and the backward pass's own scatter.
 }
@@ -772,6 +765,10 @@ def _MakeNumpy():
       'take_along_axis', [a, index, axis])
   ns.scatter_add_along = lambda x, index, updates, axis: _Record(
       'scatter_add_along', [x, index, updates, axis])
+  # custom is eager-only: it has no codegen emitter, so functions
+  # using it must run uncompiled (the TKP training loop does).
+  ns.custom = lambda forward, backward, *args: _Record(
+      'custom', [forward, backward] + list(args))
   return ns
 
 

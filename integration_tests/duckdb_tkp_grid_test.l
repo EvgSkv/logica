@@ -5,15 +5,15 @@
 # tensor of 160 GB and crashed the machine; the greedy canonicalization
 # keeps it in hundreds of MB. Positive and negative supervision over a
 # monotone grid: the MustHave corner rises, the MustHaveNot corner
-# falls. tkp_max_proof_length: 10 covers the longest monotone path (8
-# edges) — the capacity contract in its intended use.
+# falls. The sparse symbolic executor runs it in a second within
+# hundreds of MB.
 
 import examples.extensions.tkp.MakeFact;
 import examples.extensions.tkp.ProbConjunction;
 import examples.extensions.tkp.TKP;
 import examples.extensions.tkp.TkpProbability;
 
-@Engine("duckdb", tensor_engine: "numpy", tkp_max_proof_length: 10);
+@Engine("duckdb", tensor_engine: "numpy");
 
 NodeName(i, j) = "node_" ++ ToString(i) ++ "-" ++ ToString(j);
 

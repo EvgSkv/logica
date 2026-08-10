@@ -520,210 +520,101 @@ def RewriteProbabilityReads(rule, world, definitions):
   return Walk(copy.deepcopy(rule))
 
 
+
 ###############################################################################
-# V. Member classes and the tensor algebra.
+# V. The sparse proof algebra.
 #
-# A proof is stored SPARSELY: a slot is an ascending vector of L fact
-# ids, L = min(n_facts, tkp_max_proof_length of @Engine). Real facts
-# are 0..n-1; three virtual ids follow:
-#   n     FALSE  — a dead or empty slot, probability 0;
-#   n+1   PAD    — past the end of the proof, probability 1;
-#   n+2   POISON — a slot that overflowed its capacity, probability
-#          NaN. A compiled training step cannot raise, so the overflow
-#          is sticky-loud instead: the poisoned slot outranks
-#          everything, the loss turns NaN, and the training loop
-#          diagnoses the NaN with an eager re-probe — where the same
-#          overflow raises TkpCapacityError with the precise message.
-# theta_ext = fact probabilities extended with [0, 1, NaN]; the ops
-# recover n_facts from its length. The state value of a TKP member:
-# (mask over keys, slot ids of shape (keys..., slots, L), int32).
-# Capacity limits only STORED proofs; the unions inside the
-# inclusion-exclusion are transient and never truncated.
+# A proof is a sorted tuple of fact ids; a value is a list of proofs in
+# canonical order — the reference semantics of tkp.py carried onto the
+# fact axis: ranking by probability with lexicographic ties (python
+# tuple comparison IS the identity order, prefix first), absorption by
+# kept proofs, truncation to k. Everything is python symbols: no
+# tensors, no capacity, no virtual facts. Selection is data — the
+# probability polynomial of the selected proofs is differentiated by
+# the EXPLICIT product-rule formula (the custom gradient of the TKP
+# node), so the fixpoint runs outside any autodiff tape and costs
+# exactly its symbols.
 
 
-class TkpCapacityError(TkpCompileException):
-  """A proof does not fit the configured tkp_max_proof_length."""
+def SparseProofProbability(proof, theta):
+  """Product of the fact probabilities, in ascending fact order."""
+  result = 1.0
+  for fact in proof:
+    result = result * theta[fact]
+  return result
 
 
-def MakeTensorOps(jnp, onp):
-  """Operations over sparse proof slots.
+def SparseCanonicalize(pool, theta, k):
+  """Dedup, absorption, order (probability desc, lex), top-k.
 
-  Every operation receives theta_ext of length n_facts + 3; the
-  capacity L is the trailing dimension of the slot ids themselves.
-  Slots are ascending; the virtual ids (FALSE < PAD < POISON) sort
-  after the real facts, except that POISON slots are normalized to
-  [POISON, PAD...] so the mark survives any truncation."""
+  k < 0 means no truncation (conjunction pools)."""
+  ordered = sorted(set(pool))
+  ordered.sort(key=lambda proof: -SparseProofProbability(proof, theta))
+  result = []
+  kept_sets = []
+  for candidate in ordered:
+    candidate_set = set(candidate)
+    if any(kept <= candidate_set for kept in kept_sets):
+      continue  # a duplicate, or absorbed by a likelier kept proof
+    result.append(candidate)
+    kept_sets.append(candidate_set)
+    if k >= 0 and len(result) == k:
+      break
+  return result
 
-  def Virtual(theta_ext):
-    n = int(theta_ext.shape[-1]) - 3
-    return n, n + 1, n + 2
 
-  def FirstMask(ids):
-    """First occurrence of each id in an ascending slot."""
-    head = onp.ones(tuple(ids.shape[:-1]) + (1,), dtype=bool)
-    return jnp.concatenate([head, ids[..., 1:] != ids[..., :-1]],
-                           axis=-1)
+def SparseConjunction(a, b, theta):
+  """TkpProbConjunction: all pair unions, canonical, no truncation."""
+  pool = []
+  for proof_a in a:
+    union_base = set(proof_a)
+    for proof_b in b:
+      pool.append(tuple(sorted(union_base.union(proof_b))))
+  return SparseCanonicalize(pool, theta, -1)
 
-  def Theta(ids, theta_ext):
-    """theta at the slot ids, via a LIVE index (ids change per step)."""
-    spread = jnp.broadcast_to(theta_ext,
-                              ids.shape[:-1] + theta_ext.shape[-1:])
-    return jnp.take_along_axis(spread, ids, -1)
 
-  def ProofProb(ids, theta_ext):
-    """Differentiable probability of ascending slots: (..., L) -> (...).
+def SparseProbability(proofs, theta):
+  """Exact inclusion-exclusion over the stored proofs."""
+  total = 0.0
+  n = len(proofs)
+  for chosen in range(1, 1 << n):
+    union = set()
+    size = 0
+    for i in range(n):
+      if chosen >> i & 1:
+        union.update(proofs[i])
+        size += 1
+    sign = 1.0 if size % 2 == 1 else -1.0
+    total += sign * SparseProofProbability(sorted(union), theta)
+  return total
 
-    Duplicates (unions concatenate before sorting) count once through
-    the first-occurrence mask; PAD contributes log(1) = 0, FALSE sinks
-    the product to ~0, POISON turns it NaN. The summation runs in
-    ascending fact order — bit-identical to the dense representation."""
-    t = Theta(ids, theta_ext)
-    return jnp.exp(jnp.sum(
-        jnp.where(FirstMask(ids), jnp.log(t + 1e-30), 0.0), axis=-1))
 
-  def RankProb(ids, theta_ext):
-    """Exact product probability, for RANKING only.
+def SparseProbabilityGradient(proofs, theta, cotangent, out):
+  """Adds cotangent * dP/dtheta into the list `out`, by product rule.
 
-    Multiplies theta directly (an exact 1.0 per PAD), so that
-    coincidentally equal products — 0.25*1.0 against 0.5*0.5 — tie
-    bit-exactly, as they do in the reference, and fall through to the
-    lexicographic keys. Ranks carry no gradient (they only pick
-    slots), so the product needs no gradient rule."""
-    t = Theta(ids, theta_ext)
-    return jnp.prod(jnp.where(FirstMask(ids), t, 1.0), axis=-1)
+  Every inclusion-exclusion term is sign * prod(theta over its union);
+  its derivative by theta_f is sign * product-without-f, computed via
+  prefix/suffix products — never by division (theta may be 0)."""
+  n = len(proofs)
+  for chosen in range(1, 1 << n):
+    union = set()
+    size = 0
+    for i in range(n):
+      if chosen >> i & 1:
+        union.update(proofs[i])
+        size += 1
+    facts = sorted(union)
+    sign = 1.0 if size % 2 == 1 else -1.0
+    prefix = 1.0
+    prefixes = []
+    for fact in facts:
+      prefixes.append(prefix)
+      prefix = prefix * theta[fact]
+    suffix = 1.0
+    for i in range(len(facts) - 1, -1, -1):
+      out[facts[i]] += cotangent * sign * prefixes[i] * suffix
+      suffix = suffix * theta[facts[i]]
 
-  def LexKeys(ids, false_id):
-    """Tie-break keys realizing the reference ProofIdentity order.
-
-    An ascending slot IS the positional key vector; every virtual id
-    maps to the -1 sentinel, so a proof that is a prefix of another
-    sorts first, exactly like the shorter of two identity strings.
-    Returns a tuple of keys, most significant first, for jnp.lexsort
-    (which wants its primary key LAST)."""
-    keys = jnp.where(ids >= false_id, -1, ids)
-    return tuple(keys[..., i]
-                 for i in reversed(range(int(ids.shape[-1]))))
-
-  def Rows(length, false_id, pad_id, poison_id):
-    false_row = onp.full(length, pad_id, dtype=onp.int32)
-    false_row[0] = false_id
-    poison_row = onp.full(length, pad_id, dtype=onp.int32)
-    poison_row[0] = poison_id
-    return false_row, poison_row
-
-  def Conjoin(a, b, theta_ext):
-    """(..., ka, L) x (..., kb, L) -> (..., ka*kb, L): sorted union.
-
-    A union containing FALSE is dead: it collapses to the pure FALSE
-    slot (so its real ids do not count against capacity), and a union
-    inheriting POISON stays POISON. A union of more than L real facts
-    cannot be stored: eagerly that raises TkpCapacityError; inside a
-    compiled step the slot turns POISON instead."""
-    false_id, pad_id, poison_id = Virtual(theta_ext)
-    length = int(a.shape[-1])
-    ka, kb = int(a.shape[-2]), int(b.shape[-2])
-    base = tuple(a.shape[:-2])
-    u = jnp.concatenate([
-        jnp.broadcast_to(a[..., :, None, :], base + (ka, kb, length)),
-        jnp.broadcast_to(b[..., None, :, :], base + (ka, kb, length)),
-    ], axis=-1)
-    u = u.reshape(base + (ka * kb, 2 * length))
-    s = jnp.sort(u, axis=-1)
-    s = jnp.where(FirstMask(s), s, pad_id)
-    false_row, poison_row = Rows(2 * length, false_id, pad_id, poison_id)
-    dead = jnp.any(s == false_id, axis=-1)
-    s = jnp.where(dead[..., None], false_row, s)
-    s = jnp.sort(s, axis=-1)
-    overflow = jnp.sum(jnp.where(s < false_id, 1, 0), axis=-1) > length
-    poisoned = overflow | jnp.any(s == poison_id, axis=-1)
-    s = jnp.where(poisoned[..., None], poison_row, s)
-    LoudCapacity(overflow, length)
-    return s[..., :length]
-
-  def LoudCapacity(overflow, length):
-    """Raise on overflow when the value is concrete (eager or probe).
-
-    Under a jax trace the bool() conversion throws and the POISON path
-    stays in charge; the compiled-cache path of logix likewise relies
-    on POISON, since a trace-time check would bake into the cache."""
-    try:
-      flagged = bool(jnp.any(overflow))
-    except TypeError:
-      return
-    if flagged:
-      raise TkpCapacityError(
-          'TKP: proof capacity exceeded — a conjunction built a proof '
-          'of more than %d facts. Raise tkp_max_proof_length of '
-          '@Engine (or set it, if absent).' % length, 'TKP runtime')
-
-  def TopK(candidates, theta_ext, k):
-    """(..., c, L) -> (..., k, L): the reference greedy canonicalization.
-
-    Candidates presort canonically (probability desc, lexicographic
-    ties); then k rounds each keep the first live candidate and retire
-    its supersets — absorption exactly as the reference Canonicalize,
-    where only KEPT proofs absorb. The subset test is one sorted merge:
-    a kept proof is a subset of a candidate exactly when their union
-    holds no more distinct non-virtual ids than the candidate (FALSE
-    participates like a fact, PAD and POISON are vacuous). Cost is
-    k * c * 2L with no pairwise candidate matrix — a c^2 * L^2
-    broadcast here once materialized 160 GB on a 5x5 grid world.
-    Fewer than k live candidates pad the tail with FALSE slots."""
-    false_id, pad_id, poison_id = Virtual(theta_ext)
-    length = int(candidates.shape[-1])
-    probs = RankProb(candidates, theta_ext)
-    probs = jnp.where(probs != probs, onp.inf, probs)  # POISON outranks.
-    order = jnp.lexsort(LexKeys(candidates, false_id) + (-probs,),
-                        axis=-1)
-    ids = jnp.take_along_axis(candidates, order[..., None], axis=-2)
-    false_row, unused_poison_row = Rows(length, false_id, pad_id,
-                                        poison_id)
-    occupancy = jnp.sum(jnp.where(ids <= false_id, 1, 0), axis=-1)
-    alive = onp.ones(tuple(ids.shape[:-1]), dtype=bool)
-    kept_slots = []
-    for unused_round in range(k):
-      first = alive & (jnp.cumsum(jnp.where(alive, 1, 0), axis=-1) == 1)
-      any_alive = jnp.any(alive, axis=-1)
-      kept = jnp.max(jnp.where(first[..., None], ids, -1), axis=-2)
-      kept = jnp.where(any_alive[..., None], kept, false_row)
-      kept_slots.append(kept[..., None, :])
-      union = jnp.sort(jnp.concatenate(
-          [jnp.broadcast_to(kept[..., None, :], tuple(ids.shape)), ids],
-          axis=-1), axis=-1)
-      grown = jnp.sum(
-          jnp.where(FirstMask(union) & (union <= false_id), 1, 0),
-          axis=-1)
-      # The kept proof absorbs (and itself retires) where it grew
-      # nothing; the exhausted cells have alive already empty.
-      alive = alive & (grown != occupancy)
-    return jnp.concatenate(kept_slots, axis=-2)
-
-  def Probability(slots, theta_ext, k):
-    """(..., k, L) -> (...): inclusion-exclusion, 2^k - 1 terms.
-
-    Unions are transient (r*L ids, sorted, duplicates masked inside
-    ProofProb) — the storage capacity does not bound them."""
-    import itertools
-    total = 0.0
-    for r in range(1, k + 1):
-      for subset in itertools.combinations(range(k), r):
-        union = jnp.sort(
-            slots[..., list(subset), :].reshape(
-                slots.shape[:-2] + (r * int(slots.shape[-1]),)),
-            axis=-1)
-        total = total + (-1.0) ** (r + 1) * ProofProb(union, theta_ext)
-    return total
-
-  def SlotValidity(slots, theta_ext):
-    """A slot is real when it has no FALSE id and is nonempty.
-
-    A POISON slot counts as valid: its NaN must reach the loss."""
-    false_id, pad_id, unused_poison_id = Virtual(theta_ext)
-    has_false = jnp.any(slots == false_id, axis=-1)
-    nonempty = jnp.any(slots != pad_id, axis=-1)
-    return (~has_false) & nonempty
-
-  return ProofProb, LexKeys, TopK, Conjoin, Probability, SlotValidity
 
 
 class TkpMemberBase(object):
@@ -1010,239 +901,213 @@ class TkpPlan(object):
                 color.Warn(predicate), missing, covered.size,
                 color.Warn(predicate)), plan.target)
 
-  def ProofLength(self, plan, n_facts):
-    """The slot capacity L = min(n_facts, tkp_max_proof_length).
-
-    tkp_max_proof_length lives in @Engine next to tensor_engine. It is
-    a storage capacity, never a semantic truncation: a real proof
-    beyond it is a loud TkpCapacityError. Without it L = n_facts — the
-    proven ceiling (a proof is a set) — which on a large world makes
-    the sparse layout as heavy as the dense one; hence the warning."""
-    settings = plan.program.annotations.annotations.get(
-        '@Engine', {}).get(plan.engine, {})
-    cap = settings.get('tkp_max_proof_length')
-    if cap is None:
-      if n_facts > 64 and not getattr(self, 'warned_capacity', False):
-        self.warned_capacity = True
-        print('Warning: TKP stores proofs of up to %d facts (the '
-              'whole fact axis); set tkp_max_proof_length in @Engine '
-              'to bound the slot capacity.' % n_facts)
-      return n_facts
-    return min(n_facts, int(cap))
-
-  def FalseSlot(self, plan, onp):
-    """[FALSE, PAD, PAD, ...] of the world's capacity."""
-    unused_p, unused_positions, n_facts = self.FactAxis(plan)
-    length = self.ProofLength(plan, n_facts)
-    slot = onp.full(length, n_facts + 1, dtype=onp.int32)
-    slot[0] = n_facts
-    return slot
-
-  def EmptyState(self, plan, member, domains, jnp, onp):
-    """The empty loop state of a TKP member: all slots FALSE."""
-    shape = tuple(len(domains[t]) for t in member.key_types)
-    false_slot = self.FalseSlot(plan, onp)
-    values = jnp.broadcast_to(jnp.asarray(false_slot),
-                              shape + (member.slots, len(false_slot)))
-    return (jnp.zeros(shape, dtype=bool), values)
-
-
 
 ###############################################################################
-# VII. Runtime compilers: one per member kind, sharing a small context.
+# VII. The sparse executor: the TKP node and its custom gradient.
 #
-# The state contract: a TKP member's state entry is a pair
-#   (mask over keys..., slot ids of shape (keys..., slots, L)),
-# with the id vocabulary of section V (facts, FALSE, PAD, POISON).
-# theta_ext is the fact probability vector extended with [0, 1, NaN].
+# One node per recursion group. Forward runs the sparse fixpoint on
+# python symbols — dictionaries {key indices: proofs} — and publishes
+# the probability relations as numpy arrays; backward is the explicit
+# polynomial derivative, evaluated only where the loss cotangent is
+# nonzero. The node requires the numpy tensor engine (logix): its
+# per-node custom gradients host the derivative natively, and the
+# training loop runs uncompiled so the selection is refreshed every
+# step. The dense tensor executor of TKP lives in git history.
 
 
-class _RuntimeContext(object):
-  """Shared pieces of the TKP runtime: ops, fact axis, state access."""
+class SparseTkpNode(object):
+  """The sparse executor of one TKP recursion group."""
 
-  def __init__(self, runtime):
+  def __init__(self, runtime, group):
     import numpy as onp
     self.onp = onp
-    self.jnp = runtime.jnp
-    self.runtime = runtime
     self.plan = runtime.plan
     self.tkp = self.plan.tkp
-    (self.ProofProb, self.LexKeys, self.TopK, self.Conjoin,
-     self.Probability, self.SlotValidity) = MakeTensorOps(self.jnp, onp)
+    self.group = group
     (self.probability_predicate, positions,
      self.n_facts) = self.tkp.FactAxis(self.plan)
     self.row_positions = tuple(onp.asarray(p) for p in positions)
-    self.proof_length = self.tkp.ProofLength(self.plan, self.n_facts)
-    self.false_slot = self.tkp.FalseSlot(self.plan, onp)
+    # The atom: cell (key index tuple) -> its single one-fact proof.
+    self.atom_name = sorted(self.tkp.world.atoms)[0]
+    self.atom_cells = {}
+    for fact in range(self.n_facts):
+      key = tuple(int(p[fact]) for p in self.row_positions)
+      self.atom_cells[key] = [(fact,)]
+    self.members = [(member, [(head_vars, tree) for head_vars, tree,
+                              unused_rule in member.tkp_contributions])
+                    for member in group.members]
+    self.domains = runtime.domains
+    self.proofs = {self.atom_name: self.atom_cells}
+    self.theta = None
 
-  def ThetaExt(self, state, tensors):
-    """Fact probabilities at the fact rows, virtual ids appended.
-
-    Shape: (n_facts + 3,) — [facts..., FALSE 0, PAD 1, POISON NaN].
-    Differentiable: the values come from the probability predicate's
-    tensor (parameters overlay or cone state)."""
+  def Theta(self, state, tensors):
+    """The fact probabilities: a differentiable gather at the rows."""
     if self.probability_predicate in state:
       unused_mask, values = state[self.probability_predicate]
     else:
       unused_mask, values = tensors[self.probability_predicate]
-    theta = values[self.row_positions]
-    virtual = self.onp.array([0.0, 1.0, self.onp.nan])
-    return self.jnp.concatenate([theta, self.jnp.asarray(virtual)])
+    return values[self.row_positions]
 
-  def RankTheta(self, state, tensors):
-    """ThetaExt for the sweep phase: values only, the gradient cut.
+  def Run(self, theta, repetitions, stage, target):
+    """The fixpoint; loud when the declared bound does not suffice.
 
-    Sweeps rank and select — their outputs are proof ids, structurally
-    outside the gradient; the loss recomputes probabilities from theta
-    afterwards. Cutting theta at the SCAN ENTRY (not the exit) is what
-    lets jax skip saving per-sweep linearization residuals, which once
-    cost gigabytes; logix achieves the same by suspending its tape."""
-    theta_ext = self.ThetaExt(state, tensors)
-    engine = getattr(self.plan, 'tensor_engine_module', None)
-    stop = getattr(getattr(engine, 'lax', None), 'stop_gradient', None)
-    if stop is not None:
-      return stop(theta_ext)
-    return theta_ext
+    Truncation makes the sweep non-monotone: kept proofs may displace
+    each other, so besides the fixpoint check the run watches for a
+    REPEATED state — an oscillation would otherwise burn the whole
+    bound and misreport as a plain timeout."""
+    self.theta = [float(t) for t in self.onp.asarray(theta)]
+    state = {self.atom_name: self.atom_cells}
+    for member, unused_compiled in self.members:
+      state[member.name] = {}
+    names = ', '.join(sorted(
+        member.name for member, unused in self.members))
+    seen = {self.Fingerprint(state): 0}
+    converged = False
+    for sweep in range(1, repetitions + 1):
+      new_state = dict(state)
+      for member, compiled in self.members:
+        new_state[member.name] = self.EvalMember(member, compiled,
+                                                 state)
+      if new_state == state:
+        converged = True
+        break
+      state = new_state
+      fingerprint = self.Fingerprint(state)
+      if fingerprint in seen:
+        Error('Recursion of %s oscillates with period %d under %s '
+              'instead of stabilizing; learning through dynamic '
+              'equilibria is not supported yet.' % (
+                  color.Warn(names), sweep - seen[fingerprint], stage),
+              target)
+      seen[fingerprint] = sweep
+    if not converged:
+      Error('Recursion of %s does not stabilize within %d sweeps '
+            'under %s; learning through dynamic equilibria is not '
+            'supported yet.' % (color.Warn(names), repetitions, stage),
+            target)
+    for member, unused_compiled in self.members:
+      self.proofs[member.name] = state[member.name]
 
-  def ReadTkp(self, name, state, tensors):
-    """A TKP member's (mask, incidences): loop portal, state, tensors."""
-    member = self.tkp.members.get(name)
-    if member is not None and member.portal in state:
-      return state[member.portal]
-    if name in state:
-      return state[name]
-    return tensors[name]
+  def Fingerprint(self, state):
+    """A hashable snapshot of the group state, for cycle detection."""
+    return tuple(
+        (member.name, tuple(sorted(
+            (key, tuple(proofs))
+            for key, proofs in state[member.name].items())))
+        for member, unused_compiled in self.members)
+
+  def EvalMember(self, member, compiled, state):
+    pools = {}
+    for head_vars, tree in compiled:
+      for assignment, proofs in self.EvalTree(tree, state):
+        key = tuple(assignment[v] for v in head_vars)
+        pools.setdefault(key, []).extend(proofs)
+    return {key: SparseCanonicalize(pool, self.theta, member.k)
+            for key, pool in pools.items()}
+
+  def EvalTree(self, tree, state):
+    """[(variable assignment, proofs)] of a contribution tree."""
+    if tree[0] == 'read':
+      unused_kind, name, read_vars = tree
+      return [(dict(zip(read_vars, key)), proofs)
+              for key, proofs in state.get(name, {}).items()]
+    left = self.EvalTree(tree[1], state)
+    right = self.EvalTree(tree[2], state)
+    if not left or not right:
+      return []
+    shared = sorted(set(left[0][0]) & set(right[0][0]))
+    index = {}
+    for assignment, proofs in right:
+      index.setdefault(
+          tuple(assignment[v] for v in shared), []).append(
+              (assignment, proofs))
+    result = []
+    for assignment, proofs in left:
+      for other, other_proofs in index.get(
+          tuple(assignment[v] for v in shared), []):
+        combined = SparseConjunction(proofs, other_proofs, self.theta)
+        if combined:
+          merged = dict(assignment)
+          merged.update(other)
+          result.append((merged, combined))
+    return result
+
+  def Publish(self, member):
+    """(mask, values) numpy arrays of a probability member."""
+    onp = self.onp
+    shape = tuple(len(self.domains[t]) for t in member.key_types)
+    mask = onp.zeros(shape, dtype=bool)
+    values = onp.zeros(shape)
+    for key, proofs in self.proofs[member.of_member.name].items():
+      mask[key] = True
+      values[key] = SparseProbability(proofs, self.theta)
+    return mask, values
+
+  def Gradient(self, member, cotangent):
+    """d(sum(cotangent * P)) / d theta, a vector over the facts."""
+    onp = self.onp
+    out = [0.0] * self.n_facts
+    cotangent = onp.asarray(cotangent)
+    for key, proofs in self.proofs[member.of_member.name].items():
+      g = float(cotangent[key])
+      if g != 0.0:
+        SparseProbabilityGradient(proofs, self.theta, g, out)
+    return onp.asarray(out)
 
 
-def _AtomFunction(context, member):
-  """The atom: a frozen base of one-fact proofs.
-
-  Output: mask (keys...), slot ids (keys..., 1, L) — the single slot
-  of a fact row is [row id, PAD...]; absent cells hold FALSE."""
-  onp = context.onp
-  jnp = context.jnp
-  shape = tuple(len(context.runtime.domains[t])
-                for t in member.key_types)
-  base_mask = onp.zeros(shape, dtype=bool)
-  base_ids = onp.tile(context.false_slot, shape + (1, 1))
-  base_mask[context.row_positions] = True
-  # Positions 1+ hold PAD already (the tail of the FALSE slot).
-  base_ids[context.row_positions + (0, 0)] = onp.arange(context.n_facts)
-  frozen = (jnp.asarray(base_mask), jnp.asarray(base_ids))
+def AtomFunction(runtime, member):
+  """The atom member: only its support mask matters to the machinery."""
+  import numpy as onp
+  plan = runtime.plan
+  unused_p, positions, unused_n = plan.tkp.FactAxis(plan)
+  shape = tuple(len(runtime.domains[t]) for t in member.key_types)
+  mask = onp.zeros(shape, dtype=bool)
+  mask[tuple(onp.asarray(p) for p in positions)] = True
 
   def EvaluateAtom(unused_state, unused_tensors):
-    return frozen
+    return (mask, None)
 
   return EvaluateAtom
 
 
-def _ProbabilityFunction(context, member):
-  """The probability publisher: DNF member state -> Num relation.
+def ProbabilityFunction(runtime, member):
+  """The probability publisher: the custom-gradient seam of the node.
 
-  Output: mask (keys...), probabilities (keys...) — the exact
-  inclusion-exclusion over the member's slots at current theta."""
-  of_member = member.of_member
+  The published values ride the tape as a custom node whose backward
+  is the explicit polynomial derivative; the cotangent flows into the
+  theta gather and further into the learned parameters."""
+  jnp = runtime.jnp
+  if not hasattr(jnp, 'custom'):
+    Error('TKP learning runs the sparse symbolic executor and needs '
+          'tensor_engine: "numpy" of @Engine.', member.name)
 
   def EvaluateProbability(state, tensors):
-    mask, incidences = context.ReadTkp(of_member.name, state, tensors)
-    theta_ext = context.ThetaExt(state, tensors)
-    probability = context.Probability(incidences, theta_ext,
-                                      int(incidences.shape[-2]))
-    return mask, probability
+    node = runtime.tkp_nodes[member.of_member.name]
+    theta = node.Theta(state, tensors)
+    mask, values = node.Publish(member)
+
+    def Forward(unused_theta):
+      return values
+
+    def Backward(cotangent, unused_theta):
+      return [node.Gradient(member, cotangent)]
+
+    return mask, jnp.custom(Forward, Backward, theta)
 
   return EvaluateProbability
 
 
-def _DisjunctionFunction(context, member):
-  """The disjunction: contributions -> candidate pool -> absorb, top-k.
-
-  Each contribution is evaluated over axes = head vars + join vars;
-  join axes fold into the candidate axis, pools concatenate, and TopK
-  keeps member.k slots per head cell."""
-  jnp = context.jnp
-
-  compiled = []
-  for head_vars, tree, unused_rule in member.tkp_contributions:
-    variables = TreeVariables(tree, [])
-    join_vars = [v for v in variables if v not in head_vars]
-    axes = list(head_vars) + join_vars
-    variable_class = {}
-
-    def CollectClasses(node):
-      if node[0] == 'read':
-        read_member = context.tkp.members.get(node[1])
-        for position, variable in enumerate(node[2]):
-          variable_class.setdefault(
-              variable, read_member.key_types[position])
-      else:
-        CollectClasses(node[1])
-        CollectClasses(node[2])
-    CollectClasses(tree)
-    compiled.append((axes, len(head_vars), tree, variable_class))
-
-  def AlignRead(node, axes, axis_sizes, state, tensors):
-    """A member read aligned to the contribution axes.
-
-    Input slot ids: (read keys..., s, L); output:
-    (axis_sizes..., s, L) — read axes permuted into their positions
-    among `axes`, missing axes broadcast."""
-    unused_name, read_vars = node[1], node[2]
-    unused_mask, incidences = context.ReadTkp(node[1], state, tensors)
-    order = sorted(range(len(read_vars)),
-                   key=lambda i: axes.index(read_vars[i]))
-    incidences = jnp.transpose(
-        incidences,
-        tuple(order) + (len(read_vars), len(read_vars) + 1))
-    expanded_shape = []
-    source_dim = 0
-    for variable in axes:
-      if variable in read_vars:
-        expanded_shape.append(incidences.shape[source_dim])
-        source_dim += 1
-      else:
-        expanded_shape.append(1)
-    incidences = incidences.reshape(
-        tuple(expanded_shape) + incidences.shape[-2:])
-    target = tuple(axis_sizes) + incidences.shape[-2:]
-    return jnp.broadcast_to(incidences, target)
-
-  def EvalTree(node, axes, axis_sizes, state, tensors, theta_ext):
-    """A contribution tree -> candidates (axis_sizes..., c, L)."""
-    if node[0] == 'read':
-      return AlignRead(node, axes, axis_sizes, state, tensors)
-    left = EvalTree(node[1], axes, axis_sizes, state, tensors,
-                    theta_ext)
-    right = EvalTree(node[2], axes, axis_sizes, state, tensors,
-                     theta_ext)
-    return context.Conjoin(left, right, theta_ext)
-
-  def EvaluateDisjunction(state, tensors):
-    theta_ext = context.RankTheta(state, tensors)
-    pools = []
-    for axes, head_count, tree, variable_class in compiled:
-      axis_sizes = [len(context.runtime.domains[variable_class[v]])
-                    for v in axes]
-      candidates = EvalTree(tree, axes, axis_sizes, state, tensors,
-                            theta_ext)
-      join_count = len(axes) - head_count
-      if join_count:  # Join axes fold into the candidate axis.
-        candidates = candidates.reshape(
-            candidates.shape[:head_count] + (-1, candidates.shape[-1]))
-      pools.append(candidates)
-    pool = jnp.concatenate(pools, axis=-2)
-    new_incidences = context.TopK(pool, theta_ext, member.k)
-    mask = jnp.any(context.SlotValidity(new_incidences, theta_ext),
-                   axis=-1)
-    return mask, new_incidences
-
-  return EvaluateDisjunction
-
-
 def MemberFunction(runtime, member):
   """Runtime function of a TKP member: the kind dispatch."""
-  context = _RuntimeContext(runtime)
   if isinstance(member, TkpProbabilityMember):
-    return _ProbabilityFunction(context, member)
+    return ProbabilityFunction(runtime, member)
   if isinstance(member, TkpAtomMember):
-    return _AtomFunction(context, member)
-  return _DisjunctionFunction(context, member)
+    return AtomFunction(runtime, member)
+
+  def NeverCalled(unused_state, unused_tensors):
+    raise AssertionError(
+        'A TKP disjunction runs inside its group node, never as a '
+        'member function.')
+
+  return NeverCalled
+

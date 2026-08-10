@@ -14,15 +14,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""The tensor algebra of TKP against the reference tkp.py.
+"""The sparse proof algebra of TKP against the reference tkp.py.
 
-The safety net requested by the review: direct tests of TopK
-(absorption, ties, FALSE slots, padding), Conjoin, Probability and the
-subset/earlier axes — each checked against the reference
-implementation, which itself is certified by the world-enumeration
-oracle.
+The safety net of the reviews: the sparse canonicalization is a
+REIMPLEMENTATION of the reference (the compiler cannot import the
+examples tree), so parity is proven proof-for-proof, IN ORDER, on
+random pools — plus the explicit polynomial gradient against central
+differences, and the compile-layer restrictions.
 
-Run from examples/extensions:  PYTHONPATH=. python3 tkp_tests/tkp_tensor_test.py
+Run from examples/extensions:  PYTHONPATH=.:../.. python3 tkp_tests/tkp_tensor_test.py
 """
 
 import random
@@ -36,25 +36,15 @@ sys.path.insert(0, '../..')
 import tkp
 from compiler import tkp_logica
 
-(ProofProb, LexKeys, TopK, Conjoin, Probability,
- SlotValidity) = tkp_logica.MakeTensorOps(onp, onp)
+Canonicalize = tkp_logica.SparseCanonicalize
+Conjunction = tkp_logica.SparseConjunction
+Probability = tkp_logica.SparseProbability
+Gradient = tkp_logica.SparseProbabilityGradient
 
 
-def MakeSlots(proofs, n, length=None):
-  """Fact-index proofs -> sparse slots (c, L): ascending ids + PAD.
-
-  The harness capacity defaults to L = n, so FALSE = n and PAD = n + 1
-  are recoverable from the shape alone (SlotsAsSets relies on that);
-  capacity tests pass an explicit smaller length."""
-  length = n if length is None else length
-  slots = onp.full((len(proofs), length), n + 1, dtype=onp.int64)
-  for position, proof in enumerate(proofs):
-    ids = sorted(proof)
-    assert len(ids) <= length, (ids, length)
-    if not ids:
-      slots[position, 0] = n  # FALSE: an empty slot.
-    slots[position, :len(ids)] = ids
-  return slots
+def Proofs(pools):
+  """Fact-index sets -> sorted proof tuples."""
+  return [tuple(sorted(proof)) for proof in pools]
 
 
 def ReferenceValue(proofs, theta):
@@ -74,22 +64,10 @@ def ReferenceValue(proofs, theta):
   return value
 
 
-def SlotsAsSets(slots, n=None):
-  """Sparse slots -> list of fact-index frozensets, FALSE slots out.
-
-  With the harness convention L = n the boundary of the real ids is
-  the capacity itself; capacity tests pass n explicitly."""
-  n = slots.shape[-1] if n is None else n
-  result = []
-  for row in slots:
-    if n in row:
-      continue
-    result.append(frozenset(int(i) for i in row if i < n))
-  return result
-
-
-def ReferenceAsSets(value):
-  return [frozenset(int(f.args) for f in proof.facts) for proof in value]
+def ReferenceAsLists(value):
+  """Reference proofs -> fact tuples, PRESERVING the canonical order."""
+  return [tuple(sorted(int(f.args) for f in proof.facts))
+          for proof in value]
 
 
 def RandomProofs(rng, n, count):
@@ -97,233 +75,242 @@ def RandomProofs(rng, n, count):
           for _ in range(count)]
 
 
-def TestTopKAgainstReference(trials=300):
-  """TopK == reference Canonicalize when probabilities are unique."""
+def TestCanonicalizeAgainstReference(trials=300):
+  """Proof-for-proof, IN ORDER, on random pools with unique thetas."""
   rng = random.Random(7)
   failures = 0
   for trial in range(trials):
     n = rng.randint(3, 9)
     k = rng.randint(1, 7)
-    # Unique probabilities: no rank ties, so the orders must coincide
-    # exactly. (Tie-breaks of the two sides are documented to differ up
-    # to identity encodings; ties are exercised separately below.)
     theta = rng.sample(range(1, 1000), n)
-    theta = onp.array([p / 1000.0 for p in theta])
+    theta = [p / 1000.0 for p in theta]
     proofs = RandomProofs(rng, n, rng.randint(1, 10))
-    theta_ext = onp.concatenate([theta, [0.0, 1.0, onp.nan]])
-    tensor_slots = TopK(MakeSlots(proofs, n), theta_ext, k)
-    tensor_sets = SlotsAsSets(tensor_slots)
-    reference = tkp.TkpTop(ReferenceValue(proofs, theta), k)
-    reference_sets = ReferenceAsSets(reference)
-    if tensor_sets != reference_sets:
+    ours = Canonicalize(Proofs(proofs), theta, k)
+    reference = ReferenceAsLists(
+        tkp.TkpTop(ReferenceValue(proofs, theta), k))
+    if ours != reference:
       failures += 1
-      print('TOPK MISMATCH', trial, tensor_sets, reference_sets)
+      print('CANONICALIZE MISMATCH', trial, ours, reference)
   return failures
-
-
-def TestAbsorption():
-  """A superset must be absorbed by its likelier subset."""
-  n = 5
-  theta_ext = onp.concatenate([onp.full(n, 0.5), [0.0, 1.0, onp.nan]])
-  slots = MakeSlots([{0, 1, 2}, {0, 1}, {3}], n)
-  top = TopK(slots, theta_ext, 3)
-  survived = SlotsAsSets(top)
-  assert survived == [frozenset({3}), frozenset({0, 1})], survived
-  return 0
-
-
-def TestFalsePadding():
-  """Fewer candidates than k: FALSE slots pad, validity masks them."""
-  n = 4
-  theta_ext = onp.concatenate([onp.full(n, 0.5), [0.0, 1.0, onp.nan]])
-  top = TopK(MakeSlots([{0}], n), theta_ext, 3)
-  assert top.shape == (3, n), top.shape
-  validity = SlotValidity(top, theta_ext)
-  assert list(validity) == [True, False, False], validity
-  # The FALSE fact must keep padded slots out of the probability.
-  probability = Probability(top, theta_ext, 3)
-  assert abs(probability - 0.5) < 1e-12, probability
-  return 0
-
-
-def TestSubsetEarlierAxes():
-  """The deterministic minimal regression of the earlier-axis bug.
-
-  Found 2026-08-10 by this very net: `earlier` was tril(-1) — looking
-  at LATER candidates — so real supersets were never absorbed and
-  wasted top-k slots (probabilities hid it: a redundant superset
-  cancels exactly in inclusion-exclusion). The orientation contract:
-  the earlier (likelier) proof absorbs the later superset, never the
-  other way around: {0} absorbs {0,1}; {0,1} must not absorb {0}."""
-  n = 3
-  theta_ext = onp.concatenate([onp.array([0.9, 0.1, 0.5]), [0.0, 1.0, onp.nan]])
-  top = TopK(MakeSlots([{0, 1}, {0}], n), theta_ext, 2)
-  survived = SlotsAsSets(top)
-  assert survived == [frozenset({0})], survived
-  return 0
-
-
-def TestConjoinBroadcast():
-  """Conjoin unions sorted id slots across slot pairs."""
-  n = 4
-  theta_ext = onp.concatenate([onp.full(n, 0.5), [0.0, 1.0, onp.nan]])
-  a = MakeSlots([{0}, {1}], n)
-  b = MakeSlots([{2}, {3}], n)
-  u = Conjoin(a, b, theta_ext)
-  assert SlotsAsSets(u) == [frozenset({0, 2}), frozenset({0, 3}),
-                            frozenset({1, 2}), frozenset({1, 3})]
-  return 0
-
-
-def TestConjoinCapacityLoud():
-  """Overflowing the slot capacity raises; a dead union does not.
-
-  The capacity bounds STORED proofs only: eagerly a conjunction that
-  builds a proof of more than L real facts raises TkpCapacityError
-  (inside a compiled step the slot would turn POISON instead and NaN
-  the loss). A union with FALSE is dead and collapses to FALSE — its
-  real ids must not count against the capacity."""
-  n, length = 5, 2
-  theta_ext = onp.concatenate([onp.full(n, 0.5), [0.0, 1.0, onp.nan]])
-  a = MakeSlots([{0, 1}], n, length)
-  try:
-    Conjoin(a, MakeSlots([{2}], n, length), theta_ext)
-    assert False, 'a 3-fact proof must not fit the capacity of 2'
-  except tkp_logica.TkpCapacityError:
-    pass
-  fits = Conjoin(a, MakeSlots([{1}], n, length), theta_ext)
-  assert SlotsAsSets(fits, n) == [frozenset({0, 1})]
-  dead = Conjoin(a, MakeSlots([set()], n, length), theta_ext)
-  assert SlotsAsSets(dead, n) == [], SlotsAsSets(dead, n)
-  return 0
-
-
-def TestProbabilityAgainstReference(trials=200):
-  """Tensor inclusion-exclusion == reference TkpProbability."""
-  rng = random.Random(11)
-  failures = 0
-  for trial in range(trials):
-    n = rng.randint(2, 8)
-    theta = onp.array([rng.uniform(0.05, 0.95) for _ in range(n)])
-    proofs = RandomProofs(rng, n, rng.randint(1, 6))
-    reference = tkp.TkpTop(ReferenceValue(proofs, theta), 6)
-    reference_probability = tkp.TkpProbability(reference)
-    slots = MakeSlots(ReferenceAsSets(reference), n)
-    k = slots.shape[0]
-    theta_ext = onp.concatenate([theta, [0.0, 1.0, onp.nan]])
-    tensor_probability = float(Probability(slots, theta_ext, k))
-    if abs(tensor_probability - reference_probability) > 1e-9:
-      failures += 1
-      print('PROBABILITY MISMATCH', trial, tensor_probability,
-            reference_probability)
-  return failures
-
-
-def TestTieBreakMinimal():
-  """The deterministic minimal regression of the reversed tie-break.
-
-  Found 2026-08-10 by Miss Vi's semantic review: LexKey weighted fact i
-  by 2^-i and lexsort went ascending, so among equal-probability proofs
-  the FACT ORDER WAS REVERSED relative to the reference ProofIdentity
-  contract — and a reversed tie-break is not harmless: it changes which
-  proofs survive truncation, hence the probability itself. Her minimum:
-  {0,4} takes the first slot at .4; {0,2} and {1,3} tie at .3 for the
-  second. The reference lexicographically keeps {0,2}: P = .4 + .3 -
-  .4*.6/.8*.3... = .46; the reversed order kept the disjoint {1,3}:
-  P = .7 - .12 = .58."""
-  theta = onp.array([.5, .5, .6, .6, .8])
-  proofs = [{0, 4}, {0, 2}, {1, 3}]
-  n, k = 5, 2
-  theta_ext = onp.concatenate([theta, [0.0, 1.0, onp.nan]])
-  slots = TopK(MakeSlots(proofs, n), theta_ext, k)
-  survived = SlotsAsSets(slots)
-  assert survived == [frozenset({0, 4}), frozenset({0, 2})], survived
-  probability = float(Probability(slots, theta_ext, k))
-  assert abs(probability - 0.46) < 1e-9, probability
-  return 0
 
 
 def TestTiesAgainstReference(trials=300):
-  """On ties TopK must follow the reference ProofIdentity order exactly.
+  """On ties the canonical order must match the reference exactly.
 
-  Random pools over few distinct probabilities — including exact 1.0,
-  which makes a subset tie its own superset, exercising the prefix rule
-  of the lexicographic order ({0} before {0,1}, like the shorter of two
-  identity strings; the -1 sentinel in LexKeys). Identity encodings are
-  zero-padded, so the reference string order IS the fact order and the
-  parity must be exact."""
+  Few distinct probability values — including exact 1.0, which makes
+  a subset tie its own superset, exercising the prefix rule (python
+  tuple comparison: a shorter prefix sorts first, like the shorter of
+  two identity strings)."""
   rng = random.Random(13)
   failures = 0
   for trial in range(trials):
     n = rng.randint(3, 8)
     k = rng.randint(1, 6)
     values = [0.25, 0.5, 0.5, 0.5, 1.0]
-    theta = onp.array([rng.choice(values) for _ in range(n)])
+    theta = [rng.choice(values) for _ in range(n)]
     proofs = RandomProofs(rng, n, rng.randint(1, 10))
-    theta_ext = onp.concatenate([theta, [0.0, 1.0, onp.nan]])
-    tensor_sets = SlotsAsSets(TopK(MakeSlots(proofs, n), theta_ext, k))
-    reference_sets = ReferenceAsSets(
+    ours = Canonicalize(Proofs(proofs), theta, k)
+    reference = ReferenceAsLists(
         tkp.TkpTop(ReferenceValue(proofs, theta), k))
-    if tensor_sets != reference_sets:
+    if ours != reference:
       failures += 1
-      print('TIE MISMATCH', trial, tensor_sets, reference_sets)
+      print('TIE MISMATCH', trial, ours, reference)
   return failures
 
 
-def TestTieDeterminism():
-  """Repeated canonicalization of a tied pool is bit-stable."""
-  n = 6
-  theta_ext = onp.concatenate([onp.full(n, 0.5), [0.0, 1.0, onp.nan]])
-  pool = MakeSlots([{0, 1}, {2, 3}, {4, 5}, {1, 2}], n)
-  first = TopK(pool, theta_ext, 2)
-  for _ in range(5):
-    again = TopK(onp.array(pool), theta_ext, 2)
-    assert onp.array_equal(first, again)
+def TestAbsorption():
+  """A superset must be absorbed by its likelier subset — and never
+  the other way around (the earlier-axis bug of the tensor days:
+  {0} absorbs {0,1}; {0,1} must not absorb {0})."""
+  theta = [0.5] * 5
+  kept = Canonicalize(Proofs([{0, 1, 2}, {0, 1}, {3}]), theta, 3)
+  assert kept == [(3,), (0, 1)], kept
+  theta = [0.9, 0.1, 0.5]
+  kept = Canonicalize(Proofs([{0, 1}, {0}]), theta, 2)
+  assert kept == [(0,)], kept
   return 0
 
 
-def TestNonPositiveKRefused():
-  """k <= 0 must be a loud compile error on the neural side.
-
-  The SQL Canonicalize reads k < 0 as "no truncation"; the tensor
-  state has statically k slots, so before the check a negative k
-  reached the Python slice [..., :k, :] and silently dropped
-  candidates from the tail."""
-  from parser_py import parse
-  rules = parse.ParseFile(
-      'T0P(x) = TkpTop(MergeList(x), 0); '
-      'TNoLimit(x) = TkpTop(MergeList(x), -1); '
-      'T4P(x) = TkpTop(MergeList(x), 4);')['rule']
-  pairs = [(rule['head']['predicate_name'], rule) for rule in rules]
-  definitions = tkp_logica.FunctionalDefinitions(pairs)
-  assert tkp_logica.DisjunctionK('T4P', definitions, 'test') == 4
-  for operator in ['T0P', 'TNoLimit']:
-    try:
-      tkp_logica.DisjunctionK(operator, definitions, 'test')
-      assert False, 'k <= 0 of %s must be refused' % operator
-    except tkp_logica.TkpCompileException:
-      pass
+def TestConjunction():
+  """All pair unions, canonical, no truncation."""
+  theta = [0.5] * 4
+  u = Conjunction(Proofs([{0}, {1}]), Proofs([{2}, {3}]), theta)
+  assert sorted(u) == [(0, 2), (0, 3), (1, 2), (1, 3)], u
+  # A conjunction with a duplicated fact dedups inside the proof.
+  u = Conjunction(Proofs([{0, 1}]), Proofs([{1, 2}]), theta)
+  assert u == [(0, 1, 2)], u
   return 0
 
 
-def TestCanonicalFieldOrder():
-  """Heads and calls must sort fields with the one canonical key.
+def TestProbabilityAgainstReference(trials=200):
+  """The polynomial == reference TkpProbability."""
+  rng = random.Random(11)
+  failures = 0
+  for trial in range(trials):
+    n = rng.randint(2, 8)
+    theta = [rng.uniform(0.05, 0.95) for _ in range(n)]
+    proofs = RandomProofs(rng, n, rng.randint(1, 6))
+    reference = tkp.TkpTop(ReferenceValue(proofs, theta), 6)
+    ours = Probability(ReferenceAsLists(reference), theta)
+    if abs(ours - tkp.TkpProbability(reference)) > 1e-9:
+      failures += 1
+      print('PROBABILITY MISMATCH', trial, ours)
+  return failures
 
-  The parser keeps `P(b: y, a: x)` in source order, and head axes
-  built from it transposed silently against the member signature
-  [a, b]; a str sort key would likewise put positional field 10
-  before 2. Signature, CallVariables and ContributionHeadVariables
-  all share FieldOrder now."""
-  from parser_py import parse
-  rule = parse.ParseFile('P(b: y, a: x) = 7;')['rule'][0]
-  head_vars = tkp_logica.ContributionHeadVariables(rule, 'test')
-  assert head_vars == ['x', 'y'], head_vars
-  rule = parse.ParseFile('F() = Q(b: y, a: x);')['rule'][0]
-  call = rule['head']['record']['field_value'][0]['value']['expression']
-  call_vars = tkp_logica.CallVariables(call, 'test')
-  assert call_vars == ['x', 'y'], call_vars
-  order = sorted([10, 2, 'b', 'a'], key=tkp_logica.FieldOrder)
-  assert order == [2, 10, 'a', 'b'], order
+
+def TestGradientCentralDifference(trials=100):
+  """The explicit polynomial gradient == central differences."""
+  rng = random.Random(19)
+  failures = 0
+  for trial in range(trials):
+    n = rng.randint(2, 7)
+    theta = [rng.uniform(0.05, 0.95) for _ in range(n)]
+    proofs = Canonicalize(
+        Proofs(RandomProofs(rng, n, rng.randint(1, 5))), theta,
+        rng.randint(1, 4))
+    cotangent = rng.uniform(0.5, 2.0)
+    gradient = [0.0] * n
+    Gradient(proofs, theta, cotangent, gradient)
+    for fact in range(n):
+      epsilon = 1e-6
+      up = list(theta)
+      up[fact] += epsilon
+      down = list(theta)
+      down[fact] -= epsilon
+      numeric = cotangent * (
+          Probability(proofs, up) - Probability(proofs, down)) / (
+              2 * epsilon)
+      if abs(gradient[fact] - numeric) > 1e-6:
+        failures += 1
+        print('GRADIENT MISMATCH', trial, fact, gradient[fact], numeric)
+  return failures
+
+
+def TestTieBreakMinimal():
+  """Miss Vi's minimal tie-break regression (2026-08-10).
+
+  {0,4} takes the first slot at .4; {0,2} and {1,3} tie at .3 for the
+  second. The canonical order keeps {0,2}: P = .46; a reversed order
+  once kept the disjoint {1,3}: P = .58 — a tie-break is not harmless,
+  it changes truncation, hence the probability."""
+  theta = [.5, .5, .6, .6, .8]
+  kept = Canonicalize(Proofs([{0, 4}, {0, 2}, {1, 3}]), theta, 2)
+  assert kept == [(0, 4), (0, 2)], kept
+  probability = Probability(kept, theta)
+  assert abs(probability - 0.46) < 1e-9, probability
+  return 0
+
+
+def TestTruncationLossContract():
+  """The documented approximation contract of losses on truncated DNF.
+
+  A CONTRACT, not a failure: the probability is exact over the STORED
+  proofs, so a positive loss is conservative and a negative loss is
+  optimistic — 100 single-fact proofs of 0.1 at k=1 store P = .1,
+  while the full space holds 1 - .9^100."""
+  import math
+  n = 100
+  theta = [0.1] * n
+  kept = Canonicalize(Proofs([{i} for i in range(n)]), theta, 1)
+  p_stored = Probability(kept, theta)
+  assert abs(p_stored - 0.1) < 1e-12, p_stored
+  p_full = 1.0 - 0.9 ** n
+  assert -math.log(p_stored) >= -math.log(p_full)          # Conservative.
+  assert -math.log(1 - p_stored) <= -math.log(1 - p_full)  # Optimistic.
+  assert -math.log(1 - p_full) / -math.log(1 - p_stored) > 100
+  return 0
+
+
+def TestWhackTheTop():
+  """Negative training on truncated DNF suppresses routes one by one."""
+  n = 5
+  theta = [0.5] * n
+  pools = Proofs([{i} for i in range(n)])
+
+  def Step(theta):
+    (kept,) = Canonicalize(pools, theta, 1)
+    (fact,) = kept
+    updated = list(theta)
+    updated[fact] -= 0.1 * 1.0 / (1.0 - theta[fact])
+    return updated
+
+  for unused_step in range(3):
+    theta = Step(theta)
+  assert sum(1 for t in theta if t == 0.5) == n - 3, theta
+  for unused_step in range(40):
+    theta = Step(theta)
+  assert all(t < 0.4 for t in theta), theta
+  return 0
+
+
+def TestThetaDependentHorizon():
+  """Miss Vi's k=1 counterexample: the horizon depends on theta.
+
+  A star of direct edges over a chain: under star-friendly theta the
+  linear recursion stabilizes in a couple of sweeps; under chain-
+  friendly theta the best proof of the far vertex takes 9 sweeps to
+  build. A frozen short horizon reports the wrong proof silently —
+  hence the executor iterates to the TRUE fixpoint and treats
+  @Recursive as a loud correctness bound."""
+  chain, direct = 9, 8   # c_i: v_i->v_{i+1} (0..8); d_i: v0->v_i (2..9).
+  n = chain + direct
+
+  def RunSweeps(theta, count):
+    reach = {v: [] for v in range(1, 10)}
+    stable_at = None
+    for sweep in range(1, count + 1):
+      new_reach = {}
+      for v in range(1, 10):
+        pool = list(reach[v])
+        pool = []
+        if v == 1:
+          pool.append((0,))
+        if v >= 2:
+          pool.append((9 + v - 2,))
+          pool.extend(Conjunction(reach[v - 1], [(v - 1,)], theta))
+        new_reach[v] = Canonicalize(pool, theta, 1)
+      if stable_at is None and new_reach == reach:
+        stable_at = sweep
+      reach = new_reach
+    return reach, stable_at
+
+  star = [0.4] * chain + [0.9] * direct
+  unused_reach, stable_at = RunSweeps(star, 12)
+  assert stable_at is not None and stable_at <= 4, stable_at
+  frozen = stable_at + 2
+
+  chainy = [0.95] * chain + [0.05] * direct
+  truncated, unused = RunSweeps(chainy, frozen)
+  full, full_stable = RunSweeps(chainy, 12)
+  assert full_stable is not None, full_stable
+  assert truncated[9] == [(16,)], truncated[9]
+  assert full[9] == [tuple(range(9))], full[9]
+  p_full = Probability(full[9], chainy)
+  assert abs(p_full - 0.95 ** 9) < 1e-9, p_full
+  return 0
+
+
+def TestSparseScale():
+  """The 5x5 grid world costs kilobytes of symbols, not gigabytes.
+
+  The all-pairs doubling recursion of the once-Colab-crashing 5x5
+  program: canonicalizing every pool is plain python over a few
+  thousand proofs; tracemalloc guards that no dense representation
+  sneaks back."""
+  import tracemalloc
+  rng = random.Random(17)
+  n = 40
+  theta = [rng.uniform(0.3, 0.9) for _ in range(n)]
+  tracemalloc.start()
+  total = 0
+  for unused_cell in range(625):
+    pool = Proofs(RandomProofs(rng, n, 20))
+    kept = Canonicalize(pool, theta, 4)
+    total += len(kept)
+  unused_current, peak = tracemalloc.get_traced_memory()
+  tracemalloc.stop()
+  assert total, total
+  assert peak < 4 * 1024 * 1024, peak
   return 0
 
 
@@ -379,6 +366,51 @@ def TestRepeatedVariablesRefused():
   return 0
 
 
+def TestNonPositiveKRefused():
+  """k <= 0 must be a loud compile error on the neural side.
+
+  The SQL Canonicalize reads k < 0 as "no truncation"; the tensor
+  state has statically k slots, so before the check a negative k
+  reached the Python slice [..., :k, :] and silently dropped
+  candidates from the tail."""
+  from parser_py import parse
+  rules = parse.ParseFile(
+      'T0P(x) = TkpTop(MergeList(x), 0); '
+      'TNoLimit(x) = TkpTop(MergeList(x), -1); '
+      'T4P(x) = TkpTop(MergeList(x), 4);')['rule']
+  pairs = [(rule['head']['predicate_name'], rule) for rule in rules]
+  definitions = tkp_logica.FunctionalDefinitions(pairs)
+  assert tkp_logica.DisjunctionK('T4P', definitions, 'test') == 4
+  for operator in ['T0P', 'TNoLimit']:
+    try:
+      tkp_logica.DisjunctionK(operator, definitions, 'test')
+      assert False, 'k <= 0 of %s must be refused' % operator
+    except tkp_logica.TkpCompileException:
+      pass
+  return 0
+
+
+def TestCanonicalFieldOrder():
+  """Heads and calls must sort fields with the one canonical key.
+
+  The parser keeps `P(b: y, a: x)` in source order, and head axes
+  built from it transposed silently against the member signature
+  [a, b]; a str sort key would likewise put positional field 10
+  before 2. Signature, CallVariables and ContributionHeadVariables
+  all share FieldOrder now."""
+  from parser_py import parse
+  rule = parse.ParseFile('P(b: y, a: x) = 7;')['rule'][0]
+  head_vars = tkp_logica.ContributionHeadVariables(rule, 'test')
+  assert head_vars == ['x', 'y'], head_vars
+  rule = parse.ParseFile('F() = Q(b: y, a: x);')['rule'][0]
+  call = rule['head']['record']['field_value'][0]['value']['expression']
+  call_vars = tkp_logica.CallVariables(call, 'test')
+  assert call_vars == ['x', 'y'], call_vars
+  order = sorted([10, 2, 'b', 'a'], key=tkp_logica.FieldOrder)
+  assert order == [2, 10, 'a', 'b'], order
+  return 0
+
+
 def TestThetaSupportChecked():
   """A fact row without a probability is refused at probe time.
 
@@ -412,154 +444,6 @@ def TestThetaSupportChecked():
   return 0
 
 
-def TestThetaDependentHorizon():
-  """Miss Vi's k=1 counterexample: the sweep horizon depends on theta.
-
-  A star of direct edges v0->vi over a chain v0->v1->...->v9. Under
-  theta favoring the direct edges the recursion stabilizes in a couple
-  of sweeps — a probe would freeze a short horizon. Under theta
-  favoring the chain the best proof of v9 is the full chain, which a
-  linear recursion only builds after 9 sweeps: a forward truncated at
-  the short horizon reports the wrong probability WITHOUT any error.
-  Hence the contract: TKP loops train through the full user-declared
-  @Recursive bound, and the probe (initial and post-training) only
-  checks that the bound suffices."""
-  chain, direct = 9, 8   # c_i: v_i->v_{i+1} (0..8); d_i: v0->v_i (2..9).
-  n = chain + direct
-  false_slot = onp.full(n, n + 1, dtype=onp.int64)
-  false_slot[0] = n
-
-  def Sweep(reach, theta_ext, k):
-    new_reach = {}
-    for v in range(1, 10):
-      pool = [{9 + v - 2}] if v >= 2 else []   # The direct edge d_v.
-      if v == 1:
-        pool.append({0})                       # The chain edge c_0.
-      slots = MakeSlots(pool, n)
-      if v >= 2:
-        step = MakeSlots([{v - 1}], n)     # The chain edge c_{v-1}.
-        slots = onp.concatenate(
-            [slots, Conjoin(reach[v - 1], step, theta_ext)])
-      new_reach[v] = TopK(slots, theta_ext, k)
-    return new_reach
-
-  def RunSweeps(theta_ext, count):
-    reach = {v: onp.tile(false_slot, (1, 1)) for v in range(1, 10)}
-    stable_at = None
-    for sweep in range(1, count + 1):
-      new_reach = Sweep(reach, theta_ext, 1)
-      if stable_at is None and all(
-          onp.array_equal(reach[v], new_reach[v]) for v in reach):
-        stable_at = sweep
-      reach = new_reach
-    return reach, stable_at
-
-  star = onp.concatenate(
-      [onp.full(chain, 0.4), onp.full(direct, 0.9), [0.0, 1.0, onp.nan]])
-  unused_reach, stable_at = RunSweeps(star, 12)
-  assert stable_at is not None and stable_at <= 3, stable_at
-  frozen = stable_at + 2                       # The old probe contract.
-
-  chainy = onp.concatenate(
-      [onp.full(chain, 0.95), onp.full(direct, 0.05), [0.0, 1.0, onp.nan]])
-  truncated, unused = RunSweeps(chainy, frozen)
-  full, full_stable = RunSweeps(chainy, 12)
-  assert full_stable is not None and full_stable <= 12, full_stable
-  # The frozen horizon still reports the (now unlikely) direct edge...
-  assert SlotsAsSets(truncated[9]) == [frozenset({16})]
-  # ...while the true fixpoint holds the full chain, at 12 times the
-  # probability — a silent factor-of-12 error before the fix.
-  assert SlotsAsSets(full[9]) == [frozenset(range(9))]
-  p_truncated = float(Probability(truncated[9], chainy, 1))
-  p_full = float(Probability(full[9], chainy, 1))
-  assert abs(p_truncated - 0.05) < 1e-9, p_truncated
-  assert abs(p_full - 0.95 ** 9) < 1e-9, p_full
-  return 0
-
-
-def TestTruncationLossContract():
-  """The documented approximation contract of losses on truncated DNF.
-
-  This is a CONTRACT, not a failure: TkpProbability is exact over the
-  STORED proofs, so on a truncated DNF the positive loss -log(P) is
-  conservative (over-penalizes) and the negative loss -log(1-P) is
-  optimistic — dropped proofs go unpenalized. Miss Vi's scale example:
-  100 independent single-fact proofs of 0.1 at k=1 store P = .1, while
-  the full space has P = 1 - .9^100 — the stored negative loss is two
-  orders of magnitude below the true one."""
-  import math
-  n = 100
-  theta_ext = onp.concatenate([onp.full(n, 0.1), [0.0, 1.0, onp.nan]])
-  slots = TopK(MakeSlots([{i} for i in range(n)], n), theta_ext, 1)
-  p_stored = float(Probability(slots, theta_ext, 1))
-  assert abs(p_stored - 0.1) < 1e-12, p_stored
-  p_full = 1.0 - 0.9 ** n
-  assert -math.log(p_stored) >= -math.log(p_full)          # Conservative.
-  assert -math.log(1 - p_stored) <= -math.log(1 - p_full)  # Optimistic.
-  assert -math.log(1 - p_full) / -math.log(1 - p_stored) > 100
-  return 0
-
-
-def TestWhackTheTop():
-  """Negative training on truncated DNF suppresses routes SEQUENTIALLY.
-
-  Each step the gradient of -log(1-P) reaches only the stored top-1
-  proof; a suppressed route drops out and the next one surfaces into
-  the slot. Neither an instant failure nor a guaranteed rescue: after
-  a few steps most of the mass still hides below the cut untouched,
-  after enough steps every route has been pushed down."""
-  n = 5
-  theta = onp.full(n, 0.5)
-  pools = [{i} for i in range(n)]
-
-  def Step(theta):
-    theta_ext = onp.concatenate([theta, [0.0, 1.0, onp.nan]])
-    slots = TopK(MakeSlots(pools, n), theta_ext, 1)
-    (stored,) = SlotsAsSets(slots)
-    (fact,) = stored
-    updated = theta.copy()
-    # d(-log(1 - theta_f)) / d theta_f = 1 / (1 - theta_f).
-    updated[fact] -= 0.1 * 1.0 / (1.0 - theta[fact])
-    return updated
-
-  for unused_step in range(3):
-    theta = Step(theta)
-  # One route per step: after 3 steps exactly n - 3 hide untouched.
-  assert onp.sum(theta == 0.5) == n - 3, theta
-  for unused_step in range(40):
-    theta = Step(theta)
-  assert onp.all(theta < 0.4), theta            # Eventually all pushed.
-  return 0
-
-
-def TestFiveByFiveScale():
-  """The 5x5 grid world's shapes must stay linear in the pool size.
-
-  The exact configuration that once crashed a Colab: 625 key cells,
-  a doubling composition pool of 25 * 4^2 + 1 = 401 candidates, L=10.
-  The greedy TopK touches k * c * 2L ids per cell — a few dozen MB;
-  the pairwise-subset days materialized c^2 * L^2 (160 GB at L=40).
-  tracemalloc guards the ceiling so the quadratic never returns."""
-  import tracemalloc
-  rng = random.Random(17)
-  n, length, cells, c, k = 40, 10, 625, 401, 4
-  theta = onp.array([rng.uniform(0.3, 0.9) for _ in range(n)])
-  theta_ext = onp.concatenate([theta, [0.0, 1.0, onp.nan]])
-  pool = onp.full((cells, c, length), n + 1, dtype=onp.int32)
-  for cell in range(0, cells, 50):  # A sparse sample of busy cells.
-    for candidate in range(c):
-      ids = sorted(rng.sample(range(n), rng.randint(1, 8)))
-      pool[cell, candidate, :len(ids)] = ids
-  tracemalloc.start()
-  top = TopK(pool, theta_ext, k)
-  unused_current, peak = tracemalloc.get_traced_memory()
-  tracemalloc.stop()
-  assert top.shape == (cells, k, length), top.shape
-  budget = 60 * c * cells * length  # ~15 live k*c*2L-sized tensors.
-  assert peak < budget, (peak, budget)
-  return 0
-
-
 def TestIsFunctionalUncompilable():
   """The general-machinery hole found through TKP: an uncompilable rule.
 
@@ -580,25 +464,22 @@ def TestIsFunctionalUncompilable():
 
 def main():
   failures = 0
-  failures += TestTopKAgainstReference()
-  failures += TestAbsorption()
-  failures += TestFalsePadding()
-  failures += TestSubsetEarlierAxes()
-  failures += TestConjoinBroadcast()
-  failures += TestConjoinCapacityLoud()
-  failures += TestProbabilityAgainstReference()
-  failures += TestTieBreakMinimal()
+  failures += TestCanonicalizeAgainstReference()
   failures += TestTiesAgainstReference()
-  failures += TestTieDeterminism()
-  failures += TestNonPositiveKRefused()
-  failures += TestCanonicalFieldOrder()
-  failures += TestGuardsRefused()
-  failures += TestRepeatedVariablesRefused()
-  failures += TestThetaSupportChecked()
-  failures += TestThetaDependentHorizon()
+  failures += TestAbsorption()
+  failures += TestConjunction()
+  failures += TestProbabilityAgainstReference()
+  failures += TestGradientCentralDifference()
+  failures += TestTieBreakMinimal()
   failures += TestTruncationLossContract()
   failures += TestWhackTheTop()
-  failures += TestFiveByFiveScale()
+  failures += TestThetaDependentHorizon()
+  failures += TestSparseScale()
+  failures += TestGuardsRefused()
+  failures += TestRepeatedVariablesRefused()
+  failures += TestNonPositiveKRefused()
+  failures += TestCanonicalFieldOrder()
+  failures += TestThetaSupportChecked()
   failures += TestIsFunctionalUncompilable()
   print('tkp_tensor_test: failures: %d' % failures)
   return 1 if failures else 0

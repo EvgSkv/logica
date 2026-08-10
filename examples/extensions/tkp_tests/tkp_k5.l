@@ -3,7 +3,7 @@ import examples.extensions.tkp.ProbConjunction;
 import examples.extensions.tkp.TKP;
 import examples.extensions.tkp.TkpProbability;
 
-@Engine("duckdb", tensor_engine: "jax");
+@Engine("duckdb", tensor_engine: "numpy");
 
 V(v) :- v in ["v1", "v2", "v3", "v4", "v5"];
 PotentialEdge(a, b) distinct :- V(a), V(b), a != b;
