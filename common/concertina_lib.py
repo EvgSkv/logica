@@ -354,7 +354,9 @@ class Concertina(object):
   def AsGraphViz(self):
     def NodeText(node):
       if node in self.action_iteration:
-        maybe_iteration_info = ' %d / %s' % (
+        # The completion may be a stage word ('probe', 'compiling')
+        # while the plan is not counting sweeps yet.
+        maybe_iteration_info = ' %s / %s' % (
           self.action_iterations_complete[node],
           self.IterationRepetitionsSymbol(self.action_iteration[node])
         )
@@ -394,12 +396,17 @@ class Concertina(object):
     """Nodes and edges to display in terminal."""
     def ColoredNode(node):
       if node in self.action_iteration:
-        maybe_iteration_info = ' %d / %s' % (
+        # The completion may be a stage word ('probe', 'compiling')
+        # while the plan is not counting sweeps yet.
+        maybe_iteration_info = ' %s / %s' % (
           self.action_iterations_complete[node],
           self.IterationRepetitionsSymbol(self.action_iteration[node])
         )
         if node in self.action_stopped:
           maybe_iteration_info += ' / stop.'
+        # Redraws overwrite in place: pad so that a short counter
+        # blots out the tail of a longer stage word ('compiling').
+        maybe_iteration_info = maybe_iteration_info.ljust(18)
       else:
         maybe_iteration_info = ' ' * 10
       if node in self.running_actions:
@@ -450,7 +457,9 @@ class Concertina(object):
         if a in self.complete_actions:
           complete_work += num_repetitions
         else:
-          complete_work += self.action_iterations_complete[a]
+          done = self.action_iterations_complete[a]
+          # A stage word ('probe', 'compiling') counts as no sweeps.
+          complete_work += done if isinstance(done, int) else 0
       else:
         total_work += 1
         complete_work += (a in self.complete_actions)

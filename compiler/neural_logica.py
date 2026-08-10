@@ -63,6 +63,7 @@ import copy
 import math
 import os
 import re
+import time
 
 if '.' not in __package__:
   from common import color
@@ -1510,8 +1511,11 @@ class NeuralPlan(object):
     sweep = jax.jit(Sweep)
 
     # 5. Iterate to stabilization.
+    if progress:
+      progress('compiling')  # The first sweep pays the jit compile.
     iterations = 0
     converged = False
+    progress_shown = time.monotonic()
     for iterations in range(1, self.repetitions + 1):
       new_state = sweep(state)
       if self.Converged(state, new_state, jnp):
@@ -1519,7 +1523,10 @@ class NeuralPlan(object):
         converged = True
         break
       state = new_state
-      if progress and iterations % 32 == 0:
+      # Once a second by the clock: fast iterations update rarely,
+      # slow ones every time.
+      if progress and time.monotonic() - progress_shown >= 1.0:
+        progress_shown = time.monotonic()
         progress(iterations)
 
     self.CheckFunctionalConsistency(runtime, state, tensors, domains,
@@ -2070,6 +2077,8 @@ class NeuralTargetPlan(NeuralPlan):
         PublishLoop(content, loop_state, state)
       return state
 
+    if progress:
+      progress('probe')
     probe_state = Probe(parameters)
     self.CheckFunctionalConsistency(runtime, probe_state,
                                     Overlay(parameters), domains, jnp, np)
@@ -2117,11 +2126,14 @@ class NeuralTargetPlan(NeuralPlan):
       value_and_gradient = jax.value_and_grad(Target)
     else:
       value_and_gradient = jax.jit(jax.value_and_grad(Target))
+      if progress:
+        progress('compiling')  # The first step pays the XLA compile.
 
     trace = os.getenv('LOGICA_NEURAL_TRACE')
     previous = None
     steps_done = 0
     converged = False
+    progress_shown = time.monotonic()
     for steps_done in range(1, self.steps + 1):
       value, gradient = value_and_gradient(parameters)
       value = float(value)
@@ -2145,7 +2157,11 @@ class NeuralTargetPlan(NeuralPlan):
         converged = True
         break
       previous = value
-      if progress and steps_done % 64 == 0:
+      # Once a second by the clock: fast steps update rarely, slow
+      # ones every step (a flat modulo once showed "0 / 300" for
+      # minutes on a slow engine).
+      if progress and time.monotonic() - progress_shown >= 1.0:
+        progress_shown = time.monotonic()
         progress(steps_done)
 
     if tkp_loops:
