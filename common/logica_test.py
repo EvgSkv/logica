@@ -121,7 +121,8 @@ def RunTest(name, src, predicate, golden,
       duck_source.write(open(src).read().replace('"psql"', '"duckdb"'))
     src = duck_src
   if use_concertina:
-    result = run_in_terminal.Run(src, predicate, display_mode='silent')
+    result = run_in_terminal.Run(src, predicate, display_mode='silent',
+                                 import_root=import_root)
   else:
     result = logica_lib.RunPredicate(src, predicate,
                                      user_flags=user_flags,

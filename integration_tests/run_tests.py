@@ -149,6 +149,8 @@ def RunAll(test_presto=False, test_trino=False, test_clingo=True, test_clickhous
   if test_extension or logica_test.TestManager.RUN_ONLY:
     RunTest('duckdb_timeline_test')
     RunTest('duckdb_tkp_test', use_concertina=True)
+    RunTest('duckdb_tkp_learn_test', use_concertina=True,
+            predicate='Report')
 
   RunTest("duckdb_plusplus_agg_test")
 

@@ -1,25 +1,30 @@
 #!/usr/bin/python
-"""TKP — top-k proofs: вероятностные ДНФ для duckdb.
+"""TKP — top-k proofs: probabilistic DNFs for duckdb.
 
-Значение — список доказательств; доказательство — список фактов;
-факт — {predicate, args, probability}. Решения чётности:
-включение-исключение; ранжировка по вероятности, ничьи лексикографски;
-дедуп и поглощение; обрезка до k — только в TkpTop.
+A value is a list of proofs; a proof is a list of facts; a fact is
+{predicate, args, probability}. The parity decisions: exact
+inclusion-exclusion; ranking by probability with lexicographic ties;
+dedup and absorption; truncation to k happens only in TkpTop.
 
-MakeFact и TKP определяются на стороне Logica:
+MakeFact and TKP are defined on the Logica side:
   MakeFact(predicate:, args:, probability:) = [{facts: [{...}]}];
   TKP(x, k) = TkpTop(MergeList(x), k);
 """
 
 LOGICA_EXTENSION = {
   "aggregations": [],
-  "functions": ["ProbConjunction", "TkpTop", "TkpProbability"],
+  "functions": ["TkpProbConjunction", "TkpTop", "TkpProbability"],
   "logica": """
-ArgsString(args) = v :-
+TkpArgsString(args) = v :-
   v == SqlExpr("to_json({a})::varchar", {a: args}), v ~ Str;
-MakeFact(predicate:, args:, probability:) =
-  [{facts: [{predicate:, args: ArgsString(args), probability:}]}];
+TkpMakeFact(predicate:, args:, probability:) =
+  [{facts: [{predicate:, args: TkpArgsString(args), probability:}]}];
 TKP(x, k) = TkpTop(MergeList(x), k);
+
+# Convenient synonyms; the neural layer protocol is Tkp-names only.
+MakeFact(predicate:, args:, probability:) =
+  TkpMakeFact(predicate:, args:, probability:);
+ProbConjunction(a, b) = TkpProbConjunction(a, b);
 """
 }
 
@@ -92,10 +97,10 @@ def IsSubsetOf(pa: Proof, pb: Proof) -> bool:
 
 
 def Canonicalize(proofs: list[Proof], k: int) -> list[Proof]:
-  """Дедуп, поглощение, порядок (вероятность убыв., лекс.), топ-k.
+  """Dedup, absorption, order (probability desc, lex), top-k.
 
-  k < 0 — не обрезать."""
-  # Два стабильных сорта = (вероятность убыв., ничьи лексикографски).
+  k < 0 means no truncation."""
+  # Two stable sorts = (probability desc, lexicographic ties).
   ordered = sorted(proofs, key=lambda p: ProofIdentity(p))
   ordered = sorted(ordered, key=lambda p: -ProofProbability(p))
   result: list[Proof] = []
@@ -105,7 +110,7 @@ def Canonicalize(proofs: list[Proof], k: int) -> list[Proof]:
     j: int = 0
     while j < len(result):
       if IsSubsetOf(result[j], ordered[i]):
-        keep = False  # дубликат или поглощение более вероятным
+        keep = False  # a duplicate, or absorbed by a likelier proof
       j = j + 1
     if keep:
       result.append(ordered[i])
@@ -115,8 +120,8 @@ def Canonicalize(proofs: list[Proof], k: int) -> list[Proof]:
   return result
 
 
-def ProbConjunction(a: list[Proof],
-                    b: list[Proof]) -> list[Proof]:
+def TkpProbConjunction(a: list[Proof],
+                       b: list[Proof]) -> list[Proof]:
   proofs: list[Proof] = []
   i: int = 0
   while i < len(a):
@@ -133,7 +138,16 @@ def TkpTop(proofs: list[Proof], k: int) -> list[Proof]:
 
 
 def TkpProbability(v: list[Proof]) -> float:
-  """Точное включение-исключение по доказательствам."""
+  """Exact inclusion-exclusion over the STORED proofs.
+
+  This is the probability of the top-k object itself, not of the full
+  proof space: proofs dropped by truncation contribute nothing. Since
+  dropping proofs can only lower the probability, on a truncated DNF a
+  positive loss -log(P) is conservative (over-penalizes), while a
+  negative loss -log(1-P) is optimistic — it does not penalize the
+  dropped proofs at all, and a large mass of individually weak proofs
+  can hide below the cut. When negative supervision matters, raise k
+  and check the sensitivity of the result to k."""
   n: int = len(v)
   count: int = 1
   i: int = 0

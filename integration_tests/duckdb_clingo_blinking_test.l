@@ -41,4 +41,4 @@ Out(x) distinct :-
 
 SortList(l) = Array{x -> x :- x in l};
 
-Test(x, SortList(M())) :- Out(x);
+Test(x, SortList(m.model)) :- Out(x), m in M();

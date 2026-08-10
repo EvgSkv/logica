@@ -349,6 +349,8 @@ _FORWARD = {
         lambda result, index, updates: result.__setitem__(index, updates)),
     'sum': lambda x, axis=None, keepdims=False: onp.sum(
         x, axis=axis, keepdims=keepdims),
+    'prod': lambda x, axis=None, keepdims=False: onp.prod(
+        x, axis=axis, keepdims=keepdims),
     'min': _ExtremumForward(onp.min),
     'max': _ExtremumForward(onp.max),
     'any': lambda x, axis=None: onp.any(x, axis=axis),
@@ -357,6 +359,11 @@ _FORWARD = {
     'transpose': lambda x, axes: onp.transpose(x, axes),
     'expand_dims': lambda x, axis: onp.expand_dims(x, axis),
     'astype': lambda x, dtype: onp.asarray(x).astype(dtype),
+    'concatenate': lambda axis, *parts: onp.concatenate(parts, axis=axis),
+    'lexsort': lambda axis, *keys: onp.lexsort(keys, axis=axis),
+    'sort': lambda x, axis: onp.sort(x, axis=axis),
+    'take_along_axis': lambda a, index, axis: onp.take_along_axis(
+        a, index, axis=axis),
 }
 
 
@@ -573,6 +580,23 @@ def _GradExpandDims(node, g):
   return [numpy.reshape(g, _ShapeOf(x)), None]
 
 
+def _GradConcatenate(node, g):
+  axis = node.args[0]
+  parts = node.args[1:]
+  grads = [None]
+  offset = 0
+  for part in parts:
+    size = _ShapeOf(part)[axis]
+    if _Recorded(part):
+      index = [slice(None)] * len(onp.shape(_Value(g)))
+      index[axis] = slice(offset, offset + size)
+      grads.append(g[tuple(index)])
+    else:
+      grads.append(None)
+    offset += size
+  return grads
+
+
 def _GradAstype(node, g):
   x, dtype = node.args
   if not _Recorded(x) or not onp.issubdtype(onp.dtype(dtype),
@@ -628,6 +652,9 @@ _GRAD = {
     'transpose': _GradTranspose,
     'expand_dims': _GradExpandDims,
     'astype': _GradAstype,
+    'concatenate': _GradConcatenate,
+    # lexsort, sort, prod and take_along_axis carry no gradient:
+    # sorting indices, permutations and rank keys of bit-valued data.
 }
 
 
@@ -678,11 +705,20 @@ def _MakeNumpy():
   ns.expand_dims = lambda x, axis: _Record('expand_dims', [x, axis])
   ns.sum = lambda x, axis=None, keepdims=False: _Record(
       'sum', [x, axis, keepdims])
+  ns.prod = lambda x, axis=None, keepdims=False: _Record(
+      'prod', [x, axis, keepdims])
   ns.min = lambda x, axis=None, initial=None, keepdims=False: _Record(
       'min', [x, axis, keepdims, initial])
   ns.max = lambda x, axis=None, initial=None, keepdims=False: _Record(
       'max', [x, axis, keepdims, initial])
   ns.any = lambda x, axis=None: _Record('any', [x, axis])
+  ns.concatenate = lambda parts, axis=0: _Record(
+      'concatenate', [axis] + list(parts))
+  ns.lexsort = lambda keys, axis=-1: _Record(
+      'lexsort', [axis] + list(keys))
+  ns.sort = lambda x, axis=-1: _Record('sort', [x, axis])
+  ns.take_along_axis = lambda a, index, axis: _Record(
+      'take_along_axis', [a, index, axis])
   return ns
 
 
@@ -849,8 +885,10 @@ def _Compile(function, args):
         return names[id(arg)]
       return ConstRef(arg.value)  # A free node: a constant subgraph.
     if isinstance(arg, float) and not onp.isfinite(arg):
-      return "float('%s')" % repr(arg)
-    if isinstance(arg, (bool, int, float, str)) or arg is None:
+      return "float('%s')" % repr(float(arg))
+    if isinstance(arg, float):
+      return repr(float(arg))  # np.float64 subclasses float; clean repr.
+    if isinstance(arg, (bool, int, str)) or arg is None:
       return repr(arg)
     if isinstance(arg, tuple) and all(
         isinstance(i, (bool, int)) for i in arg):
@@ -869,6 +907,7 @@ def _Compile(function, args):
       'lt': '({0} < {1})', 'le': '({0} <= {1})',
       'gt': '({0} > {1})', 'ge': '({0} >= {1})',
       'sum': 'onp.sum({0}, axis={1}, keepdims={2})',
+      'prod': 'onp.prod({0}, axis={1}, keepdims={2})',
       'any': 'onp.any({0}, axis={1})',
       'gather': '{0}[{1}]',
       'where': 'onp.where({0}, {1}, {2})',
@@ -877,6 +916,7 @@ def _Compile(function, args):
       'transpose': 'onp.transpose({0}, {1})',
       'expand_dims': 'onp.expand_dims({0}, {1})',
       'astype': 'onp.asarray({0}).astype({1})',
+      'take_along_axis': 'onp.take_along_axis({0}, {1}, axis={2})',
   }
   plain_calls = {'abs', 'exp', 'log', 'sqrt', 'sin', 'cos', 'floor',
                  'logical_and', 'logical_or', 'logical_not',
@@ -898,6 +938,15 @@ def _Compile(function, args):
       lines.append('%s = onp.%s(%s)' % (name, node.op, ', '.join(refs)))
     elif node.op == 'einsum':
       lines.append('%s = onp.einsum(%s)' % (name, ', '.join(refs)))
+    elif node.op == 'concatenate':
+      lines.append('%s = onp.concatenate([%s], axis=%s)' % (
+          name, ', '.join(refs[1:]), refs[0]))
+    elif node.op == 'lexsort':
+      lines.append('%s = onp.lexsort((%s,), axis=%s)' % (
+          name, ', '.join(refs[1:]), refs[0]))
+    elif node.op == 'sort':
+      lines.append('%s = onp.sort(%s, axis=%s)' % (
+          name, refs[0], refs[1]))
     elif node.op in ('min', 'max'):
       x, axis, keepdims, initial = refs
       suffix = (', initial=%s' % initial
@@ -928,6 +977,10 @@ def _Compile(function, args):
       "  with onp.errstate(invalid='ignore', divide='ignore', "
       "over='ignore'):\n"
       '    ' + '\n    '.join(lines) + '\n')
+  dump = os.environ.get('LOGIX_DUMP_SOURCE')
+  if dump:
+    with open(dump, 'w') as f:
+      f.write(source)
   scope = {'onp': onp, '_c': constants}
   exec(source, scope)  # Code generated just above from the tape.
   compiled = scope['_compiled']

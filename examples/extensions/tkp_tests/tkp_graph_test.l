@@ -1,19 +1,12 @@
-# Графовая задача на TKP: SQL-часть, форвард без обучения.
-import tkp.ProbConjunction;
-import tkp.TkpTop;
-import tkp.TkpProbability;
+# A TKP graph task: the SQL part, forward only, no learning.
+import examples.extensions.tkp.MakeFact;
+import examples.extensions.tkp.ProbConjunction;
+import examples.extensions.tkp.TKP;
+import examples.extensions.tkp.TkpProbability;
 
-@Engine("duckdb");
-
-MakeFact(predicate:, args:, probability:) =
-  [{facts: [{predicate:, args: ArgsString(args), probability:}]}];
-ArgsString(args) = v :-
-  v == SqlExpr("array_to_string({a}, '|')", {a: args}), v ~ Str;
-
-TKP(x, k) = TkpTop(MergeList(x), k);
 T3P(x) = TKP(x, 3);
 
-# --- данные ---
+# --- data ---
 PotentialEdge("a", "b"); PotentialEdge("b", "c");
 PotentialEdge("a", "c"); PotentialEdge("c", "d"); PotentialEdge("b", "d");
 EdgeProb(a, b) = 0.5 :- PotentialEdge(a, b);

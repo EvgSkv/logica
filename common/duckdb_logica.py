@@ -84,17 +84,17 @@ def ConnectClingo(connection,
                               'value': str}))
 
   def RunClingo(program: str) -> list_of_models_type:
-    # Создаем контроллер и загружаем программу.
+    # Create the controller and load the program.
     ctl = clingo.Control()
     ctl.add("base", [], program)
     ctl.configuration.solve.models = default_num_models
     if default_opt_mode:
       ctl.configuration.solve.opt_mode = default_opt_mode
 
-    # Просим Clingo "заземлить" правила (подготовить к решению).
+    # Ask Clingo to ground the rules (prepare for solving).
     ctl.ground([("base", [])])
 
-    # Решаем и выводим результат.
+    # Solve and output the result.
     result = []
     with ctl.solve(yield_=True) as handle:
       for model_id, model in enumerate(handle):

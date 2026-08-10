@@ -58,6 +58,8 @@ CASES = {
         (1, 0)) * 2.0),
     'unrolled_loop': lambda np, p: np.sum(
         sum(p['w'] * V * i for i in range(1, 4))),
+    'concatenate': lambda np, p: np.sum(np.concatenate(
+        [p['w'] * V, (p['w'] ** 2) * V], axis=0) * onp.arange(4.0)),
 }
 
 

@@ -67,12 +67,14 @@ if '.' not in __package__:
   from common import color
   from common import logix
   from compiler import rule_translate
+  from compiler import tkp_logica
   from parser_py import parse
   from type_inference.research import reference_algebra
 else:
   from ..common import color
   from ..common import logix
   from ..compiler import rule_translate
+  from ..compiler import tkp_logica
   from ..parser_py import parse
   from ..type_inference.research import reference_algebra
 
@@ -460,6 +462,12 @@ def ExtractColumnClasses(rules):
 
 # ==================== Before unfolding: learning cones ====================
 
+def TkpNormalize(name):
+  """Folds machinery names (X_diamond, X_portal, X_f2) into logical X."""
+  base, unused_phase, family = ParsePhase(name)
+  return base + family
+
+
 def NeuralTargetAnnotations(rules):
   """[(target, learned predicates)] of the @NeuralTarget annotations."""
   targets = []
@@ -678,7 +686,9 @@ def IsFunctional(predicate_name, rules_of):
       rs = rule_translate.ExtractRuleStructure(rule, allocator, None)
       rs.ElliminateInternalVariables(assert_full_ellimination=False)
     except rule_translate.RuleCompileException:
-      return False
+      # A rule that does not compile standalone cannot become a table:
+      # treat it as injected, never as groundable.
+      return True
     # Combine-local variables (Sum{...}) are bound by their own group,
     # not by the rule body: they must not make the predicate functional.
     select_vars = set(rule_translate.AllMentionedVariables(
@@ -726,6 +736,7 @@ def AppendAutoGrounds(rules, dependencies):
             for e in fields['predicates']['literal']['the_list']['element']]
 
   candidates = set()
+  tkp_injectable = tkp_logica.InjectableNames(rules)
 
   for fields in neural_iterations:
     diamond_predicates = IterationPredicates(fields)
@@ -744,7 +755,7 @@ def AppendAutoGrounds(rules, dependencies):
           continue
         if (name in members or name[0] == '@' or
             ParsePhase(name)[1] is not None or name.endswith('_RZero') or
-            '_ROne' in name):
+            '_ROne' in name or name in tkp_injectable):
           continue
         if name not in rules_of:
           continue  # Built-in or external table.
@@ -769,7 +780,8 @@ def AppendAutoGrounds(rules, dependencies):
         if name in seen:
           continue
         seen.add(name)
-        if name in learn or name[0] == '@' or name.endswith('_init'):
+        if (name in learn or name[0] == '@' or name.endswith('_init') or
+            name in tkp_injectable):
           continue
         if name not in rules_of:
           continue  # Built-in or external table.
@@ -1125,6 +1137,11 @@ class NeuralPlan(object):
             self.name)
     return signatures[predicate_name]
 
+  def PlanRules(self):
+    """Rules of the program; the target plan may substitute a copy
+    with the TKP probability reads rewritten."""
+    return getattr(self, 'plan_rules', self.program.rules)
+
   def Signature(self, predicate_name, display_name=None):
     """([key fields], [column classes], has_value) of a predicate.
 
@@ -1204,7 +1221,7 @@ class NeuralPlan(object):
     ground = self.program.annotations.Ground(diamond_name)
     assert ground, 'Diamond predicates are always grounded.'
     member.table = ground.table_name
-    rules = [r for name, r in self.program.rules if name == diamond_name]
+    rules = [r for name, r in self.PlanRules() if name == diamond_name]
     assert rules, 'Diamond predicate %s has no rules.' % diamond_name
     self.CompileContributions(member, rules)
     return member
@@ -1249,7 +1266,7 @@ class NeuralPlan(object):
       aux_predicates = [p for p in rs.tables.values() if AUX_MARKER in p]
       if aux_predicates and len(rs.tables) == 1:
         [aux_name] = set(aux_predicates)
-        for _, aux_rule in [(n, r) for n, r in self.program.rules
+        for _, aux_rule in [(n, r) for n, r in self.PlanRules()
                             if n == aux_name]:
           aux_rs = ExtractStructure(self.program, aux_rule, self.allocator)
           member.contributions.append(
@@ -1669,7 +1686,14 @@ class NeuralPlan(object):
         if old_values is None:
           continue
         both = old_mask & new_mask
-        delta = jnp.where(both, jnp.abs(new_values - old_values), 0.0)
+        # A value may carry tail axes beyond the keys (TKP
+        # incidences); the mask broadcasts over them.
+        extra = len(jnp.asarray(new_values).shape) - len(
+            jnp.asarray(both).shape)
+        both_broadcast = jnp.reshape(
+            both, tuple(jnp.asarray(both).shape) + (1,) * extra)
+        delta = jnp.where(both_broadcast,
+                          jnp.abs(new_values - old_values), 0.0)
         if both.size and float(jnp.max(delta, initial=0.0)) > self.epsilon:
           return False
     return True
@@ -1797,6 +1821,9 @@ class NeuralTargetPlan(NeuralPlan):
             color.Warn(str(optimize)), self.target)
     self.maximize = (optimize == 'Max')
 
+    self.tkp = tkp_logica.TkpPlan(program.rules, TkpNormalize,
+                                  DIAMOND_SUFFIX)
+    self.plan_rules = self.tkp.RewriteRules(program.rules)
     self.CompileCone()
 
   # ----------------------------- Compilation -----------------------------
@@ -1828,10 +1855,28 @@ class NeuralTargetPlan(NeuralPlan):
     self.stages = []
     for kind, content in components:
       if kind == 'single':
+        if self.tkp.Owns(content):
+          member = self.RegisterTkpMember(content)
+          self.stages.append(('member', member))
+          self.RegisterTkpProbability(member)
+          continue
         member = self.CompileConeMember(content)
         self.members.append(member)
         self.stages.append(('member', member))
       else:
+        if any(self.tkp.Owns(p) for p in content):
+          if not all(self.tkp.Owns(p) for p in content):
+            Error('TKP: recursion loop %s mixes proof-valued and '
+                  'numeric predicates.' % color.Warn(str(content)),
+                  self.target)
+          group = LoopGroup(content)
+          for origin in content:
+            group.members.append(self.RegisterTkpMember(origin))
+          group.repetitions = self.LoopRepetitions(content)
+          self.stages.append(('loop', group))
+          for member in group.members:
+            self.RegisterTkpProbability(member)
+          continue
         group = LoopGroup(content)
         for origin in content:
           group.members.append(self.CompileMember(origin + DIAMOND_SUFFIX))
@@ -1861,11 +1906,31 @@ class NeuralTargetPlan(NeuralPlan):
     counts = [1000000000 if c == -1 else c for c in counts]
     return max(counts) if counts else 1000
 
+  def RegisterTkpMember(self, predicate):
+    """Compiles a TKP member via the facade and registers it."""
+    member = self.tkp.CompileMember(self, predicate)
+    self.members.append(member)
+    self.relations[predicate] = Relation(
+        predicate, member.key_fields, member.key_types, True)
+    return member
+
+  def RegisterTkpProbability(self, member):
+    """Schedules the probability publisher of a member, when read."""
+    probability_member = self.tkp.ProbabilityMember(member)
+    if probability_member is None:
+      return
+    self.cone_state.add(probability_member.name)
+    self.relations[probability_member.name] = Relation(
+        probability_member.name, list(member.key_fields),
+        list(member.key_types), True)
+    self.members.append(probability_member)
+    self.stages.append(('member', probability_member))
+
   def CompileConeMember(self, predicate):
     member = Member(predicate, predicate)
     member.key_fields, member.key_types, member.has_value = self.Signature(
         predicate)
-    rules = [r for name, r in self.program.rules if name == predicate]
+    rules = [r for name, r in self.PlanRules() if name == predicate]
     self.CompileContributions(member, rules)
     return member
 
@@ -1910,6 +1975,10 @@ class NeuralTargetPlan(NeuralPlan):
       state = {}
       for member in group.members:
         shape = tuple(len(domains[t]) for t in member.key_types)
+        if getattr(member, 'is_tkp', False):
+          state[member.portal] = self.tkp.EmptyState(
+              self, member, domains, jnp, np)
+          continue
         values = (jnp.full(shape, member.neutral, dtype=jnp.float64)
                   if member.has_value else None)
         state[member.portal] = (
@@ -1932,13 +2001,21 @@ class NeuralTargetPlan(NeuralPlan):
         state[member.portal] = stabilized
         state[member.diamond_name] = stabilized
 
-    def Probe(parameters):
+    def Probe(parameters, stage='the initial parameters'):
       """Concrete forward pass, finding the sweep count of every loop.
 
       Structural recursion (layers, time as a key) stabilizes after a
       parameter-independent number of sweeps, so the count found under
       the initial parameters is frozen for training, with a margin of
-      two sweeps: at the fixpoint extra sweeps are the identity."""
+      two sweeps: at the fixpoint extra sweeps are the identity.
+
+      TKP recursion is NOT structural in this sense: absorption and
+      the top-k composition depend on theta, so a count probed under
+      the current parameters is no bound for the parameters of later
+      training steps. Such loops train through the full user-declared
+      @Recursive bound instead — extra sweeps at the fixpoint are the
+      identity — and the probe (re-run after training as well) only
+      checks that the declared bound suffices at this stage."""
       current = Overlay(parameters)
       state = {}
       for kind, content, functions in stage_functions:
@@ -1958,11 +2035,14 @@ class NeuralTargetPlan(NeuralPlan):
           loop_state = new_loop_state
         if not converged:
           Error('Recursion of %s does not stabilize within %d sweeps '
-                'under the initial parameters; learning through dynamic '
+                'under %s; learning through dynamic '
                 'equilibria is not supported yet.' %
                 (color.Warn(', '.join(content.origins)),
-                 content.repetitions), self.target)
-        content.sweeps = sweeps + 2
+                 content.repetitions, stage), self.target)
+        if any(self.tkp.Owns(member.name) for member in content.members):
+          content.sweeps = content.repetitions
+        else:
+          content.sweeps = sweeps + 2
         if content.sweeps > 100:
           print('Warning: differentiating through %d sweeps of %s; '
                 'memory of the gradient grows linearly with the sweep '
@@ -1973,6 +2053,7 @@ class NeuralTargetPlan(NeuralPlan):
     probe_state = Probe(parameters)
     self.CheckFunctionalConsistency(runtime, probe_state,
                                     Overlay(parameters), domains, jnp, np)
+    self.tkp.CheckThetaSupport(self, probe_state, Overlay(parameters), np)
 
     def Target(parameters):
       current = Overlay(parameters)
@@ -2019,6 +2100,14 @@ class NeuralTargetPlan(NeuralPlan):
       previous = value
       if progress and steps_done % 64 == 0:
         progress(steps_done)
+
+    if any(kind == 'loop' and
+           any(self.tkp.Owns(member.name) for member in content.members)
+           for kind, content, unused_functions in stage_functions):
+      # The loud half of the TKP horizon contract: training unrolled
+      # the full declared bound, and the learned parameters must still
+      # stabilize within it, or the reported fixpoint is truncated.
+      Probe(parameters, 'the learned parameters')
 
     # Write the learned relations into the learned predicates' tables.
     for predicate in self.learned:
@@ -2156,6 +2245,8 @@ class Runtime(object):
 
   def MemberFunction(self, member):
     """state, tensors -> (mask, values): the member's rewrite w_p."""
+    if getattr(member, 'is_tkp', False):
+      return tkp_logica.MemberFunction(self, member)
     jnp = self.jnp
     contribution_functions = [
         self.ContributionFunction(member, c) for c in member.contributions]

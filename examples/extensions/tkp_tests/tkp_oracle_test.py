@@ -1,4 +1,4 @@
-"""Оракул: включение-исключение против перебора миров; детерминизм."""
+"""Oracle: inclusion-exclusion vs world enumeration; determinism."""
 import itertools, random
 import tkp
 
@@ -39,7 +39,7 @@ def Evaluate(expr, fact_probs, k):
   if kind == 'fact':
     return MakeFact('F', expr[1], fact_probs[expr[1]])
   if kind == 'and':
-    return tkp.ProbConjunction(Evaluate(expr[1], fact_probs, k),
+    return tkp.TkpProbConjunction(Evaluate(expr[1], fact_probs, k),
                                Evaluate(expr[2], fact_probs, k))
   return tkp.TkpTop(sum([Evaluate(e, fact_probs, k) for e in expr[1]], []), k)
 
@@ -64,7 +64,7 @@ for trial in range(200):
   fact_probs = {f: round(rng.uniform(0.1, 0.9), 3) for f in facts}
   expr = RandomExpression(rng, facts, 3)
 
-  # 1. Без обрезки: вероятность объекта == вероятность формулы.
+  # 1. No truncation: object probability == formula probability.
   v = Evaluate(expr, fact_probs, 999)
   exact = WorldProbability(None, fact_probs, lambda w: Satisfies(expr, w))
   got = tkp.TkpProbability(v)
@@ -72,7 +72,7 @@ for trial in range(200):
     failures += 1
     print('EXACT MISMATCH', trial, got, exact, expr)
 
-  # 2. С обрезкой k=2: вероятность объекта == вероятность ХРАНИМОЙ ДНФ.
+  # 2. Truncated to k=2: object probability == STORED DNF probability.
   v2 = Evaluate(expr, fact_probs, 2)
   stored = WorldProbability(None, fact_probs,
                             lambda w: ObjectSatisfies(v2, w))
@@ -81,7 +81,7 @@ for trial in range(200):
     failures += 1
     print('TRUNCATED MISMATCH', trial, got2, stored)
 
-  # 3. Детерминизм: перемешанный порядок построения — та же каноника.
+  # 3. Determinism: shuffled construction order, same canonical form.
   def Shuffle(e):
     if e[0] == 'or':
       children = [Shuffle(c) for c in e[1]]

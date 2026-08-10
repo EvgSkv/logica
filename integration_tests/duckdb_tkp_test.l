@@ -25,23 +25,10 @@
 # T4P keeps all four proofs of a->e, so the truncated probability is
 # the exact one.
 
-@Extension("tkp");
-
-ProbConjunction(a, b) = the_logica_value :-
-  the_logica_value == SqlExpr("ProbConjunction({a}, {b})", {a:, b:}),
-  the_logica_value ~ [{facts: [{predicate: Str, args: Str, probability: Num}]}];
-TkpTop(proofs, k) = the_logica_value :-
-  the_logica_value == SqlExpr("TkpTop({proofs}, {k})", {proofs:, k:}),
-  the_logica_value ~ [{facts: [{predicate: Str, args: Str, probability: Num}]}];
-TkpProbability(v) = the_logica_value :-
-  the_logica_value == SqlExpr("TkpProbability({v})", {v:}),
-  the_logica_value ~ Num;
-
-ArgsString(args) = v :-
-  v == SqlExpr("to_json({a})::varchar", {a: args}), v ~ Str;
-MakeFact(predicate:, args:, probability:) =
-  [{facts: [{predicate:, args: ArgsString(args), probability:}]}];
-TKP(x, k) = TkpTop(MergeList(x), k);
+import examples.extensions.tkp.MakeFact;
+import examples.extensions.tkp.ProbConjunction;
+import examples.extensions.tkp.TKP;
+import examples.extensions.tkp.TkpProbability;
 
 @Engine("duckdb");
 
