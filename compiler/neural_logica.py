@@ -58,6 +58,7 @@ training at power-of-two steps.
 """
 
 import collections
+import contextlib
 import copy
 import math
 import os
@@ -2001,6 +2002,23 @@ class NeuralTargetPlan(NeuralPlan):
         state[member.portal] = stabilized
         state[member.diamond_name] = stabilized
 
+    def SweepContext(group):
+      """TKP sweeps on the numpy engine run off the tape.
+
+      Their state is integer proof ids, structurally outside the
+      gradient (theta only ranks candidates, and ranks are indices);
+      the loss recomputes the probability from theta at the end. Yet
+      both the tape and the node ancestry retain every sweep
+      intermediate — for a 5x5 grid world that once cost gigabytes.
+      Real jax frees dead intermediates itself; logix suspends
+      recording instead."""
+      suspend = getattr(jax, 'suspend_tape', None)
+      if suspend is None:
+        return contextlib.nullcontext()
+      if not any(self.tkp.Owns(member.name) for member in group.members):
+        return contextlib.nullcontext()
+      return suspend()
+
     def Probe(parameters, stage='the initial parameters'):
       """Concrete forward pass, finding the sweep count of every loop.
 
@@ -2027,7 +2045,9 @@ class NeuralTargetPlan(NeuralPlan):
         converged = False
         sweeps = 0
         for sweeps in range(1, content.repetitions + 1):
-          new_loop_state = LoopSweep(functions, loop_state, environment)
+          with SweepContext(content):
+            new_loop_state = LoopSweep(functions, loop_state,
+                                       environment)
           if self.Converged(loop_state, new_loop_state, jnp):
             loop_state = new_loop_state
             converged = True
@@ -2068,13 +2088,35 @@ class NeuralTargetPlan(NeuralPlan):
                      environment=environment):
           return LoopSweep(functions, carry, environment), None
 
-        loop_state, _ = jax.lax.scan(OneSweep, EmptyLoopState(content),
-                                     None, length=content.sweeps)
+        with SweepContext(content):
+          loop_state, _ = jax.lax.scan(OneSweep, EmptyLoopState(content),
+                                       None, length=content.sweeps)
+        if (hasattr(jax.lax, 'stop_gradient') and
+            any(self.tkp.Owns(member.name)
+                for member in content.members)):
+          # TKP state is proof ids — outside the gradient (the loss
+          # recomputes probabilities from theta). Cutting the cotangent
+          # here lets jax prune the backward scan and its per-sweep
+          # residuals, which otherwise cost gigabytes; on logix the
+          # suspended sweeps are constants already.
+          loop_state = jax.lax.stop_gradient(loop_state)
         PublishLoop(content, loop_state, state)
       target_mask, target_value = state[self.target]
       return sign * target_value
 
-    value_and_gradient = jax.jit(jax.value_and_grad(Target))
+    tkp_loops = any(
+        kind == 'loop' and
+        any(self.tkp.Owns(member.name) for member in content.members)
+        for kind, content, unused_functions in stage_functions)
+
+    if tkp_loops and hasattr(jax, 'suspend_tape'):
+      # The suspended TKP sweeps must re-run per step (the top-k
+      # selection follows theta); a compiled cache would freeze their
+      # trace-step proofs. Uncompiled, the tape holds only the small
+      # differentiable tail — the probability polynomial.
+      value_and_gradient = jax.value_and_grad(Target)
+    else:
+      value_and_gradient = jax.jit(jax.value_and_grad(Target))
 
     trace = os.getenv('LOGICA_NEURAL_TRACE')
     previous = None
@@ -2082,8 +2124,6 @@ class NeuralTargetPlan(NeuralPlan):
     converged = False
     for steps_done in range(1, self.steps + 1):
       value, gradient = value_and_gradient(parameters)
-      parameters = {p: parameters[p] - self.learning_rate * gradient[p]
-                    for p in self.learned}
       value = float(value)
       if trace and (steps_done & (steps_done - 1)) == 0:  # Powers of two.
         norms = ' '.join(
@@ -2091,9 +2131,16 @@ class NeuralTargetPlan(NeuralPlan):
             for p in self.learned)
         print('step %d: target %g %s' % (steps_done, float(value), norms))
       if not math.isfinite(value):
+        if tkp_loops:
+          # A compiled step cannot raise on a TKP capacity overflow —
+          # it poisons the loss to NaN instead. An eager probe of the
+          # very parameters of this step raises the precise error.
+          Probe(parameters, 'the capacity diagnosis')
         Error('Training of %s diverged (the target is %s at step %d); '
               'lower the learning_rate.' %
               (color.Warn(self.target), value, steps_done), self.target)
+      parameters = {p: parameters[p] - self.learning_rate * gradient[p]
+                    for p in self.learned}
       if previous is not None and abs(previous - value) <= self.epsilon:
         converged = True
         break
@@ -2101,9 +2148,7 @@ class NeuralTargetPlan(NeuralPlan):
       if progress and steps_done % 64 == 0:
         progress(steps_done)
 
-    if any(kind == 'loop' and
-           any(self.tkp.Owns(member.name) for member in content.members)
-           for kind, content, unused_functions in stage_functions):
+    if tkp_loops:
       # The loud half of the TKP horizon contract: training unrolled
       # the full declared bound, and the learned parameters must still
       # stabilize within it, or the reported fixpoint is truncated.

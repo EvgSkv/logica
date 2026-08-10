@@ -40,12 +40,20 @@ from compiler import tkp_logica
  SlotValidity) = tkp_logica.MakeTensorOps(onp, onp)
 
 
-def MakeIncidence(proofs, n):
-  """Fact-index proofs -> incidence slots (c, n+1)."""
-  slots = onp.zeros((len(proofs), n + 1))
+def MakeSlots(proofs, n, length=None):
+  """Fact-index proofs -> sparse slots (c, L): ascending ids + PAD.
+
+  The harness capacity defaults to L = n, so FALSE = n and PAD = n + 1
+  are recoverable from the shape alone (SlotsAsSets relies on that);
+  capacity tests pass an explicit smaller length."""
+  length = n if length is None else length
+  slots = onp.full((len(proofs), length), n + 1, dtype=onp.int64)
   for position, proof in enumerate(proofs):
-    for fact in proof:
-      slots[position, fact] = 1.0
+    ids = sorted(proof)
+    assert len(ids) <= length, (ids, length)
+    if not ids:
+      slots[position, 0] = n  # FALSE: an empty slot.
+    slots[position, :len(ids)] = ids
   return slots
 
 
@@ -66,13 +74,17 @@ def ReferenceValue(proofs, theta):
   return value
 
 
-def SlotsAsSets(slots):
-  """Incidence slots -> list of fact-index frozensets, FALSE slots out."""
+def SlotsAsSets(slots, n=None):
+  """Sparse slots -> list of fact-index frozensets, FALSE slots out.
+
+  With the harness convention L = n the boundary of the real ids is
+  the capacity itself; capacity tests pass n explicitly."""
+  n = slots.shape[-1] if n is None else n
   result = []
   for row in slots:
-    if row[-1] > 0:
+    if n in row:
       continue
-    result.append(frozenset(int(i) for i in onp.nonzero(row)[0]))
+    result.append(frozenset(int(i) for i in row if i < n))
   return result
 
 
@@ -98,8 +110,8 @@ def TestTopKAgainstReference(trials=300):
     theta = rng.sample(range(1, 1000), n)
     theta = onp.array([p / 1000.0 for p in theta])
     proofs = RandomProofs(rng, n, rng.randint(1, 10))
-    theta_ext = onp.concatenate([theta, onp.zeros(1)])
-    tensor_slots = TopK(MakeIncidence(proofs, n), theta_ext, k)
+    theta_ext = onp.concatenate([theta, [0.0, 1.0, onp.nan]])
+    tensor_slots = TopK(MakeSlots(proofs, n), theta_ext, k)
     tensor_sets = SlotsAsSets(tensor_slots)
     reference = tkp.TkpTop(ReferenceValue(proofs, theta), k)
     reference_sets = ReferenceAsSets(reference)
@@ -112,8 +124,8 @@ def TestTopKAgainstReference(trials=300):
 def TestAbsorption():
   """A superset must be absorbed by its likelier subset."""
   n = 5
-  theta_ext = onp.concatenate([onp.full(n, 0.5), onp.zeros(1)])
-  slots = MakeIncidence([{0, 1, 2}, {0, 1}, {3}], n)
+  theta_ext = onp.concatenate([onp.full(n, 0.5), [0.0, 1.0, onp.nan]])
+  slots = MakeSlots([{0, 1, 2}, {0, 1}, {3}], n)
   top = TopK(slots, theta_ext, 3)
   survived = SlotsAsSets(top)
   assert survived == [frozenset({3}), frozenset({0, 1})], survived
@@ -123,10 +135,10 @@ def TestAbsorption():
 def TestFalsePadding():
   """Fewer candidates than k: FALSE slots pad, validity masks them."""
   n = 4
-  theta_ext = onp.concatenate([onp.full(n, 0.5), onp.zeros(1)])
-  top = TopK(MakeIncidence([{0}], n), theta_ext, 3)
-  assert top.shape == (3, n + 1), top.shape
-  validity = SlotValidity(top)
+  theta_ext = onp.concatenate([onp.full(n, 0.5), [0.0, 1.0, onp.nan]])
+  top = TopK(MakeSlots([{0}], n), theta_ext, 3)
+  assert top.shape == (3, n), top.shape
+  validity = SlotValidity(top, theta_ext)
   assert list(validity) == [True, False, False], validity
   # The FALSE fact must keep padded slots out of the probability.
   probability = Probability(top, theta_ext, 3)
@@ -144,21 +156,45 @@ def TestSubsetEarlierAxes():
   the earlier (likelier) proof absorbs the later superset, never the
   other way around: {0} absorbs {0,1}; {0,1} must not absorb {0}."""
   n = 3
-  theta_ext = onp.concatenate([onp.array([0.9, 0.1, 0.5]), onp.zeros(1)])
-  top = TopK(MakeIncidence([{0, 1}, {0}], n), theta_ext, 2)
+  theta_ext = onp.concatenate([onp.array([0.9, 0.1, 0.5]), [0.0, 1.0, onp.nan]])
+  top = TopK(MakeSlots([{0, 1}, {0}], n), theta_ext, 2)
   survived = SlotsAsSets(top)
   assert survived == [frozenset({0})], survived
   return 0
 
 
 def TestConjoinBroadcast():
-  """Conjoin unions bit vectors across slot pairs."""
+  """Conjoin unions sorted id slots across slot pairs."""
   n = 4
-  a = MakeIncidence([{0}, {1}], n)
-  b = MakeIncidence([{2}, {3}], n)
-  u = Conjoin(a, b)
+  theta_ext = onp.concatenate([onp.full(n, 0.5), [0.0, 1.0, onp.nan]])
+  a = MakeSlots([{0}, {1}], n)
+  b = MakeSlots([{2}, {3}], n)
+  u = Conjoin(a, b, theta_ext)
   assert SlotsAsSets(u) == [frozenset({0, 2}), frozenset({0, 3}),
                             frozenset({1, 2}), frozenset({1, 3})]
+  return 0
+
+
+def TestConjoinCapacityLoud():
+  """Overflowing the slot capacity raises; a dead union does not.
+
+  The capacity bounds STORED proofs only: eagerly a conjunction that
+  builds a proof of more than L real facts raises TkpCapacityError
+  (inside a compiled step the slot would turn POISON instead and NaN
+  the loss). A union with FALSE is dead and collapses to FALSE — its
+  real ids must not count against the capacity."""
+  n, length = 5, 2
+  theta_ext = onp.concatenate([onp.full(n, 0.5), [0.0, 1.0, onp.nan]])
+  a = MakeSlots([{0, 1}], n, length)
+  try:
+    Conjoin(a, MakeSlots([{2}], n, length), theta_ext)
+    assert False, 'a 3-fact proof must not fit the capacity of 2'
+  except tkp_logica.TkpCapacityError:
+    pass
+  fits = Conjoin(a, MakeSlots([{1}], n, length), theta_ext)
+  assert SlotsAsSets(fits, n) == [frozenset({0, 1})]
+  dead = Conjoin(a, MakeSlots([set()], n, length), theta_ext)
+  assert SlotsAsSets(dead, n) == [], SlotsAsSets(dead, n)
   return 0
 
 
@@ -172,9 +208,9 @@ def TestProbabilityAgainstReference(trials=200):
     proofs = RandomProofs(rng, n, rng.randint(1, 6))
     reference = tkp.TkpTop(ReferenceValue(proofs, theta), 6)
     reference_probability = tkp.TkpProbability(reference)
-    slots = MakeIncidence(ReferenceAsSets(reference), n)
+    slots = MakeSlots(ReferenceAsSets(reference), n)
     k = slots.shape[0]
-    theta_ext = onp.concatenate([theta, onp.zeros(1)])
+    theta_ext = onp.concatenate([theta, [0.0, 1.0, onp.nan]])
     tensor_probability = float(Probability(slots, theta_ext, k))
     if abs(tensor_probability - reference_probability) > 1e-9:
       failures += 1
@@ -198,8 +234,8 @@ def TestTieBreakMinimal():
   theta = onp.array([.5, .5, .6, .6, .8])
   proofs = [{0, 4}, {0, 2}, {1, 3}]
   n, k = 5, 2
-  theta_ext = onp.concatenate([theta, onp.zeros(1)])
-  slots = TopK(MakeIncidence(proofs, n), theta_ext, k)
+  theta_ext = onp.concatenate([theta, [0.0, 1.0, onp.nan]])
+  slots = TopK(MakeSlots(proofs, n), theta_ext, k)
   survived = SlotsAsSets(slots)
   assert survived == [frozenset({0, 4}), frozenset({0, 2})], survived
   probability = float(Probability(slots, theta_ext, k))
@@ -224,8 +260,8 @@ def TestTiesAgainstReference(trials=300):
     values = [0.25, 0.5, 0.5, 0.5, 1.0]
     theta = onp.array([rng.choice(values) for _ in range(n)])
     proofs = RandomProofs(rng, n, rng.randint(1, 10))
-    theta_ext = onp.concatenate([theta, onp.zeros(1)])
-    tensor_sets = SlotsAsSets(TopK(MakeIncidence(proofs, n), theta_ext, k))
+    theta_ext = onp.concatenate([theta, [0.0, 1.0, onp.nan]])
+    tensor_sets = SlotsAsSets(TopK(MakeSlots(proofs, n), theta_ext, k))
     reference_sets = ReferenceAsSets(
         tkp.TkpTop(ReferenceValue(proofs, theta), k))
     if tensor_sets != reference_sets:
@@ -237,8 +273,8 @@ def TestTiesAgainstReference(trials=300):
 def TestTieDeterminism():
   """Repeated canonicalization of a tied pool is bit-stable."""
   n = 6
-  theta_ext = onp.concatenate([onp.full(n, 0.5), onp.zeros(1)])
-  pool = MakeIncidence([{0, 1}, {2, 3}, {4, 5}, {1, 2}], n)
+  theta_ext = onp.concatenate([onp.full(n, 0.5), [0.0, 1.0, onp.nan]])
+  pool = MakeSlots([{0, 1}, {2, 3}, {4, 5}, {1, 2}], n)
   first = TopK(pool, theta_ext, 2)
   for _ in range(5):
     again = TopK(onp.array(pool), theta_ext, 2)
@@ -390,8 +426,8 @@ def TestThetaDependentHorizon():
   checks that the bound suffices."""
   chain, direct = 9, 8   # c_i: v_i->v_{i+1} (0..8); d_i: v0->v_i (2..9).
   n = chain + direct
-  false_slot = onp.zeros(n + 1)
-  false_slot[-1] = 1.0
+  false_slot = onp.full(n, n + 1, dtype=onp.int64)
+  false_slot[0] = n
 
   def Sweep(reach, theta_ext, k):
     new_reach = {}
@@ -399,10 +435,11 @@ def TestThetaDependentHorizon():
       pool = [{9 + v - 2}] if v >= 2 else []   # The direct edge d_v.
       if v == 1:
         pool.append({0})                       # The chain edge c_0.
-      slots = MakeIncidence(pool, n)
+      slots = MakeSlots(pool, n)
       if v >= 2:
-        step = MakeIncidence([{v - 1}], n)     # The chain edge c_{v-1}.
-        slots = onp.concatenate([slots, Conjoin(reach[v - 1], step)])
+        step = MakeSlots([{v - 1}], n)     # The chain edge c_{v-1}.
+        slots = onp.concatenate(
+            [slots, Conjoin(reach[v - 1], step, theta_ext)])
       new_reach[v] = TopK(slots, theta_ext, k)
     return new_reach
 
@@ -418,13 +455,13 @@ def TestThetaDependentHorizon():
     return reach, stable_at
 
   star = onp.concatenate(
-      [onp.full(chain, 0.4), onp.full(direct, 0.9), onp.zeros(1)])
+      [onp.full(chain, 0.4), onp.full(direct, 0.9), [0.0, 1.0, onp.nan]])
   unused_reach, stable_at = RunSweeps(star, 12)
   assert stable_at is not None and stable_at <= 3, stable_at
   frozen = stable_at + 2                       # The old probe contract.
 
   chainy = onp.concatenate(
-      [onp.full(chain, 0.95), onp.full(direct, 0.05), onp.zeros(1)])
+      [onp.full(chain, 0.95), onp.full(direct, 0.05), [0.0, 1.0, onp.nan]])
   truncated, unused = RunSweeps(chainy, frozen)
   full, full_stable = RunSweeps(chainy, 12)
   assert full_stable is not None and full_stable <= 12, full_stable
@@ -452,8 +489,8 @@ def TestTruncationLossContract():
   orders of magnitude below the true one."""
   import math
   n = 100
-  theta_ext = onp.concatenate([onp.full(n, 0.1), onp.zeros(1)])
-  slots = TopK(MakeIncidence([{i} for i in range(n)], n), theta_ext, 1)
+  theta_ext = onp.concatenate([onp.full(n, 0.1), [0.0, 1.0, onp.nan]])
+  slots = TopK(MakeSlots([{i} for i in range(n)], n), theta_ext, 1)
   p_stored = float(Probability(slots, theta_ext, 1))
   assert abs(p_stored - 0.1) < 1e-12, p_stored
   p_full = 1.0 - 0.9 ** n
@@ -476,8 +513,8 @@ def TestWhackTheTop():
   pools = [{i} for i in range(n)]
 
   def Step(theta):
-    theta_ext = onp.concatenate([theta, onp.zeros(1)])
-    slots = TopK(MakeIncidence(pools, n), theta_ext, 1)
+    theta_ext = onp.concatenate([theta, [0.0, 1.0, onp.nan]])
+    slots = TopK(MakeSlots(pools, n), theta_ext, 1)
     (stored,) = SlotsAsSets(slots)
     (fact,) = stored
     updated = theta.copy()
@@ -492,6 +529,34 @@ def TestWhackTheTop():
   for unused_step in range(40):
     theta = Step(theta)
   assert onp.all(theta < 0.4), theta            # Eventually all pushed.
+  return 0
+
+
+def TestFiveByFiveScale():
+  """The 5x5 grid world's shapes must stay linear in the pool size.
+
+  The exact configuration that once crashed a Colab: 625 key cells,
+  a doubling composition pool of 25 * 4^2 + 1 = 401 candidates, L=10.
+  The greedy TopK touches k * c * 2L ids per cell — a few dozen MB;
+  the pairwise-subset days materialized c^2 * L^2 (160 GB at L=40).
+  tracemalloc guards the ceiling so the quadratic never returns."""
+  import tracemalloc
+  rng = random.Random(17)
+  n, length, cells, c, k = 40, 10, 625, 401, 4
+  theta = onp.array([rng.uniform(0.3, 0.9) for _ in range(n)])
+  theta_ext = onp.concatenate([theta, [0.0, 1.0, onp.nan]])
+  pool = onp.full((cells, c, length), n + 1, dtype=onp.int32)
+  for cell in range(0, cells, 50):  # A sparse sample of busy cells.
+    for candidate in range(c):
+      ids = sorted(rng.sample(range(n), rng.randint(1, 8)))
+      pool[cell, candidate, :len(ids)] = ids
+  tracemalloc.start()
+  top = TopK(pool, theta_ext, k)
+  unused_current, peak = tracemalloc.get_traced_memory()
+  tracemalloc.stop()
+  assert top.shape == (cells, k, length), top.shape
+  budget = 60 * c * cells * length  # ~15 live k*c*2L-sized tensors.
+  assert peak < budget, (peak, budget)
   return 0
 
 
@@ -520,6 +585,7 @@ def main():
   failures += TestFalsePadding()
   failures += TestSubsetEarlierAxes()
   failures += TestConjoinBroadcast()
+  failures += TestConjoinCapacityLoud()
   failures += TestProbabilityAgainstReference()
   failures += TestTieBreakMinimal()
   failures += TestTiesAgainstReference()
@@ -532,6 +598,7 @@ def main():
   failures += TestThetaDependentHorizon()
   failures += TestTruncationLossContract()
   failures += TestWhackTheTop()
+  failures += TestFiveByFiveScale()
   failures += TestIsFunctionalUncompilable()
   print('tkp_tensor_test: failures: %d' % failures)
   return 1 if failures else 0

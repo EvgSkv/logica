@@ -1211,6 +1211,19 @@ static std::optional<std::pair<std::string, SpanString>> ParseGenericCall(const 
           return true;
         };
         if ((idx > 0 && all_good()) || pred == "!" || pred == "++?" || (idx >= 2 && s.at(0) == '`' && s.at(idx - 1) == '`')) {
+          if (!pred.empty() && pred[0] == '-') {
+            // A minus may occur inside a name, but an ALPHANUMERIC
+            // name never starts with one: -A() is the unary minus of
+            // A(), not a call of predicate '-A'. A purely symbolic
+            // operator name like -+-(left:, right:) legitimately does
+            // start with a minus. ('->' is specialcased above.)
+            for (char c : pred) {
+              if ((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') ||
+                  (c >= '0' && c <= '9') || c == '_') {
+                return std::nullopt;
+              }
+            }
+          }
           predicate = pred;
           break;
         }

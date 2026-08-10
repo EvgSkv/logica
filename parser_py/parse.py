@@ -888,10 +888,14 @@ def ParseGenericCall(s, opening, closing):
             s[:idx] == '++?' or
             idx >= 2 and s[0] == '`' and s[idx - 1] == '`'):
           predicate = s[:idx]
-          if predicate.startswith('-'):
-            # A minus may occur inside a name, but a name never starts
-            # with one: -A() is the unary minus of A(), not a call of
-            # predicate '-A'. ('->' is specialcased above.)
+          if (predicate.startswith('-') and
+              any(c in string.ascii_letters + string.digits + '_'
+                  for c in predicate)):
+            # A minus may occur inside a name, but an ALPHANUMERIC
+            # name never starts with one: -A() is the unary minus of
+            # A(), not a call of predicate '-A'. A purely symbolic
+            # operator name like -+-(left:, right:) legitimately does
+            # start with a minus. ('->' is specialcased above.)
             return None
           break
         else:

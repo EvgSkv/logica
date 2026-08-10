@@ -523,93 +523,205 @@ def RewriteProbabilityReads(rule, world, definitions):
 ###############################################################################
 # V. Member classes and the tensor algebra.
 #
-# The incidence of a proof is an (n+1,) vector over the facts of the
-# probability predicate; the last bit is a virtual FALSE fact of
-# probability 0 marking empty slots. The state value of a TKP member:
-# (mask over keys, incidences of shape (keys..., slots, n+1)).
+# A proof is stored SPARSELY: a slot is an ascending vector of L fact
+# ids, L = min(n_facts, tkp_max_proof_length of @Engine). Real facts
+# are 0..n-1; three virtual ids follow:
+#   n     FALSE  — a dead or empty slot, probability 0;
+#   n+1   PAD    — past the end of the proof, probability 1;
+#   n+2   POISON — a slot that overflowed its capacity, probability
+#          NaN. A compiled training step cannot raise, so the overflow
+#          is sticky-loud instead: the poisoned slot outranks
+#          everything, the loss turns NaN, and the training loop
+#          diagnoses the NaN with an eager re-probe — where the same
+#          overflow raises TkpCapacityError with the precise message.
+# theta_ext = fact probabilities extended with [0, 1, NaN]; the ops
+# recover n_facts from its length. The state value of a TKP member:
+# (mask over keys, slot ids of shape (keys..., slots, L), int32).
+# Capacity limits only STORED proofs; the unions inside the
+# inclusion-exclusion are transient and never truncated.
+
+
+class TkpCapacityError(TkpCompileException):
+  """A proof does not fit the configured tkp_max_proof_length."""
 
 
 def MakeTensorOps(jnp, onp):
-  """Operations over proof slots; a port of the tkp_tensor prototype."""
+  """Operations over sparse proof slots.
 
-  def ProofProb(inc, theta_ext):
-    return jnp.exp(jnp.sum(inc * jnp.log(theta_ext + 1e-30), axis=-1))
+  Every operation receives theta_ext of length n_facts + 3; the
+  capacity L is the trailing dimension of the slot ids themselves.
+  Slots are ascending; the virtual ids (FALSE < PAD < POISON) sort
+  after the real facts, except that POISON slots are normalized to
+  [POISON, PAD...] so the mark survives any truncation."""
 
-  def RankProb(inc, theta_ext):
+  def Virtual(theta_ext):
+    n = int(theta_ext.shape[-1]) - 3
+    return n, n + 1, n + 2
+
+  def FirstMask(ids):
+    """First occurrence of each id in an ascending slot."""
+    head = onp.ones(tuple(ids.shape[:-1]) + (1,), dtype=bool)
+    return jnp.concatenate([head, ids[..., 1:] != ids[..., :-1]],
+                           axis=-1)
+
+  def Theta(ids, theta_ext):
+    """theta at the slot ids, via a LIVE index (ids change per step)."""
+    spread = jnp.broadcast_to(theta_ext,
+                              ids.shape[:-1] + theta_ext.shape[-1:])
+    return jnp.take_along_axis(spread, ids, -1)
+
+  def ProofProb(ids, theta_ext):
+    """Differentiable probability of ascending slots: (..., L) -> (...).
+
+    Duplicates (unions concatenate before sorting) count once through
+    the first-occurrence mask; PAD contributes log(1) = 0, FALSE sinks
+    the product to ~0, POISON turns it NaN. The summation runs in
+    ascending fact order — bit-identical to the dense representation."""
+    t = Theta(ids, theta_ext)
+    return jnp.exp(jnp.sum(
+        jnp.where(FirstMask(ids), jnp.log(t + 1e-30), 0.0), axis=-1))
+
+  def RankProb(ids, theta_ext):
     """Exact product probability, for RANKING only.
 
-    Multiplies theta directly (a factor of exact 1.0 per absent fact),
-    so that coincidentally equal products — 0.25*1.0 against 0.5*0.5 —
-    tie bit-exactly, as they do in the reference, and fall through to
-    the lexicographic keys. ProofProb goes through exp-sum-log and
-    breaks such ties with rounding noise. Ranks carry no gradient
-    (they only pick slots), so the product needs no gradient rule."""
-    return jnp.prod(inc * theta_ext + (1.0 - inc), axis=-1)
+    Multiplies theta directly (an exact 1.0 per PAD), so that
+    coincidentally equal products — 0.25*1.0 against 0.5*0.5 — tie
+    bit-exactly, as they do in the reference, and fall through to the
+    lexicographic keys. Ranks carry no gradient (they only pick
+    slots), so the product needs no gradient rule."""
+    t = Theta(ids, theta_ext)
+    return jnp.prod(jnp.where(FirstMask(ids), t, 1.0), axis=-1)
 
-  def LexKeys(inc):
+  def LexKeys(ids, false_id):
     """Tie-break keys realizing the reference ProofIdentity order.
 
-    Key i = the i-th smallest fact index of the slot, or -1 past the
-    end of the proof: a proof that is a prefix of another sorts first,
-    exactly like the shorter of two identity strings. Bit-exact for any
-    number of facts (a weighted-sum scalar key loses bits past float
-    precision) — with the fact axis standing in for the identity
-    order; where the identity strings of the world order differently
-    than its fact rows, the cross-side tie-break tolerance remains.
+    An ascending slot IS the positional key vector; every virtual id
+    maps to the -1 sentinel, so a proof that is a prefix of another
+    sorts first, exactly like the shorter of two identity strings.
     Returns a tuple of keys, most significant first, for jnp.lexsort
     (which wants its primary key LAST)."""
-    n = inc.shape[-1]
-    positions = jnp.where(inc > 0, onp.arange(n) * 1.0, n * 1.0)
-    ordered = jnp.sort(positions, axis=-1)
-    ordered = jnp.where(ordered == n, -1.0, ordered)
-    return tuple(ordered[..., i] for i in reversed(range(n)))
+    keys = jnp.where(ids >= false_id, -1, ids)
+    return tuple(keys[..., i]
+                 for i in reversed(range(int(ids.shape[-1]))))
+
+  def Rows(length, false_id, pad_id, poison_id):
+    false_row = onp.full(length, pad_id, dtype=onp.int32)
+    false_row[0] = false_id
+    poison_row = onp.full(length, pad_id, dtype=onp.int32)
+    poison_row[0] = poison_id
+    return false_row, poison_row
+
+  def Conjoin(a, b, theta_ext):
+    """(..., ka, L) x (..., kb, L) -> (..., ka*kb, L): sorted union.
+
+    A union containing FALSE is dead: it collapses to the pure FALSE
+    slot (so its real ids do not count against capacity), and a union
+    inheriting POISON stays POISON. A union of more than L real facts
+    cannot be stored: eagerly that raises TkpCapacityError; inside a
+    compiled step the slot turns POISON instead."""
+    false_id, pad_id, poison_id = Virtual(theta_ext)
+    length = int(a.shape[-1])
+    ka, kb = int(a.shape[-2]), int(b.shape[-2])
+    base = tuple(a.shape[:-2])
+    u = jnp.concatenate([
+        jnp.broadcast_to(a[..., :, None, :], base + (ka, kb, length)),
+        jnp.broadcast_to(b[..., None, :, :], base + (ka, kb, length)),
+    ], axis=-1)
+    u = u.reshape(base + (ka * kb, 2 * length))
+    s = jnp.sort(u, axis=-1)
+    s = jnp.where(FirstMask(s), s, pad_id)
+    false_row, poison_row = Rows(2 * length, false_id, pad_id, poison_id)
+    dead = jnp.any(s == false_id, axis=-1)
+    s = jnp.where(dead[..., None], false_row, s)
+    s = jnp.sort(s, axis=-1)
+    overflow = jnp.sum(jnp.where(s < false_id, 1, 0), axis=-1) > length
+    poisoned = overflow | jnp.any(s == poison_id, axis=-1)
+    s = jnp.where(poisoned[..., None], poison_row, s)
+    LoudCapacity(overflow, length)
+    return s[..., :length]
+
+  def LoudCapacity(overflow, length):
+    """Raise on overflow when the value is concrete (eager or probe).
+
+    Under a jax trace the bool() conversion throws and the POISON path
+    stays in charge; the compiled-cache path of logix likewise relies
+    on POISON, since a trace-time check would bake into the cache."""
+    try:
+      flagged = bool(jnp.any(overflow))
+    except TypeError:
+      return
+    if flagged:
+      raise TkpCapacityError(
+          'TKP: proof capacity exceeded — a conjunction built a proof '
+          'of more than %d facts. Raise tkp_max_proof_length of '
+          '@Engine (or set it, if absent).' % length, 'TKP runtime')
 
   def TopK(candidates, theta_ext, k):
-    """(..., c, n+1) -> (..., k, n+1): absorption, ranking, top-k."""
-    probs = RankProb(candidates, theta_ext)
-    order = jnp.lexsort(LexKeys(candidates) + (-probs,), axis=-1)
-    inc_sorted = jnp.take_along_axis(candidates, order[..., None], axis=-2)
-    a = inc_sorted[..., None, :, :]
-    b = inc_sorted[..., :, None, :]
-    subset = jnp.sum(b * (1.0 - a), axis=-1) == 0
-    c = candidates.shape[-2]
-    # earlier[i, j]: candidate i precedes j in the canonical order —
-    # only an earlier (likelier) proof may absorb a later superset.
-    earlier = onp.triu(onp.ones((c, c)), 1) > 0
-    absorbed = jnp.any(subset & earlier, axis=-2)
-    probs_sorted = jnp.take_along_axis(probs, order, axis=-1)
-    rank_probs = jnp.where(absorbed, -1.0, probs_sorted)
-    order2 = jnp.lexsort(LexKeys(inc_sorted) + (-rank_probs,), axis=-1)
-    inc_final = jnp.take_along_axis(inc_sorted, order2[..., None], axis=-2)
-    dead = jnp.take_along_axis(absorbed, order2, axis=-1)
-    false_slot = onp.zeros(candidates.shape[-1])
-    false_slot[-1] = 1.0
-    inc_final = jnp.where(dead[..., None], false_slot, inc_final)
-    if c < k:  # pad with empty slots up to k
-      pad = jnp.broadcast_to(
-          jnp.asarray(false_slot),
-          inc_final.shape[:-2] + (k - c, candidates.shape[-1]))
-      return jnp.concatenate([inc_final, pad], axis=-2)
-    return inc_final[..., :k, :]
+    """(..., c, L) -> (..., k, L): the reference greedy canonicalization.
 
-  def Conjoin(a, b):
-    """(..., ka, n+1) x (..., kb, n+1) -> (..., ka*kb, n+1): bit union."""
-    u = jnp.maximum(a[..., :, None, :], b[..., None, :, :])
-    return u.reshape(u.shape[:-3] + (-1, u.shape[-1]))
+    Candidates presort canonically (probability desc, lexicographic
+    ties); then k rounds each keep the first live candidate and retire
+    its supersets — absorption exactly as the reference Canonicalize,
+    where only KEPT proofs absorb. The subset test is one sorted merge:
+    a kept proof is a subset of a candidate exactly when their union
+    holds no more distinct non-virtual ids than the candidate (FALSE
+    participates like a fact, PAD and POISON are vacuous). Cost is
+    k * c * 2L with no pairwise candidate matrix — a c^2 * L^2
+    broadcast here once materialized 160 GB on a 5x5 grid world.
+    Fewer than k live candidates pad the tail with FALSE slots."""
+    false_id, pad_id, poison_id = Virtual(theta_ext)
+    length = int(candidates.shape[-1])
+    probs = RankProb(candidates, theta_ext)
+    probs = jnp.where(probs != probs, onp.inf, probs)  # POISON outranks.
+    order = jnp.lexsort(LexKeys(candidates, false_id) + (-probs,),
+                        axis=-1)
+    ids = jnp.take_along_axis(candidates, order[..., None], axis=-2)
+    false_row, unused_poison_row = Rows(length, false_id, pad_id,
+                                        poison_id)
+    occupancy = jnp.sum(jnp.where(ids <= false_id, 1, 0), axis=-1)
+    alive = onp.ones(tuple(ids.shape[:-1]), dtype=bool)
+    kept_slots = []
+    for unused_round in range(k):
+      first = alive & (jnp.cumsum(jnp.where(alive, 1, 0), axis=-1) == 1)
+      any_alive = jnp.any(alive, axis=-1)
+      kept = jnp.max(jnp.where(first[..., None], ids, -1), axis=-2)
+      kept = jnp.where(any_alive[..., None], kept, false_row)
+      kept_slots.append(kept[..., None, :])
+      union = jnp.sort(jnp.concatenate(
+          [jnp.broadcast_to(kept[..., None, :], tuple(ids.shape)), ids],
+          axis=-1), axis=-1)
+      grown = jnp.sum(
+          jnp.where(FirstMask(union) & (union <= false_id), 1, 0),
+          axis=-1)
+      # The kept proof absorbs (and itself retires) where it grew
+      # nothing; the exhausted cells have alive already empty.
+      alive = alive & (grown != occupancy)
+    return jnp.concatenate(kept_slots, axis=-2)
 
   def Probability(slots, theta_ext, k):
-    """(..., k, n+1) -> (...): inclusion-exclusion, 2^k - 1 terms."""
+    """(..., k, L) -> (...): inclusion-exclusion, 2^k - 1 terms.
+
+    Unions are transient (r*L ids, sorted, duplicates masked inside
+    ProofProb) — the storage capacity does not bound them."""
     import itertools
     total = 0.0
     for r in range(1, k + 1):
       for subset in itertools.combinations(range(k), r):
-        union = jnp.max(slots[..., list(subset), :], axis=-2)
+        union = jnp.sort(
+            slots[..., list(subset), :].reshape(
+                slots.shape[:-2] + (r * int(slots.shape[-1]),)),
+            axis=-1)
         total = total + (-1.0) ** (r + 1) * ProofProb(union, theta_ext)
     return total
 
-  def SlotValidity(slots):
-    """A slot is real when it has no FALSE bit and is nonempty."""
-    return (slots[..., -1] == 0) & (jnp.sum(slots, axis=-1) > 0)
+  def SlotValidity(slots, theta_ext):
+    """A slot is real when it has no FALSE id and is nonempty.
+
+    A POISON slot counts as valid: its NaN must reach the loss."""
+    false_id, pad_id, unused_poison_id = Virtual(theta_ext)
+    has_false = jnp.any(slots == false_id, axis=-1)
+    nonempty = jnp.any(slots != pad_id, axis=-1)
+    return (~has_false) & nonempty
 
   return ProofProb, LexKeys, TopK, Conjoin, Probability, SlotValidity
 
@@ -898,14 +1010,40 @@ class TkpPlan(object):
                 color.Warn(predicate), missing, covered.size,
                 color.Warn(predicate)), plan.target)
 
+  def ProofLength(self, plan, n_facts):
+    """The slot capacity L = min(n_facts, tkp_max_proof_length).
+
+    tkp_max_proof_length lives in @Engine next to tensor_engine. It is
+    a storage capacity, never a semantic truncation: a real proof
+    beyond it is a loud TkpCapacityError. Without it L = n_facts — the
+    proven ceiling (a proof is a set) — which on a large world makes
+    the sparse layout as heavy as the dense one; hence the warning."""
+    settings = plan.program.annotations.annotations.get(
+        '@Engine', {}).get(plan.engine, {})
+    cap = settings.get('tkp_max_proof_length')
+    if cap is None:
+      if n_facts > 64 and not getattr(self, 'warned_capacity', False):
+        self.warned_capacity = True
+        print('Warning: TKP stores proofs of up to %d facts (the '
+              'whole fact axis); set tkp_max_proof_length in @Engine '
+              'to bound the slot capacity.' % n_facts)
+      return n_facts
+    return min(n_facts, int(cap))
+
+  def FalseSlot(self, plan, onp):
+    """[FALSE, PAD, PAD, ...] of the world's capacity."""
+    unused_p, unused_positions, n_facts = self.FactAxis(plan)
+    length = self.ProofLength(plan, n_facts)
+    slot = onp.full(length, n_facts + 1, dtype=onp.int32)
+    slot[0] = n_facts
+    return slot
+
   def EmptyState(self, plan, member, domains, jnp, onp):
     """The empty loop state of a TKP member: all slots FALSE."""
     shape = tuple(len(domains[t]) for t in member.key_types)
-    unused_p, unused_positions, n_facts = self.FactAxis(plan)
-    false_slot = onp.zeros(n_facts + 1)
-    false_slot[-1] = 1.0
+    false_slot = self.FalseSlot(plan, onp)
     values = jnp.broadcast_to(jnp.asarray(false_slot),
-                              shape + (member.slots, n_facts + 1))
+                              shape + (member.slots, len(false_slot)))
     return (jnp.zeros(shape, dtype=bool), values)
 
 
@@ -914,10 +1052,9 @@ class TkpPlan(object):
 # VII. Runtime compilers: one per member kind, sharing a small context.
 #
 # The state contract: a TKP member's state entry is a pair
-#   (mask over keys..., incidences of shape (keys..., slots, n_facts+1)),
-# where the last incidence bit is the virtual FALSE fact marking empty
-# slots. theta_ext is the fact probability vector extended with that
-# FALSE fact's probability 0.
+#   (mask over keys..., slot ids of shape (keys..., slots, L)),
+# with the id vocabulary of section V (facts, FALSE, PAD, POISON).
+# theta_ext is the fact probability vector extended with [0, 1, NaN].
 
 
 class _RuntimeContext(object):
@@ -935,21 +1072,37 @@ class _RuntimeContext(object):
     (self.probability_predicate, positions,
      self.n_facts) = self.tkp.FactAxis(self.plan)
     self.row_positions = tuple(onp.asarray(p) for p in positions)
-    self.false_slot = onp.zeros(self.n_facts + 1)
-    self.false_slot[-1] = 1.0
+    self.proof_length = self.tkp.ProofLength(self.plan, self.n_facts)
+    self.false_slot = self.tkp.FalseSlot(self.plan, onp)
 
   def ThetaExt(self, state, tensors):
-    """Fact probabilities at the fact rows, FALSE fact appended.
+    """Fact probabilities at the fact rows, virtual ids appended.
 
-    Shape: (n_facts + 1,). Differentiable: the values come from the
-    probability predicate's tensor (parameters overlay or cone
-    state)."""
+    Shape: (n_facts + 3,) — [facts..., FALSE 0, PAD 1, POISON NaN].
+    Differentiable: the values come from the probability predicate's
+    tensor (parameters overlay or cone state)."""
     if self.probability_predicate in state:
       unused_mask, values = state[self.probability_predicate]
     else:
       unused_mask, values = tensors[self.probability_predicate]
     theta = values[self.row_positions]
-    return self.jnp.concatenate([theta, self.jnp.zeros(1)])
+    virtual = self.onp.array([0.0, 1.0, self.onp.nan])
+    return self.jnp.concatenate([theta, self.jnp.asarray(virtual)])
+
+  def RankTheta(self, state, tensors):
+    """ThetaExt for the sweep phase: values only, the gradient cut.
+
+    Sweeps rank and select — their outputs are proof ids, structurally
+    outside the gradient; the loss recomputes probabilities from theta
+    afterwards. Cutting theta at the SCAN ENTRY (not the exit) is what
+    lets jax skip saving per-sweep linearization residuals, which once
+    cost gigabytes; logix achieves the same by suspending its tape."""
+    theta_ext = self.ThetaExt(state, tensors)
+    engine = getattr(self.plan, 'tensor_engine_module', None)
+    stop = getattr(getattr(engine, 'lax', None), 'stop_gradient', None)
+    if stop is not None:
+      return stop(theta_ext)
+    return theta_ext
 
   def ReadTkp(self, name, state, tensors):
     """A TKP member's (mask, incidences): loop portal, state, tensors."""
@@ -964,18 +1117,18 @@ class _RuntimeContext(object):
 def _AtomFunction(context, member):
   """The atom: a frozen base of one-fact proofs.
 
-  Output: mask (keys...), incidences (keys..., 1, n_facts+1) — slot 0
-  is the one-hot of the row's fact; absent cells hold FALSE."""
+  Output: mask (keys...), slot ids (keys..., 1, L) — the single slot
+  of a fact row is [row id, PAD...]; absent cells hold FALSE."""
   onp = context.onp
   jnp = context.jnp
   shape = tuple(len(context.runtime.domains[t])
                 for t in member.key_types)
   base_mask = onp.zeros(shape, dtype=bool)
-  base_inc = onp.tile(context.false_slot, shape + (1, 1))
+  base_ids = onp.tile(context.false_slot, shape + (1, 1))
   base_mask[context.row_positions] = True
-  base_inc[context.row_positions + (0, slice(None))] = 0.0
-  base_inc[context.row_positions + (0, onp.arange(context.n_facts))] = 1.0
-  frozen = (jnp.asarray(base_mask), jnp.asarray(base_inc))
+  # Positions 1+ hold PAD already (the tail of the FALSE slot).
+  base_ids[context.row_positions + (0, 0)] = onp.arange(context.n_facts)
+  frozen = (jnp.asarray(base_mask), jnp.asarray(base_ids))
 
   def EvaluateAtom(unused_state, unused_tensors):
     return frozen
@@ -1030,8 +1183,8 @@ def _DisjunctionFunction(context, member):
   def AlignRead(node, axes, axis_sizes, state, tensors):
     """A member read aligned to the contribution axes.
 
-    Input incidences: (read keys..., s, n+1); output:
-    (axis_sizes..., s, n+1) — read axes permuted into their positions
+    Input slot ids: (read keys..., s, L); output:
+    (axis_sizes..., s, L) — read axes permuted into their positions
     among `axes`, missing axes broadcast."""
     unused_name, read_vars = node[1], node[2]
     unused_mask, incidences = context.ReadTkp(node[1], state, tensors)
@@ -1053,21 +1206,24 @@ def _DisjunctionFunction(context, member):
     target = tuple(axis_sizes) + incidences.shape[-2:]
     return jnp.broadcast_to(incidences, target)
 
-  def EvalTree(node, axes, axis_sizes, state, tensors):
-    """A contribution tree -> candidates (axis_sizes..., c, n+1)."""
+  def EvalTree(node, axes, axis_sizes, state, tensors, theta_ext):
+    """A contribution tree -> candidates (axis_sizes..., c, L)."""
     if node[0] == 'read':
       return AlignRead(node, axes, axis_sizes, state, tensors)
-    left = EvalTree(node[1], axes, axis_sizes, state, tensors)
-    right = EvalTree(node[2], axes, axis_sizes, state, tensors)
-    return context.Conjoin(left, right)
+    left = EvalTree(node[1], axes, axis_sizes, state, tensors,
+                    theta_ext)
+    right = EvalTree(node[2], axes, axis_sizes, state, tensors,
+                     theta_ext)
+    return context.Conjoin(left, right, theta_ext)
 
   def EvaluateDisjunction(state, tensors):
-    theta_ext = context.ThetaExt(state, tensors)
+    theta_ext = context.RankTheta(state, tensors)
     pools = []
     for axes, head_count, tree, variable_class in compiled:
       axis_sizes = [len(context.runtime.domains[variable_class[v]])
                     for v in axes]
-      candidates = EvalTree(tree, axes, axis_sizes, state, tensors)
+      candidates = EvalTree(tree, axes, axis_sizes, state, tensors,
+                            theta_ext)
       join_count = len(axes) - head_count
       if join_count:  # Join axes fold into the candidate axis.
         candidates = candidates.reshape(
@@ -1075,7 +1231,8 @@ def _DisjunctionFunction(context, member):
       pools.append(candidates)
     pool = jnp.concatenate(pools, axis=-2)
     new_incidences = context.TopK(pool, theta_ext, member.k)
-    mask = jnp.any(context.SlotValidity(new_incidences), axis=-1)
+    mask = jnp.any(context.SlotValidity(new_incidences, theta_ext),
+                   axis=-1)
     return mask, new_incidences
 
   return EvaluateDisjunction

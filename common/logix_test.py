@@ -60,6 +60,14 @@ CASES = {
         sum(p['w'] * V * i for i in range(1, 4))),
     'concatenate': lambda np, p: np.sum(np.concatenate(
         [p['w'] * V, (p['w'] ** 2) * V], axis=0) * onp.arange(4.0)),
+    # A LIVE (data-dependent) index: the sparse-TKP theta gather. The
+    # index must ride the tape as data — a frozen one once baked a
+    # first-step index into the compiled cache.
+    'take_along_axis': lambda np, p: np.sum(np.take_along_axis(
+        np.broadcast_to((p['w'] * V).reshape((1, 2)), (3, 2)),
+        np.where(onp.array([[True, False], [True, True],
+                            [False, True]]), 0, 1), -1) *
+        onp.arange(6.0).reshape((3, 2))),
 }
 
 

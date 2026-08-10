@@ -275,6 +275,11 @@ def _Record(op, args):
   # `where` discards; their floating-point warnings are pure noise.
   with onp.errstate(invalid='ignore', divide='ignore', over='ignore'):
     value = _FORWARD[op](*values)
+  if getattr(_STATE, 'suspended', False):
+    # A suspended region retains nothing: no tape entry and no
+    # ancestry (args would chain-retain every intermediate of the
+    # region). The result is a plain constant.
+    return _Constant(value)
   tape = _Tape()
   traced = tape is not None and any(
       isinstance(a, Tensor) and a.node.recorded for a in args)
@@ -285,6 +290,26 @@ def _Record(op, args):
   else:
     node = Node(op, node_args, value)
   return Tensor(node)
+
+
+@contextlib.contextmanager
+def suspend_tape():
+  """A gradient-free region: compute plainly, retain nothing.
+
+  The TKP sweep phase runs here. Its state is integer proof ids —
+  structurally outside the gradient (theta only ranks, and ranks are
+  indices) — yet on the tape ten sweeps of intermediates once cost
+  gigabytes; and even off the tape, node ancestry chain-retains the
+  whole history. Inside the region every operation returns a plain
+  constant. NEVER use under a jit trace: the region would bake its
+  trace-step results into the compiled cache — run such functions
+  uncompiled (the TKP-on-logix training loop does)."""
+  previous = getattr(_STATE, 'suspended', False)
+  _STATE.suspended = True
+  try:
+    yield
+  finally:
+    _STATE.suspended = previous
 
 
 def _Constant(value):
@@ -300,6 +325,15 @@ def _ScatterForward(update_in_place):
     update_in_place(result, index, updates)
     return result
   return Forward
+
+
+def _ScatterAddAlong(x, index, updates, axis):
+  """The inverse of take_along_axis: accumulate updates at index."""
+  result = onp.array(x)
+  full_index = list(onp.indices(index.shape))
+  full_index[axis] = index
+  onp.add.at(result, tuple(full_index), updates)
+  return result
 
 
 def _ExtremumForward(reduction):
@@ -362,8 +396,10 @@ _FORWARD = {
     'concatenate': lambda axis, *parts: onp.concatenate(parts, axis=axis),
     'lexsort': lambda axis, *keys: onp.lexsort(keys, axis=axis),
     'sort': lambda x, axis: onp.sort(x, axis=axis),
+    'cumsum': lambda x, axis: onp.cumsum(x, axis=axis),
     'take_along_axis': lambda a, index, axis: onp.take_along_axis(
         a, index, axis=axis),
+    'scatter_add_along': _ScatterAddAlong,
 }
 
 
@@ -451,6 +487,19 @@ def _GradWhere(node, g):
     gb = _Unbroadcast(numpy.where(condition, 0.0, g),
                       _ShapeOf(node.args[2]))
   return [None, ga, gb]
+
+
+def _GradTakeAlongAxis(node, g):
+  """take_along_axis(a, index, axis): gradient scatters g back at index.
+
+  The index is live data (unlike gather, whose index is frozen), so the
+  scatter must ride the tape as an operation of its own."""
+  a, index, axis = node.args
+  if not _Recorded(a):
+    return [None, None, None]
+  zeros = onp.zeros(_ShapeOf(a), dtype=onp.float64)
+  return [numpy.scatter_add_along(zeros, _TensorOf(index), g, axis),
+          None, None]
 
 
 def _GradGather(node, g):
@@ -653,8 +702,9 @@ _GRAD = {
     'expand_dims': _GradExpandDims,
     'astype': _GradAstype,
     'concatenate': _GradConcatenate,
-    # lexsort, sort, prod and take_along_axis carry no gradient:
-    # sorting indices, permutations and rank keys of bit-valued data.
+    'take_along_axis': _GradTakeAlongAxis,
+    # lexsort, sort, prod and scatter_add_along carry no gradient:
+    # sorting indices, rank keys, and the backward pass's own scatter.
 }
 
 
@@ -717,8 +767,11 @@ def _MakeNumpy():
   ns.lexsort = lambda keys, axis=-1: _Record(
       'lexsort', [axis] + list(keys))
   ns.sort = lambda x, axis=-1: _Record('sort', [x, axis])
+  ns.cumsum = lambda x, axis=-1: _Record('cumsum', [x, axis])
   ns.take_along_axis = lambda a, index, axis: _Record(
       'take_along_axis', [a, index, axis])
+  ns.scatter_add_along = lambda x, index, updates, axis: _Record(
+      'scatter_add_along', [x, index, updates, axis])
   return ns
 
 
@@ -947,6 +1000,15 @@ def _Compile(function, args):
     elif node.op == 'sort':
       lines.append('%s = onp.sort(%s, axis=%s)' % (
           name, refs[0], refs[1]))
+    elif node.op == 'cumsum':
+      lines.append('%s = onp.cumsum(%s, axis=%s)' % (
+          name, refs[0], refs[1]))
+    elif node.op == 'scatter_add_along':
+      lines.append('%s = onp.array(%s)' % (name, refs[0]))
+      lines.append('%s_i = list(onp.indices(%s.shape))' % (name, refs[1]))
+      lines.append('%s_i[%s] = %s' % (name, refs[3], refs[1]))
+      lines.append('onp.add.at(%s, tuple(%s_i), %s)' % (
+          name, name, refs[2]))
     elif node.op in ('min', 'max'):
       x, axis, keepdims, initial = refs
       suffix = (', initial=%s' % initial
