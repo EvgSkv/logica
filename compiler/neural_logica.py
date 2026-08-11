@@ -2035,7 +2035,7 @@ class NeuralTargetPlan(NeuralPlan):
       if validate:
         theta = tkp_logica.ConcreteTheta(
             solver.ThetaTensor(state, environment))
-        solver.Solve(theta, stage)
+        solver.Solve(theta, stage, strict=True)
 
     def IsTkpGroup(content):
       return any(self.tkp.Owns(member.name)

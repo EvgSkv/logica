@@ -1031,27 +1031,45 @@ class SparseTkpSolver(object):
       unused_mask, values = tensors[self.probability_predicate]
     return values[self.row_positions]
 
-  def Solve(self, theta, stage='the current parameters'):
-    """{member name: {key: proofs}} of the whole registered world."""
+  def Solve(self, theta, stage='the current parameters',
+            strict=False):
+    """{member name: {key: proofs}} of the whole registered world.
+
+    A TRAINING step runs every unit for its declared @Recursive count
+    of sweeps and takes the result — the same semantics as the SQL
+    side's unfoldings; truncation makes the sweep non-monotone, so
+    mid-training states may legitimately wander without a fixpoint.
+    The PROBES are strict: at the initial and the learned parameters
+    the declared bound must reach a true fixpoint, loudly."""
     signature = (theta, len(self.units))
     if signature in self.cache:
-      return self.cache[signature]
+      state, converged = self.cache[signature]
+      if strict and not converged:
+        Error('Recursion does not stabilize within the declared '
+              'bounds under %s; learning through dynamic equilibria '
+              'is not supported yet.' % stage, self.plan.target)
+      return state
     state = {self.atom_name: self.atom_cells}
+    converged = True
     for compiled, repetitions, names in self.units:
-      self.RunUnit(state, compiled, repetitions, names, theta, stage)
-    self.cache[signature] = state
+      converged &= self.RunUnit(state, compiled, repetitions, names,
+                                theta, stage, strict)
+    self.cache[signature] = (state, converged)
     self.cache_order.append(signature)
     while len(self.cache_order) > 2:  # forward + backward of a step
       del self.cache[self.cache_order.pop(0)]
     return state
 
-  def RunUnit(self, state, compiled, repetitions, names, theta, stage):
-    """One fixpoint unit; loud when the bound does not suffice.
+  def RunUnit(self, state, compiled, repetitions, names, theta,
+              stage, strict):
+    """One unit: the declared count of sweeps, early out on fixpoint.
 
-    Truncation makes the sweep non-monotone: kept proofs may displace
-    each other, so besides the fixpoint check the run watches for a
-    REPEATED state — an oscillation would otherwise burn the whole
-    bound and misreport as a plain timeout."""
+    Truncation makes the sweep non-monotone, so a mid-training state
+    may wander — the declared sweeps then ARE the semantics, as on
+    the SQL side. Under a STRICT probe the bound must reach a true
+    fixpoint: a repeated state is reported as an oscillation with its
+    period (otherwise it would burn the bound and misreport as a
+    plain timeout), a wandering state as a timeout."""
     local = {member.name: {} for member, unused_compiled in compiled}
     seen = {self.Fingerprint(compiled, local): 0}
     converged = False
@@ -1065,20 +1083,22 @@ class SparseTkpSolver(object):
         converged = True
         break
       local = new_local
-      fingerprint = self.Fingerprint(compiled, local)
-      if fingerprint in seen:
-        Error('Recursion of %s oscillates with period %d under %s '
-              'instead of stabilizing; learning through dynamic '
-              'equilibria is not supported yet.' % (
-                  color.Warn(names), sweep - seen[fingerprint], stage),
-              self.plan.target)
-      seen[fingerprint] = sweep
-    if not converged:
+      if strict:
+        fingerprint = self.Fingerprint(compiled, local)
+        if fingerprint in seen:
+          Error('Recursion of %s oscillates with period %d under %s '
+                'instead of stabilizing; learning through dynamic '
+                'equilibria is not supported yet.' % (
+                    color.Warn(names), sweep - seen[fingerprint],
+                    stage), self.plan.target)
+        seen[fingerprint] = sweep
+    if strict and not converged:
       Error('Recursion of %s does not stabilize within %d sweeps '
             'under %s; learning through dynamic equilibria is not '
             'supported yet.' % (color.Warn(names), repetitions, stage),
             self.plan.target)
     state.update(local)
+    return converged
 
   def Fingerprint(self, compiled, local):
     return tuple(
