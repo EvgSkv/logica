@@ -210,7 +210,7 @@ class TkpWorld(object):
     self.predicates = {}     # name -> k of a proof-valued predicate
     self.atoms = {}          # name -> TkpAtom
     self.probability_predicates = set()
-    self.disjunction_rules = []   # (name, rule, expression, reads)
+    self.disjunction_rules = []   # (name, rule, expr, reads, guards)
     self.probability_reads = []   # (owner rule, TkpProbability call)
 
   def IsTkp(self, name):
@@ -409,16 +409,20 @@ def ExtractTkpWorld(rules, normalize=None):
         return [(rule, argument)]
     return [(rule, None)]
 
-  def CheckContributionBody(contribution_rule, read_names, name):
-    """Refuses guards in a contribution body.
+  def ContributionGuards(contribution_rule, read_names, name):
+    """Collects the RELATIONAL GUARDS of a contribution body.
 
-    The runtime compiles the VALUE EXPRESSION of a contribution only:
-    proof reads join by their variables and nothing else executes, so
-    a comparison, an unrelated predicate or a computation in the body
-    would be silently dropped, changing the meaning of the program.
-    Allowed: the aggregation machinery (_MultBodyAggAux), the
-    logica_value binding, and body restatements of the very reads of
-    the value expression."""
+    The first slice of the constraints layer: a body conjunct that is
+    a plain relation over contribution variables filters the keys of
+    the contribution — `Reach(a, c) TKP= Step(a, s, c) :-
+    StartCell(a, s)` seeds reachability from the start only. The
+    guard relation must be materialized and structural (independent
+    of the learned parameters: the jax seam captures its rows at
+    probe time). Everything else in a body stays a loud error:
+    comparisons, computations and unifications would need value-level
+    masks — the rest of the constraints design — and silently
+    dropping them would change the meaning of the program."""
+    guards = []
     conjuncts = (contribution_rule.get('body') or {}).get(
         'conjunction', {}).get('conjunct', [])
     for conjunct in conjuncts:
@@ -428,20 +432,32 @@ def ExtractTkpWorld(rules, normalize=None):
           continue
         if world.normalize(predicate) in read_names:
           continue
-        Error('TKP: contribution of %s reads %s in its body; the '
-              'runtime executes only the value expression, so a body '
-              'guard would be silently ignored. Move the filter into '
-              'a separate predicate feeding the proof reads.' % (
-                  color.Warn(name), color.Warn(predicate)), name)
+        if world.IsTkp(predicate):
+          Error('TKP: contribution of %s reads the proof-valued %s '
+                'in its body; proof reads belong in the value '
+                'expression.' % (color.Warn(name),
+                                 color.Warn(predicate)), name)
+        fields = CallFields(conjunct['predicate'])
+        variables = []
+        for field in sorted(fields, key=FieldOrder):
+          variable = VariableName(fields[field])
+          if variable is None:
+            Error('TKP: the guard %s of %s must hold plain '
+                  'variables.' % (color.Warn(predicate),
+                                  color.Warn(name)), name)
+          variables.append(variable)
+        guards.append((predicate, variables))
+        continue
       unification = conjunct.get('unification')
       if (unification is not None and VariableName(
           unification['left_hand_side']) == 'logica_value'):
         continue
-      Error('TKP: contribution of %s has a guard or computation in '
-            'its body; the runtime executes only the value '
-            'expression, so it would be silently ignored. Move the '
-            'filter into a separate predicate feeding the proof '
-            'reads.' % color.Warn(name), name)
+      Error('TKP: contribution of %s has a comparison or computation '
+            'in its body; only relational guards over contribution '
+            'variables are supported. Move the rest into a separate '
+            'predicate feeding the proof reads.' % color.Warn(name),
+            name)
+    return guards
 
   for name, rule in rules:
     operator, argument = AggregationOperator(rule)
@@ -460,7 +476,7 @@ def ExtractTkpWorld(rules, normalize=None):
     if contributions and contributions[0][0] is not rule:
       # Multi-body form: contributions live in aux rules; the outer
       # rule itself must carry nothing beyond the machinery.
-      CheckContributionBody(rule, set(), name)
+      ContributionGuards(rule, set(), name)
     for contribution_rule, expression in contributions:
       reads = []
       read_names = set()
@@ -469,12 +485,25 @@ def ExtractTkpWorld(rules, normalize=None):
         for kind, read in reads:
           if kind == 'read':
             read_names.add(world.normalize(CallName(read)))
-      CheckContributionBody(contribution_rule, read_names, name)
+      guards = ContributionGuards(contribution_rule, read_names,
+                                  name)
       if expression is None:
         Error('TKP: cannot find the contribution of %s.' %
               color.Warn(name), name)
+      known = set(ContributionHeadVariables(contribution_rule, name))
+      for kind, read in reads:
+        if kind == 'read':
+          known.update(CallVariables(read, name))
+      for guard_name, guard_vars in guards:
+        for variable in guard_vars:
+          if variable not in known:
+            Error('TKP: the guard %s of %s binds %s, which is not a '
+                  'contribution variable; a guard only filters '
+                  'existing keys.' % (
+                      color.Warn(guard_name), color.Warn(name),
+                      color.Warn(variable)), name)
       world.disjunction_rules.append(
-          (name, contribution_rule, expression, reads))
+          (name, contribution_rule, expression, reads, guards))
 
   # 3. Probability reads: TkpProbability(...) in any expression.
   def FindProbabilityReads(node, owner):
@@ -658,7 +687,7 @@ class TkpDisjunctionMember(TkpMemberBase):
     super().__init__(name)
     self.k = k
     self.slots = k
-    self.tkp_contributions = contributions  # (head_vars, tree, rule)
+    self.tkp_contributions = contributions  # (vars, tree, guards, rule)
 
 
 class TkpProbabilityMember(TkpMemberBase):
@@ -842,18 +871,18 @@ class TkpPlan(object):
       diamond = predicate + self.diamond_suffix
       source = (diamond
                 if any(name == diamond for name, unused_rule,
-                       unused_expression, unused_reads
+                       unused_expression, unused_reads, unused_guards
                        in self.world.disjunction_rules)
                 else predicate)
       contributions = []
-      for name, rule, expression, unused_reads in (
+      for name, rule, expression, unused_reads, guards in (
           self.world.disjunction_rules):
         if name != source:
           continue
         head_vars = ContributionHeadVariables(rule, predicate)
         tree = BuildContributionTree(expression, self.world,
                                      self.definitions, predicate)
-        contributions.append((head_vars, tree, rule))
+        contributions.append((head_vars, tree, guards, rule))
       member = TkpDisjunctionMember(
           predicate, self.world.predicates[predicate], contributions)
     member.key_fields, member.key_types = self.Signature(plan, predicate)
@@ -947,6 +976,8 @@ class SparseTkpSolver(object):
     self.domains = runtime.domains
     self.units = []        # (compiled members, repetitions, unit names)
     self.unit_names = set()
+    self.needed_guards = set()
+    self.guard_rows = {}   # guard relation -> set of key tuples
     self.static_masks = {}
     self.cache = {}
     self.cache_order = []
@@ -957,10 +988,40 @@ class SparseTkpSolver(object):
     if names in self.unit_names:
       return
     self.unit_names.add(names)
-    compiled = [(member, [(head_vars, tree) for head_vars, tree,
-                          unused_rule in member.tkp_contributions])
+    compiled = [(member,
+                 [(head_vars, tree, guards)
+                  for head_vars, tree, guards, unused_rule
+                  in member.tkp_contributions])
                 for member in members]
+    for unused_member, trees in compiled:
+      for unused_vars, unused_tree, guards in trees:
+        self.needed_guards.update(
+            guard_name for guard_name, unused_guard_vars in guards)
     self.units.append((compiled, repetitions, ', '.join(names)))
+
+  def CaptureGuards(self, state, tensors):
+    """Rows of the guard relations, captured when concrete.
+
+    Guards are structural — independent of the learned parameters —
+    so the probe's concrete capture serves every later (possibly
+    traced) call. A guard whose relation never turns up concrete is a
+    loud error at solving time."""
+    onp = self.onp
+    for name in sorted(self.needed_guards - set(self.guard_rows)):
+      if name in state:
+        mask = state[name][0]
+      else:
+        try:
+          mask = tensors[name][0]
+        except Exception:
+          continue
+      try:
+        mask = onp.asarray(mask)
+      except Exception:
+        continue  # Traced; a concrete caller captures it first.
+      self.guard_rows[name] = set(
+          tuple(int(i) for i in key)
+          for key in zip(*onp.nonzero(mask)))
 
   def ThetaTensor(self, state, tensors):
     """The fact probabilities: a differentiable gather at the rows."""
@@ -1028,8 +1089,19 @@ class SparseTkpSolver(object):
 
   def EvalMember(self, member, trees, view, theta):
     pools = {}
-    for head_vars, tree in trees:
+    for head_vars, tree, guards in trees:
+      filters = []
+      for guard_name, guard_vars in guards:
+        rows = self.guard_rows.get(guard_name)
+        if rows is None:
+          Error('TKP: the guard %s never materialized before '
+                'solving; a guard must be a structural relation.' %
+                color.Warn(guard_name), member.name)
+        filters.append((guard_vars, rows))
       for assignment, proofs in self.EvalTree(tree, view, theta):
+        if any(tuple(assignment[v] for v in guard_vars) not in rows
+               for guard_vars, rows in filters):
+          continue
         key = tuple(assignment[v] for v in head_vars)
         pools.setdefault(key, []).extend(proofs)
     return {key: SparseCanonicalize(pool, theta, member.k)
@@ -1140,6 +1212,7 @@ def DisjunctionFunction(runtime, member):
     # stages run this function (recursion groups register through
     # their own stage with their declared bound).
     solver.EnsureUnit([member], 2)
+    solver.CaptureGuards(state, tensors)
     theta_tensor = solver.ThetaTensor(state, tensors)
     theta = ConcreteTheta(theta_tensor)
     return (solver.StaticMask(member, theta), None)
@@ -1178,6 +1251,7 @@ def ProbabilityFunction(runtime, member):
   if hasattr(jnp, 'custom'):  # The logix seam.
 
     def EvaluateLogix(state, tensors):
+      solver.CaptureGuards(state, tensors)
       theta_tensor = solver.ThetaTensor(state, tensors)
       mask = solver.StaticMask(member, ConcreteTheta(theta_tensor))
       values = jnp.custom(
@@ -1210,6 +1284,7 @@ def ProbabilityFunction(runtime, member):
   Published.defvjp(PublishedForward, PublishedBackward)
 
   def EvaluateJax(state, tensors):
+    solver.CaptureGuards(state, tensors)
     theta_tensor = solver.ThetaTensor(state, tensors)
     mask = solver.StaticMask(member, ConcreteTheta(theta_tensor))
     return mask, Published(theta_tensor)

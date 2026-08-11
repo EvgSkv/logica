@@ -1915,11 +1915,23 @@ class NeuralTargetPlan(NeuralPlan):
     return max(counts) if counts else 1000
 
   def RegisterTkpMember(self, predicate):
-    """Compiles a TKP member via the facade and registers it."""
+    """Compiles a TKP member via the facade and registers it.
+
+    A TKP member declares its own cone inputs: the atom's body
+    relation carries the fact axis, and the structural guards of a
+    disjunction — theta-independent by contract — never enter the
+    cone by dependency, so nobody else would materialize them."""
     member = self.tkp.CompileMember(self, predicate)
     self.members.append(member)
     self.relations[predicate] = Relation(
         predicate, member.key_fields, member.key_types, True)
+    if isinstance(member, tkp_logica.TkpAtomMember):
+      self.RelationOf(member.atom.body_relation, predicate)
+    else:
+      for unused_vars, unused_tree, guards, unused_rule in (
+          member.tkp_contributions):
+        for guard_name, unused_guard_vars in guards:
+          self.RelationOf(guard_name, predicate)
     return member
 
   def RegisterTkpProbability(self, member):
@@ -2019,6 +2031,7 @@ class NeuralTargetPlan(NeuralPlan):
       seams validate at call time."""
       solver = tkp_logica.SolverOf(runtime)
       solver.EnsureUnit(content.members, content.repetitions)
+      solver.CaptureGuards(state, environment)
       if validate:
         theta = tkp_logica.ConcreteTheta(
             solver.ThetaTensor(state, environment))

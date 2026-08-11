@@ -328,13 +328,13 @@ def _ExpectCompileError(program, fragment):
 
 
 def TestGuardsRefused():
-  """Guards outside the structural skeleton are a loud compile error.
+  """Non-relational guards stay a loud compile error.
 
-  The runtime materializes ALL rows of an atom's body relation and
-  executes ONLY the value expression of a contribution; before the
-  checks `... :- Raw(a, b), a != b` kept the self-edges and
-  `Path(x, z) TKP= ... :- x != z` dropped the filter — both silently
-  changing the meaning of the program."""
+  The runtime materializes ALL rows of an atom's body relation, and a
+  contribution body admits only RELATIONAL guards over contribution
+  variables (the first slice of the constraints layer); comparisons
+  and computations would need value-level masks and are refused —
+  silently dropping them once changed the meaning of the program."""
   atom = ('Edge(a, b) = TkpMakeFact(predicate: "e", args: [a, b], '
           'probability: P(a, b)) :- Raw(a, b)%s;')
   _ExpectCompileError(atom % ', a != b', 'guard or computation')
@@ -343,7 +343,34 @@ def TestGuardsRefused():
       'T2P(x) = TkpTop(MergeList(x), 2); '
       'Path(x, z) T2P= TkpProbConjunction(Path(x, y), Path(y, z)) '
       ':- x != z;')
-  _ExpectCompileError(disjunction, 'guard or computation')
+  _ExpectCompileError(disjunction, 'comparison or computation')
+  return 0
+
+
+def TestRelationalGuardCollected():
+  """A relational guard over contribution variables is collected.
+
+  `Reach(c) TKP= Step(s, c) :- Start(s)` — the base of reachability
+  seeded from the start only; a guard binding a foreign variable is
+  refused (it could only filter, never bind)."""
+  from parser_py import parse
+  program = (
+      'T2P(x) = TkpTop(MergeList(x), 2); '
+      'Reach(c) T2P= Step(s, c) :- Start(s); '
+      'Step(s, c) = TkpMakeFact(predicate: "s", args: [s, c], '
+      'probability: P(s, c)) :- Raw(s, c);')
+  rules = parse.ParseFile(program)['rule']
+  pairs = [(rule['head']['predicate_name'], rule) for rule in rules]
+  world = tkp_logica.ExtractTkpWorld(pairs)
+  guard_lists = [guards for name, rule, expression, reads, guards
+                 in world.disjunction_rules if name == 'Reach']
+  assert guard_lists == [[('Start', ['s'])]], guard_lists
+  _ExpectCompileError(
+      'T2P(x) = TkpTop(MergeList(x), 2); '
+      'Reach(c) T2P= Step(s, c) :- Alien(q); '
+      'Step(s, c) = TkpMakeFact(predicate: "s", args: [s, c], '
+      'probability: P(s, c)) :- Raw(s, c);',
+      'not a contribution variable')
   return 0
 
 
@@ -476,6 +503,7 @@ def main():
   failures += TestThetaDependentHorizon()
   failures += TestSparseScale()
   failures += TestGuardsRefused()
+  failures += TestRelationalGuardCollected()
   failures += TestRepeatedVariablesRefused()
   failures += TestNonPositiveKRefused()
   failures += TestCanonicalFieldOrder()
