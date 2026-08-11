@@ -911,22 +911,27 @@ class TkpPlan(object):
 
 
 ###############################################################################
-# VII. The sparse executor: the TKP node and its custom gradient.
+# VII. The sparse executor: a pure world solver and two seams.
 #
-# One node per recursion group. Forward runs the sparse fixpoint on
-# python symbols — dictionaries {key indices: proofs} — and publishes
-# the probability relations as numpy arrays; backward is the explicit
-# polynomial derivative, evaluated only where the loss cotangent is
-# nonzero. The node requires the numpy tensor engine (logix): its
-# per-node custom gradients host the derivative natively, and the
-# training loop runs uncompiled so the selection is refreshed every
-# step. The dense tensor executor of TKP lives in git history.
+# Solve(theta) computes the proofs of EVERY proof-valued predicate —
+# python symbols, dictionaries {key indices: proofs} — unit by unit in
+# stage order (which is topological): atoms are constant, recursion
+# groups iterate to their fixpoint, standalone disjunctions settle in
+# one confirmed pass. Determinism makes Solve a pure function of
+# theta; a two-entry memo lets the forward and the backward of one
+# training step share a single run.
+#
+# The seams publish probabilities onto the engines' tapes with the
+# EXPLICIT polynomial derivative: on logix through its custom-gradient
+# op (uncompiled training — the selection refreshes every step); on
+# jax through pure_callback + custom_vjp, jit-compatible, so a real
+# network in front of theta keeps its XLA speed.
 
 
-class SparseTkpNode(object):
-  """The sparse executor of one TKP recursion group."""
+class SparseTkpSolver(object):
+  """The pure sparse solver of the TKP world."""
 
-  def __init__(self, runtime, members):
+  def __init__(self, runtime):
     import numpy as onp
     self.onp = onp
     self.plan = runtime.plan
@@ -934,24 +939,30 @@ class SparseTkpNode(object):
     (self.probability_predicate, positions,
      self.n_facts) = self.tkp.FactAxis(self.plan)
     self.row_positions = tuple(onp.asarray(p) for p in positions)
-    # The atom: cell (key index tuple) -> its single one-fact proof.
     self.atom_name = sorted(self.tkp.world.atoms)[0]
     self.atom_cells = {}
     for fact in range(self.n_facts):
       key = tuple(int(p[fact]) for p in self.row_positions)
       self.atom_cells[key] = [(fact,)]
-    self.members = [(member, [(head_vars, tree) for head_vars, tree,
-                              unused_rule in member.tkp_contributions])
-                    for member in members]
     self.domains = runtime.domains
-    # The proof registry is SHARED across the runtime's nodes: atoms,
-    # recursion groups and standalone disjunctions all publish here,
-    # and any node reads its externals from here.
-    self.registry = runtime.tkp_proofs
-    self.registry.setdefault(self.atom_name, self.atom_cells)
-    self.theta = None
+    self.units = []        # (compiled members, repetitions, unit names)
+    self.unit_names = set()
+    self.static_masks = {}
+    self.cache = {}
+    self.cache_order = []
 
-  def Theta(self, state, tensors):
+  def EnsureUnit(self, members, repetitions):
+    """Registers a fixpoint unit once; stage order is topological."""
+    names = tuple(sorted(member.name for member in members))
+    if names in self.unit_names:
+      return
+    self.unit_names.add(names)
+    compiled = [(member, [(head_vars, tree) for head_vars, tree,
+                          unused_rule in member.tkp_contributions])
+                for member in members]
+    self.units.append((compiled, repetitions, ', '.join(names)))
+
+  def ThetaTensor(self, state, tensors):
     """The fact probabilities: a differentiable gather at the rows."""
     if self.probability_predicate in state:
       unused_mask, values = state[self.probability_predicate]
@@ -959,74 +970,79 @@ class SparseTkpNode(object):
       unused_mask, values = tensors[self.probability_predicate]
     return values[self.row_positions]
 
-  def Run(self, theta, repetitions, stage, target):
-    """The fixpoint; loud when the declared bound does not suffice.
+  def Solve(self, theta, stage='the current parameters'):
+    """{member name: {key: proofs}} of the whole registered world."""
+    signature = (theta, len(self.units))
+    if signature in self.cache:
+      return self.cache[signature]
+    state = {self.atom_name: self.atom_cells}
+    for compiled, repetitions, names in self.units:
+      self.RunUnit(state, compiled, repetitions, names, theta, stage)
+    self.cache[signature] = state
+    self.cache_order.append(signature)
+    while len(self.cache_order) > 2:  # forward + backward of a step
+      del self.cache[self.cache_order.pop(0)]
+    return state
+
+  def RunUnit(self, state, compiled, repetitions, names, theta, stage):
+    """One fixpoint unit; loud when the bound does not suffice.
 
     Truncation makes the sweep non-monotone: kept proofs may displace
     each other, so besides the fixpoint check the run watches for a
     REPEATED state — an oscillation would otherwise burn the whole
     bound and misreport as a plain timeout."""
-    self.theta = [float(t) for t in self.onp.asarray(theta)]
-    state = {self.atom_name: self.atom_cells}
-    for member, unused_compiled in self.members:
-      state[member.name] = {}
-    names = ', '.join(sorted(
-        member.name for member, unused in self.members))
-    seen = {self.Fingerprint(state): 0}
+    local = {member.name: {} for member, unused_compiled in compiled}
+    seen = {self.Fingerprint(compiled, local): 0}
     converged = False
     for sweep in range(1, repetitions + 1):
-      new_state = dict(state)
-      for member, compiled in self.members:
-        new_state[member.name] = self.EvalMember(member, compiled,
-                                                 state)
-      if new_state == state:
+      view = dict(state)
+      view.update(local)
+      new_local = {
+          member.name: self.EvalMember(member, trees, view, theta)
+          for member, trees in compiled}
+      if new_local == local:
         converged = True
         break
-      state = new_state
-      fingerprint = self.Fingerprint(state)
+      local = new_local
+      fingerprint = self.Fingerprint(compiled, local)
       if fingerprint in seen:
         Error('Recursion of %s oscillates with period %d under %s '
               'instead of stabilizing; learning through dynamic '
               'equilibria is not supported yet.' % (
                   color.Warn(names), sweep - seen[fingerprint], stage),
-              target)
+              self.plan.target)
       seen[fingerprint] = sweep
     if not converged:
       Error('Recursion of %s does not stabilize within %d sweeps '
             'under %s; learning through dynamic equilibria is not '
             'supported yet.' % (color.Warn(names), repetitions, stage),
-            target)
-    for member, unused_compiled in self.members:
-      self.registry[member.name] = state[member.name]
+            self.plan.target)
+    state.update(local)
 
-  def Fingerprint(self, state):
-    """A hashable snapshot of the group state, for cycle detection."""
+  def Fingerprint(self, compiled, local):
     return tuple(
         (member.name, tuple(sorted(
             (key, tuple(proofs))
-            for key, proofs in state[member.name].items())))
-        for member, unused_compiled in self.members)
+            for key, proofs in local[member.name].items())))
+        for member, unused_trees in compiled)
 
-  def EvalMember(self, member, compiled, state):
+  def EvalMember(self, member, trees, view, theta):
     pools = {}
-    for head_vars, tree in compiled:
-      for assignment, proofs in self.EvalTree(tree, state):
+    for head_vars, tree in trees:
+      for assignment, proofs in self.EvalTree(tree, view, theta):
         key = tuple(assignment[v] for v in head_vars)
         pools.setdefault(key, []).extend(proofs)
-    return {key: SparseCanonicalize(pool, self.theta, member.k)
+    return {key: SparseCanonicalize(pool, theta, member.k)
             for key, pool in pools.items()}
 
-  def EvalTree(self, tree, state):
+  def EvalTree(self, tree, view, theta):
     """[(variable assignment, proofs)] of a contribution tree."""
     if tree[0] == 'read':
       unused_kind, name, read_vars = tree
-      cells = state.get(name)
-      if cells is None:
-        cells = self.registry.get(name, {})
       return [(dict(zip(read_vars, key)), proofs)
-              for key, proofs in cells.items()]
-    left = self.EvalTree(tree[1], state)
-    right = self.EvalTree(tree[2], state)
+              for key, proofs in view.get(name, {}).items()]
+    left = self.EvalTree(tree[1], view, theta)
+    right = self.EvalTree(tree[2], view, theta)
     if not left or not right:
       return []
     shared = sorted(set(left[0][0]) & set(right[0][0]))
@@ -1039,44 +1055,71 @@ class SparseTkpNode(object):
     for assignment, proofs in left:
       for other, other_proofs in index.get(
           tuple(assignment[v] for v in shared), []):
-        combined = SparseConjunction(proofs, other_proofs, self.theta)
+        combined = SparseConjunction(proofs, other_proofs, theta)
         if combined:
           merged = dict(assignment)
           merged.update(other)
           result.append((merged, combined))
     return result
 
-  def Publish(self, member):
-    """(mask, values) numpy arrays of a probability member."""
-    onp = self.onp
-    shape = tuple(len(self.domains[t]) for t in member.key_types)
-    mask = onp.zeros(shape, dtype=bool)
-    values = onp.zeros(shape)
-    for key, proofs in self.registry[member.of_member.name].items():
-      mask[key] = True
-      values[key] = SparseProbability(proofs, self.theta)
-    return mask, values
+  def MemberShape(self, member):
+    return tuple(len(self.domains[t]) for t in member.key_types)
 
-  def Gradient(self, member, cotangent):
+  def StaticMask(self, member, theta=None):
+    """The support mask of a member: structural, theta-independent.
+
+    A cell holds proofs exactly when the structural join is nonempty
+    (canonicalization never empties a nonempty pool), so the mask of
+    any Solve serves all of them. The probe computes it first, with
+    concrete theta; traced calls reuse it."""
+    name = member.of_member.name if isinstance(
+        member, TkpProbabilityMember) else member.name
+    if name in self.static_masks:
+      return self.static_masks[name]
+    assert theta is not None, 'the probe computes masks first'
+    onp = self.onp
+    of_member = (member.of_member if isinstance(
+        member, TkpProbabilityMember) else member)
+    mask = onp.zeros(self.MemberShape(of_member), dtype=bool)
+    for key in self.Solve(theta)[name]:
+      mask[key] = True
+    self.static_masks[name] = mask
+    return mask
+
+  def ProbabilityArray(self, member, theta, stage):
+    onp = self.onp
+    values = onp.zeros(self.MemberShape(member))
+    cells = self.Solve(theta, stage)[member.of_member.name]
+    for key, proofs in cells.items():
+      values[key] = SparseProbability(proofs, theta)
+    return values
+
+  def GradientArray(self, member, theta, cotangent):
     """d(sum(cotangent * P)) / d theta, a vector over the facts."""
     onp = self.onp
     out = [0.0] * self.n_facts
     cotangent = onp.asarray(cotangent)
-    for key, proofs in self.registry[member.of_member.name].items():
+    cells = self.Solve(theta)[member.of_member.name]
+    for key, proofs in cells.items():
       g = float(cotangent[key])
       if g != 0.0:
-        SparseProbabilityGradient(proofs, self.theta, g, out)
+        SparseProbabilityGradient(proofs, theta, g, out)
     return onp.asarray(out)
+
+
+def SolverOf(runtime):
+  if runtime.tkp_solver is None:
+    runtime.tkp_solver = SparseTkpSolver(runtime)
+  return runtime.tkp_solver
 
 
 def AtomFunction(runtime, member):
   """The atom member: only its support mask matters to the machinery."""
   import numpy as onp
-  plan = runtime.plan
-  unused_p, positions, unused_n = plan.tkp.FactAxis(plan)
-  shape = tuple(len(runtime.domains[t]) for t in member.key_types)
-  mask = onp.zeros(shape, dtype=bool)
-  mask[tuple(onp.asarray(p) for p in positions)] = True
+  solver = SolverOf(runtime)
+  mask = onp.zeros(solver.MemberShape(member), dtype=bool)
+  for key in solver.atom_cells:
+    mask[key] = True
 
   def EvaluateAtom(unused_state, unused_tensors):
     return (mask, None)
@@ -1084,62 +1127,94 @@ def AtomFunction(runtime, member):
   return EvaluateAtom
 
 
-def ProbabilityFunction(runtime, member):
-  """The probability publisher: the custom-gradient seam of the node.
-
-  The published values ride the tape as a custom node whose backward
-  is the explicit polynomial derivative; the cotangent flows into the
-  theta gather and further into the learned parameters."""
-  jnp = runtime.jnp
-  if not hasattr(jnp, 'custom'):
-    Error('TKP learning runs the sparse symbolic executor and needs '
-          'tensor_engine: "numpy" of @Engine.', member.name)
-
-  def EvaluateProbability(state, tensors):
-    node = runtime.tkp_nodes.get(member.of_member.name)
-    if node is None:
-      # A probability read of the ATOM itself: no recursion group is
-      # involved — a group-less node serves the single-fact cells
-      # (the probability of an atom cell is its theta).
-      node = SparseTkpNode(runtime, [])
-      runtime.tkp_nodes[member.of_member.name] = node
-    theta = node.Theta(state, tensors)
-    node.theta = [float(t) for t in node.onp.asarray(theta)]
-    mask, values = node.Publish(member)
-
-    def Forward(unused_theta):
-      return values
-
-    def Backward(cotangent, unused_theta):
-      return [node.Gradient(member, cotangent)]
-
-    return mask, jnp.custom(Forward, Backward, theta)
-
-  return EvaluateProbability
-
-
 def DisjunctionFunction(runtime, member):
-  """A STANDALONE (non-recursive) disjunction: one node, one pass.
+  """A STANDALONE (non-recursive) disjunction registers its unit.
 
-  It never reads itself, so its fixpoint arrives after a single sweep
-  (the second sweep only confirms it); externals — atoms, earlier
-  groups, earlier standalones — come from the shared registry."""
-  import numpy as onp
+  It never reads itself, so one pass settles it (the second confirms);
+  solving happens inside the probability seams — here only the
+  structural mask is served."""
+  solver = SolverOf(runtime)
 
   def EvaluateDisjunction(state, tensors):
-    node = runtime.tkp_nodes.get(member.name)
-    if node is None:
-      node = SparseTkpNode(runtime, [member])
-      runtime.tkp_nodes[member.name] = node
-    theta = node.Theta(state, tensors)
-    node.Run(theta, 2, 'a standalone disjunction', member.name)
-    shape = tuple(len(runtime.domains[t]) for t in member.key_types)
-    mask = onp.zeros(shape, dtype=bool)
-    for key in node.registry[member.name]:
-      mask[key] = True
-    return (mask, None)
+    # Registration happens at evaluation: only genuine standalone
+    # stages run this function (recursion groups register through
+    # their own stage with their declared bound).
+    solver.EnsureUnit([member], 2)
+    theta_tensor = solver.ThetaTensor(state, tensors)
+    theta = ConcreteTheta(theta_tensor)
+    return (solver.StaticMask(member, theta), None)
 
   return EvaluateDisjunction
+
+
+def ConcreteTheta(theta_tensor):
+  """Floats of a theta tensor, or None under a jax trace."""
+  import numpy as onp
+  try:
+    return tuple(float(t) for t in onp.asarray(theta_tensor))
+  except Exception:
+    return None
+
+
+def ProbabilityFunction(runtime, member):
+  """The probability publisher: the custom-derivative seam.
+
+  logix hosts the explicit polynomial derivative in its custom op and
+  trains uncompiled; jax hosts it in pure_callback + custom_vjp and
+  keeps jit for the tensor surroundings."""
+  import numpy as onp
+  solver = SolverOf(runtime)
+  jnp = runtime.jnp
+  shape = solver.MemberShape(member.of_member)
+
+  def ForwardArray(theta_values, stage='the current parameters'):
+    theta = tuple(float(t) for t in onp.asarray(theta_values))
+    return solver.ProbabilityArray(member, theta, stage)
+
+  def BackwardArray(cotangent, theta_values):
+    theta = tuple(float(t) for t in onp.asarray(theta_values))
+    return solver.GradientArray(member, theta, cotangent)
+
+  if hasattr(jnp, 'custom'):  # The logix seam.
+
+    def EvaluateLogix(state, tensors):
+      theta_tensor = solver.ThetaTensor(state, tensors)
+      mask = solver.StaticMask(member, ConcreteTheta(theta_tensor))
+      values = jnp.custom(
+          ForwardArray,
+          lambda cotangent, theta_values: [
+              BackwardArray(cotangent, theta_values)],
+          theta_tensor)
+      return mask, values
+
+    return EvaluateLogix
+
+  engine = runtime.plan.tensor_engine_module  # The jax seam.
+
+  def Published(theta_tensor):
+    return engine.pure_callback(
+        ForwardArray, engine.ShapeDtypeStruct(shape, onp.float64),
+        theta_tensor)
+
+  Published = engine.custom_vjp(Published)
+
+  def PublishedForward(theta_tensor):
+    return Published(theta_tensor), theta_tensor
+
+  def PublishedBackward(theta_tensor, cotangent):
+    return (engine.pure_callback(
+        BackwardArray,
+        engine.ShapeDtypeStruct((solver.n_facts,), onp.float64),
+        cotangent, theta_tensor),)
+
+  Published.defvjp(PublishedForward, PublishedBackward)
+
+  def EvaluateJax(state, tensors):
+    theta_tensor = solver.ThetaTensor(state, tensors)
+    mask = solver.StaticMask(member, ConcreteTheta(theta_tensor))
+    return mask, Published(theta_tensor)
+
+  return EvaluateJax
 
 
 def MemberFunction(runtime, member):
@@ -1149,4 +1224,3 @@ def MemberFunction(runtime, member):
   if isinstance(member, TkpAtomMember):
     return AtomFunction(runtime, member)
   return DisjunctionFunction(runtime, member)
-

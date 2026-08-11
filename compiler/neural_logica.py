@@ -2006,24 +2006,23 @@ class NeuralTargetPlan(NeuralPlan):
         state[member.portal] = stabilized
         state[member.diamond_name] = stabilized
 
-    def RunTkpGroup(content, state, environment, stage):
-      """A TKP recursion group runs as ONE sparse symbolic node.
+    def RunTkpGroup(content, state, environment, stage, validate):
+      """A TKP recursion group is a unit of the pure world solver.
 
-      The fixpoint executes on python symbols — proofs are data,
-      selection carries no gradient — and must re-run each training
-      step under the current theta; the probability members publish
-      its results onto the tape with the explicit polynomial
-      derivative. Nothing of the group itself enters the state: the
-      only readers of proof-valued predicates are their probability
-      relations."""
-      node = runtime.tkp_nodes.get(content.members[0].name)
-      if node is None:
-        node = tkp_logica.SparseTkpNode(runtime, content.members)
-        for member in content.members:
-          runtime.tkp_nodes[member.name] = node
-      theta = node.Theta(state, environment)
-      node.Run(np.asarray(theta), content.repetitions, stage,
-               self.target)
+      The solver computes proofs on python symbols — selection carries
+      no gradient — and re-runs each training step under the current
+      theta; the probability members publish its results with the
+      explicit polynomial derivative through their engine's seam.
+      Nothing of the group itself enters the state: the only readers
+      of proof-valued predicates are their probability relations. The
+      probe validates the fixpoint eagerly; inside a traced step the
+      seams validate at call time."""
+      solver = tkp_logica.SolverOf(runtime)
+      solver.EnsureUnit(content.members, content.repetitions)
+      if validate:
+        theta = tkp_logica.ConcreteTheta(
+            solver.ThetaTensor(state, environment))
+        solver.Solve(theta, stage)
 
     def IsTkpGroup(content):
       return any(self.tkp.Owns(member.name)
@@ -2049,7 +2048,8 @@ class NeuralTargetPlan(NeuralPlan):
           continue
         environment = current.Overlay(state)
         if IsTkpGroup(content):
-          RunTkpGroup(content, state, environment, stage)
+          RunTkpGroup(content, state, environment, stage,
+                      validate=True)
           continue
         loop_state = EmptyLoopState(content)
         converged = False
@@ -2091,7 +2091,8 @@ class NeuralTargetPlan(NeuralPlan):
           continue
         environment = current.Overlay(state)
         if IsTkpGroup(content):
-          RunTkpGroup(content, state, environment, 'a training step')
+          RunTkpGroup(content, state, environment, 'a training step',
+                      validate=False)
           continue
 
         def OneSweep(carry, unused_x, functions=functions,
@@ -2291,8 +2292,7 @@ class Runtime(object):
     self.domains = domains
     self.domain_arrays = domain_arrays
     self.index = index
-    self.tkp_nodes = {}   # TKP member name -> its sparse node.
-    self.tkp_proofs = {}  # The shared proof registry of the nodes.
+    self.tkp_solver = None  # The pure sparse solver of the TKP world.
 
   def MemberFunction(self, member):
     """state, tensors -> (mask, values): the member's rewrite w_p."""
