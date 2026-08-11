@@ -52,3 +52,8 @@ Loss() += -Log(1.0 - TkpProbability(Path(x, y)) + 0.000000001) :- MustHaveNot(x,
 
 @OrderBy(Report, "col0");
 Report(y, p: Round(TkpProbability(Path("node_0-0", y)), 4)) :- Path("node_0-0", y);
+
+# The probability of the ATOM itself: the same inclusion-exclusion
+# polynomial over a one-proof, one-fact DNF — numerically its theta.
+@OrderBy(Edges, "col0", "col1");
+Edges(a, b, p: Round(TkpProbability(Edge(a, b)), 4)) :- G(a, b);

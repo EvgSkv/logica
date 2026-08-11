@@ -2018,7 +2018,7 @@ class NeuralTargetPlan(NeuralPlan):
       relations."""
       node = runtime.tkp_nodes.get(content.members[0].name)
       if node is None:
-        node = tkp_logica.SparseTkpNode(runtime, content)
+        node = tkp_logica.SparseTkpNode(runtime, content.members)
         for member in content.members:
           runtime.tkp_nodes[member.name] = node
       theta = node.Theta(state, environment)
@@ -2104,12 +2104,9 @@ class NeuralTargetPlan(NeuralPlan):
       target_mask, target_value = state[self.target]
       return sign * target_value
 
-    tkp_loops = any(
-        kind == 'loop' and
-        any(self.tkp.Owns(member.name) for member in content.members)
-        for kind, content, unused_functions in stage_functions)
+    tkp_present = bool(self.tkp.world.atoms)
 
-    if tkp_loops and hasattr(jax.numpy, 'custom'):
+    if tkp_present and hasattr(jax.numpy, 'custom'):
       # The sparse TKP nodes must re-run per step (the top-k selection
       # follows theta); a compiled cache would freeze their trace-step
       # proofs. Uncompiled, the tape holds only the small
@@ -2134,7 +2131,7 @@ class NeuralTargetPlan(NeuralPlan):
             for p in self.learned)
         print('step %d: target %g %s' % (steps_done, float(value), norms))
       if not math.isfinite(value):
-        if tkp_loops:
+        if tkp_present:
           # A compiled step cannot raise on a TKP capacity overflow —
           # it poisons the loss to NaN instead. An eager probe of the
           # very parameters of this step raises the precise error.
@@ -2155,10 +2152,10 @@ class NeuralTargetPlan(NeuralPlan):
         progress_shown = time.monotonic()
         progress(steps_done)
 
-    if tkp_loops:
-      # The loud half of the TKP horizon contract: training unrolled
-      # the full declared bound, and the learned parameters must still
-      # stabilize within it, or the reported fixpoint is truncated.
+    if tkp_present:
+      # The loud half of the TKP horizon contract: the learned
+      # parameters must still stabilize within the declared bound, or
+      # the reported fixpoint is truncated.
       Probe(parameters, 'the learned parameters')
 
     # Write the learned relations into the learned predicates' tables.
@@ -2294,7 +2291,8 @@ class Runtime(object):
     self.domains = domains
     self.domain_arrays = domain_arrays
     self.index = index
-    self.tkp_nodes = {}  # TKP member name -> its group's sparse node.
+    self.tkp_nodes = {}   # TKP member name -> its sparse node.
+    self.tkp_proofs = {}  # The shared proof registry of the nodes.
 
   def MemberFunction(self, member):
     """state, tensors -> (mask, values): the member's rewrite w_p."""

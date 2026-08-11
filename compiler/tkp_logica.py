@@ -391,7 +391,9 @@ def ExtractTkpWorld(rules, normalize=None):
                 expression = value['aggregation']['expression']
               result.append((aux_rule, expression))
         return result
-    # A single rule: the value is in the head or in a body unification.
+    # A single rule: the value is in a body unification (the unfolded
+    # recursive form) or right in the head aggregation (the standalone
+    # non-recursive form).
     for conjunct in conjuncts:
       unification = conjunct.get('unification')
       if unification is None:
@@ -399,6 +401,12 @@ def ExtractTkpWorld(rules, normalize=None):
       left = unification['left_hand_side']
       if VariableName(left) == 'logica_value':
         return [(rule, unification['right_hand_side'])]
+    for fv in rule['head']['record']['field_value']:
+      if fv['field'] == 'logica_value' and 'aggregation' in fv['value']:
+        # The head keeps the OPERATOR call: T2P(contribution).
+        operator_call = fv['value']['aggregation']['expression']
+        argument = CallFields(operator_call['call']).get(0)
+        return [(rule, argument)]
     return [(rule, None)]
 
   def CheckContributionBody(contribution_rule, read_names, name):
@@ -918,12 +926,11 @@ class TkpPlan(object):
 class SparseTkpNode(object):
   """The sparse executor of one TKP recursion group."""
 
-  def __init__(self, runtime, group):
+  def __init__(self, runtime, members):
     import numpy as onp
     self.onp = onp
     self.plan = runtime.plan
     self.tkp = self.plan.tkp
-    self.group = group
     (self.probability_predicate, positions,
      self.n_facts) = self.tkp.FactAxis(self.plan)
     self.row_positions = tuple(onp.asarray(p) for p in positions)
@@ -935,9 +942,13 @@ class SparseTkpNode(object):
       self.atom_cells[key] = [(fact,)]
     self.members = [(member, [(head_vars, tree) for head_vars, tree,
                               unused_rule in member.tkp_contributions])
-                    for member in group.members]
+                    for member in members]
     self.domains = runtime.domains
-    self.proofs = {self.atom_name: self.atom_cells}
+    # The proof registry is SHARED across the runtime's nodes: atoms,
+    # recursion groups and standalone disjunctions all publish here,
+    # and any node reads its externals from here.
+    self.registry = runtime.tkp_proofs
+    self.registry.setdefault(self.atom_name, self.atom_cells)
     self.theta = None
 
   def Theta(self, state, tensors):
@@ -986,7 +997,7 @@ class SparseTkpNode(object):
             'supported yet.' % (color.Warn(names), repetitions, stage),
             target)
     for member, unused_compiled in self.members:
-      self.proofs[member.name] = state[member.name]
+      self.registry[member.name] = state[member.name]
 
   def Fingerprint(self, state):
     """A hashable snapshot of the group state, for cycle detection."""
@@ -1009,8 +1020,11 @@ class SparseTkpNode(object):
     """[(variable assignment, proofs)] of a contribution tree."""
     if tree[0] == 'read':
       unused_kind, name, read_vars = tree
+      cells = state.get(name)
+      if cells is None:
+        cells = self.registry.get(name, {})
       return [(dict(zip(read_vars, key)), proofs)
-              for key, proofs in state.get(name, {}).items()]
+              for key, proofs in cells.items()]
     left = self.EvalTree(tree[1], state)
     right = self.EvalTree(tree[2], state)
     if not left or not right:
@@ -1038,7 +1052,7 @@ class SparseTkpNode(object):
     shape = tuple(len(self.domains[t]) for t in member.key_types)
     mask = onp.zeros(shape, dtype=bool)
     values = onp.zeros(shape)
-    for key, proofs in self.proofs[member.of_member.name].items():
+    for key, proofs in self.registry[member.of_member.name].items():
       mask[key] = True
       values[key] = SparseProbability(proofs, self.theta)
     return mask, values
@@ -1048,7 +1062,7 @@ class SparseTkpNode(object):
     onp = self.onp
     out = [0.0] * self.n_facts
     cotangent = onp.asarray(cotangent)
-    for key, proofs in self.proofs[member.of_member.name].items():
+    for key, proofs in self.registry[member.of_member.name].items():
       g = float(cotangent[key])
       if g != 0.0:
         SparseProbabilityGradient(proofs, self.theta, g, out)
@@ -1082,8 +1096,15 @@ def ProbabilityFunction(runtime, member):
           'tensor_engine: "numpy" of @Engine.', member.name)
 
   def EvaluateProbability(state, tensors):
-    node = runtime.tkp_nodes[member.of_member.name]
+    node = runtime.tkp_nodes.get(member.of_member.name)
+    if node is None:
+      # A probability read of the ATOM itself: no recursion group is
+      # involved — a group-less node serves the single-fact cells
+      # (the probability of an atom cell is its theta).
+      node = SparseTkpNode(runtime, [])
+      runtime.tkp_nodes[member.of_member.name] = node
     theta = node.Theta(state, tensors)
+    node.theta = [float(t) for t in node.onp.asarray(theta)]
     mask, values = node.Publish(member)
 
     def Forward(unused_theta):
@@ -1097,17 +1118,35 @@ def ProbabilityFunction(runtime, member):
   return EvaluateProbability
 
 
+def DisjunctionFunction(runtime, member):
+  """A STANDALONE (non-recursive) disjunction: one node, one pass.
+
+  It never reads itself, so its fixpoint arrives after a single sweep
+  (the second sweep only confirms it); externals — atoms, earlier
+  groups, earlier standalones — come from the shared registry."""
+  import numpy as onp
+
+  def EvaluateDisjunction(state, tensors):
+    node = runtime.tkp_nodes.get(member.name)
+    if node is None:
+      node = SparseTkpNode(runtime, [member])
+      runtime.tkp_nodes[member.name] = node
+    theta = node.Theta(state, tensors)
+    node.Run(theta, 2, 'a standalone disjunction', member.name)
+    shape = tuple(len(runtime.domains[t]) for t in member.key_types)
+    mask = onp.zeros(shape, dtype=bool)
+    for key in node.registry[member.name]:
+      mask[key] = True
+    return (mask, None)
+
+  return EvaluateDisjunction
+
+
 def MemberFunction(runtime, member):
   """Runtime function of a TKP member: the kind dispatch."""
   if isinstance(member, TkpProbabilityMember):
     return ProbabilityFunction(runtime, member)
   if isinstance(member, TkpAtomMember):
     return AtomFunction(runtime, member)
-
-  def NeverCalled(unused_state, unused_tensors):
-    raise AssertionError(
-        'A TKP disjunction runs inside its group node, never as a '
-        'member function.')
-
-  return NeverCalled
+  return DisjunctionFunction(runtime, member)
 

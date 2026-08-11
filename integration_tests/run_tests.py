@@ -153,6 +153,10 @@ def RunAll(test_presto=False, test_trino=False, test_clingo=True, test_clickhous
             predicate='Report')
     RunTest('duckdb_tkp_grid_test', use_concertina=True,
             predicate='Report')
+    RunTest('duckdb_tkp_grid_edges_test', src='duckdb_tkp_grid_test.l',
+            use_concertina=True, predicate='Edges')
+    RunTest('duckdb_tkp_hop_test', use_concertina=True,
+            predicate='Report')
 
   RunTest("duckdb_plusplus_agg_test")
 
