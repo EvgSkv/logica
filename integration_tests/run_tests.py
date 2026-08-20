@@ -159,6 +159,10 @@ def RunAll(test_presto=False, test_trino=False, test_clingo=True, test_clickhous
             predicate='Report')
     RunTest('duckdb_tkp_grid_jax_test', use_concertina=True,
             predicate='Report')
+    RunTest('duckdb_tkp_parity_test', use_concertina=True,
+            predicate='Report')
+    RunTest('duckdb_tkp_parity_neural_test', use_concertina=True,
+            golden='duckdb_tkp_parity_test.txt', predicate='Report')
 
   RunTest("duckdb_plusplus_agg_test")
 

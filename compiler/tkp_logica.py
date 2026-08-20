@@ -195,6 +195,7 @@ class TkpAtom(object):
                probability_keys, rule):
     self.name = name
     self.body_relation = None   # EDB body relation enumerating the facts
+    self.body_columns = None    # its columns carrying the atom keys
     self.label = label                # predicate: "Edge"
     self.key_variables = key_variables        # args: [a, b]
     self.probability_predicate = probability_predicate  # EdgeProb
@@ -340,6 +341,19 @@ def ExtractTkpWorld(rules, normalize=None):
           body_predicate = conjunct.get('predicate', {})
           body_name = body_predicate.get('predicate_name')
           if body_name and body_name[:1].isalpha():
+            body_fields = CallFields(body_predicate)
+            body_variables = [
+                VariableName(body_fields[field])
+                for field in sorted(body_fields, key=FieldOrder)]
+            columns = []
+            for variable in atom.key_variables:
+              if variable not in body_variables:
+                Error('TKP: the body relation %s of %s does not bind '
+                      'the fact key %s.' % (
+                          color.Warn(body_name), color.Warn(name),
+                          color.Warn(str(variable))), name)
+              columns.append(body_variables.index(variable))
+            atom.body_columns = columns
             if atom.body_relation is not None:
               Error('TKP: the fact rule of %s reads %s besides %s; the '
                     'runtime materializes ALL rows of the single body '
@@ -910,6 +924,9 @@ class TkpPlan(object):
             'got %s.' % color.Warn(str(atoms)), plan.target)
     atom = self.world.atoms[atoms[0]]
     positions, unused_values = plan.input_rows[atom.body_relation]
+    # Only the columns binding the atom keys form the fact axis: the
+    # body relation may carry extra columns (E(x, y, p)).
+    positions = tuple(positions[i] for i in atom.body_columns)
     return (atom.probability_predicate, positions,
             int(positions[0].shape[0]))
 
@@ -972,12 +989,21 @@ class SparseTkpSolver(object):
     self.atom_cells = {}
     for fact in range(self.n_facts):
       key = tuple(int(p[fact]) for p in self.row_positions)
+      if key in self.atom_cells:
+        Error('TKP: the body relation of %s holds two rows with the '
+              'same atom keys (their extra columns differ); facts '
+              'must be unique per key.' % color.Warn(self.atom_name),
+              self.plan.target)
       self.atom_cells[key] = [(fact,)]
     self.domains = runtime.domains
     self.units = []        # (compiled members, repetitions, unit names)
     self.unit_names = set()
     self.needed_guards = set()
     self.guard_rows = {}   # guard relation -> set of key tuples
+    settings = self.plan.program.annotations.annotations.get(
+        '@Engine', {}).get(self.plan.engine, {})
+    # Opt-in: probes ERROR on a non-fixpoint instead of warning.
+    self.strict_fixpoint = settings.get('tkp_strict_fixpoint') is True
     self.static_masks = {}
     self.cache = {}
     self.cache_order = []
@@ -1045,9 +1071,7 @@ class SparseTkpSolver(object):
     if signature in self.cache:
       state, converged = self.cache[signature]
       if strict and not converged:
-        Error('Recursion does not stabilize within the declared '
-              'bounds under %s; learning through dynamic equilibria '
-              'is not supported yet.' % stage, self.plan.target)
+        self.ReportNonFixpoint('cached solve', None, stage, theta)
       return state
     state = {self.atom_name: self.atom_cells}
     converged = True
@@ -1064,15 +1088,34 @@ class SparseTkpSolver(object):
               stage, strict):
     """One unit: the declared count of sweeps, early out on fixpoint.
 
-    Truncation makes the sweep non-monotone, so a mid-training state
-    may wander — the declared sweeps then ARE the semantics, as on
-    the SQL side. Under a STRICT probe the bound must reach a true
-    fixpoint: a repeated state is reported as an oscillation with its
-    period (otherwise it would burn the bound and misreport as a
-    plain timeout), a wandering state as a timeout."""
-    local = {member.name: {} for member, unused_compiled in compiled}
+    THE semantics is the declared count of unfoldings, exactly as on
+    the SQL side: truncation makes the sweep non-monotone, so a state
+    may legitimately wander without a fixpoint. The probes (strict)
+    diagnose: a non-fixpoint prints a loud warning with a saved
+    artifact — theta, the fingerprint trace, the environment — or,
+    under @Engine(..., tkp_strict_fixpoint: true), raises. Setting
+    LOGICA_TKP_TRACE=1 extends the diagnosis to every training step
+    (the controlled hunt mode)."""
+    import os as os_module
+    diagnose = strict or (
+        os_module.environ.get('LOGICA_TKP_TRACE', '').strip().lower()
+        not in ('', '0', 'false'))
+    # The ladder starts from the APPLIED BASES, exactly like the SQL
+    # diamond (its P_0 is the base, not the empty set): the seeding
+    # sweep reads empty locals, so only base contributions fire.
+    empty = {member.name: {} for member, unused_compiled in compiled}
+    view = dict(state)
+    view.update(empty)
+    local = {member.name: self.EvalMember(member, trees, view, theta)
+             for member, trees in compiled}
     seen = {self.Fingerprint(compiled, local): 0}
+    trace = [self.Fingerprint(compiled, local)] if diagnose else []
     converged = False
+    period = None
+    # The diagnosis NEVER changes the computed object: the sweeps run
+    # to the declared count regardless (for a cycle of period d the
+    # result legitimately depends on N mod d); the only early-out is
+    # a true fixpoint. The period is remembered, not acted upon.
     for sweep in range(1, repetitions + 1):
       view = dict(state)
       view.update(local)
@@ -1083,22 +1126,67 @@ class SparseTkpSolver(object):
         converged = True
         break
       local = new_local
-      if strict:
+      if diagnose:
         fingerprint = self.Fingerprint(compiled, local)
-        if fingerprint in seen:
-          Error('Recursion of %s oscillates with period %d under %s '
-                'instead of stabilizing; learning through dynamic '
-                'equilibria is not supported yet.' % (
-                    color.Warn(names), sweep - seen[fingerprint],
-                    stage), self.plan.target)
-        seen[fingerprint] = sweep
-    if strict and not converged:
-      Error('Recursion of %s does not stabilize within %d sweeps '
-            'under %s; learning through dynamic equilibria is not '
-            'supported yet.' % (color.Warn(names), repetitions, stage),
-            self.plan.target)
+        trace.append(fingerprint)
+        if period is None:
+          if fingerprint in seen:
+            period = sweep - seen[fingerprint]
+          else:
+            seen[fingerprint] = sweep
+    if diagnose and not converged:
+      issue = ('oscillates with period %d' % period if period
+               else 'does not stabilize within %d sweeps' % repetitions)
+      self.ReportNonFixpoint('%s %s' % (names, issue), trace, stage,
+                             theta)
     state.update(local)
     return converged
+
+  def ReportNonFixpoint(self, what, trace, stage, theta):
+    """Non-fixpoint is a NORMAL regime: the result is the state after
+    the declared unfoldings and the gradient is exact for it, so by
+    default this reports nothing. Diagnostics are strictly on demand:
+    LOGICA_TKP_TRACE=1 prints the message and saves the dossier;
+    @Engine(..., tkp_strict_fixpoint: true) makes it fatal."""
+    import os as os_module
+    if not (self.strict_fixpoint or
+            os_module.environ.get('LOGICA_TKP_TRACE', '').strip().lower()
+            not in ('', '0', 'false')):
+      return
+    import json
+    import platform
+    import sys
+    message = ('TKP: recursion %s under %s; the result is the state '
+               'after the declared unfoldings (the SQL semantics). '
+               'For a hard guarantee set '
+               '@Engine(..., tkp_strict_fixpoint: true).'
+               % (what, stage))
+    def Jsonable(value):
+      if isinstance(value, tuple):
+        return [Jsonable(item) for item in value]
+      if isinstance(value, dict):
+        return {str(key): Jsonable(item) for key, item in value.items()}
+      return value
+
+    artifact = {
+        'what': what, 'stage': stage, 'theta': list(theta),
+        # Full per-sweep fingerprints, the seeded state first: enough
+        # to replay which cells and proofs alternate.
+        'fingerprint_trace': Jsonable(tuple(trace or ())),
+        'python': sys.version.split()[0],
+        'numpy': self.onp.__version__,
+        'platform': platform.platform(),
+    }
+    path = 'tkp_nonfixpoint.json'
+    try:
+      with open(path, 'w') as output:
+        json.dump(artifact, output)
+      message += ' Artifact: %s.' % path
+    except OSError:
+      pass
+    if self.strict_fixpoint:
+      Error(message, self.plan.target)
+    print('[ TKP warning ] ' + message, file=sys.stderr, flush=True)
 
   def Fingerprint(self, compiled, local):
     return tuple(

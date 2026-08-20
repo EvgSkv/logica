@@ -1877,6 +1877,15 @@ class NeuralTargetPlan(NeuralPlan):
             Error('TKP: recursion loop %s mixes proof-valued and '
                   'numeric predicates.' % color.Warn(str(content)),
                   self.target)
+          if len(content) > 1:
+            # The solver sweeps a unit synchronously (Jacobi), and the
+            # SQL diamond order for MUTUAL proof-valued recursion is
+            # unverified against it — refuse until a parity test
+            # exists rather than diverge silently.
+            Error('TKP: mutual recursion of proof-valued predicates '
+                  '%s is not supported yet; fold them into one '
+                  'predicate.' % color.Warn(str(sorted(content))),
+                  self.target)
           group = LoopGroup(content)
           for origin in content:
             group.members.append(self.RegisterTkpMember(origin))
