@@ -143,6 +143,23 @@ def VariableName(node):
   return node['variable']['var_name']
 
 
+def ExpressionVariables(node, canonical=None, found=None):
+  """Names of the variables occurring in an expression AST (canonicalised
+  through `canonical` when given)."""
+  if found is None:
+    found = set()
+  if IsVariable(node):
+    name = VariableName(node)
+    found.add(canonical(name) if canonical else name)
+  elif isinstance(node, dict):
+    for child in node.values():
+      ExpressionVariables(child, canonical, found)
+  elif isinstance(node, list):
+    for child in node:
+      ExpressionVariables(child, canonical, found)
+  return found
+
+
 def LiteralListValues(node):
   """Values of a literal list AST node, or None if not a literal list."""
   literal = node.get('literal') if isinstance(node, dict) else None
@@ -2342,15 +2359,122 @@ class Runtime(object):
 
     return Evaluate
 
+  def StaticPart(self, member, contribution):
+    """Splits off the part of a contribution that does not depend on the
+    iteration state and mentions variables absent from the head, the
+    value and the dynamic reads.  Such variables only witness the rule
+    (`x != s` against a constant `Source(s)`): summing them out once,
+    before the sweeps, keeps their axes out of the per-sweep tensors.
+    Returns (eliminated variables, hoisted reads, hoisted memberships,
+    hoisted constraints) or None when nothing can be hoisted."""
+    canonical = contribution.canonical.Find
+    dynamic = {m.portal for m in self.plan.members}
+    dynamic |= set(getattr(self.plan, 'learned', []))
+    axes = set(contribution.axes)
+    pinned = {h[1] for h in contribution.head if h[0] == 'var'}
+    if contribution.value_expr is not None:
+      pinned |= ExpressionVariables(contribution.value_expr, canonical)
+    for variable, expression in contribution.definitions.items():
+      pinned.add(canonical(variable))
+      pinned |= ExpressionVariables(expression, canonical)
+    static_reads, other_reads = [], []
+    for read in contribution.reads:
+      name, key_map, value_var = read
+      if name in dynamic or value_var is not None:
+        pinned |= set(key_map.values())
+        if value_var is not None:
+          pinned.add(value_var)
+        other_reads.append(read)
+      else:
+        static_reads.append(read)
+    static_constraints, other_constraints = [], []
+    for constraint in contribution.constraints:
+      variables = ExpressionVariables(constraint, canonical)
+      if variables <= axes:
+        static_constraints.append((constraint, variables))
+      else:
+        pinned |= variables
+        other_constraints.append(constraint)
+    eliminated = axes - pinned
+    if not eliminated:
+      return None
+    hoisted_reads = [r for r in static_reads
+                     if set(r[1].values()) & eliminated]
+    hoisted_memberships = [m for m in contribution.memberships
+                           if m[0] in eliminated]
+    hoisted_constraints = [c for c, v in static_constraints
+                           if v & eliminated]
+    return (eliminated, hoisted_reads, hoisted_memberships,
+            hoisted_constraints)
+
   def ContributionFunction(self, member, contribution):
     jnp = self.jnp
+    static = self.StaticPart(member, contribution)
+    if static is None:
+      eliminated, hoisted_reads, hoisted_memberships = set(), [], []
+      hoisted_constraints = []
+      live_axes = list(contribution.axes)
+    else:
+      (eliminated, hoisted_reads, hoisted_memberships,
+       hoisted_constraints) = static
+      live_axes = [v for v in contribution.axes if v not in eliminated]
+    hoisted_read_ids = {id(r) for r in hoisted_reads}
+    hoisted_membership_ids = {id(m) for m in hoisted_memberships}
+    hoisted_constraint_ids = {id(c) for c in hoisted_constraints}
+    kept_static = sorted(
+        {v for r in hoisted_reads for v in r[1].values()} |
+        {v for c in hoisted_constraints
+         for v in ExpressionVariables(c, contribution.canonical.Find)} |
+        {m[0] for m in hoisted_memberships}) if static else []
+    kept_static = [v for v in kept_static if v not in eliminated]
+    static_cache = {}
+
+    def StaticWitnesses(state, tensors):
+      """(mask, count) over kept_static: how many assignments of the
+      eliminated variables satisfy the hoisted part."""
+      key = id(tensors)
+      if key in static_cache:
+        return static_cache[key]
+      static_axes = [v for v in contribution.axes
+                     if v in eliminated or v in kept_static]
+      context = EvalContext(self, member, contribution, static_axes,
+                            contribution.axis_type, {}, tensors)
+      mask = jnp.array(True)
+      for name, key_map, value_var in hoisted_reads:
+        relation = self.plan.relations[name]
+        relation_mask, unused_values = context.Tensor(name)
+        variables = [key_map[f] for f in relation.key_fields]
+        mask = mask & context.Aligned(relation_mask, variables)
+      for variable, values in hoisted_memberships:
+        allowed = set(values)
+        domain = self.domains[contribution.axis_type[variable]]
+        vector = jnp.array([v in allowed for v in domain], dtype=bool)
+        mask = mask & context.Aligned(vector, [variable])
+      for constraint in hoisted_constraints:
+        mask = mask & context.EvalConstraint(constraint)
+      mask = jnp.broadcast_to(mask, context.AxisSizes())
+      reduce_axes = tuple(i for i, v in enumerate(static_axes)
+                          if v in eliminated)
+      count = jnp.sum(mask.astype(jnp.float64), axis=reduce_axes)
+      result = (count > 0, count)
+      static_cache[key] = result
+      return result
 
     def Evaluate(state, tensors):
       context = EvalContext(self, member, contribution,
-                            contribution.axes, contribution.axis_type,
+                            live_axes, contribution.axis_type,
                             state, tensors)
       mask = jnp.array(True)
-      for name, key_map, value_var in contribution.reads:
+      if static is not None:
+        static_mask, static_count = StaticWitnesses(state, tensors)
+        if kept_static:
+          mask = mask & context.Aligned(static_mask, kept_static)
+        else:
+          mask = mask & static_mask
+      for read in contribution.reads:
+        if id(read) in hoisted_read_ids:
+          continue
+        name, key_map, value_var = read
         relation = self.plan.relations[name]
         relation_mask, relation_values = context.Tensor(name)
         variables = [key_map[f] for f in relation.key_fields]
@@ -2365,19 +2489,29 @@ class Runtime(object):
               aligned_mask, context.Aligned(relation_values, variables),
               0.0)
 
-      for variable, values in contribution.memberships:
+      for membership in contribution.memberships:
+        if id(membership) in hoisted_membership_ids:
+          continue
+        variable, values = membership
         allowed = set(values)
         domain = self.domains[contribution.axis_type[variable]]
         vector = jnp.array([v in allowed for v in domain], dtype=bool)
         mask = mask & context.Aligned(vector, [variable])
 
       for constraint in contribution.constraints:
+        if id(constraint) in hoisted_constraint_ids:
+          continue
         mask = mask & context.EvalConstraint(constraint)
 
       if member.has_value:
         value, valid = context.Eval(contribution.value_expr)
         if valid is not True:
           mask = mask & valid
+        if static is not None and member.aggregation == 'sum':
+          # Each assignment of the eliminated variables was a separate
+          # derivation: the value is summed once per witness.
+          value = value * (context.Aligned(static_count, kept_static)
+                           if kept_static else static_count)
       else:
         value = None
 
@@ -2390,7 +2524,7 @@ class Runtime(object):
       # Reduce onto member key axes.
       head_variables = {h[1] for h in contribution.head if h[0] == 'var'}
       reduce_axes = tuple(
-          i for i, v in enumerate(contribution.axes)
+          i for i, v in enumerate(live_axes)
           if v not in head_variables)
       # `initial` keeps reductions over empty axes well-defined.
       reduction = {
@@ -2405,7 +2539,7 @@ class Runtime(object):
       mask = jnp.any(mask, axis=reduce_axes) if reduce_axes else mask
 
       # Order remaining axes as member keys; insert one-hots for consts.
-      kept = [v for v in contribution.axes if v in head_variables]
+      kept = [v for v in live_axes if v in head_variables]
       target_order = [kept.index(h[1]) for h in contribution.head
                       if h[0] == 'var']
       mask = jnp.transpose(mask, target_order)

@@ -64,6 +64,8 @@ def NeuralTests():
           golden='neural/neural_flow.txt', use_concertina=True)
   RunTest('neural/neural_counter', src='neural/neural_counter.l',
           golden='neural/neural_counter.txt', use_concertina=True)
+  RunTest('neural/neural_static_hoist', src='neural/neural_static_hoist.l',
+          golden='neural/neural_static_hoist.txt', use_concertina=True)
   RunTest('neural/neural_const_keys', src='neural/neural_const_keys.l',
           golden='neural/neural_const_keys.txt', use_concertina=True)
   RunTest('neural/neural_game_of_life', src='neural/neural_game_of_life.l',
