@@ -175,7 +175,7 @@ def main(argv):
               'infer_types', 'show_signatures', 'build_schema',
               'propositional_playground', 'print_clingo', 'run_clingo',
               'trancpy', 'trancpy_run', 'build_extension',
-              'install_extension']
+              'install_extension', 'tensor_diagnostics']
 
   if command not in commands:
     print(color.Format('Unknown command {warning}{command}{end}. '
@@ -203,6 +203,20 @@ def main(argv):
     else:
       artistic_table = run_in_terminal.Run(filename, predicates)
       print(artistic_table)
+    return
+
+  # How the predicates of a recursive component behave as tensors in
+  # neural execution: the component's plan prints the report instead of
+  # iterating; the predicate's (empty) result is discarded.
+  if command == 'tensor_diagnostics':
+    os.environ['LOGICA_TENSOR_DIAGNOSTICS'] = predicates
+    if __name__ == '__main__' and not __package__:
+      from tools import run_in_terminal
+    else:
+      from .tools import run_in_terminal
+    run_in_terminal.Run(filename, predicates,
+                        output_format='header_rows',
+                        display_mode='silent')
     return
 
   # Like run_in_terminal, but only the result is printed.

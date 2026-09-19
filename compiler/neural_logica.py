@@ -755,12 +755,20 @@ def AppendAutoGrounds(rules, dependencies):
             for e in fields['predicates']['literal']['the_list']['element']]
 
   candidates = set()
+  member_finals = set()
   tkp_injectable = tkp_logica.InjectableNames(rules)
 
   for fields in neural_iterations:
     diamond_predicates = IterationPredicates(fields)
     members = {p[:-len(DIAMOND_SUFFIX)] for p in diamond_predicates
                if p.endswith(DIAMOND_SUFFIX)}
+    # The final copies of the members (the one Gauss-Seidel step the
+    # readers see over the written portals) are materialized: a
+    # downstream query that recomputed them as CTEs read by several
+    # relations at once has no statistics for them — the join-order
+    # optimizer of an engine can then cross-join two copies (observed
+    # in duckdb: a twice-read CTE is estimated at one row).
+    member_finals |= {m for m in members if m in rules_of}
     frontier = list(diamond_predicates)
     seen = set(frontier)
     while frontier:
@@ -811,6 +819,10 @@ def AppendAutoGrounds(rules, dependencies):
 
   for name in sorted(candidates):
     if name in grounded or IsFunctional(name, rules_of):
+      continue
+    rules.extend(parse.ParseFile('@Ground(%s);' % name)['rule'])
+  for name in sorted(member_finals):
+    if name in grounded:
       continue
     rules.extend(parse.ParseFile('@Ground(%s);' % name)['rule'])
 
@@ -910,6 +922,56 @@ def CompleteFunctorIslands(rules):
     for ground_rule in rules_of.get('@Ground', []):
       if AnnotationSubjectName(ground_rule) in diamond_map.values():
         RenamePredicates(ground_rule, portal_map)
+    # An island-internal auxiliary that does not depend on the functor's
+    # arguments is not copied by the functor, so the family still
+    # reaches it by the original name — yet it reads the island's
+    # state. Clone such auxiliaries onto the family, rerouting the
+    # reads.
+    def ReferencedPredicates(node, out):
+      if isinstance(node, dict):
+        if 'predicate_name' in node:
+          out.add(node['predicate_name'])
+        for value in node.values():
+          ReferencedPredicates(value, out)
+      elif isinstance(node, list):
+        for value in node:
+          ReferencedPredicates(value, out)
+      return out
+    reads_state = {}
+    def ReadsState(name):
+      """Whether the predicate reads the island's state, maybe deeply."""
+      if name in portal_map or name in diamond_map:
+        return True
+      if name in reads_state:
+        return reads_state[name]
+      reads_state[name] = False  # Cuts reference cycles.
+      if name[0] != '@' and name in rules_of:
+        reads_state[name] = any(
+          ReadsState(r)
+          for rule in rules_of[name]
+          for r in ReferencedPredicates(rule, set()))
+      return reads_state[name]
+    family_heads = {head for head in rules_of
+                    if head[0] != '@' and head.endswith(family)}
+    queue = [rule for head in family_heads for rule in rules_of[head]]
+    cloned = set()
+    while queue:
+      rule = queue.pop()
+      for q in sorted(ReferencedPredicates(rule, set()) -
+                      {rule['head']['predicate_name']}):
+        if (q[0] == '@' or q.endswith(family) or q not in rules_of or
+            q in portal_map or q in diamond_map or not ReadsState(q)):
+          continue
+        if q not in cloned:
+          cloned.add(q)
+          for aux_rule in rules_of[q]:
+            clone = copy.deepcopy(aux_rule)
+            clone['head']['predicate_name'] = q + family
+            RenamePredicates(clone, portal_map)
+            RenamePredicates(clone, diamond_map)
+            new_rules.append(clone)
+            queue.append(clone)
+        RenamePredicates(rule, {q: q + family})
     for b in sorted(island):
       # The portal: its typed seed rule and its @Ground.
       for seed in rules_of[b + PORTAL_SUFFIX]:
@@ -1104,6 +1166,7 @@ class NeuralPlan(object):
     self.name = iteration_name
     self.engine = program.annotations.Engine()
     self.repetitions = int(iteration['repetitions'])
+    self.stop_cadence = int(iteration.get('stop_cadence') or self.STOP_CADENCE)
     self.epsilon = 1e-10
     for member_args in program.annotations.annotations.get(
         '@Recursive', {}).values():
@@ -1122,6 +1185,16 @@ class NeuralPlan(object):
         Error('Neural iteration got a non-diamond predicate %s.' %
               color.Warn(diamond_name), self.name)
       self.members.append(self.CompileMember(diamond_name))
+    # Stop predicates of @Recursive: the iteration breaks when one
+    # derives a row.
+    stop_bases = set()
+    for member_args in program.annotations.annotations.get(
+        '@Recursive', {}).values():
+      stop = member_args.get('stop')
+      if isinstance(stop, dict):
+        stop_bases.add(stop['predicate_name'])
+    self.stop_portals = [m.portal for m in self.members
+                         if ParsePhase(m.name)[0] in stop_bases]
     self.ResolveClassTypes()
 
   def ResolveClassTypes(self):
@@ -1178,6 +1251,16 @@ class NeuralPlan(object):
           reference_algebra.VeryConcreteType(signature[field]))
       if field == 'logica_value':
         has_value = True
+        if rendered not in ('Num', 'Bool'):
+          # A phase reading only RZero placeholders types as Any; its
+          # logical origin knows the value type.
+          origin = FamilyOrigin(predicate_name)
+          origin_signature = self.program.predicate_signatures.get(
+              origin, {})
+          if field in origin_signature:
+            rendered = reference_algebra.RenderType(
+                reference_algebra.VeryConcreteType(
+                    origin_signature[field]))
         if rendered not in ('Num', 'Bool'):
           Error('Neural iteration computes numbers: the value of %s is '
                 'of type %s. Only numeric values can live in tensors.' %
@@ -1502,19 +1585,32 @@ class NeuralPlan(object):
     def Dims(relation):
       return tuple(len(domains[t]) for t in relation.key_types)
 
-    # 4. State: portals start empty.
-    state = {}
+    # 4. State: portals start empty; a sparse member's state is a
+    # vector over its static support instead of the dense tensor.
     for member in self.members:
       portal = member.portal
       relation = Relation(portal, member.key_fields, member.key_types,
                           member.has_value)
       self.relations.setdefault(portal, relation)
-      shape = Dims(relation)
+
+    runtime = Runtime(self, jnp, domains, domain_arrays, index)
+    runtime.SelectSparse(self.members, self.members, [],
+                         {m.portal for m in self.members})
+
+    if TensorDiagnosticsRequested(self):
+      print(TensorDiagnosticsReport(self, runtime))
+      return {'iterations': 0, 'converged': True}
+
+    state = {}
+    for member in self.members:
+      portal = member.portal
+      support = runtime.sparse.get(portal)
+      shape = ((len(support.flat),) if support is not None
+               else Dims(self.relations[portal]))
       values = (jnp.full(shape, member.neutral, dtype=jnp.float64)
                 if member.has_value else None)
       state[portal] = (jnp.zeros(shape, dtype=bool), values)
 
-    runtime = Runtime(self, jnp, domains, domain_arrays, index)
     member_functions = [(m, runtime.MemberFunction(m)) for m in self.members]
 
     # Tensors ride as a closure constant: lazily built entries are not
@@ -1533,13 +1629,19 @@ class NeuralPlan(object):
     iterations = 0
     converged = False
     progress_shown = time.monotonic()
+    # Convergence and stop checks pull scalars out of XLA and stall the
+    # asynchronous dispatch, so they run once per chunk, not every sweep.
     for iterations in range(1, self.repetitions + 1):
-      new_state = sweep(state)
-      if self.Converged(state, new_state, jnp):
-        state = new_state
+      previous, state = state, sweep(state)
+      if iterations % self.stop_cadence and iterations != self.repetitions:
+        continue
+      if self.Converged(previous, state, jnp):
         converged = True
         break
-      state = new_state
+      if self.stop_portals and any(
+          bool(jnp.any(state[portal][0])) for portal in self.stop_portals):
+        converged = True
+        break
       # Once a second by the clock: fast iterations update rarely,
       # slow ones every time.
       if progress and time.monotonic() - progress_shown >= 1.0:
@@ -1552,7 +1654,8 @@ class NeuralPlan(object):
     # 6. Write the stabilized relations back into portal tables.
     for member in self.members:
       self.WriteBack(sql_runner, member,
-                     state[member.portal], domains, np)
+                     state[member.portal], domains, np,
+                     support=runtime.sparse.get(member.portal))
 
     return {'iterations': iterations, 'converged': converged}
 
@@ -1581,14 +1684,21 @@ class NeuralPlan(object):
                                                               tensors)
       conflict = np.asarray(max_mask & (max_values != min_values))
       if conflict.any():
-        position = tuple(int(i) for i in np.argwhere(conflict)[0])
+        support = runtime.sparse.get(member.portal)
+        if support is not None:
+          flat = int(np.flatnonzero(conflict)[0])
+          position = tuple(int(np.asarray(p)[flat])
+                           for p in support.positions)
+          value_at = lambda values: float(np.asarray(values)[flat])
+        else:
+          position = tuple(int(i) for i in np.argwhere(conflict)[0])
+          value_at = lambda values: float(np.asarray(values)[position])
         keys = tuple(domains[c][i]
                      for c, i in zip(member.key_types, position))
         Error('Predicate %s is defined with = but is not a function: '
               'key %s derives both %s and %s.' %
               (color.Warn(member.name), keys,
-               float(np.asarray(min_values)[position]),
-               float(np.asarray(max_values)[position])), member.name)
+               value_at(min_values), value_at(max_values)), member.name)
 
   def LoadInputs(self, sql_runner):
     """Reads input tables. Terminal runners return (header, rows),
@@ -1724,15 +1834,29 @@ class NeuralPlan(object):
     return True
 
   BULK_ROWS = 100000  # Above this, tables travel through a CSV file.
+  STOP_CADENCE = 1  # Sweeps between convergence/stop checks.
 
-  def WriteBack(self, sql_runner, member, state_tensor, domains, np):
-    """Writes a member's stabilized relation into its portal table."""
+  def WriteBack(self, sql_runner, member, state_tensor, domains, np,
+                support=None):
+    """Writes a member's stabilized relation into its portal table.
+    A sparse member arrives as its support vector: the cell positions
+    come from the support, not from the dense tensor."""
     self.written_tables[member.name] = member.table
     mask, values = state_tensor
     mask = np.asarray(mask)
     if values is not None:
       values = np.asarray(values)
-    positions = np.argwhere(mask)
+    if support is not None:
+      alive = np.flatnonzero(mask)
+      positions = np.stack(
+          [np.asarray(p)[alive] for p in support.positions],
+          axis=1) if len(alive) else np.zeros((0, len(support.sizes)),
+                                              dtype=np.int64)
+      flat_values = values[alive] if values is not None else None
+    else:
+      positions = np.argwhere(mask)
+      flat_values = (np.asarray(values[tuple(positions.T)]).reshape(
+          len(positions)) if values is not None else None)
     if not len(positions):
       return  # The portal table is already seeded empty.
     columns = [self.FieldColumn(f) for f in member.key_fields]
@@ -1740,8 +1864,8 @@ class NeuralPlan(object):
       columns.append('logica_value')
 
     if len(positions) > self.BULK_ROWS and self.engine == 'duckdb':
-      self.BulkWriteBack(sql_runner, member, positions, values, domains,
-                         columns, np)
+      self.BulkWriteBack(sql_runner, member, positions, flat_values,
+                         domains, columns, np)
       return
 
     def SqlLiteral(value):
@@ -1750,14 +1874,13 @@ class NeuralPlan(object):
       return repr(value)
 
     integral_value = (member.has_value and
-                      all(float(values[tuple(p)]).is_integer()
-                          for p in positions))
+                      all(float(v).is_integer() for v in flat_values))
     rows = []
-    for position in positions:
+    for row_index, position in enumerate(positions):
       literals = [SqlLiteral(domains[t][i])
                   for t, i in zip(member.key_types, position)]
       if member.has_value:
-        v = float(values[tuple(position)])
+        v = float(flat_values[row_index])
         # Scientific notation makes the engine infer DOUBLE; a long
         # plain decimal would be parsed as a DECIMAL and overflow its
         # scale.
@@ -1768,8 +1891,8 @@ class NeuralPlan(object):
                member.table, ', '.join(rows), ', '.join(columns)))
     sql_runner(sql, self.engine, is_final=False)
 
-  def BulkWriteBack(self, sql_runner, member, positions, values, domains,
-                    columns, np):
+  def BulkWriteBack(self, sql_runner, member, positions, flat_values,
+                    domains, columns, np):
     """Writes a large relation through a CSV file: a VALUES literal of
     millions of rows would dwarf the data itself."""
     import csv
@@ -1779,7 +1902,7 @@ class NeuralPlan(object):
       domain = np.asarray(domains[column_class], dtype=object)
       frame.append(domain[positions[:, axis]])
     if member.has_value:
-      frame.append(values[tuple(positions.T)])
+      frame.append(flat_values)
     with tempfile.NamedTemporaryFile(
         'w', suffix='.csv', delete=False, newline='') as f:
       writer = csv.writer(f)
@@ -1998,10 +2121,42 @@ class NeuralTargetPlan(NeuralPlan):
     domains, index, domain_arrays = self.BuildDomains(input_data, jnp)
     tensors = self.BuildTensors(input_data, domains, index, jnp, np)
 
-    parameters = {p: tensors[p][1] for p in self.learned}
-    masks = {p: tensors[p][0] for p in self.learned}
-
     runtime = Runtime(self, jnp, domains, domain_arrays, index)
+
+    loop_members, all_members, published = [], [], set()
+    for kind, content in self.stages:
+      if kind == 'member':
+        all_members.append(content)
+        published.add(content.name)
+      else:
+        for member in content.members:
+          loop_members.append(member)
+          all_members.append(member)
+          published |= {member.name, member.portal, member.diamond_name}
+    runtime.SelectSparse(loop_members, all_members, list(self.learned),
+                         published)
+
+    if os.environ.get('LOGICA_TENSOR_DIAGNOSTICS'):
+      target_name = os.environ['LOGICA_TENSOR_DIAGNOSTICS']
+      for kind, content in self.stages:
+        if kind == 'loop' and any(
+            m.name == target_name or FamilyOrigin(m.name) == target_name
+            for m in content.members):
+          print(TensorDiagnosticsReport(self, runtime, content.members))
+          return {'iterations': 0, 'converged': True}
+
+    # A sparse learned relation's parameters are its rows: the support
+    # is the initialization table itself.
+    parameters, masks = {}, {}
+    for p in self.learned:
+      if p in runtime.sparse:
+        unused_positions, row_values = self.input_rows[p]
+        parameters[p] = jnp.asarray(row_values)
+        masks[p] = jnp.ones(len(row_values), dtype=bool)
+      else:
+        parameters[p] = tensors[p][1]
+        masks[p] = tensors[p][0]
+
     stage_functions = []
     for kind, content in self.stages:
       if kind == 'member':
@@ -2021,7 +2176,9 @@ class NeuralTargetPlan(NeuralPlan):
       # TKP groups never reach here: they run as sparse nodes.
       state = {}
       for member in group.members:
-        shape = tuple(len(domains[t]) for t in member.key_types)
+        support = runtime.sparse.get(member.portal)
+        shape = ((len(support.flat),) if support is not None
+                 else tuple(len(domains[t]) for t in member.key_types))
         values = (jnp.full(shape, member.neutral, dtype=jnp.float64)
                   if member.has_value else None)
         state[member.portal] = (
@@ -2210,7 +2367,7 @@ class NeuralTargetPlan(NeuralPlan):
       learned_member.table = ground.table_name
       self.WriteBack(sql_runner, learned_member,
                      (masks[predicate], parameters[predicate]),
-                     domains, np)
+                     domains, np, support=runtime.sparse.get(predicate))
 
     return {'iterations': steps_done, 'converged': converged}
 
@@ -2301,6 +2458,170 @@ def NeedsDenseEvaluator(node, relations, row_variables, string_variables,
   return Scan(node)
 
 
+class RowDriverAnalysis(object):
+  """Verdict of the row-form test for one contribution: the driving
+  read, or the reason the contribution needs the dense axes."""
+
+  def __init__(self, driver, reason):
+    self.driver = driver  # A read triple, or None.
+    self.reason = reason  # Human-readable, shown by tensor_diagnostics.
+
+
+class SparseSupport(object):
+  """The static support of a relation: the cells it can ever hold.
+
+  Cells are stored sorted by their flattened dense position, so a
+  static key lookup is a searchsorted; the vector state of a sparse
+  member and the learned parameter vectors live in this order."""
+
+  def __init__(self, flat, positions, sizes):
+    self.flat = flat            # Sorted unique flat cells, int64 (S,).
+    self.positions = positions  # Per-axis position arrays (S,).
+    self.sizes = sizes          # The dense shape the cells index.
+
+  def Flatten(self, position_arrays):
+    import numpy as np
+    flat = np.zeros(len(position_arrays[0]), dtype=np.int64)
+    for positions, size in zip(position_arrays, self.sizes):
+      flat = flat * size + np.asarray(positions)
+    return flat
+
+  def Lookup(self, position_arrays):
+    """Static gather addresses: (index into the support, found mask)."""
+    import numpy as np
+    query = self.Flatten(position_arrays)
+    index = np.searchsorted(self.flat, query)
+    index = np.clip(index, 0, max(len(self.flat) - 1, 0))
+    if len(self.flat):
+      found = self.flat[index] == query
+    else:
+      found = np.zeros(len(query), dtype=bool)
+    return index, found
+
+
+def ExpressionRelationReads(contribution, relations):
+  """Names of relations read inside the contribution's expressions
+  (value, definitions, constraints): the reads that EvalRelationCall
+  serves, invisible in contribution.reads."""
+  names = []
+
+  def Scan(node):
+    if isinstance(node, dict):
+      call = node.get('call')
+      if (call and call['predicate_name'] in relations and
+          call['record']['field_value']):
+        names.append(call['predicate_name'])
+      for v in node.values():
+        Scan(v)
+    elif isinstance(node, list):
+      for v in node:
+        Scan(v)
+
+  scanned = ([contribution.value_expr]
+             if contribution.value_expr is not None else [])
+  scanned += list(contribution.definitions.values())
+  scanned += list(contribution.constraints)
+  for node in scanned:
+    Scan(node)
+  return names
+
+
+def TensorDiagnosticsRequested(plan):
+  """True when this plan owns the predicate named by the
+  tensor_diagnostics command."""
+  target = os.environ.get('LOGICA_TENSOR_DIAGNOSTICS')
+  if not target:
+    return False
+  return any(m.name == target or FamilyOrigin(m.name) == target
+             for m in getattr(plan, 'members', []))
+
+
+def OneLine(text, limit=60):
+  words = ' '.join(str(text).split())
+  return words if len(words) <= limit else words[:limit - 3] + '...'
+
+
+def TensorDiagnosticsReport(plan, runtime, members=None):
+  """How the predicates of one recursive component behave as tensors:
+  the representation of each member's state, the execution form of each
+  rule, and the way every read relation is accessed."""
+  members = members if members is not None else plan.members
+  lines = ['Tensor diagnostics of the recursive component: %s' %
+           ', '.join(m.name for m in members)]
+  member_portals = {m.portal: m for m in members}
+  input_usage = {}  # name -> set of access kinds.
+
+  def DescribeRead(name, row_form):
+    relation = plan.relations.get(name)
+    if relation is None or not relation.key_fields:
+      return '%s (scalar)' % name
+    if name in runtime.sparse:
+      return '%s (support vector)' % name
+    if name in member_portals or plan.IsStateRelation(name):
+      return '%s (state tensor %s)' % (
+          name, list(runtime.DenseShape(name)))
+    riding = (row_form and name in getattr(plan, 'input_rows', {})
+              and runtime.RowTableOf(name) is not None)
+    kind = 'row lookup' if riding else 'dense %s' % (
+        list(runtime.DenseShape(name)),)
+    input_usage.setdefault(name, set()).add('rows' if riding else 'dense')
+    return '%s (%s)' % (name, kind)
+
+  for member in members:
+    support = runtime.sparse.get(member.portal)
+    shape = list(runtime.DenseShape(member.portal))
+    if support is not None:
+      form = ('vector over %d support cells; dense form would be %s' %
+              (len(support.flat), shape))
+    else:
+      form = 'dense %s' % shape
+    aggregation = ('%s with neutral %s' %
+                   (member.aggregation, member.neutral)
+                   if member.has_value else 'or (boolean)')
+    lines.append('')
+    lines.append('%s: %s' % (member.name, form))
+    lines.append('  aggregation: %s' % aggregation)
+    for contribution in member.contributions:
+      info = runtime.RowDriverInfo(member, contribution)
+      row_form = info.driver is not None
+      execution = info.reason if row_form else 'dense (%s)' % info.reason
+      names = [r[0] for r in contribution.reads]
+      names += ExpressionRelationReads(contribution, plan.relations)
+      seen, described = set(), []
+      driver_name = info.driver[0] if row_form else None
+      for name in names:
+        if name in seen or name == driver_name:
+          continue
+        seen.add(name)
+        described.append(DescribeRead(name, row_form))
+      if driver_name is not None:
+        input_usage.setdefault(driver_name, set()).add('rows')
+      lines.append('  rule "%s"' % OneLine(contribution.rule_text))
+      lines.append('    runs as: %s%s' % (
+          execution,
+          '; reads: %s' % ', '.join(described) if described else ''))
+  inputs = sorted(set(plan.input_tables) | set(input_usage))
+  if inputs:
+    lines.append('')
+    lines.append('Inputs:')
+  for name in inputs:
+    relation = plan.relations.get(name)
+    if relation is None or not relation.key_fields:
+      lines.append('  %s: scalar' % name)
+      continue
+    rows = (len(plan.input_rows[name][0][0])
+            if name in getattr(plan, 'input_rows', {}) else 0)
+    usage = input_usage.get(name, set())
+    if 'dense' in usage:
+      access = 'dense %s is built' % (list(runtime.DenseShape(name)),)
+    elif usage:
+      access = 'rows only, dense form never built'
+    else:
+      access = 'not read by the component'
+    lines.append('  %s: %d rows; %s' % (name, rows, access))
+  return '\n'.join(lines)
+
+
 def ConfigureJax(jax):
   """Numeric precision and the persistent compilation cache.
 
@@ -2332,6 +2653,72 @@ class Runtime(object):
     self.domain_arrays = domain_arrays
     self.index = index
     self.tkp_solver = None  # The pure sparse solver of the TKP world.
+    self.dense_forced = bool(os.environ.get('LOGICA_NEURAL_DENSE'))
+    self.sparse = {}  # Relation name -> SparseSupport of its vector form.
+    self.row_driver_cache = {}
+
+  def RowDriverInfo(self, member, contribution):
+    """The row-form verdict of a contribution, cached per contribution."""
+    key = id(contribution)
+    if key not in self.row_driver_cache:
+      self.row_driver_cache[key] = self.ComputeRowDriverInfo(
+          member, contribution)
+    return self.row_driver_cache[key]
+
+  def ComputeRowDriverInfo(self, member, contribution,
+                           assumed_sparse=None):
+    keyed = [r for r in contribution.reads
+             if self.plan.relations[r[0]].key_fields]
+    if assumed_sparse is None:
+      assumed_sparse = self.sparse
+
+    def KeyVariables(read):
+      read_name, read_key_map, _ = read
+      return [read_key_map[f]
+              for f in self.plan.relations[read_name].key_fields]
+
+    def CoversAxes(read):
+      variables = KeyVariables(read)
+      return (len(set(variables)) == len(variables)
+              and set(variables) == set(contribution.axes))
+
+    # The driver is a read whose rows are known before the iteration
+    # and bind every axis: the rule's derivations are exactly its rows.
+    # An input table qualifies, and so does a sparse state member — its
+    # support is static even though its values change.  Other keyed
+    # reads join on the driver's variables — gathers at the rows' key
+    # positions.
+    drivers = [
+        r for r in keyed
+        if (r[0] in getattr(self.plan, 'input_rows', {})
+            # A learned relation's input rows are only the
+            # initialization: at run time its tensor is overlaid with
+            # the current parameters, which the row form would bypass.
+            and r[0] not in getattr(self.plan, 'learned', ())
+            or r[0] in assumed_sparse)
+        and CoversAxes(r)]
+    if not drivers:
+      return RowDriverAnalysis(
+          None, 'no read with static rows covers all rule variables')
+    if any(kind != 'var' for kind, _ in contribution.head):
+      return RowDriverAnalysis(None, 'constant key in the head')
+    if member.has_value and member.aggregation not in ('sum', 'min', 'max'):
+      return RowDriverAnalysis(
+          None, 'aggregation %s' % member.aggregation)
+    name, key_map, unused_value_var = drivers[0]
+    relation = self.plan.relations[name]
+    key_variables = [key_map[f] for f in relation.key_fields]
+    string_variables = {v for v, t in zip(key_variables, relation.key_types)
+                        if self.domain_arrays[t] is None}
+    scanned = ([contribution.value_expr] if member.has_value else [])
+    scanned += list(contribution.definitions.values())
+    scanned += list(contribution.constraints)
+    if NeedsDenseEvaluator(scanned, self.plan.relations,
+                           set(key_variables), string_variables,
+                           contribution.canonical.Find):
+      return RowDriverAnalysis(
+          None, 'an expression needs the dense axes')
+    return RowDriverAnalysis(drivers[0], 'rows of %s' % name)
 
   def MemberFunction(self, member):
     """state, tensors -> (mask, values): the member's rewrite w_p."""
@@ -2573,6 +2960,9 @@ class Runtime(object):
     O(rows) work and memory instead of a dense cube over the domains.
     Returns None when the contribution does not fit the pattern."""
     jnp = self.jnp
+    info = self.RowDriverInfo(member, contribution)
+    if info.driver is None:
+      return None
     keyed = [r for r in contribution.reads
              if self.plan.relations[r[0]].key_fields]
     scalars = [r for r in contribution.reads
@@ -2583,42 +2973,28 @@ class Runtime(object):
       return [read_key_map[f]
               for f in self.plan.relations[read_name].key_fields]
 
-    # The driver is an input-table read binding every axis: the rule's
-    # derivations are exactly its rows. Other keyed reads join on the
-    # driver's variables — gathers at the rows' key positions.
-    drivers = [
-        r for r in keyed
-        if r[0] in getattr(self.plan, 'input_rows', {})
-        # A learned relation's input rows are only the initialization:
-        # at run time its tensor is overlaid with the current
-        # parameters, which the row form would bypass.
-        and r[0] not in getattr(self.plan, 'learned', ())
-        and len(set(KeyVariables(r))) == len(KeyVariables(r))
-        and set(KeyVariables(r)) == set(contribution.axes)]
-    if not drivers:
-      return None
-    name, key_map, value_var = drivers[0]
+    name, key_map, value_var = info.driver
     relation = self.plan.relations[name]
     key_variables = [key_map[f] for f in relation.key_fields]
-    others = [r for r in keyed if r is not drivers[0]]
-    if any(kind != 'var' for kind, _ in contribution.head):
-      return None
-    if member.has_value and member.aggregation not in ('sum', 'min', 'max'):
-      return None
-    string_variables = {v for v, t in zip(key_variables, relation.key_types)
-                        if self.domain_arrays[t] is None}
-    scanned = ([contribution.value_expr] if member.has_value else [])
-    scanned += list(contribution.definitions.values())
-    scanned += list(contribution.constraints)
-    if NeedsDenseEvaluator(scanned, self.plan.relations,
-                           set(key_variables), string_variables,
-                           contribution.canonical.Find):
-      return None
+    others = [r for r in keyed if r is not info.driver]
+    member_support = self.sparse.get(member.portal)
+    # A sparse relation drives by its support: the rows are static, the
+    # driver's mask and values are read from the live state.
+    driver_support = self.sparse.get(name)
 
     def Evaluate(state, tensors):
-      if name in state or name not in getattr(self.plan, 'input_rows', {}):
+      if driver_support is not None:
+        positions, row_values = driver_support.positions, None
+      elif name in state or name not in getattr(self.plan,
+                                                'input_rows', {}):
+        # A sparse member's contributions must produce its vector form;
+        # the sparse choice guarantees the driver is a real input.
+        assert member_support is None, (
+            'Driver %s of sparse member %s is shadowed by state.' %
+            (name, member.name))
         return dense_evaluate(state, tensors)
-      positions, row_values = self.plan.input_rows[name]
+      else:
+        positions, row_values = self.plan.input_rows[name]
       n = positions[0].shape[0]
       position_of = dict(zip(key_variables, positions))
       context = EvalContext(self, member, contribution, [], {},
@@ -2627,9 +3003,17 @@ class Runtime(object):
                                            relation.key_types, positions):
         if self.domain_arrays[column_class] is not None:
           context.environment[variable] = self.domain_arrays[column_class][p]
-      if value_var is not None:
-        context.environment[value_var] = row_values
-      valid = jnp.ones(n, dtype=bool)
+      if driver_support is not None:
+        driver_mask, driver_values = (state[name] if name in state
+                                      else tensors[name])
+        valid = driver_mask
+        if value_var is not None:
+          context.environment[value_var] = jnp.where(
+              driver_mask, driver_values, 0.0)
+      else:
+        if value_var is not None:
+          context.environment[value_var] = row_values
+        valid = jnp.ones(n, dtype=bool)
       for scalar_name, _, scalar_value_var in scalars:
         scalar_mask, scalar_values = context.Tensor(scalar_name)
         valid = valid & jnp.broadcast_to(scalar_mask, (n,))
@@ -2638,13 +3022,13 @@ class Runtime(object):
               scalar_mask, scalar_values, 0.0)
       for other in others:
         other_name, _, other_value_var = other
-        other_mask, other_values = context.Tensor(other_name)
         position = tuple(position_of[v] for v in KeyVariables(other))
-        other_mask = other_mask[position]
+        other_mask, other_values = self.RowGather(
+            other_name, position, state, tensors)
         valid = valid & other_mask
         if other_value_var is not None:
           context.environment[other_value_var] = jnp.where(
-              other_mask, other_values[position], 0.0)
+              other_mask, other_values, 0.0)
       for variable, values in contribution.memberships:
         allowed = set(values)
         domain = self.domains[contribution.axis_type[variable]]
@@ -2660,13 +3044,23 @@ class Runtime(object):
         if value_valid is not True:
           valid = valid & jnp.broadcast_to(value_valid, (n,))
 
-      # Scatter the rows onto the member's key cells.
-      sizes = [len(self.domains[t]) for t in member.key_types]
-      total = 1
-      flat = jnp.zeros(n, dtype=jnp.int64)
-      for (_, variable), size in zip(contribution.head, sizes):
-        flat = flat * size + position_of[variable]
-        total *= size
+      # Scatter the rows onto the member's key cells — or, for a sparse
+      # member, onto its support vector at precomputed positions.
+      if member_support is not None:
+        support_index, support_found = member_support.Lookup(
+            tuple(position_of[v] for _, v in contribution.head))
+        assert bool(support_found.all()), (
+            'Rows of %s escape the support of %s.' % (name, member.name))
+        sizes = [len(member_support.flat)]
+        total = sizes[0]
+        flat = jnp.asarray(support_index)
+      else:
+        sizes = [len(self.domains[t]) for t in member.key_types]
+        total = 1
+        flat = jnp.zeros(n, dtype=jnp.int64)
+        for (_, variable), size in zip(contribution.head, sizes):
+          flat = flat * size + position_of[variable]
+          total *= size
       mask = jnp.zeros(total, dtype=bool).at[flat].max(valid)
       if value is not None:
         # Invalid rows carry the neutral: identity for their cell.
@@ -2682,6 +3076,247 @@ class Runtime(object):
       return mask.reshape(sizes), value
 
     return Evaluate
+
+  def RowGather(self, name, position_arrays, state, tensors):
+    """Reads a relation at the rows' key positions.
+
+    A sparse relation is read through its support with a precomputed
+    searchsorted; a plain input is read from its rows the same way,
+    never building its dense form; dense state and everything else is
+    gathered from the tensor. Returns (mask, values) over the rows;
+    values are None for a valueless relation and 0 under the mask."""
+    jnp = self.jnp
+    support = self.sparse.get(name)
+    if support is not None:
+      index, found = support.Lookup(position_arrays)
+      mask_vector, values_vector = (
+          state[name] if name in state else tensors[name])
+      mask = mask_vector[index] & jnp.asarray(found)
+      values = None
+      if values_vector is not None:
+        values = jnp.where(mask, values_vector[index], 0.0)
+      return mask, values
+    input_rows = getattr(self.plan, 'input_rows', {})
+    if (name not in state and name in input_rows
+        and name not in getattr(self.plan, 'learned', ())
+        and not self.dense_forced):
+      # The learned exclusion: a learned relation's rows are only its
+      # initialization, the current parameters live in the tensors.
+      table = self.RowTableOf(name)
+      if table is not None:
+        import numpy as np
+        unused_positions, row_values = input_rows[name]
+        index, found = table.Lookup(position_arrays)
+        mask = jnp.asarray(found)
+        values = None
+        if row_values is not None:
+          values = jnp.asarray(np.where(found, row_values[index], 0.0))
+        return mask, values
+    mask, values = state[name] if name in state else tensors[name]
+    position = tuple(jnp.asarray(p) for p in position_arrays)
+    mask = mask[position]
+    if values is not None:
+      values = jnp.where(mask, values[position], 0.0)
+    return mask, values
+
+  def DenseShape(self, relation_name):
+    relation = self.plan.relations[relation_name]
+    return tuple(len(self.domains[t]) for t in relation.key_types)
+
+  def RowTableOf(self, name):
+    """The sorted row form of an input relation, for static lookups;
+    None when the flat cell key would overflow int64."""
+    if not hasattr(self, 'row_table_cache'):
+      self.row_table_cache = {}
+    if name not in self.row_table_cache:
+      sizes = self.DenseShape(name)
+      product = 1
+      for size in sizes:
+        product *= max(size, 1)
+      if product >= 2 ** 62:
+        self.row_table_cache[name] = None
+      else:
+        positions, unused_row_values = self.plan.input_rows[name]
+        table = SparseSupport(None, positions, sizes)
+        table.flat = table.Flatten(positions)
+        self.row_table_cache[name] = table
+    return self.row_table_cache[name]
+
+  def Densify(self, name, pair):
+    """The dense (mask, values) of a sparse relation's vector state:
+    the correct fallback for a read outside the row form."""
+    jnp = self.jnp
+    support = self.sparse[name]
+    mask_vector, values_vector = pair
+    position = tuple(jnp.asarray(p) for p in support.positions)
+    mask = jnp.zeros(support.sizes, dtype=bool).at[position].set(
+        mask_vector)
+    values = None
+    if values_vector is not None:
+      values = jnp.full(support.sizes, self.SparseNeutral(name),
+                        dtype=jnp.float64).at[position].set(values_vector)
+    return mask, values
+
+  def SparseNeutral(self, name):
+    return self.sparse_neutral.get(name, 0.0)
+
+  def SelectSparse(self, loop_members, all_members, learned_relations,
+                   shadowed_names):
+    """Chooses the relations whose state lives as a vector over a static
+    support: every defining contribution rides rows known before the
+    iteration (an input table, or the support of another sparse
+    relation), and every reader is itself a row-form contribution — so
+    the dense tensor of the relation is never needed.
+
+    The choice is a greatest fixpoint: sparse relations may drive each
+    other's rules, so everything eligible is assumed sparse and members
+    that fail are dropped until the set is stable.  The supports then
+    close under the same driving reads.  This is a pure change of
+    representation; LOGICA_NEURAL_DENSE=1 turns it off."""
+    import numpy as np
+    self.sparse = {}
+    self.sparse_neutral = {}
+    self.row_driver_cache = {}
+    if self.dense_forced:
+      return
+    input_rows = getattr(self.plan, 'input_rows', {})
+
+    def SizeOf(key_types):
+      product = 1
+      for t in key_types:
+        product *= max(len(self.domains[t]), 1)
+      return product
+
+    members_of = {}   # Candidate key (portal) -> (member, alias names).
+    aliases = {}      # Any alias -> candidate key.
+    for member in loop_members:
+      if getattr(member, 'is_tkp', False) or not member.key_fields:
+        continue
+      if SizeOf(member.key_types) >= 2 ** 62:
+        continue  # The flat cell key must fit an int64.
+      names = {member.portal, member.name, member.diamond_name}
+      members_of[member.portal] = (member, names)
+      for name in names:
+        aliases[name] = member.portal
+    learned_keys = set()
+    for name in learned_relations:
+      if name in input_rows and self.RowTableOf(name) is not None:
+        learned_keys.add(name)
+        aliases[name] = name
+
+    chosen = set(members_of) | learned_keys
+
+    def AssumedNames():
+      assumed = set()
+      for key in chosen:
+        assumed |= members_of[key][1] if key in members_of else {key}
+      return assumed
+
+    changed = True
+    while changed:
+      changed = False
+      assumed = AssumedNames()
+      # Defining rules must ride static rows; an input driver must not
+      # be shadowed by the runtime state.
+      for key in list(chosen):
+        if key not in members_of:
+          continue
+        member, unused_names = members_of[key]
+        for contribution in member.contributions:
+          info = self.ComputeRowDriverInfo(member, contribution, assumed)
+          if info.driver is None or (
+              info.driver[0] not in assumed and
+              info.driver[0] in shadowed_names):
+            chosen.discard(key)
+            changed = True
+            break
+      assumed = AssumedNames()
+      # A reader outside the row form needs the dense tensor: it vetoes
+      # the sparse form of everything it reads.
+      for member in all_members:
+        for contribution in member.contributions:
+          read_names = [r[0] for r in contribution.reads]
+          read_names += ExpressionRelationReads(contribution,
+                                                self.plan.relations)
+          touched = {aliases[n] for n in read_names
+                     if n in aliases and aliases[n] in chosen}
+          if not touched:
+            continue
+          info = self.ComputeRowDriverInfo(member, contribution, assumed)
+          if info.driver is None:
+            chosen -= touched
+            changed = True
+
+    # Supports close under the driving reads: a rule driven by a sparse
+    # relation projects that relation's support cells, so iterate to a
+    # fixpoint (cheap numpy rounds over row-form rules only).
+    assumed = AssumedNames()
+    flats = {key: (self.RowTableOf(key).flat if key in learned_keys
+                   else np.zeros(0, dtype=np.int64))
+             for key in chosen}
+    sizes_of = {key: (self.RowTableOf(key).sizes if key in learned_keys
+                      else tuple(len(self.domains[t])
+                                 for t in members_of[key][0].key_types))
+                for key in chosen}
+    rounds = 0
+    growing = True
+    while growing:
+      growing = False
+      rounds += 1
+      assert rounds <= 10000, 'Support closure does not converge.'
+      for key in chosen:
+        if key in learned_keys:
+          continue
+        member, unused_names = members_of[key]
+        sizes = sizes_of[key]
+        pieces = [flats[key]]
+        for contribution in member.contributions:
+          driver = self.ComputeRowDriverInfo(
+              member, contribution, assumed).driver
+          name, key_map, unused_value_var = driver
+          if name in aliases and aliases[name] in chosen:
+            driver_key = aliases[name]
+            driver_positions = np.unravel_index(flats[driver_key],
+                                                sizes_of[driver_key])
+          else:
+            driver_positions, _ = input_rows[name]
+          relation = self.plan.relations[name]
+          key_variables = [key_map[f] for f in relation.key_fields]
+          position_of = dict(zip(key_variables, driver_positions))
+          flat = np.zeros(len(driver_positions[0]), dtype=np.int64)
+          for (unused_kind, variable), size in zip(contribution.head,
+                                                   sizes):
+            flat = flat * size + position_of[variable]
+          pieces.append(flat)
+        new_flat = np.unique(np.concatenate(pieces))
+        if len(new_flat) != len(flats[key]):
+          flats[key] = new_flat
+          growing = True
+
+    for key in chosen:
+      if key in learned_keys:
+        support, neutral = self.RowTableOf(key), 0.0
+        names = {key}
+      else:
+        member, names = members_of[key]
+        sizes = sizes_of[key]
+        support = SparseSupport(flats[key],
+                                np.unravel_index(flats[key], sizes),
+                                sizes)
+        neutral = member.neutral if member.has_value else 0.0
+      for name in names:
+        self.sparse[name] = support
+        self.sparse_neutral[name] = neutral
+    self.row_driver_cache = {}
+    if os.environ.get('LOGICA_NEURAL_TRACE'):
+      for member in loop_members:
+        support = self.sparse.get(member.portal)
+        form = ('vector over %d support cells' % len(support.flat)
+                if support is not None
+                else 'dense %s' % (list(self.DenseShape(member.portal))
+                                   if member.portal in self.plan.relations
+                                   else '?',))
+        print('representation of %s: %s' % (member.name, form))
 
 
 class EvalContext(object):
@@ -2711,9 +3346,11 @@ class EvalContext(object):
     self.row_positions = row_positions or {}
 
   def Tensor(self, name):
-    if name in self.state:
-      return self.state[name]
-    return self.tensors[name]
+    pair = self.state[name] if name in self.state else self.tensors[name]
+    if name in self.runtime.sparse:
+      # A read outside the row form: the correct, dense fallback.
+      return self.runtime.Densify(name, pair)
+    return pair
 
   def AxisSizes(self):
     return tuple(len(self.runtime.domains[self.axis_type[v]])
@@ -2834,7 +3471,7 @@ class EvalContext(object):
     for _, v in argument_pairs:
       valid = self.CombineValid(valid, v)
     if op in ELEMENTWISE_OPS:
-      return self.ApplyOp(op, arguments), valid
+      return self.ApplyOp(op, arguments, FieldValues(call)), valid
     if op in COMPARISON_OPS:
       operations = {
           '==': lambda a, b: a == b, '!=': lambda a, b: a != b,
@@ -2863,7 +3500,6 @@ class EvalContext(object):
               'use plain variables.',
               self.contribution.rule_text)
       variables.append(self.Canonical(VariableName(expression)))
-    mask, values = self.Tensor(relation.name)
     if not relation.has_value:
       Error('Relation %s has no value to read.' %
             color.Warn(relation.name),
@@ -2871,8 +3507,10 @@ class EvalContext(object):
     if variables and all(v in self.row_positions for v in variables):
       # A row context: gather the read at the rows' key positions.
       position = tuple(self.row_positions[v] for v in variables)
-      row_mask = mask[position]
-      return (self.jnp.where(row_mask, values[position], 0.0), row_mask)
+      row_mask, row_values = self.runtime.RowGather(
+          relation.name, position, self.state, self.tensors)
+      return row_values, row_mask
+    mask, values = self.Tensor(relation.name)
     aligned_values = self.Aligned(values, variables) if variables else values
     aligned_mask = self.Aligned(mask, variables) if variables else mask
     # Masked-out cells hold the semiring neutral; reading them as 0
@@ -3090,7 +3728,7 @@ class EvalContext(object):
         for _, ok in pairs:
           valid = self.CombineValid(valid, ok)
         if name in ELEMENTWISE_OPS:
-          return self.ApplyOp(name, values), valid
+          return self.ApplyOp(name, values, arguments), valid
         Error('Operation %s in aggregation %s is outside of the neural '
               'fragment.' % (color.Warn(name), color.Warn(op)),
               self.contribution.rule_text)
@@ -3171,7 +3809,7 @@ class EvalContext(object):
     valid = self.CombineValid(left_valid, right_valid)
     return result if valid is True else result & valid
 
-  def ApplyOp(self, op, arguments):
+  def ApplyOp(self, op, arguments, nodes=()):
     jnp = self.jnp
     if op == '+':
       return arguments[0] + arguments[1]
@@ -3183,6 +3821,15 @@ class EvalContext(object):
     if op == '/':
       return arguments[0] / arguments[1]
     if op == '^':
+      # A literal exponent picks a cheap form. With an array exponent
+      # x ** y is exp(y log x) per element, and its derivative is one more
+      # such power — on a dense pair matrix that ate the training step.
+      exponent = LiteralValue(nodes[1]) if len(nodes) == 2 else None
+      if isinstance(exponent, (int, float)) and not isinstance(exponent, bool):
+        if exponent == 0.5:
+          return jnp.sqrt(arguments[0])
+        if float(exponent).is_integer():
+          return arguments[0] ** int(exponent)  # lax.integer_pow: 2 is x*x.
       return arguments[0] ** arguments[1]
     if op == 'Least':
       result = arguments[0]

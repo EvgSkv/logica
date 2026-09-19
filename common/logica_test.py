@@ -19,6 +19,7 @@
 
 import os
 import subprocess
+import sys
 import json
 
 if '.' not in __package__:
@@ -69,6 +70,48 @@ class TestManager(object):
       return
     RunTypesTest(name, src, golden,
                  overwrite=cls.GOLDEN_RUN)
+
+  @classmethod
+  def RunDiagnosticsTest(cls, name, src, predicate, golden):
+    if cls.RUN_ONLY and name not in cls.RUN_ONLY:
+      return
+    RunDiagnosticsTest(name, src, predicate, golden,
+                       overwrite=cls.GOLDEN_RUN)
+
+
+def RunDiagnosticsTest(name, src, predicate, golden, overwrite=False):
+  """Golden test of `logica <src> tensor_diagnostics <predicate>`: the
+  compiler's understanding of how the recursive component behaves as
+  tensors, checked as text."""
+  test_result = '{warning}RUNNING{end}'
+  print(color.Format('% 50s   %s' % (name, test_result)))
+  environment = dict(os.environ)
+  # Diagnostics describe the default representations: the dense-forcing
+  # oracle variable must not leak into the report.
+  environment.pop('LOGICA_NEURAL_DENSE', None)
+  result = subprocess.check_output(
+      [sys.executable, 'logica.py', src, 'tensor_diagnostics', predicate],
+      env=environment).decode()
+
+  if overwrite:
+    with open(golden, 'w') as w:
+      w.write(result)
+  if not os.path.isfile(golden):
+    golden_result = 'This file does not exist. (<_<)'
+  else:
+    golden_result = open(golden).read()
+
+  if result == golden_result:
+    test_result = '{ok}PASSED{end}'
+  else:
+    p = subprocess.Popen(['diff', '--strip-trailing-cr', '-', golden],
+                         stdin=subprocess.PIPE)
+    p.communicate(result.encode())
+    if golden_result == 'This file does not exist. (<_<)':
+      print('\x1B[3mGolden file is missing.\x1B[0m\n')
+    test_result = '{error}FAILED{end}'
+
+  print('\033[F\033[K' + color.Format('% 50s   %s' % (name, test_result)))
 
 
 def RunTypesTest(name, src=None, golden=None,

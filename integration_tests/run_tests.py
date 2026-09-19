@@ -84,7 +84,57 @@ def NeuralTests():
           golden='neural/neural_heat.txt', use_concertina=True)
   RunTest('neural/neural_functor_walk', src='neural/neural_functor_walk.l',
           golden='neural/neural_functor_walk.txt', use_concertina=True)
+  RunTest('neural/neural_stop', src='neural/neural_stop.l',
+          golden='neural/neural_stop.txt', use_concertina=True)
+  RunTest('neural/neural_flow_pairs', src='neural/neural_flow_pairs.l',
+          golden='neural/neural_flow_pairs.txt', use_concertina=True)
+  RunTest('neural/neural_bellman', src='neural/neural_bellman.l',
+          golden='neural/neural_bellman.txt', use_concertina=True)
+  TensorDiagnosticsTests()
+  NeuralDenseOracleTests()
   LogixTests()
+
+
+def TensorDiagnosticsTests():
+  """Golden reports of tensor_diagnostics: does the compiler understand
+  the representation of every predicate of a recursive component."""
+  RunDiagnosticsTest('neural/diagnostics_pagerank',
+                     src='neural/neural_pagerank.l', predicate='PageRank',
+                     golden='neural/neural_pagerank_diagnostics.txt')
+  RunDiagnosticsTest('neural/diagnostics_flow',
+                     src='neural/neural_flow.l', predicate='Volume',
+                     golden='neural/neural_flow_diagnostics.txt')
+  RunDiagnosticsTest('neural/diagnostics_flow_pairs',
+                     src='neural/neural_flow_pairs.l', predicate='Volume',
+                     golden='neural/neural_flow_pairs_diagnostics.txt')
+
+
+def RunDiagnosticsTest(name, src, predicate, golden):
+  logica_test.TestManager.RunDiagnosticsTest(
+      name, src='integration_tests/' + src, predicate=predicate,
+      golden='integration_tests/' + golden)
+
+
+def NeuralDenseOracleTests():
+  """The whole neural battery with LOGICA_NEURAL_DENSE=1.
+
+  The sparse representation is a pure change of storage: forcing every
+  relation dense must reproduce the same goldens. A discrepancy between
+  the two passes localizes a bug to the representation layer."""
+  import os
+  os.environ['LOGICA_NEURAL_DENSE'] = '1'
+  try:
+    for name in ['neural_basic', 'neural_d', 'neural_pagerank',
+                 'neural_flow', 'neural_flow_pairs', 'neural_bellman',
+                 'neural_counter', 'neural_const_keys',
+                 'neural_static_hoist', 'neural_game_of_life',
+                 'neural_hash_functions', 'neural_target_linear',
+                 'neural_animal_fights', 'neural_mlp', 'neural_xor',
+                 'neural_heat', 'neural_functor_walk']:
+      RunTest('dense/' + name, src='neural/%s.l' % name,
+              golden='neural/%s.txt' % name, use_concertina=True)
+  finally:
+    os.environ.pop('LOGICA_NEURAL_DENSE')
 
 
 def LogixTests():

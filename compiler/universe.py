@@ -325,6 +325,7 @@ class Annotations(object):
       result[iteration_name] = {'predicates': predicates,
                                 'repetitions': args['repetitions'],
                                 'stop_signal': args.get('stop_signal'),
+                                'stop_cadence': args.get('stop_cadence'),
                                 'mode': args.get('mode')}
     return result
 

@@ -1,0 +1,15 @@
+Tensor diagnostics of the recursive component: PageRank
+
+PageRank: vector over 5 support cells; dense form would be [5]
+  aggregation: sum with neutral 0.0
+  rule "PageRank(x) += ResetProb() / NumPages() :- Page(x)"
+    runs as: rows of Page; reads: ResetProb (scalar), NumPages (scalar)
+  rule "PageRank(y) += (1.0 - ResetProb()) * PageRank(x) / Degree..."
+    runs as: rows of Link; reads: ResetProb (scalar), PageRank_portal (support vector), Degree (row lookup)
+
+Inputs:
+  Degree: 5 rows; rows only, dense form never built
+  Link: 7 rows; rows only, dense form never built
+  NumPages: scalar
+  Page: 5 rows; rows only, dense form never built
+  ResetProb: scalar

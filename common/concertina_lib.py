@@ -230,10 +230,17 @@ class Concertina(object):
 
   def ActionIterationStopSignal(self, action):
     return self.iteration_stop_signal[self.action_iteration[action]]
-  
+
+  def ActionIterationStopCadence(self, action):
+    return self.iterations[self.action_iteration[action]].get(
+        'stop_cadence') or 1
+
   def ActionIterationWantsToStopBySignal(self, action):
     signal = self.ActionIterationStopSignal(action)
     if not signal:
+      return False
+    if (self.action_iterations_complete[action] %
+        self.ActionIterationStopCadence(action)):
       return False
     if signal in self.wrench_in_gears:
       return True

@@ -150,7 +150,7 @@ def BuildTypeReprPortalRule(portal_name, source_predicate, head_record):
 def GetDiamondRecursionFunctor(cover, direct_args_of, main,
                                repetitions, stop,
                                head_records=None,
-                               neural=False):
+                               neural=False, stop_cadence=None):
   """Diamond recursion: in-place rewrite, single flat iteration step.
 
   p_diamond is the iteration target: it carries the cover member's actual
@@ -256,6 +256,8 @@ def GetDiamondRecursionFunctor(cover, direct_args_of, main,
   if stop:
     maybe_stop = ', stop_signal: "%s"' % stop_file_name
   maybe_neural = ', neural: true' if neural else ''
+  if stop_cadence:
+    maybe_stop += ', stop_cadence: %d' % stop_cadence
   result_rules.append(
     f'@Iteration({main}_diamond_iter, predicates: [{iter_predicates}], '
     f'repetitions: {repetitions}, mode: "diamond"{maybe_stop}{maybe_neural});')

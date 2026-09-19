@@ -1,0 +1,31 @@
+Tensor diagnostics of the recursive component: Volume, Flow
+
+Volume: dense [28]
+  aggregation: sum with neutral 0.0
+  rule "Volume(s) += v - Volume(s) + Sum{Flow(s, x)} :- Source(s)..."
+    runs as: dense (an expression needs the dense axes); reads: Source (dense [28]), NumNodes (scalar), MaxD (scalar), MaxCap (scalar), Volume_portal (state tensor [28]), Flow_portal (state tensor [28, 28])
+  rule "Volume(t) += -1 * Sum{Flow(x, t)} :- Target(t)"
+    runs as: dense (an expression needs the dense axes); reads: Target (dense [28]), Flow_portal (state tensor [28, 28])
+  rule "Volume(x) += -1 * Flow(x, y)"
+    runs as: dense (no read with static rows covers all rule variables); reads: Flow_portal (state tensor [28, 28])
+  rule "Volume(x) += Volume(x)"
+    runs as: dense (no read with static rows covers all rule variables); reads: Volume_portal (state tensor [28])
+  rule "Volume(x) += 0 :- Node(x)"
+    runs as: rows of Node
+  rule "Volume(y) += Flow(x, y)"
+    runs as: dense (no read with static rows covers all rule variables); reads: Flow_portal (state tensor [28, 28])
+
+Flow: dense [28, 28]
+  aggregation: sum with neutral 0.0
+  rule "Flow(x, y) += Clip(0, (Volume(x) - Volume(y)) / (D(x) + 1..."
+    runs as: rows of Pipe; reads: Volume_portal (state tensor [28]), D (row lookup)
+
+Inputs:
+  D: 28 rows; rows only, dense form never built
+  MaxCap: scalar
+  MaxD: scalar
+  Node: 28 rows; rows only, dense form never built
+  NumNodes: scalar
+  Pipe: 80 rows; rows only, dense form never built
+  Source: 1 rows; dense [28] is built
+  Target: 1 rows; dense [28] is built
