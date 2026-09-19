@@ -2314,6 +2314,30 @@ class NeuralTargetPlan(NeuralPlan):
       if progress:
         progress('compiling')  # The first step pays the XLA compile.
 
+    def WriteLearned(parameters):
+      """Writes the learned relations into the learned predicates' tables."""
+      for predicate in self.learned:
+        relation = self.relations[predicate]
+        learned_member = Member(predicate, predicate)
+        learned_member.key_fields = relation.key_fields
+        learned_member.key_types = relation.key_types
+        learned_member.has_value = True
+        ground = self.program.annotations.Ground(predicate)
+        assert ground, 'Learned predicates are grounded by the rewrite.'
+        learned_member.table = ground.table_name
+        self.WriteBack(sql_runner, learned_member,
+                       (masks[predicate], parameters[predicate]),
+                       domains, np, support=runtime.sparse.get(predicate))
+
+    # Someone may watch the training — World as Will films it. The watcher
+    # is called as observer(step, publish) before the first step and after
+    # every step; publish() writes the current weights into the learned
+    # tables, and the watcher decides itself when that is worth it.
+    # Without a watcher the loop pays one comparison per step.
+    observer = getattr(self, 'observer', None)
+    if observer is not None:
+      observer(0, lambda: WriteLearned(parameters))
+
     trace = os.getenv('LOGICA_NEURAL_TRACE')
     previous = None
     steps_done = 0
@@ -2338,6 +2362,8 @@ class NeuralTargetPlan(NeuralPlan):
               (color.Warn(self.target), value, steps_done), self.target)
       parameters = {p: parameters[p] - self.learning_rate * gradient[p]
                     for p in self.learned}
+      if observer is not None:
+        observer(steps_done, lambda: WriteLearned(parameters))
       if previous is not None and abs(previous - value) <= self.epsilon:
         converged = True
         break
@@ -2355,20 +2381,7 @@ class NeuralTargetPlan(NeuralPlan):
       # the reported fixpoint is truncated.
       Probe(parameters, 'the learned parameters')
 
-    # Write the learned relations into the learned predicates' tables.
-    for predicate in self.learned:
-      relation = self.relations[predicate]
-      learned_member = Member(predicate, predicate)
-      learned_member.key_fields = relation.key_fields
-      learned_member.key_types = relation.key_types
-      learned_member.has_value = True
-      ground = self.program.annotations.Ground(predicate)
-      assert ground, 'Learned predicates are grounded by the rewrite.'
-      learned_member.table = ground.table_name
-      self.WriteBack(sql_runner, learned_member,
-                     (masks[predicate], parameters[predicate]),
-                     domains, np, support=runtime.sparse.get(predicate))
-
+    WriteLearned(parameters)
     return {'iterations': steps_done, 'converged': converged}
 
   def __repr__(self):
