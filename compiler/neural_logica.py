@@ -597,6 +597,16 @@ def ConeComponents(dependencies, target, learn):
   return components
 
 
+VALUES_VIEW_SUFFIX = '⋄values'
+
+
+def ValuesViewPredicate(name):
+  """Predicate whose table a relation reads (see ValuesRelationOf)."""
+  if name.endswith(VALUES_VIEW_SUFFIX):
+    return name[:-len(VALUES_VIEW_SUFFIX)]
+  return name
+
+
 def RewriteNeuralTargets(rules):
   """Rewrites @NeuralTarget(Loss, learn: [W]) programs.
 
@@ -1071,6 +1081,7 @@ def AddLearningLoopDependencies(execution, translator):
       continue
     learned = set(plan.learned)
     for input_name in plan.input_tables:
+      input_name = ValuesViewPredicate(input_name)
       input_action = (input_name + '_init'
                       if input_name in learned else input_name)
       translator.TranslateTable(input_action, None, edge_needed=False)
@@ -1311,6 +1322,37 @@ class NeuralPlan(object):
       self.input_tables[predicate_name] = ground.table_name
     return relation
 
+  def ValuesRelationOf(self, predicate_name, value_class, context):
+    """A stored predicate read as a set: its value is one more key.
+
+    E.g. in R(Start()) with Start() = Leaders() the value of Start is
+    a key of R; Start may hold several values and each of them is a key
+    of R. As a value, Start would be a single cell keeping one of
+    them."""
+    name = predicate_name + VALUES_VIEW_SUFFIX
+    if name in self.relations:
+      return self.relations[name]
+    if self.IsStateRelation(predicate_name):
+      Error('A value of the recursive predicate %s is used as a key; '
+            'this is not supported yet.' % color.Warn(predicate_name),
+            context)
+    if predicate_name in getattr(self, 'learned', ()):
+      Error('A value of the learned predicate %s is used as a key; '
+            'a learned value is a number, not a key.' %
+            color.Warn(predicate_name), context)
+    key_fields, key_types, has_value = self.Signature(predicate_name)
+    assert has_value, predicate_name
+    relation = Relation(name, key_fields + ['logica_value'],
+                        key_types + [value_class], False)
+    self.relations[name] = relation
+    ground = self.program.annotations.Ground(predicate_name)
+    if ground is None:
+      Error('Neural rules may only read recursive state and stored '
+            'relations. Predicate %s is neither.' %
+            color.Warn(predicate_name), context)
+    self.input_tables[name] = ground.table_name
+    return relation
+
   def CompileMember(self, diamond_name):
     """Member of a recursion loop, compiled from its diamond rules."""
     base, phase, family = ParsePhase(diamond_name)
@@ -1402,13 +1444,41 @@ class NeuralPlan(object):
     axis_of = {}       # canonical var -> 'Str' | 'Num'.
     value_vars = {}    # canonical var -> alias.
     reads = collections.OrderedDict()  # alias -> [relation, {field: var}, v]
+    # A value used as a key — a key of the head, e.g. x in R(x) with
+    # x = Start(), or a key of another read, e.g. C(Start(), y) — makes
+    # its read a set: the value becomes a key of the read, as if the
+    # program said Start(x).
+    key_class = {}  # canonical var -> column class of a key it fills.
+    key_exprs = [v for k, v in rs.select.items() if k != 'logica_value']
+    for position, expr in enumerate(key_exprs):
+      if IsVariable(expr) and position < len(member.key_types):
+        key_class.setdefault(canonical(VariableName(expr)),
+                             member.key_types[position])
+    for (alias, field), var in rs.vars_map.items():
+      if (alias is not None and rs.tables[alias] != '=' and
+          field != 'logica_value'):
+        relation = self.RelationOf(rs.tables[alias], contribution.rule_text)
+        if field in relation.key_fields:
+          key_class.setdefault(
+              canonical(var),
+              relation.key_types[relation.key_fields.index(field)])
+    values_views = {}  # alias -> column class of its value.
+    for (alias, field), var in rs.vars_map.items():
+      if (alias is not None and rs.tables[alias] != '=' and
+          field == 'logica_value' and canonical(var) in key_class):
+        values_views[alias] = key_class[canonical(var)]
     for (alias, field), var in rs.vars_map.items():
       if alias is None or rs.tables[alias] == '=':
         continue  # Unnested variables are handled below.
-      relation = self.RelationOf(rs.tables[alias], contribution.rule_text)
+      if alias in values_views:
+        relation = self.ValuesRelationOf(rs.tables[alias],
+                                         values_views[alias],
+                                         contribution.rule_text)
+      else:
+        relation = self.RelationOf(rs.tables[alias], contribution.rule_text)
       var = canonical(var)
       reads.setdefault(alias, [relation, {}, None])
-      if field == 'logica_value':
+      if field == 'logica_value' and alias not in values_views:
         reads[alias][2] = var
         value_vars[var] = alias
       else:
