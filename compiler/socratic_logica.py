@@ -455,14 +455,22 @@ class SocraticPlan(object):
 
   # ============================== Run ===================================
 
+  def Query(self, sql_runner, sql):
+    """(header, rows) of a query: terminal runners return the pair,
+    notebook runners a DataFrame."""
+    result = sql_runner(sql, self.engine, is_final=True)
+    if isinstance(result, tuple):
+      header, rows = result
+      return list(header), [list(r) for r in rows]
+    return list(result.columns), result.values.tolist()
+
   def Columns(self, sql_runner, table, types=False):
     if types:
-      unused, rows = sql_runner('DESCRIBE %s' % table, self.engine,
-                                is_final=True)
+      unused, rows = self.Query(sql_runner, 'DESCRIBE %s' % table)
       return [(r[0], r[1]) for r in rows]
-    header, unused_rows = sql_runner('SELECT * FROM %s LIMIT 0' % table,
-                                     self.engine, is_final=True)
-    return list(header)
+    header, unused_rows = self.Query(sql_runner,
+                                     'SELECT * FROM %s LIMIT 0' % table)
+    return header
 
   def Run(self, sql_runner, progress=None):
     import time
@@ -496,8 +504,7 @@ class SocraticPlan(object):
               dictionary, ' UNION ALL '.join(parts)), self.engine, is_final=False)
       ids = {}
       if self.strings:
-        unused, rows = sql_runner('SELECT s, id FROM %s' % dictionary,
-                                  self.engine, is_final=True)
+        unused, rows = self.Query(sql_runner, 'SELECT s, id FROM %s' % dictionary)
         ids = {str(r[0]): int(r[1]) for r in rows}
       def Encode(node):
         if isinstance(node, dict):
