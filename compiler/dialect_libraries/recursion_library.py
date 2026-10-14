@@ -240,8 +240,7 @@ def GetDiamondRecursionFunctor(cover, direct_args_of, main,
       args = ', '.join(f'v{i}' if isinstance(f, int) else f'{f}: v{i}'
                        for i, f in enumerate(keys))
       if 'logica_value' in fields:
-        result_rules.append(
-          f'{p}({args}) = {p}_diamond({args}) :- {p}_diamond({args});')
+        result_rules.append(f'{p}({args}) = {p}_diamond({args});')
       else:
         result_rules.append(f'{p}({args}) :- {p}_diamond({args});')
       continue
