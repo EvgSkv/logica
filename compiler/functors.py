@@ -501,7 +501,8 @@ class Functors(object):
 
   def UnfoldRecursivePredicateDiamondFashion(self, cover, main, depth, rules,
                                              stop, neural=False,
-                                             stop_cadence=None):
+                                             stop_cadence=None,
+                                             socratic=False):
     """Diamond: in-place rewrite per iteration step, no ignition.
 
     Renames cover member rules P -> P_ROne with body refs c -> c_RZero
@@ -571,7 +572,8 @@ class Functors(object):
         head_records[p] = head['record']
     lib = recursion_library.GetDiamondRecursionFunctor(
       simplified_cover, direct_args_of, main, depth, stop,
-      head_records, neural=neural, stop_cadence=stop_cadence)
+      head_records, neural=neural, stop_cadence=stop_cadence,
+      socratic=socratic)
     try:
       lib_rules = parse.ParseFile(lib)['rule']
     except parse.ParsingException as e:
@@ -662,9 +664,12 @@ class Functors(object):
               'recursive component.', {'p': p, 'stop': stop}), p)
         neural = any(depth_map.get(c, {}).get('mode') == 'neural'
                      for c in my_cover[p])
+        socratic = any(depth_map.get(c, {}).get('mode') == 'socratic'
+                       for c in my_cover[p])
         self.UnfoldRecursivePredicateDiamondFashion(
           my_cover[p], p, depth, new_rules, stop=stop, neural=neural,
-          stop_cadence=depth_map.get(p, {}).get('stop_cadence'))
+          stop_cadence=depth_map.get(p, {}).get('stop_cadence'),
+          socratic=socratic)
       elif style == 'horizontal' or style == 'iterative_horizontal':
         # Old ad-hoc formula:
         # ignition = len(my_cover[p]) * 3 + 4
@@ -793,7 +798,7 @@ class Functors(object):
       for p in c:
         my_cover[p] = c
 
-    valid_modes = {None, 'diamond', 'iterative', 'neural'}
+    valid_modes = {None, 'diamond', 'iterative', 'neural', 'socratic'}
     for p, attrs in depth_map.items():
       mode = attrs.get('mode')
       if mode not in valid_modes:
@@ -811,16 +816,17 @@ class Functors(object):
         p = min(c & deep)
       else:
         p = min(c)
-      if depth_map.get(p, {}).get('mode') == 'neural':
-        # Neural recursion runs until stabilization unless a repetition
-        # count is given.
+      if depth_map.get(p, {}).get('mode') in ('neural', 'socratic'):
+        # Neural and socratic recursion run until stabilization unless a
+        # repetition count is given.
         depth_map[p].setdefault('1', -1)
       if depth_map.get(p, {}).get('1', default_depth) == -1:
         depth_map[p]['1'] = 1000000000
       # Iterate if explicitly requested or unspecified
       # and number of steps is greater than 20.
       if depth_map.get(p, {}).get('mode', default_mode) in ('diamond',
-                                                            'neural'):
+                                                            'neural',
+                                                            'socratic'):
         should_recurse[p] = 'diamond'
       elif (depth_map.get(p, {}).get('mode') == 'iterative' or
             depth_map.get(p, {}).get('iterative', default_mode == 'iterative') or

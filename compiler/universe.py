@@ -34,6 +34,7 @@ if '.' not in __package__:
   from compiler import expr_translate
   from compiler import functors
   from compiler import neural_logica
+  from compiler import socratic_logica
   from compiler import rule_translate
   from parser_py import parse
   from type_inference.research import infer
@@ -43,6 +44,7 @@ else:
   from ..compiler import expr_translate
   from ..compiler import functors
   from ..compiler import neural_logica
+  from ..compiler import socratic_logica
   from ..compiler import rule_translate
   from ..parser_py import parse
   from ..type_inference.research import infer
@@ -676,6 +678,7 @@ class LogicaProgram(object):
     # compiled here once, attached to every execution's iterations in
     # InitializeExecution.
     self.neural_plans = neural_logica.CompilePlans(self)
+    self.neural_plans.update(socratic_logica.CompilePlans(self))
 
     # Build udfs, populating custom_udfs and custom_udf_definitions.
     self.BuildUdfs()

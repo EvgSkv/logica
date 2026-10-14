@@ -727,6 +727,37 @@ def IsFunctional(predicate_name, rules_of):
   return False
 
 
+def PlainFileRead(rules):
+  """(path, width) if the predicate is one rule P(v0, v1, ...) :-
+  `("file")`(column0: v0, column1: v1, ...), else None. Such a relation
+  can be read from its file directly by a native engine."""
+  if len(rules) != 1:
+    return None
+  rule = rules[0]
+  body = rule.get('body', {}).get('conjunction', {}).get('conjunct', [])
+  if len(body) != 1 or 'predicate' not in body[0]:
+    return None
+  table = body[0]['predicate']
+  name = table['predicate_name']
+  if not (name.startswith('`("') and name.endswith('")`')):
+    return None
+  head_vars = []
+  for fv in rule['head']['record']['field_value']:
+    e = fv['value'].get('expression', {})
+    if fv['field'] != len(head_vars) or 'variable' not in e:
+      return None
+    head_vars.append(e['variable']['var_name'])
+  file_vars = {}
+  for fv in table['record']['field_value']:
+    e = fv['value'].get('expression', {})
+    if 'variable' not in e:
+      return None
+    file_vars[fv['field']] = e['variable']['var_name']
+  if file_vars != {'column%d' % i: v for i, v in enumerate(head_vars)}:
+    return None
+  return name[3:-3], len(head_vars)
+
+
 def AppendAutoGrounds(rules, dependencies):
   """Grounds input relations of neural iterations and neural targets, so
   that the neural runtime can read them from tables.
@@ -740,7 +771,8 @@ def AppendAutoGrounds(rules, dependencies):
       continue
     fields = {fv['field']: fv['value']['expression']
               for fv in rule['head']['record']['field_value']}
-    if 'neural' in fields and LiteralValue(fields['neural']) is True:
+    if (('neural' in fields and LiteralValue(fields['neural']) is True) or
+        ('socratic' in fields and LiteralValue(fields['socratic']) is True)):
       neural_iterations.append(fields)
     if 'neural_target' in fields:
       target_iterations.append(fields)
@@ -769,6 +801,8 @@ def AppendAutoGrounds(rules, dependencies):
   tkp_injectable = tkp_logica.InjectableNames(rules)
 
   for fields in neural_iterations:
+    socratic = ('socratic' in fields and
+                LiteralValue(fields['socratic']) is True)
     diamond_predicates = IterationPredicates(fields)
     members = {p[:-len(DIAMOND_SUFFIX)] for p in diamond_predicates
                if p.endswith(DIAMOND_SUFFIX)}
@@ -778,7 +812,8 @@ def AppendAutoGrounds(rules, dependencies):
     # relations at once has no statistics for them — the join-order
     # optimizer of an engine can then cross-join two copies (observed
     # in duckdb: a twice-read CTE is estimated at one row).
-    member_finals |= {m for m in members if m in rules_of}
+    if not socratic:
+      member_finals |= {m for m in members if m in rules_of}
     frontier = list(diamond_predicates)
     seen = set(frontier)
     while frontier:
@@ -799,6 +834,8 @@ def AppendAutoGrounds(rules, dependencies):
         if IsFunctional(name, rules_of):
           frontier.append(name)  # Injected into callers: walk through.
           continue
+        if socratic and PlainFileRead(rules_of[name]):
+          continue  # The native engine reads the file itself.
         candidates.add(name)
 
   for fields in target_iterations:
@@ -885,7 +922,8 @@ def CompleteFunctorIslands(rules):
   for iteration_rule in rules_of.get('@Iteration', []):
     fields = {fv['field']: fv['value']['expression']
               for fv in iteration_rule['head']['record']['field_value']}
-    if LiteralValue(fields.get('neural', {})) is not True:
+    if (LiteralValue(fields.get('neural', {})) is not True and
+        LiteralValue(fields.get('socratic', {})) is not True):
       continue
     for element in fields.get('predicates', {}).get(
         'literal', {}).get('the_list', {}).get('element', []):
@@ -1812,7 +1850,16 @@ class NeuralPlan(object):
                                        relation.key_types):
           value = row[header.index(self.FieldColumn(field))]
           domain_values[column_class].add(value)
-    domains = {c: sorted(domain_values[c], key=lambda v: (str(type(v)), v))
+    # Numeric keys arrive as int or float depending on the runner (a
+    # DataFrame upcasts int keys next to a float value): one key 0 == 0.0
+    # gets one representative, and the domain is sorted by value, as
+    # np.searchsorted in BuildTensors expects.
+    def Key(v):
+      if isinstance(v, float) and v.is_integer():
+        return int(v)
+      return v
+    domains = {c: sorted({Key(v) for v in domain_values[c]},
+                         key=lambda v: (isinstance(v, str), v))
                for c in domain_values}
     index = {c: {v: i for i, v in enumerate(domains[c])} for c in domains}
     domain_arrays = {

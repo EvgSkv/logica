@@ -150,7 +150,8 @@ def BuildTypeReprPortalRule(portal_name, source_predicate, head_record):
 def GetDiamondRecursionFunctor(cover, direct_args_of, main,
                                repetitions, stop,
                                head_records=None,
-                               neural=False, stop_cadence=None):
+                               neural=False, stop_cadence=None,
+                               socratic=False):
   """Diamond recursion: in-place rewrite, single flat iteration step.
 
   p_diamond is the iteration target: it carries the cover member's actual
@@ -194,7 +195,8 @@ def GetDiamondRecursionFunctor(cover, direct_args_of, main,
 
   # Neural iterations detect stabilization themselves, so they need no
   # SQL fixpoint scaffolding.
-  if not neural and not stop and repetitions == 1000000000:  # 1000000000 = ∞.
+  if (not neural and not socratic and not stop and
+      repetitions == 1000000000):  # 1000000000 = ∞.
     stop = main + '_fixpoint'
 
   position = {p: i for i, p in enumerate(order)}
@@ -228,6 +230,21 @@ def GetDiamondRecursionFunctor(cover, direct_args_of, main,
   # edges p_diamond -> p and earlier_p -> later_p, so concertina puts p
   # strictly after the iteration and orders the final pass deterministically.
   for p in order:
+    if socratic:
+      # The native engine wrote the fixpoint into p_diamond's table: the
+      # final p copies it, keeping p's signature so that TypeRepr and
+      # functional calls of p resolve (the edge p_diamond -> p still
+      # orders p after the iteration).
+      fields = [fv['field'] for fv in head_records[p]['field_value']]
+      keys = [f for f in fields if f != 'logica_value']
+      args = ', '.join(f'v{i}' if isinstance(f, int) else f'{f}: v{i}'
+                       for i, f in enumerate(keys))
+      if 'logica_value' in fields:
+        result_rules.append(
+          f'{p}({args}) = {p}_diamond({args}) :- {p}_diamond({args});')
+      else:
+        result_rules.append(f'{p}({args}) :- {p}_diamond({args});')
+      continue
     args = []
     for a in sorted(set(direct_args_of[p]) & cover):
       if position[a] < position[p]:
@@ -256,6 +273,8 @@ def GetDiamondRecursionFunctor(cover, direct_args_of, main,
   if stop:
     maybe_stop = ', stop_signal: "%s"' % stop_file_name
   maybe_neural = ', neural: true' if neural else ''
+  if socratic:
+    maybe_neural += ', socratic: true'
   if stop_cadence:
     maybe_stop += ', stop_cadence: %d' % stop_cadence
   result_rules.append(
