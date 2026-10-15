@@ -15,7 +15,7 @@
 // Socrates: native evaluator of one recursive component of a Logica program.
 //
 // Built on first use by compiler/socratic_logica.py (like the C++ parser)
-// and called through ctypes. The component arrives as a JSON spec:
+// and run as a subprocess. The component arrives as a JSON spec:
 // relations (inputs read from CSV, state relations written to CSV) and
 // conjunctive rules.
 //
@@ -58,11 +58,11 @@ static int omp_get_thread_num() { return 0; }
 static void omp_set_num_threads(int) {}
 #endif
 
+#include "functions.h"
+
 namespace {
 
-typedef int64_t i64;
-typedef double num;  // row scalar: integers are exact up to 2^53
-const num NONE = std::numeric_limits<num>::quiet_NaN();
+typedef int64_t i64;  // row scalar `num` (functions.h): integers are exact up to 2^53
 
 double Now() {
   return std::chrono::duration<double>(
@@ -128,71 +128,22 @@ struct JsonParser {
 // Expressions over rule variables.
 struct Expr {
   enum Kind { VAR, CONST, OP } kind = CONST;
-  enum Op { ADD, SUB, MUL, DIV, MOD, LT, LE, GT, GE, EQ, NE, AND, OR, NOT, NEG, ABS, LEAST, GREATEST, TOFLOAT, TOINT, FLOOR, UNKNOWN } opcode = UNKNOWN;
   int var = -1;
   num value = 0;
   std::string op;
+  const Fn* fn = nullptr;  // OP: the function (functions.h)
   std::vector<Expr> args;
 };
-
-Expr::Op OpCode(const std::string& o, size_t nargs) {
-  if (o == "+") return Expr::ADD;
-  if (o == "-") return nargs == 1 ? Expr::NEG : Expr::SUB;
-  if (o == "*") return Expr::MUL;
-  if (o == "/") return Expr::DIV;
-  if (o == "%") return Expr::MOD;
-  if (o == "<") return Expr::LT;
-  if (o == "<=") return Expr::LE;
-  if (o == ">") return Expr::GT;
-  if (o == ">=") return Expr::GE;
-  if (o == "==") return Expr::EQ;
-  if (o == "!=") return Expr::NE;
-  if (o == "&&") return Expr::AND;
-  if (o == "||") return Expr::OR;
-  if (o == "!") return Expr::NOT;
-  if (o == "Abs") return Expr::ABS;
-  if (o == "Least") return Expr::LEAST;
-  if (o == "Greatest") return Expr::GREATEST;
-  if (o == "ToFloat64") return Expr::TOFLOAT;
-  if (o == "ToInt64") return Expr::TOINT;
-  if (o == "Floor") return Expr::FLOOR;
-  return Expr::UNKNOWN;
-}
 
 num Eval(const Expr& e, const num* bind) {
   switch (e.kind) {
     case Expr::VAR: return bind[e.var];
     case Expr::CONST: return e.value;
     case Expr::OP: {
-      num a = Eval(e.args[0], bind);
-      switch (e.opcode) {
-        case Expr::NOT: return !a;
-        case Expr::NEG: return -a;
-        case Expr::ABS: return a < 0 ? -a : a;
-        case Expr::TOFLOAT: return a;
-        case Expr::TOINT: return (num)(i64)a;
-        case Expr::FLOOR: return std::floor(a);
-        default: break;
-      }
-      num b = Eval(e.args[1], bind);
-      switch (e.opcode) {
-        case Expr::ADD: return a + b;
-        case Expr::SUB: return a - b;
-        case Expr::MUL: return a * b;
-        case Expr::DIV: return a / b;
-        case Expr::MOD: return b ? (num)((i64)a % (i64)b) : 0;
-        case Expr::LT: return a < b;
-        case Expr::LE: return a <= b;
-        case Expr::GT: return a > b;
-        case Expr::GE: return a >= b;
-        case Expr::EQ: return a == b;
-        case Expr::NE: return a != b;
-        case Expr::AND: return a && b;
-        case Expr::OR: return a || b;
-        case Expr::LEAST: return a < b ? a : b;
-        case Expr::GREATEST: return a > b ? a : b;
-        default: Fail("unknown operator " + e.op);
-      }
+      num a[16];
+      int n = e.args.size();
+      for (int i = 0; i < n; i++) a[i] = Eval(e.args[i], bind);
+      return e.fn->eval(a, n);
     }
   }
   return 0;
@@ -210,8 +161,10 @@ Expr ReadExpr(const Json& j, std::map<std::string, int>& vars) {
   } else {
     e.kind = Expr::OP; e.op = j.At("op").str;
     for (auto& a : j.At("args").arr) e.args.push_back(ReadExpr(a, vars));
-    e.opcode = OpCode(e.op, e.args.size());
-    if (e.opcode == Expr::UNKNOWN) Fail("unknown operator " + e.op);
+    e.fn = FindFunction(e.op.c_str());
+    if (!e.fn) Fail("unknown function " + e.op);
+    int n = e.args.size();
+    if (n > 16 || n < e.fn->min_args || (e.fn->max_args >= 0 && n > e.fn->max_args)) Fail("wrong number of arguments of " + e.op);
   }
   return e;
 }
@@ -412,6 +365,17 @@ struct State {
   // switched off (SOCRATIC_LATTICE_OPT / SOCRATIC_GROUP_OPT = false).
   enum Tier { LATTICE, GROUP, BLACKBOX } tier = BLACKBOX;
   bool has_arg = false;       // multi-column updates need a per-key lock
+  // A set whose facts can be retracted (its rules read a left atom or a
+  // retractable state): stored as key -> 1, so that its log tells
+  // retractions (NONE) from insertions and readers recompute.
+  bool exists = false;
+  bool retractable = false;   // readers must recompute, not push
+  bool stop = false;          // a stop predicate: a row ends the run
+  // A rule joining two states that change in the same pass: differences
+  // pushed per changed atom double count their joint change, so the
+  // keys are recomputed instead.
+  bool joins_states = false;
+  bool internal = false;      // not written out
   num eps = 1e-12;
   int threads = 1;
 
@@ -436,6 +400,7 @@ struct State {
 
   void Init(i64 domain_lo, i64 domain_hi, int nthreads, bool lattice_opt, bool group_opt, bool computed_keys) {
     threads = nthreads;
+    if (exists) { nv = 1; aggs.assign(1, ASSIGN); }
     slots.nv = nv;
     argof.assign(nv, -1);
     for (int c = 0; c < nv; c++) {
@@ -448,6 +413,10 @@ struct State {
     bool lattice = true, group = nv > 0;
     for (Agg a : aggs) { lattice &= Lattice(a); group &= a == SUM; }
     tier = lattice && lattice_opt ? LATTICE : group && group_opt ? GROUP : BLACKBOX;
+    // Pushed contributions cannot be taken back; a retracted body fact
+    // means recomputation (sums alone can subtract the old contribution).
+    if (retractable && tier == LATTICE) tier = BLACKBOX;
+    if (joins_states && tier == GROUP) tier = BLACKBOX;
     delta.width = next_delta.width = DeltaWidth();
     spill.resize(threads); dirty_keys.resize(threads); dirty_overflow.resize(threads);
     i64 span = domain_hi - domain_lo + 1;
@@ -467,7 +436,11 @@ struct State {
   // Slot of a key, creating it (not alive) when absent; ~0 when the packed
   // probe limit is hit (the row is spilled). The generic path is only
   // used single-threaded.
+  void CheckKey(const num* row) const {
+    for (int c = 0; c < arity; c++) if (std::isnan(row[c])) Fail("null in a key column of " + name + " (not supported)");
+  }
   size_t SlotOf(const num* row) {
+    CheckKey(row);
     if (dense) { i64 k = (i64)row[0] - lo; if (k < 0 || k >= (i64)slots.alive.size()) Fail("key outside domain in " + name); return (size_t)k; }
     if (packed) return pmap.Insert(PackKey(row)).first;
     std::vector<num> key(row, row + arity);
@@ -493,6 +466,7 @@ struct State {
   // column follows another (ArgMin).
   bool Offer(const num* row) {
     if (dense2) {
+      CheckKey(row);
       i64 a = (i64)row[0] - lo, b = (i64)row[1] - lo;
       if (a < 0 || b < 0 || a >= n2 || b >= n2) Fail("key outside domain in " + name);
       uint64_t pos = (uint64_t)a * n2 + b, bit = uint64_t(1) << (pos & 63);
@@ -515,7 +489,7 @@ struct State {
       else {
         for (int c = 0; c < nv; c++) {
           if (argof[c] >= 0) continue;
-          if (aggs[c] == SUM) { cur[c] += v[c]; changed |= v[c] != 0; }
+          if (aggs[c] == SUM) { if (!std::isnan(v[c])) { cur[c] += v[c]; changed |= v[c] != 0; } }
           else if (aggs[c] == ASSIGN) { changed |= cur[c] != v[c]; cur[c] = v[c]; }
           else if (aggs[c] == MIN ? v[c] < cur[c] : v[c] > cur[c]) {
             cur[c] = v[c]; changed = true;
@@ -539,7 +513,7 @@ struct State {
     bool changed = false;
     for (int c = 0; c < nv; c++) {
       switch (aggs[c]) {
-        case SUM: AtomicAdd(&cur[c], v[c]); changed |= v[c] != 0; break;
+        case SUM: if (!std::isnan(v[c])) { AtomicAdd(&cur[c], v[c]); changed |= v[c] != 0; } break;
         case ASSIGN: if (AtomicLoad(&cur[c]) != v[c]) { AtomicStore(&cur[c], v[c]); changed = true; } break;
         case MIN: case MAX: {
           num old = AtomicLoad(&cur[c]);
@@ -579,7 +553,9 @@ struct State {
   // (a flag in its slot). Keys the packed table cannot place yet, and
   // generic keys, go to a list deduplicated at Pull time.
   std::vector<std::vector<num>> dirty_overflow;
+  uint8_t dirty0 = 0;  // the one key of a nullary state
   void MarkDirty(const num* keyrow) {
+    if (arity == 0) { __atomic_store_n(&dirty0, (uint8_t)1, __ATOMIC_RELAXED); return; }
     int t = omp_get_thread_num();
     size_t s = ~size_t(0);
     if (dense) s = SlotOf(keyrow);
@@ -704,6 +680,9 @@ struct Atom {
   std::vector<Expr> args;  // per column; kind OP with op "_" = unused
   bool recursive = false;
   bool has_value = false;  // the last argument reads the value column
+  // An aggregating expression of the body, hoisted into a state keyed by
+  // its outer variables: looked up by key, null (NONE) when absent.
+  bool left = false;
 };
 
 struct Rule {
@@ -725,12 +704,17 @@ struct Plan {
   std::vector<const Index*> idx;
   std::vector<std::vector<int>> bound_cols, bind_cols, const_cols;
   std::vector<std::vector<int>> conds_after, lets_after;
+  std::vector<std::vector<int>> checks_after;  // lets whose variable was bound already: equalities
   std::vector<int> preset;   // variables bound before the first atom
   int delta_pos = -1;        // execution position of the delta atom
+  std::vector<num> null_row; // the row a left atom yields when its key is absent
 };
+
+typedef void (*PassCallback)(int pass, long long changed);
 
 struct Engine {
   int threads = 1;
+  PassCallback on_pass = nullptr;  // told the pass number and changed facts
   std::map<std::string, Rows> inputs;
   std::map<std::string, const Rows*> scan_rows;
   std::map<std::string, State> states;
@@ -785,7 +769,8 @@ struct Engine {
           if (j < hi && data[j] == '-') { neg = true; j++; }
           while (j < hi && data[j] >= '0' && data[j] <= '9') v = v * 10 + (data[j++] - '0');
           result = neg ? -v : v;
-          if (j < hi && data[j] != ',' && data[j] != '\n' && data[j] != '\r') {
+          if (j == i && (j == hi || data[j] == ',' || data[j] == '\n' || data[j] == '\r')) result = NONE;  // empty: null
+          else if (j < hi && data[j] != ',' && data[j] != '\n' && data[j] != '\r') {
             const char* e; result = strtod(data + i, (char**)&e); j = e - data;
           }
           *out++ = result;
@@ -838,9 +823,32 @@ struct Engine {
   // `delta_at` (atom index or -1) reads the delta and goes first; `preset`
   // variables are bound before the first atom, and an atom binding one of
   // them is moved first (recomputation of a key).
-  Plan MakePlan(const Rule& rule, int delta_at, const std::vector<int>& preset) {
+  Plan MakePlan(const Rule& rule, int delta_at, const std::vector<int>& preset, bool mark = false) {
     Plan p; p.rule = &rule; p.preset = preset;
     int natoms = rule.atoms.size();
+    // Marking affected keys: a condition on a value that may be null in
+    // the delta (a retracted fact, an absent left atom) must not filter
+    // the candidates; it is checked on recomputation.
+    std::vector<char> nullable(rule.nvars, 0);
+    if (mark) {
+      for (int a = 0; a < natoms; a++) {
+        const Atom& atom = rule.atoms[a];
+        if (!(atom.left || a == delta_at) || !atom.recursive) continue;
+        int arity = states.at(atom.rel).arity;
+        for (size_t c = arity; c < atom.args.size(); c++) if (atom.args[c].kind == Expr::VAR) nullable[atom.args[c].var] = 1;
+      }
+      for (bool changed = true; changed;) {
+        changed = false;
+        for (auto& l : rule.lets) {
+          if (nullable[l.first]) continue;
+          std::vector<int> vs; ExprVars(l.second, vs);
+          for (int v : vs) if (nullable[v]) { nullable[l.first] = 1; changed = true; }
+        }
+      }
+    }
+    size_t max_width = 0;
+    for (auto& a : rule.atoms) max_width = std::max(max_width, a.args.size());
+    p.null_row.assign(max_width, NONE);
     for (int a = 0; a < natoms; a++) p.order.push_back(a);
     if (delta_at >= 0) { p.order.erase(p.order.begin() + delta_at); p.order.insert(p.order.begin(), delta_at); p.delta_pos = 0; }
     else if (!preset.empty()) {
@@ -848,6 +856,7 @@ struct Engine {
       for (int a = 0; a < natoms; a++) {
         bool binds = false;
         for (auto& e : rule.atoms[a].args) if (e.kind == Expr::VAR) for (int v : preset) binds |= e.var == v;
+        if (rule.atoms[a].left) continue;  // looked up, never scanned
         if (binds && (best < 0 || (rule.atoms[best].recursive && !rule.atoms[a].recursive))) best = a;
       }
       if (best > 0) { p.order.erase(p.order.begin() + best); p.order.insert(p.order.begin(), best); }
@@ -856,16 +865,23 @@ struct Engine {
     for (int v : preset) is_bound[v] = 1;
     p.src.resize(natoms); p.idx.assign(natoms, nullptr);
     p.bound_cols.resize(natoms); p.bind_cols.resize(natoms); p.const_cols.resize(natoms);
-    p.conds_after.resize(natoms + 1); p.lets_after.resize(natoms + 1);
+    p.conds_after.resize(natoms + 1); p.lets_after.resize(natoms + 1); p.checks_after.resize(natoms + 1);
+    std::vector<char> let_done(rule.lets.size(), 0);
     auto resolve = [&](int stage) {
       bool changed = true;
       while (changed) {
         changed = false;
         for (size_t l = 0; l < rule.lets.size(); l++) {
-          if (is_bound[rule.lets[l].first]) continue;
+          if (let_done[l]) continue;
           std::vector<int> vs; ExprVars(rule.lets[l].second, vs);
           bool ok = true; for (int v : vs) if (!is_bound[v]) ok = false;
-          if (ok) { is_bound[rule.lets[l].first] = 1; p.lets_after[stage].push_back(l); changed = true; }
+          if (!ok) continue;
+          let_done[l] = 1; changed = true;
+          if (!is_bound[rule.lets[l].first]) { is_bound[rule.lets[l].first] = 1; p.lets_after[stage].push_back(l); continue; }
+          // The variable is bound already: the let is an equality to check
+          // (skipped when marking, like a condition on a nullable value).
+          bool null_side = nullable[rule.lets[l].first]; for (int v : vs) null_side |= nullable[v];
+          if (!null_side) p.checks_after[stage].push_back(l);
         }
       }
       for (size_t c = 0; c < rule.conds.size(); c++) {
@@ -873,7 +889,7 @@ struct Engine {
         for (int s = 0; s < stage; s++) for (int x : p.conds_after[s]) if (x == (int)c) placed = true;
         if (placed) continue;
         std::vector<int> vs; ExprVars(rule.conds[c], vs);
-        bool ok = true; for (int v : vs) if (!is_bound[v]) ok = false;
+        bool ok = true; for (int v : vs) if (!is_bound[v] || nullable[v]) ok = false;
         if (ok) p.conds_after[stage].push_back(c);
       }
     };
@@ -893,6 +909,14 @@ struct Engine {
       for (int c : p.const_cols[pos]) index_cols.push_back(c);
       std::sort(index_cols.begin(), index_cols.end());
       bool lookup = !index_cols.empty() && (pos > 0 || !preset.empty());
+      if (atom.left && pos != p.delta_pos) {
+        // Looked up by its key columns; a bound value column is checked after.
+        int arity = states.at(atom.rel).arity;
+        std::vector<int> keys;
+        for (int c : index_cols) if (c < arity) keys.push_back(c);
+        if ((int)keys.size() != arity) Fail("an aggregating expression of " + rule.head + " has a key that is not bound by the body");
+        index_cols = keys; lookup = true;
+      }
       if (atom.recursive) {
         const Rows& rows = pos == p.delta_pos ? states.at(atom.rel).delta : full_state.at(atom.rel);
         p.src[pos] = &rows;
@@ -933,10 +957,18 @@ struct Engine {
     const Rule& rule = *p.rule;
     int natoms = rule.atoms.size();
     num probe[8];
-    struct Frame { const Rows* rows; size_t r; size_t n; };
+    struct Frame { const Rows* rows; size_t r; size_t n; bool null_once; };
     std::vector<Frame> st(natoms);
+    const num* null_row = p.null_row.data();
     auto check_atom = [&](int pos, const num* row) -> bool {
       const Atom& atom = rule.atoms[p.order[pos]];
+      if (row == null_row) {
+        // Keys matched by construction; a bound value column does not.
+        int arity = states.at(atom.rel).arity;
+        for (int c : p.bound_cols[pos]) if (c >= arity) return false;
+        for (int c : p.bind_cols[pos]) bind[atom.args[c].var] = NONE;
+        return true;
+      }
       for (int c : p.const_cols[pos]) if (row[c] != atom.args[c].value) return false;
       for (int c : p.bound_cols[pos]) if (row[c] != bind[atom.args[c].var]) return false;
       for (int c : p.bind_cols[pos]) bind[atom.args[c].var] = row[c];
@@ -944,11 +976,13 @@ struct Engine {
     };
     auto after = [&](int stage) -> bool {
       for (int l : p.lets_after[stage]) bind[rule.lets[l].first] = Eval(rule.lets[l].second, bind.data());
-      for (int c : p.conds_after[stage]) if (!Eval(rule.conds[c], bind.data())) return false;
+      for (int l : p.checks_after[stage]) { num v = Eval(rule.lets[l].second, bind.data()); if (std::isnan(v) || v != bind[rule.lets[l].first]) return false; }
+      for (int c : p.conds_after[stage]) if (!Truthy(Eval(rule.conds[c], bind.data()))) return false;
       return true;
     };
     auto open = [&](int pos) {
       Frame& f = st[pos];
+      f.null_once = false;
       if (p.idx[pos]) {
         const Index& I = *p.idx[pos];
         for (size_t i = 0; i < I.cols.size(); i++) {
@@ -956,6 +990,7 @@ struct Engine {
           probe[i] = e.kind == Expr::CONST ? e.value : bind[e.var];
         }
         I.Lookup(probe, &f.r, &f.n); f.rows = &I.sorted;
+        if (f.r == f.n && rule.atoms[p.order[pos]].left && pos != p.delta_pos) f.null_once = true;
       } else {
         // Only the first atom is split into [r_begin, r_end) between
         // threads; a later atom without an index is scanned whole.
@@ -966,6 +1001,7 @@ struct Engine {
     };
     auto next_row = [&](int pos) -> const num* {
       Frame& f = st[pos];
+      if (f.null_once) { f.null_once = false; return null_row; }
       if (f.r == f.n) return nullptr; return f.rows->row(f.r++);
     };
     if (!after(0)) return;
@@ -1057,15 +1093,15 @@ struct Engine {
     // fact; the contribution computed from them is retracted (negated).
     std::vector<int> dvars;  // variables bound to the delta's value columns
     int darity = 0, dnv = 0;
-    if (head.tier == State::GROUP && delta_at >= 0) {
+    if (delta_at >= 0 && rule.atoms[delta_at].recursive) {
       const State& D = states.at(rule.atoms[delta_at].rel);
       darity = D.arity; dnv = D.nv;
-      for (int c = 0; c < dnv; c++) {
+      if (head.tier == State::GROUP) for (int c = 0; c < dnv; c++) {
         const Expr& e = (int)rule.atoms[delta_at].args.size() > darity + c ? rule.atoms[delta_at].args[darity + c] : Expr();
         dvars.push_back(e.kind == Expr::VAR ? e.var : -1);
       }
     }
-    size_t n0 = p.src[0]->size();
+    size_t n0 = p.idx[0] ? 1 : p.src[0]->size();
     int nthreads = (head.dense || head.dense2 || head.packed) ? threads : 1;
     for (size_t c0 = 0; c0 < n0; c0 += CHUNK) {
       size_t c1 = std::min(n0, c0 + CHUNK);
@@ -1081,10 +1117,13 @@ struct Engine {
           for (size_t v = 0; v < rule.values.size(); v++) hrow[rule.keys.size() + v] = Eval(rule.values[v], bind.data());
         };
         if (lo < hi) RunPlan(p, lo, hi, bind, [&](const num* row0) {
-          head_row();
-          if (trace && n0 < 4) fprintf(stderr, "    emit %s value %g (delta row0 %g)\n", rule.head.c_str(), width ? hrow[0] : 0, row0 ? row0[0] : -1);
-          if (head.Offer(hrow.data())) O.push(hrow.data());
-          if (dnv && !std::isnan(row0[darity + dnv])) {
+          bool retracted = dnv && std::isnan(row0[darity]);
+          if (!retracted) {
+            head_row();
+            if (trace && n0 < 4) fprintf(stderr, "    emit %s value %g (delta row0 %g)\n", rule.head.c_str(), width ? hrow[0] : 0, row0 ? row0[0] : -1);
+            if (head.Offer(hrow.data())) O.push(hrow.data());
+          }
+          if (!dvars.empty() && !std::isnan(row0[darity + dnv])) {
             num saved[8];
             for (int c = 0; c < dnv; c++) if (dvars[c] >= 0) { saved[c] = bind[dvars[c]]; bind[dvars[c]] = row0[darity + dnv + c]; }
             head_row();
@@ -1098,11 +1137,38 @@ struct Engine {
     }
   }
 
-  // Affected keys: every match marks its head key dirty.
+  // Affected keys: every match marks its head key dirty. A changed value
+  // may have made a different head key before: the delta is also matched
+  // with its old values (a key computed from the value is retracted).
   void MarkAffected(const Rule& rule, int delta_at) {
+    MarkAffectedWith(rule, delta_at);
+    if (delta_at < 0 || !rule.atoms[delta_at].has_value) return;
+    State& D = states.at(rule.atoms[delta_at].rel);
+    if (!D.nv) return;
+    Rows old; old.width = D.delta.width;
+    for (size_t r = 0; r < D.delta.size(); r++) {
+      const num* row = D.delta.row(r);
+      if (std::isnan(row[D.arity + D.nv])) continue;  // the fact was new
+      old.push(row);
+      num* o = old.row(old.size() - 1);
+      for (int c = 0; c < D.nv; c++) o[D.arity + c] = row[D.arity + D.nv + c];
+    }
+    if (!old.size()) return;
+    std::swap(D.delta, old);
+    MarkAffectedWith(rule, delta_at);
+    std::swap(D.delta, old);
+  }
+
+  void MarkAffectedWith(const Rule& rule, int delta_at) {
     State& head = states.at(rule.head);
-    Plan p = MakePlan(rule, delta_at, {});
-    size_t n0 = p.src[0]->size();
+    Plan p = MakePlan(rule, delta_at, {}, true);
+    if (rule.atoms.empty()) {  // a fact: its key
+      std::vector<num> bind(rule.nvars, 0), krow(rule.keys.size());
+      for (size_t k = 0; k < rule.keys.size(); k++) krow[k] = Eval(rule.keys[k], bind.data());
+      head.MarkDirty(krow.data());
+      return;
+    }
+    size_t n0 = p.idx[0] ? 1 : p.src[0]->size();
 #pragma omp parallel num_threads(threads)
     {
       std::vector<num> bind(rule.nvars, 0);
@@ -1110,8 +1176,9 @@ struct Engine {
       size_t per = (n0 + threads - 1) / threads;
       size_t lo = per * omp_get_thread_num(), hi = std::min(n0, lo + per);
       if (lo < hi) RunPlan(p, lo, hi, bind, [&](const num*) {
-        for (size_t k = 0; k < rule.keys.size(); k++) krow[k] = Eval(rule.keys[k], bind.data());
-        head.MarkDirty(krow.data());
+        bool null_key = false;
+        for (size_t k = 0; k < rule.keys.size(); k++) { krow[k] = Eval(rule.keys[k], bind.data()); null_key |= std::isnan(krow[k]); }
+        if (!null_key) head.MarkDirty(krow.data());  // a null key is no fact
       });
     }
   }
@@ -1125,14 +1192,34 @@ struct Engine {
     std::set<std::vector<num>> overflow;
     for (auto& D : S.dirty_overflow) { for (size_t i = 0; i < D.size(); i += S.arity) overflow.insert(std::vector<num>(&D[i], &D[i] + S.arity)); D.clear(); }
     for (auto& k : overflow) { size_t s = S.FindSlot(k.data()); if (s == ~size_t(0) || !S.slots.dirty[s]) dirty.push_back(k); }
+    if (S.arity == 0 && S.dirty0) { S.dirty0 = 0; dirty.emplace_back(); }
     if (dirty.empty()) return;
+    // A rule whose head keys are variables (or constants) is evaluated
+    // with the key bound; one with a computed key is evaluated in full
+    // and its contributions bucketed by key.
     struct Pending { const Rule* rule; Plan plan; std::vector<int> key_vars; };
     std::vector<Pending> plans;  // built serially: indexes are shared
+    std::unordered_map<std::vector<num>, std::vector<num>, KeyHash> computed;  // key -> contributions
     for (auto& rule : rules) {
       if (rule.head != S.name) continue;
-      std::vector<int> key_vars;
-      for (auto& k : rule.keys) { if (k.kind != Expr::VAR) Fail("recomputation needs plain head keys in " + S.name); key_vars.push_back(k.var); }
-      plans.push_back({&rule, MakePlan(rule, -1, key_vars), key_vars});
+      bool plain = true;
+      for (auto& k : rule.keys) plain &= k.kind != Expr::OP;
+      if (plain) {
+        std::vector<int> key_vars;
+        for (auto& k : rule.keys) key_vars.push_back(k.kind == Expr::VAR ? k.var : -1);
+        std::vector<int> preset; for (int v : key_vars) if (v >= 0) preset.push_back(v);
+        plans.push_back({&rule, MakePlan(rule, -1, preset), key_vars});
+        continue;
+      }
+      Plan p = MakePlan(rule, -1, {});
+      std::vector<num> bind(rule.nvars, 0), key(S.arity);
+      RunPlan(p, 0, rule.atoms.empty() ? 0 : p.idx[0] ? 1 : p.src[0]->size(), bind, [&](const num*) {
+        bool null_key = false;
+        for (int k = 0; k < S.arity; k++) { key[k] = Eval(rule.keys[k], bind.data()); null_key |= std::isnan(key[k]); }
+        if (null_key) return;  // a null key is no fact
+        std::vector<num>& C = computed[key];
+        for (int c = 0; c < S.nv; c++) C.push_back(Eval(rule.values[c], bind.data()));
+      });
     }
     for (auto& o : out) o.width = S.DeltaWidth();
     if (S.packed) {
@@ -1148,32 +1235,45 @@ struct Engine {
       std::vector<num> acc(S.nv), contrib(S.nv);
       std::vector<std::vector<num>> binds;
       for (auto& pd : plans) binds.emplace_back(pd.rule->nvars, 0);
+      bool any = false;
+      auto fold = [&](const num* v) {
+        if (!any) { for (int c = 0; c < S.nv; c++) acc[c] = v[c]; any = true; return; }
+        for (int c = 0; c < S.nv; c++) {
+          switch (S.aggs[c]) {
+            case SUM: if (std::isnan(acc[c])) acc[c] = v[c]; else if (!std::isnan(v[c])) acc[c] += v[c]; break;
+            case ASSIGN: acc[c] = v[c]; break;
+            case MIN: case MAX:
+              if (S.aggs[c] == MIN ? v[c] < acc[c] : v[c] > acc[c]) {
+                acc[c] = v[c];
+                for (int d = 0; d < S.nv; d++) if (S.argof[d] == c) acc[d] = v[d];
+              }
+              break;
+            default: break;
+          }
+        }
+      };
 #pragma omp for schedule(dynamic, 64)
       for (size_t i = 0; i < dirty.size(); i++) {
         const std::vector<num>& key = dirty[i];
-        bool any = false;
+        any = false;
         for (size_t pi = 0; pi < plans.size(); pi++) {
           Pending& pd = plans[pi];
           const Rule& rule = *pd.rule;
           std::vector<num>& bind = binds[pi];
-          for (size_t k = 0; k < pd.key_vars.size(); k++) bind[pd.key_vars[k]] = key[k];
+          bool match = true;
+          for (size_t k = 0; k < pd.key_vars.size(); k++) {
+            if (pd.key_vars[k] >= 0) bind[pd.key_vars[k]] = key[k];
+            else match &= rule.keys[k].value == key[k];
+          }
+          if (!match) continue;
           RunPlan(pd.plan, 0, rule.atoms.empty() ? 0 : pd.plan.src[0]->size(), bind, [&](const num*) {
             for (int c = 0; c < S.nv; c++) contrib[c] = Eval(rule.values[c], bind.data());
-            if (!any) { acc = contrib; any = true; return; }
-            for (int c = 0; c < S.nv; c++) {
-              switch (S.aggs[c]) {
-                case SUM: acc[c] += contrib[c]; break;
-                case ASSIGN: acc[c] = contrib[c]; break;
-                case MIN: case MAX:
-                  if (S.aggs[c] == MIN ? contrib[c] < acc[c] : contrib[c] > acc[c]) {
-                    acc[c] = contrib[c];
-                    for (int d = 0; d < S.nv; d++) if (S.argof[d] == c) acc[d] = contrib[d];
-                  }
-                  break;
-                default: break;
-              }
-            }
+            fold(contrib.data());
           });
+        }
+        if (!computed.empty()) {
+          auto it = computed.find(key);
+          if (it != computed.end()) for (size_t j = 0; j < it->second.size(); j += S.nv) fold(&it->second[j]);
         }
         if (S.Set(key.data(), any ? acc.data() : nullptr)) {
           O.data.insert(O.data.end(), key.begin(), key.end());
@@ -1221,6 +1321,8 @@ struct Engine {
         inputs[kv.first] = std::move(R);
       } else {
         State S; S.name = kv.first; S.arity = arity; S.eps = eps;
+        S.stop = r.Get("stop") && r.At("stop").b;
+        S.internal = r.Get("internal") && r.At("internal").b;
         if (r.Get("aggs")) for (auto& a : r.At("aggs").arr) S.aggs.push_back(ParseAgg(a.str));
         else if (r.Get("agg") && r.At("agg").str != "or") S.aggs.push_back(ParseAgg(r.At("agg").str));
         S.nv = S.aggs.size();
@@ -1238,6 +1340,7 @@ struct Engine {
         Atom atom; atom.rel = aj.At("rel").str;
         atom.recursive = states.count(atom.rel) > 0;
         atom.has_value = aj.Get("has_value") && aj.At("has_value").b;
+        atom.left = aj.Get("left") && aj.At("left").b;
         for (auto& arg : aj.At("args").arr) {
           if (arg.kind == Json::NUL) { Expr e; e.kind = Expr::OP; e.op = "_"; atom.args.push_back(e); }
           else atom.args.push_back(ReadExpr(arg, vars));
@@ -1254,6 +1357,25 @@ struct Engine {
       for (auto& k : rule.keys) widen(k);
       for (auto& a : rule.atoms) for (auto& e : a.args) widen(e);
       rules.push_back(std::move(rule));
+    }
+    // Retractable states: a left atom makes a head's facts revisable, and
+    // so are the facts of everything reading such a state. Retractable
+    // sets keep an existence value, so that their log can say "gone".
+    for (bool changed = true; changed;) {
+      changed = false;
+      for (auto& rule : rules) {
+        State& head = states.at(rule.head);
+        if (head.retractable) continue;
+        for (auto& a : rule.atoms) if (a.left || (a.recursive && states.at(a.rel).retractable)) { head.retractable = true; changed = true; break; }
+      }
+    }
+    for (auto& rule : rules) {
+      int nrec = 0; for (auto& a : rule.atoms) nrec += a.recursive;
+      if (nrec > 1) states.at(rule.head).joins_states = true;
+    }
+    for (auto& kv : states) if (kv.second.retractable && kv.second.nv == 0) {
+      kv.second.exists = true;
+      for (auto& rule : rules) if (rule.head == kv.first) { Expr one; one.kind = Expr::CONST; one.value = 1; rule.values.push_back(one); }
     }
     auto flag = [](const char* name) { const char* v = getenv(name); return !(v && (!strcmp(v, "false") || !strcmp(v, "0"))); };
     bool lattice_opt = flag("SOCRATIC_LATTICE_OPT"), group_opt = flag("SOCRATIC_GROUP_OPT");
@@ -1300,6 +1422,7 @@ struct Engine {
     for (auto& rule : rules) {
       int nrec = 0; for (auto& a : rule.atoms) nrec += a.recursive;
       if (nrec > 1 || states.at(rule.head).tier == State::BLACKBOX) for (auto& a : rule.atoms) if (a.recursive) needs_full.insert(a.rel);
+      for (auto& a : rule.atoms) if (a.left) needs_full.insert(a.rel);
     }
     double t1 = Now();
 
@@ -1321,6 +1444,7 @@ struct Engine {
       rounds++;
       double tr = Now();
       bool progress = false;
+      long long changed = 0;
       for (State* member : members) {
         State& S = *member;
         S.Snapshot();
@@ -1328,11 +1452,17 @@ struct Engine {
         full_state.clear();
         for (auto& name : needs_full) full_state[name] = states.at(name).Materialize();
         for (const Rule* rule : rules_of[S.name]) {
-          bool rec = false; for (auto& a : rule->atoms) rec |= a.recursive;
-          if (!rec) {
-            if (rounds == 1) { Push(*rule, -1, out); Collect(S, out); }
-            continue;
+          bool rec = false, regular = false;
+          for (auto& a : rule->atoms) { rec |= a.recursive; regular |= a.recursive && !a.left; }
+          // Without a regular state atom the rule has matches before any
+          // change (a left atom matches by absence): evaluated in full
+          // once, its left atoms' changes so far consumed.
+          if (!regular && rounds == 1) {
+            if (S.tier != State::BLACKBOX) { Push(*rule, -1, out); Collect(S, out); }
+            else MarkAffected(*rule, -1);
+            for (size_t a = 0; a < rule->atoms.size(); a++) if (rule->atoms[a].left) cursor[rule][a] = states.at(rule->atoms[a].rel).log.size();
           }
+          if (!rec) continue;
           for (size_t a = 0; a < rule->atoms.size(); a++) {
             if (!rule->atoms[a].recursive) continue;
             State& B = states.at(rule->atoms[a].rel);
@@ -1354,7 +1484,12 @@ struct Engine {
         S.CloseRound();
         if (trace) fprintf(stderr, "  %s: %zu queued, %zu logged\n", S.name.c_str(), pending, S.log.size() - before);
         if (S.log.size() > before) progress = true;
+        changed += S.log.size() - before;
       }
+      if (on_pass && progress) on_pass(rounds, changed);
+      bool stopped = false;
+      for (State* member : members) if (member->stop && member->Materialize().size() > 0) stopped = true;
+      if (stopped) break;
       // Logs are consumed by every rule reading them: drop what all have seen.
       for (auto& kv : states) {
         State& S = kv.second;
@@ -1377,7 +1512,9 @@ struct Engine {
     for (auto& kv : spec.At("relations").obj) {
       if (kv.second.At("kind").str == "input") continue;
       State& S = states.at(kv.first);
+      if (S.internal) continue;
       Rows R = S.Materialize();
+      int ncols = S.exists ? S.arity : R.width;
       FILE* f = fopen(kv.second.At("out").str.c_str(), "w");
       if (!f) Fail("cannot write " + kv.second.At("out").str);
       size_t nrows = R.size();
@@ -1391,10 +1528,12 @@ struct Engine {
         char tmp[24], ftmp[40];
         for (size_t i = lo_r; i < hi_r; i++) {
           const num* row = R.row(i);
-          for (int c = 0; c < R.width; c++) {
+          for (int c = 0; c < ncols; c++) {
             num x = row[c];
-            char end = c + 1 == R.width ? '\n' : ',';
-            if (x == (num)(i64)x && x > -9e15 && x < 9e15) {
+            char end = c + 1 == ncols ? '\n' : ',';
+            if (std::isnan(x)) {
+              buf.push_back(end);  // null: an empty field
+            } else if (x == (num)(i64)x && x > -9e15 && x < 9e15) {
               i64 v = (i64)x;
               uint64_t u = v < 0 ? (uint64_t)(-(v + 1)) + 1 : (uint64_t)v;
               int p = sizeof tmp;
@@ -1411,7 +1550,13 @@ struct Engine {
       }
       for (auto& buf : chunk) fwrite(buf.data(), 1, buf.size(), f);
       fclose(f);
+      bool integral = true;
+      for (size_t i = 0; i < nrows && integral; i++) for (int c = 0; c < ncols; c++) {
+        num x = R.row(i)[c];
+        if (!std::isnan(x) && !(x == (num)(i64)x && x > -9e15 && x < 9e15)) { integral = false; break; }
+      }
       stats += ", \"" + kv.first + "\": " + std::to_string(R.size());
+      stats += ", \"" + kv.first + "_integral\": " + (integral ? "true" : "false");
     }
     double t3 = Now();
     stats += ", \"index_s\": " + std::to_string(index_s);
@@ -1429,28 +1574,26 @@ static void OnCrash(int sig) {
   _exit(2);
 }
 
-extern "C" {
-int socrates_run(const char* spec_json, char* out, int out_len) {
-  signal(SIGSEGV, OnCrash); signal(SIGBUS, OnCrash); signal(SIGABRT, OnCrash);
-  JsonParser p(spec_json);
-  Json spec = p.Parse();
-  Engine engine;
-  std::string stats = engine.Run(spec);
-  snprintf(out, out_len, "%s", stats.c_str());
-  return 0;
-}
+static void ReportPass(int pass, long long changed) {
+  printf("pass %d %lld\n", pass, changed);
+  fflush(stdout);
 }
 
-#ifndef SOCRATES_LIBRARY
+// Usage: socrates spec.json. Every pass is reported on stdout ("pass N
+// changed"), the run's statistics come last as a JSON line; errors go to
+// stderr with a non-zero exit.
 int main(int argc, char** argv) {
+  signal(SIGSEGV, OnCrash); signal(SIGBUS, OnCrash); signal(SIGABRT, OnCrash);
   if (argc < 2) { fprintf(stderr, "usage: socrates spec.json\n"); return 1; }
   FILE* f = fopen(argv[1], "r"); if (!f) { perror("spec"); return 1; }
   std::string text; char buf[65536]; size_t n;
   while ((n = fread(buf, 1, sizeof buf, f)) > 0) text.append(buf, n);
   fclose(f);
-  char out[65536];
-  socrates_run(text.c_str(), out, sizeof out);
-  printf("%s\n", out);
+  JsonParser p(text.c_str());
+  Json spec = p.Parse();
+  Engine engine;
+  engine.on_pass = ReportPass;
+  std::string stats = engine.Run(spec);
+  printf("%s\n", stats.c_str());
   return 0;
 }
-#endif

@@ -87,6 +87,10 @@ def Convert(name):
     inner = m.group(1)
     pred = inner.split(',')[0].strip()
     annotated.add(pred)
+    # Satellites iterate with their predicate: not annotated on their own.
+    sat = re.search(r'satellites:\s*\[([^\]]*)\]', inner)
+    if sat:
+      annotated.update(x.strip() for x in sat.group(1).split(','))
     if 'mode:' in inner:
       inner = re.sub(r'mode:\s*"[a-z_]+"', 'mode: "socratic"', inner)
     else:

@@ -14,8 +14,6 @@
 # limitations under the License.
 
 @Engine("duckdb");
-@Recursive(N, 32, mode: "socratic");
-@Recursive(SmoothedWin, 32, mode: "socratic");
 
 Move("a", "b");
 Move("b", "a");

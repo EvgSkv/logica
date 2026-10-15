@@ -29,10 +29,10 @@ Mirrors the neural mode: universe compiles a SocraticPlan per socratic
 @Iteration, concertina runs it through RunIterationAsPlan.
 """
 
-import ctypes
 import hashlib
 import json
 import os
+import re
 import subprocess
 import sys
 import tempfile
@@ -52,9 +52,16 @@ AUX_MARKER = neural_logica.AUX_MARKER
 DIAMOND_SUFFIX = neural_logica.DIAMOND_SUFFIX
 
 AGGREGATIONS = {'Min': 'min', 'Max': 'max', 'Agg+': 'sum'}
-OPERATORS = {'+', '-', '*', '/', '%', '<', '<=', '>', '>=', '==', '!=',
-             '&&', '||', '!', 'Least', 'Greatest', 'Abs',
-             'ToFloat64', 'ToInt64', 'Floor'}
+
+
+def BuiltinFunctions():
+  """Names of the engine's scalar functions, from socrates/functions.h."""
+  path = os.path.join(_RepoRoot(), 'socrates', 'functions.h')
+  with open(path) as f:
+    return set(re.findall(r'^\s*FN\("([^"]+)"', f.read(), re.M))
+
+
+OPERATORS = None  # filled on first use (the repo root is known then)
 
 
 class SocraticCompileException(rule_translate.RuleCompileException):
@@ -94,34 +101,35 @@ _LIB = None
 
 
 def LoadLibrary():
-  """Builds socrates.so on first use (or when the source is newer)."""
+  """Builds the socrates executable on first use (or when the source is
+  newer). The engine runs as a separate process: an error (or a crash)
+  of the engine is an exception here, not the end of the notebook
+  kernel."""
   global _LIB
   if _LIB is not None:
     return _LIB
   src = os.path.join(_RepoRoot(), 'socrates', 'socrates.cpp')
+  header = os.path.join(_RepoRoot(), 'socrates', 'functions.h')
   cache = _CacheDir()
   try:
     os.makedirs(cache, exist_ok=True)
   except OSError:
     cache = os.path.join(tempfile.gettempdir(), 'logica_socrates')
     os.makedirs(cache, exist_ok=True)
-  so = os.path.join(cache, 'libsocrates.so')
+  so = os.path.join(cache, 'socrates')
   if (not os.path.isfile(so) or
-      os.path.getmtime(so) < os.path.getmtime(src)):
+      os.path.getmtime(so) < max(os.path.getmtime(src),
+                                 os.path.getmtime(header))):
     cflags, ldflags = _OpenMpFlags()
     tmp = so + '.tmp.%d' % os.getpid()
-    cmd = (['c++', '-O3', '-std=c++17', '-fPIC', '-shared',
-            '-DSOCRATES_LIBRARY'] + cflags + ['-o', tmp, src] + ldflags)
+    cmd = (['c++', '-O3', '-std=c++17'] + cflags + ['-o', tmp, src] + ldflags)
     try:
       subprocess.check_call(cmd)
     except subprocess.CalledProcessError as e:
       raise RuntimeError('Failed to build Socrates engine: %s' % e)
     os.replace(tmp, so)
-  lib = ctypes.CDLL(so)
-  lib.socrates_run.argtypes = [ctypes.c_char_p, ctypes.c_char_p, ctypes.c_int]
-  lib.socrates_run.restype = ctypes.c_int
-  _LIB = lib
-  return lib
+  _LIB = so
+  return so
 
 
 # ============================= Compilation ==============================
@@ -139,6 +147,17 @@ def CompilePlans(program):
     if IterationIsSocratic(iteration_annotations.get(name, {})):
       plans[name] = SocraticPlan(program, name, iteration)
   return plans
+
+
+def ExprVariables(node):
+  """Variables of a compiled expression."""
+  if isinstance(node, dict):
+    if 'var' in node:
+      return {node['var']}
+    return set().union(*[ExprVariables(v) for v in node.values()])
+  if isinstance(node, list):
+    return set().union(*[ExprVariables(v) for v in node])
+  return set()
 
 
 def IsVariable(node):
@@ -166,6 +185,8 @@ class Member(object):
     self.has_value = False
     self.agg = 'or'
     self.functional = False
+    self.internal = False    # a hoisted aggregating expression: not written out
+    self.stop = False        # a stop predicate: a row ends the run
 
 
 class SocraticPlan(object):
@@ -197,23 +218,27 @@ class SocraticPlan(object):
         stops.add(stop['predicate_name'])
     for diamond_name in iteration['predicates']:
       base, phase, family = ParsePhase(diamond_name)
-      if phase != 'diamond' or base in stops:
+      if phase != 'diamond':
         continue  # X_before / X_fixpoint are SQL scaffolding, unused here.
       ground = program.annotations.Ground(diamond_name)
       assert ground, 'Diamond predicates are always grounded.'
       member = Member(base + family, diamond_name, base + '_portal' + family,
                       ground.table_name)
+      member.stop = base in stops
       self.members.append(member)
       self.member_of_portal[member.portal] = member
     if not self.members:
       Error('Socratic iteration %s has no recursive members.' % self.name,
             self.name)
+    self.combines = 0
+    for member in list(self.members):
+      self.CompileMember(member)  # may insert hoisted members before it
     for member in self.members:
-      self.CompileMember(member)
       member.fields = sorted(member.fields, key=lambda f: (isinstance(f, str), f))
       if member.functional:
         member.fields.append('logica_value')
       member.arity = len(member.fields)
+    self.members.sort(key=lambda m: m.stop)
     # Rules were compiled with field names; map them to columns now.
     for rule in self.rules:
       self.PlaceColumns(rule)
@@ -303,7 +328,57 @@ class SocraticPlan(object):
     Error('Socratic recursion reads %s, which is not a table; it must '
           'be grounded (@Ground(%s)).' % (color.Warn(table), table), table)
 
-  def CompileRule(self, member, rs, aggregated=None):
+  def CompileCombine(self, member, crule, outer_vars, context):
+    """Hoists an aggregating expression of a rule body into a member
+    keyed by the outer variables it mentions: the rule then reads it
+    through a left atom (null when the key has no row). When the keys
+    are not bound by the expression's own body, a demand member lists
+    the keys the rule asks for."""
+    n = self.combines
+    self.combines += 1
+    crs = rule_translate.ExtractRuleStructure(
+        crule, self.allocator, {v: v for v in outer_vars})
+    crs.ElliminateInternalVariables(assert_full_ellimination=False)
+    self.program.RunInjections(crs, self.allocator)
+    crs.ElliminateInternalVariables(assert_full_ellimination=False)
+    value = crs.select['logica_value']
+    op = (value['call']['predicate_name']
+          if isinstance(value, dict) and 'call' in value else None)
+    if op not in AGGREGATIONS:
+      Error('Socratic recursion does not support aggregating expression '
+            '%s.' % color.Warn(op or neural_logica.ExpressionText(value)),
+            context)
+    mentioned = set(crs.vars_map.values())
+    for u in crs.vars_unification:
+      mentioned |= rule_translate.AllMentionedVariables(u, True)
+    mentioned |= rule_translate.AllMentionedVariables(crs.constraints, True)
+    mentioned |= rule_translate.AllMentionedVariables(value, True)
+    keys = sorted(v for v in mentioned if v in outer_vars)
+    aux = Member('aux%d_%s' % (n, member.name), None, None, None)
+    aux.internal = True
+    aux.fields = list(keys)
+    aux.has_value = True
+    aux.agg = AGGREGATIONS[op]
+    rule = self.CompileRule(aux, crs, aggregated=value, head_keys=keys)
+    # Keys the expression's own atoms do not bind are asked for: a demand
+    # member lists them (the key domain is then the rule's, not the
+    # expression's).
+    bound = set(v['var'] for a in rule['atoms'] for v in a['fields'].values())
+    demand = None
+    if not set(k['var'] for k in rule['key_fields'].values()) <= bound:
+      demand = Member('dem%d_%s' % (n, member.name), None, None, None)
+      demand.internal = True
+      demand.fields = list(keys)
+      rule['atoms'].append({'rel': demand.name, 'fields': dict(rule['key_fields'])})
+    self.rules.append(rule)
+    at = self.members.index(member)
+    for m in [demand, aux]:
+      if m is not None:
+        self.members.insert(at, m)
+        at += 1
+    return aux, demand, keys
+
+  def CompileRule(self, member, rs, aggregated=None, head_keys=None):
     """RuleStructure -> conjunctive rule of the engine."""
     context = rs.full_rule_text or member.name
     # Variables unified through `=` collapse into one engine variable.
@@ -315,10 +390,25 @@ class SocraticPlan(object):
       if alias is not None and rs.tables[alias] == '=':
         pass
     canonical = union.Find
+    outer_vars = set(rs.vars_map.values())
+    for u in rs.vars_unification:
+      outer_vars |= rule_translate.AllMentionedVariables(u)
+    outer_vars |= rule_translate.AllMentionedVariables(rs.constraints)
+    outer_vars |= rule_translate.AllMentionedVariables(rs.select)
+    left_atoms = []   # (atom, demand member)
 
     def Expr(node):
       if IsVariable(node):
         return {'var': canonical(VariableName(node))}
+      if isinstance(node, dict) and 'combine' in node:
+        aux, demand, keys = self.CompileCombine(
+            member, node['combine'], outer_vars, context)
+        cv = 'socr_cv%d' % (self.combines - 1)
+        fields = {k: {'var': canonical(k)} for k in keys}
+        fields['logica_value'] = {'var': cv}
+        left_atoms.append(({'rel': aux.name, 'fields': fields, 'left': True},
+                           demand))
+        return {'var': cv}
       if isinstance(node, dict) and 'literal' in node:
         literal = node['literal']
         if 'the_number' in literal:
@@ -337,10 +427,23 @@ class SocraticPlan(object):
         op = call['predicate_name']
         args = [fv['value']['expression']
                 for fv in call['record']['field_value']]
+        global OPERATORS
+        if OPERATORS is None:
+          OPERATORS = BuiltinFunctions()
         if op in OPERATORS:
           return {'op': op, 'args': [Expr(a) for a in args]}
         if op == '~' and len(args) == 2:
           return {'const': 1}  # a type assertion: always holds
+        if (op == 'is' and len(args) == 2 and
+            'literal' in args[1] and 'the_null' in args[1]['literal']):
+          return {'op': 'IsNull', 'args': [Expr(args[0])]}
+      if isinstance(node, dict) and 'implication' in node:
+        # if c then y else z: nested Ifs.
+        result = Expr(node['implication']['otherwise'])
+        for branch in reversed(node['implication']['if_then']):
+          result = {'op': 'If', 'args': [Expr(branch['condition']),
+                                         Expr(branch['consequence']), result]}
+        return result
         Error('Socratic recursion does not support %s in expressions.' %
               color.Warn(op), context)
       if isinstance(node, dict) and 'expression' in node:
@@ -388,7 +491,10 @@ class SocraticPlan(object):
         conds.append({'op': '==', 'args': [Expr(left), Expr(right)]})
     for c in rs.constraints:
       conds.append(Expr(c))
-    keys = {k: Expr(v) for k, v in rs.select.items() if k != 'logica_value'}
+    if head_keys is not None:
+      keys = {k: {'var': canonical(k)} for k in head_keys}
+    else:
+      keys = {k: Expr(v) for k, v in rs.select.items() if k != 'logica_value'}
     value = None
     if member.functional:
       keys['logica_value'] = Expr(rs.select['logica_value'])
@@ -401,6 +507,34 @@ class SocraticPlan(object):
         value = Expr(aggregated)
       else:
         value = Expr(rs.select['logica_value'])
+    if left_atoms:
+      # Variables computed from the expressions' values: a demand member
+      # cannot depend on them.
+      dependent = set(a['fields']['logica_value']['var'] for a, d in left_atoms)
+      changed = True
+      while changed:
+        changed = False
+        for l in lets:
+          if l['var']['var'] not in dependent and (
+              dependent & ExprVariables(l['expr'])):
+            dependent.add(l['var']['var'])
+            changed = True
+      for atom, demand in left_atoms:
+        if demand is None:
+          continue
+        demand_keys = {k: v for k, v in atom['fields'].items()
+                       if k != 'logica_value'}
+        if dependent & set(v['var'] for v in demand_keys.values()):
+          Error('An aggregating expression of %s depends on another '
+                'aggregating expression.' % color.Warn(member.name), context)
+        self.rules.append({
+            'head': demand.name, 'key_fields': demand_keys, 'values': [],
+            'atoms': [dict(a) for a in atoms],
+            'conds': [c for c in conds if not dependent & ExprVariables(c)],
+            'lets': [l for l in lets
+                     if l['var']['var'] not in dependent and
+                     not dependent & ExprVariables(l['expr'])]})
+      atoms.extend(atom for atom, demand in left_atoms)
     return {'head': member.name, 'key_fields': keys,
             'values': [value] if value is not None else [],
             'atoms': atoms, 'conds': conds, 'lets': lets}
@@ -552,6 +686,7 @@ class SocraticPlan(object):
       relations[member.name] = {
           'kind': 'state', 'arity': member.arity, 'value': member.has_value,
           'aggs': [member.agg] if member.has_value else [],
+          'stop': member.stop, 'internal': member.internal,
           'out': os.path.join(workdir, member.name + '.out')}
     timings['export'] = time.monotonic() - t
     t = time.monotonic()
@@ -568,19 +703,36 @@ class SocraticPlan(object):
     if os.environ.get('SOCRATES_SPEC_DUMP'):
       with open(os.environ['SOCRATES_SPEC_DUMP'], 'w') as f:
         json.dump(spec, f, indent=1)
-    out = ctypes.create_string_buffer(1 << 16)
     if progress:
       progress('native')
-    status = lib.socrates_run(json.dumps(spec).encode('utf-8'), out,
-                              len(out))
-    if status != 0:
-      raise RuntimeError('Socrates engine failed on %s.' % self.name)
-    stats = json.loads(out.value.decode('utf-8'))
+    spec_path = os.path.join(workdir, 'spec.json')
+    with open(spec_path, 'w') as f:
+      json.dump(spec, f)
+    engine = subprocess.Popen([lib, spec_path], stdout=subprocess.PIPE,
+                              stderr=subprocess.PIPE, text=True)
+    # The engine reports every pass on a line of its own; the stats come
+    # last. The display is throttled upstream.
+    stats = None
+    for line in engine.stdout:
+      if line.startswith('pass '):
+        if progress:
+          progress(int(line.split()[1]))
+      elif line.startswith('{'):
+        stats = json.loads(line)
+    errors = engine.stderr.read()
+    if engine.wait() != 0 or stats is None:
+      sys.stderr.write(errors)
+      message = [l for l in errors.strip().split('\n') if l.strip()]
+      Error('Socrates engine failed on %s: %s' % (
+          self.name, message[-1] if message else 'no message'), self.name)
     timings['engine'] = time.monotonic() - t
     t = time.monotonic()
     for member in self.members:
+      if member.internal:
+        continue
       columns = ['col%d' % f if isinstance(f, int) else f for f in member.fields]
-      numeric = any(m.agg == 'sum' or m.functional for m in self.members)
+      # Whole numbers come back as integers, like the SQL path's.
+      numeric = not stats.get(member.name + '_integral', False)
       types = ['DOUBLE' if numeric else 'BIGINT'] * len(columns)
       if member.has_value:
         columns.append('logica_value')

@@ -27,8 +27,7 @@ TESTS = [
   ('duckdb_diamond_abc_test', None, None),
   ('duckdb_diamond_fixpoint_tc_test', None, None),
   ('duckdb_diamond_fixpoint_test', None, None),
-  # duckdb_diamond_stop_order_test: N grows forever, only its stop predicate
-  # ends the SQL iteration; Socrates runs to a fixpoint that does not exist.
+  ('duckdb_diamond_stop_order_test', None, None),
   # duckdb_diamond_tc_test: PrevTC() Array= ... is an array aggregate in
   # the recursive component.
   # duckdb_iteration_closure_test: its golden is for mode: "iterative";
@@ -63,6 +62,12 @@ def main():
   for name, src, golden in TESTS:
     if wanted and name not in wanted:
       continue
+    # A golden of its own, when the socratic semantics (passes in the
+    # diamond order, a pass counting as an iteration) gives a different
+    # answer than the SQL iteration: checked by hand, explained inside.
+    if golden is None and os.path.isfile(
+        os.path.join(os.path.dirname(os.path.abspath(__file__)), name + '.txt')):
+      golden = 'socratic/' + name
     code = (
         "from common import logica_test\n"
         "logica_test.TestManager.RunTest('socratic/%s', "

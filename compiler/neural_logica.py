@@ -3660,8 +3660,17 @@ class EvalContext(object):
     call = inner.get('call') if isinstance(inner, dict) else None
     if not call or call['predicate_name'] != '*':
       return None
+    def Factors(expression):
+      # A product of products is one product: a * b * c parses as nested
+      # calls of '*', and all of its leaves are factors of the contraction.
+      expression_call = (expression.get('call')
+                         if isinstance(expression, dict) else None)
+      if expression_call and expression_call['predicate_name'] == '*':
+        return [f for argument in FieldValues(expression_call)
+                for f in Factors(argument)]
+      return [expression]
     reads = []
-    for factor in FieldValues(call):
+    for factor in Factors(inner):
       factor_call = factor.get('call') if isinstance(factor, dict) else None
       if (not factor_call or
           factor_call['predicate_name'] not in self.runtime.plan.relations):
