@@ -529,14 +529,19 @@ class QL(object):
         'implication': {'if_then': new_if_thens, 'otherwise': new_otherwise}}
     return self.ConvertToSql(new_expr)
 
-  def ConvertToSqlForGroupBy(self, expression):
+  def ConvertToSqlForGroupBy(self, expression, sql=None):
+    # The SQL already printed in SELECT is reused: translating the
+    # expression again gives fresh aliases to its subqueries, and the
+    # engine then sees a different expression in GROUP BY.
+    if sql is None:
+      sql = self.ConvertToSql(expression)
     if 'literal' in expression and 'the_string' in expression['literal']:
       # To calm down PSQL:
-      return f"({self.ConvertToSql(expression)} || '')"
+      return f"({sql} || '')"
     if 'literal' in expression and 'the_number' in expression['literal']:
       # To calm down DuckDB:
-      return f"{self.ConvertToSql(expression)} + 0"
-    return self.ConvertToSql(expression)
+      return f"{sql} + 0"
+    return sql
 
   def ExpressionIsTable(self, expression):
     return (

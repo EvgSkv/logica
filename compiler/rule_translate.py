@@ -504,6 +504,7 @@ class RuleStructure(object):
               'StandardSQL, so they are not allowed in Logica.'),
           self.full_rule_text)
 
+    field_sql = {}  # SQL of each field, reused verbatim in GROUP BY.
     for k, v in self.select.items():
       if k == '*':
         if 'variable' in v:
@@ -512,7 +513,8 @@ class RuleStructure(object):
           subquery_encoder.execution.dialect.Subscript(
            ql.ConvertToSql(v), '*', True))
       else:
-        fields.append('%s AS %s' % (ql.ConvertToSql(v), LogicaFieldToSqlField(k)))
+        field_sql[k] = ql.ConvertToSql(v)
+        fields.append('%s AS %s' % (field_sql[k], LogicaFieldToSqlField(k)))
     r += ',\n'.join('  ' + f for f in fields)
     if (self.tables or self.unnestings or
         self.constraints or self.distinct_denoted):
@@ -572,7 +574,7 @@ class RuleStructure(object):
                          for v in ordered_distinct_vars)
         elif subquery_encoder.execution.dialect.GroupBySpecBy() == 'expr':
           r += ', '.join(
-            ql.ConvertToSqlForGroupBy(self.select[k])
+            ql.ConvertToSqlForGroupBy(self.select[k], field_sql[k])
             for k in ordered_distinct_vars
           )
         else:

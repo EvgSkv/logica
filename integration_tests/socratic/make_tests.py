@@ -101,6 +101,10 @@ def Convert(name):
   for p in RecursivePredicates(text):
     if p not in annotated:
       extra.append('@Recursive(%s, %d, mode: "socratic");' % (p, default_depth))
+  # Row order is not part of the answer; a golden of its own needs one.
+  ordered = {'sqlite_reachability': '@OrderBy(Test, "source", "target");'}
+  if name in ordered and ordered[name] not in text:
+    extra.append(ordered[name])
   if extra:
     # After the @Engine line.
     lines = text.split('\n')

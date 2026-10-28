@@ -709,22 +709,56 @@ def IsFunctional(predicate_name, rules_of):
   Such predicates (e.g. Clip(a, b, c) = ..., or s(x) = ToString(x)) have no
   finite table and are always injected into their callers.
   """
-  for rule in rules_of[predicate_name]:
-    allocator = rule_translate.NamesAllocator()
-    try:
-      rs = rule_translate.ExtractRuleStructure(rule, allocator, None)
-      rs.ElliminateInternalVariables(assert_full_ellimination=False)
-    except rule_translate.RuleCompileException:
-      # A rule that does not compile standalone cannot become a table:
-      # treat it as injected, never as groundable.
+  # Expression calls to other predicates are normally extracted as table
+  # reads. That would let a functional helper appear to bind its own inputs:
+  # Shortest(p) = ArgMin(p -> Size(p)) would become a finite table of p's.
+  # Discover functional callees first and keep their calls as expressions
+  # during this analysis. This does not change how they are compiled later.
+  reachable = set()
+  pending = [predicate_name]
+  while pending:
+    name = pending.pop()
+    if name in reachable:
+      continue
+    reachable.add(name)
+    nodes = list(rules_of.get(name, []))
+    while nodes:
+      node = nodes.pop()
+      if isinstance(node, dict):
+        if 'call' in node:
+          callee = node['call']['predicate_name']
+          if callee in rules_of and callee not in reachable:
+            pending.append(callee)
+        nodes.extend(node.values())
+      elif isinstance(node, list):
+        nodes.extend(node)
+
+  # A fixed point handles mutually dependent calls without recursing in
+  # Python or classifying genuine recursive relations as scalar helpers.
+  functional = set()
+  while True:
+    previous_size = len(functional)
+    for name in sorted(reachable - functional):
+      for rule in rules_of.get(name, []):
+        allocator = rule_translate.NamesAllocator(custom_udfs=functional)
+        try:
+          rs = rule_translate.ExtractRuleStructure(rule, allocator, None)
+          rs.ElliminateInternalVariables(assert_full_ellimination=False)
+        except rule_translate.RuleCompileException:
+          # Preserve the conservative fallback for non-standalone rules.
+          functional.add(name)
+          break
+        # Combine-local variables are bound by their own group, not the
+        # outer rule body, and must not make the predicate functional.
+        select_vars = set(rule_translate.AllMentionedVariables(
+            rs.select, dive_in_combines=False))
+        if select_vars - BoundVariables(rs):
+          functional.add(name)
+          break
+    if predicate_name in functional:
       return True
-    # Combine-local variables (Sum{...}) are bound by their own group,
-    # not by the rule body: they must not make the predicate functional.
-    select_vars = set(rule_translate.AllMentionedVariables(
-        rs.select, dive_in_combines=False))
-    if select_vars - BoundVariables(rs):
-      return True
-  return False
+    if len(functional) == previous_size:
+      return False
 
 
 def PlainFileRead(rules):
@@ -897,17 +931,16 @@ def AnnotationSubjectName(rule):
 
 
 def CompleteFunctorIslands(rules):
-  """Completes functor copies of neural recursion islands.
+  """Completes functor copies of diamond recursion islands.
 
-  A functor copies what the rules show: the diamonds of a neural
+  A functor copies what the rules show: the diamonds of a
   recursion (the final pass reads them, so they are in the cone) — but
   not the @Iteration that runs them, whose subject heads no rule, and
   not the portal state, whose connection to the diamonds lives in the
   execution plan. The copy is completed here from the names:
   X_diamond<family> can only be a functor copy of X_diamond, and
-  X_portal is always logically X. A mutually recursive cover is a
-  strongly connected component, so a family copies an island whole or
-  not at all.
+  X_portal is always logically X. State readers that do not depend on
+  the substituted input (including stop predicates) must be copied too.
 
   For every copied family this reroutes the family's portal reads and
   diamond @Grounds onto the family's own portals, clones the portals'
@@ -917,12 +950,13 @@ def CompleteFunctorIslands(rules):
   for rule in rules:
     rules_of[rule['head']['predicate_name']].append(rule)
 
-  # Diamond -> its (neural) @Iteration rule.
+  # Diamond -> its @Iteration rule (SQL, neural, or Socrates).
   iteration_of = {}
   for iteration_rule in rules_of.get('@Iteration', []):
     fields = {fv['field']: fv['value']['expression']
               for fv in iteration_rule['head']['record']['field_value']}
-    if (LiteralValue(fields.get('neural', {})) is not True and
+    if (LiteralValue(fields.get('mode', {})) != 'diamond' and
+        LiteralValue(fields.get('neural', {})) is not True and
         LiteralValue(fields.get('socratic', {})) is not True):
       continue
     for element in fields.get('predicates', {}).get(
@@ -941,35 +975,65 @@ def CompleteFunctorIslands(rules):
       continue
     original = iteration_of.get(base + DIAMOND_SUFFIX)
     if original is None:
-      continue  # Not a neural island (e.g. a classic recursion copy).
+      continue  # Not a diamond island (e.g. a classic recursion copy).
     iteration_by_id[id(original)] = original
     copies[family, id(original)].add(base)
 
   new_rules = []
-  for (family, iteration_id), bases in sorted(
+  for (family, iteration_id), _ in sorted(
       copies.items(), key=lambda item: (item[0][0], sorted(item[1]))):
     original = iteration_by_id[iteration_id]
-    island = {ParsePhase(d)[0] for d in iteration_of
-              if iteration_of[d] is original}
-    if bases != island:
-      Error('Functor copied only part of recursion island %s: %s.' %
-            (color.Warn(', '.join(sorted(island))),
-             color.Warn(', '.join(sorted(bases)))), str(sorted(bases)))
+    members = {d for d in iteration_of if iteration_of[d] is original}
+    island = {ParsePhase(d)[0] for d in members
+              if ParsePhase(d)[1] == 'diamond'}
     portal_map = {b + PORTAL_SUFFIX: b + PORTAL_SUFFIX + family
                   for b in island}
-    diamond_map = {b + DIAMOND_SUFFIX: b + DIAMOND_SUFFIX + family
-                   for b in island}
+    # SQL fixpoint detection also has non-diamond members (the saved
+    # previous state and comparison). Keep them in the copied loop.
+    member_map = {d: d + family for d in members}
+    state_map = {**portal_map, **member_map}
+    added_members = set()
+    for member in sorted(members):
+      target = member_map[member]
+      if target not in rules_of:
+        added_members.add(member)
+        for rule in rules_of[member]:
+          clone = copy.deepcopy(rule)
+          RenamePredicates(clone, state_map)
+          new_rules.append(clone)
+          rules_of[target].append(clone)
     # Family rules read the family's own state. Portal reads live only
     # in diamond rules and their copied auxiliaries — all of which bear
     # the family suffix.
     for head in rules_of:
       if head[0] != '@' and head.endswith(family):
         for rule in rules_of[head]:
-          RenamePredicates(rule, portal_map)
+          RenamePredicates(rule, state_map)
     # The copied diamonds' @Ground reroutes into the family's portals.
-    for ground_rule in rules_of.get('@Ground', []):
-      if AnnotationSubjectName(ground_rule) in diamond_map.values():
-        RenamePredicates(ground_rule, portal_map)
+    fields = {fv['field']: fv['value']['expression']
+              for fv in original['head']['record']['field_value']}
+    stop_signal = LiteralValue(fields.get('stop_signal', {}))
+
+    def RenameStopFile(rule):
+      # A stopped copy must not leave a signal for a different copy.
+      if not stop_signal:
+        return
+      for fv in rule['head']['record']['field_value']:
+        if (fv['field'] in ('stop_signal', 'copy_to_file') and
+            LiteralValue(fv['value']['expression']) == stop_signal):
+          fv['value']['expression']['literal']['the_string'][
+              'the_string'] = stop_signal + family
+
+    for ground_rule in list(rules_of.get('@Ground', [])):
+      subject = AnnotationSubjectName(ground_rule)
+      if subject in added_members:
+        clone = copy.deepcopy(ground_rule)
+        RenamePredicates(clone, state_map)
+        RenameStopFile(clone)
+        new_rules.append(clone)
+      elif subject in member_map.values():
+        RenamePredicates(ground_rule, state_map)
+        RenameStopFile(ground_rule)
     # An island-internal auxiliary that does not depend on the functor's
     # arguments is not copied by the functor, so the family still
     # reaches it by the original name — yet it reads the island's
@@ -988,7 +1052,7 @@ def CompleteFunctorIslands(rules):
     reads_state = {}
     def ReadsState(name):
       """Whether the predicate reads the island's state, maybe deeply."""
-      if name in portal_map or name in diamond_map:
+      if name in state_map:
         return True
       if name in reads_state:
         return reads_state[name]
@@ -1008,15 +1072,14 @@ def CompleteFunctorIslands(rules):
       for q in sorted(ReferencedPredicates(rule, set()) -
                       {rule['head']['predicate_name']}):
         if (q[0] == '@' or q.endswith(family) or q not in rules_of or
-            q in portal_map or q in diamond_map or not ReadsState(q)):
+            q in state_map or not ReadsState(q)):
           continue
         if q not in cloned:
           cloned.add(q)
           for aux_rule in rules_of[q]:
             clone = copy.deepcopy(aux_rule)
             clone['head']['predicate_name'] = q + family
-            RenamePredicates(clone, portal_map)
-            RenamePredicates(clone, diamond_map)
+            RenamePredicates(clone, state_map)
             new_rules.append(clone)
             queue.append(clone)
         RenamePredicates(rule, {q: q + family})
@@ -1033,7 +1096,8 @@ def CompleteFunctorIslands(rules):
     subject = iteration_clone['head']['record']['field_value'][0][
         'value']['expression']['literal']['the_predicate']
     subject['predicate_name'] = subject['predicate_name'] + family
-    RenamePredicates(iteration_clone, diamond_map)
+    RenamePredicates(iteration_clone, member_map)
+    RenameStopFile(iteration_clone)
     new_rules.append(iteration_clone)
   rules.extend(new_rules)
 

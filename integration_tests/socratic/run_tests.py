@@ -28,12 +28,17 @@ TESTS = [
   ('duckdb_diamond_fixpoint_tc_test', None, None),
   ('duckdb_diamond_fixpoint_test', None, None),
   ('duckdb_diamond_stop_order_test', None, None),
-  # duckdb_diamond_tc_test: PrevTC() Array= ... is an array aggregate in
-  # the recursive component.
+  # duckdb_diamond_tc_test: TC(..r) spreads a record into the head; not
+  # supported by the socratic compiler.
   # duckdb_iteration_closure_test: its golden is for mode: "iterative";
   # the diamond (and socratic) answer is 96.
   ('duckdb_smoothed_winmove_test', None, None),
   ('duckdb_stop_test', None, None),
+  # Own goldens (socratic/*.txt): flow finds two augmenting paths in the
+  # 8 passes of @Recursive(ActivePath, 8) (an augmentation takes a few
+  # passes here, one SQL iteration there; with 40 passes the flow is the
+  # full 13); game and reachability differ only in number formatting
+  # and row order.
   ('duckdb_flow_test', 'psql_flow_test', None),
   ('psql_game_test', None, None),
   ('duckdb_graph_coloring_test', 'psql_graph_coloring_test', None),

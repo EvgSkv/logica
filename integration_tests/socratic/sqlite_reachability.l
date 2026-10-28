@@ -2,6 +2,7 @@
 
 @Engine("duckdb");
 @Recursive(Path, 8, mode: "socratic");
+@OrderBy(Test, "source", "target");
 
 G(1, 2);
 G(2, 3);

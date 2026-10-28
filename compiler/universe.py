@@ -641,7 +641,7 @@ class LogicaProgram(object):
         dialects.Get(self.annotations.Engine()).LibraryProgram())['rule']
     extended_rules.extend(library_rules)
 
-    # A functor copy of a neural recursion carries the diamonds but not
+    # A functor copy of a diamond recursion carries the diamonds but not
     # the iteration or the portal state: complete such islands from the
     # names (X_portal is always logically X).
     neural_logica.CompleteFunctorIslands(extended_rules)

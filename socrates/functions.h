@@ -24,14 +24,19 @@
 #ifndef SOCRATES_FUNCTIONS_H
 #define SOCRATES_FUNCTIONS_H
 
+#include <cctype>
 #include <cmath>
 #include <cstring>
 #include <limits>
 
+#include "values.h"
+
 namespace {
 
-typedef double num;
-const num NONE = std::numeric_limits<num>::quiet_NaN();
+// The engine's arena and dictionary, for the functions over composites.
+typedef std::pair<num, num> NumPair;
+static Arena* g_arena = nullptr;
+static Dictionary* g_dict = nullptr;
 
 inline bool IsNone(num x) { return std::isnan(x); }
 inline bool Truthy(num x) { return !std::isnan(x) && x != 0; }
@@ -101,6 +106,22 @@ static const Fn FUNCTIONS[] = {
   FN("IsNull", 1, 1, return Bool(IsNone(a[0])))
   FN("Coalesce", 1, -1, for (int i = 0; i < n; i++) if (!IsNone(a[i])) return a[i]; return NONE)
   FN("If", 3, 3, return Truthy(a[0]) ? a[1] : a[2])  // x -> y else z
+  // Arrays and records (values.h). MakeRecord takes (field id, value) pairs.
+  FN("MakeArray", 0, -1, return g_arena->MakeArray(a, n))
+  FN("MakeRecord", 0, -1, std::vector<NumPair> f; for (int i = 0; i + 1 < n; i += 2) f.emplace_back(a[i], a[i + 1]); return g_arena->MakeRecord(f))
+  FN("Field", 2, 2, return g_arena->Field(a[0], a[1]))
+  FN("Size", 1, 1, return g_arena->Valid(a[0]) ? (num)g_arena->Size(a[0]) : NONE)
+  FN("Element", 2, 2, if (!g_arena->Valid(a[0]) || IsNone(a[1])) return NONE; long long i = (long long)a[1]; return i >= 0 && i < (long long)g_arena->Size(a[0]) ? g_arena->Elems(a[0])[i] : NONE)
+  FN("++", 2, 2, if (!g_arena->Valid(a[0]) || !g_arena->Valid(a[1])) return NONE; std::vector<num> e(g_arena->Elems(a[0]), g_arena->Elems(a[0]) + g_arena->Size(a[0])); e.insert(e.end(), g_arena->Elems(a[1]), g_arena->Elems(a[1]) + g_arena->Size(a[1])); return g_arena->MakeArray(e.data(), e.size()))
+  FN("ArrayConcat", 2, 2, if (!g_arena->Valid(a[0]) || !g_arena->Valid(a[1])) return NONE; std::vector<num> e(g_arena->Elems(a[0]), g_arena->Elems(a[0]) + g_arena->Size(a[0])); e.insert(e.end(), g_arena->Elems(a[1]), g_arena->Elems(a[1]) + g_arena->Size(a[1])); return g_arena->MakeArray(e.data(), e.size()))
+  FN("Range", 1, 1, NN1; std::vector<num> e; for (long long i = 0; i < (long long)a[0]; i++) e.push_back((num)i); return g_arena->MakeArray(e.data(), e.size()))
+  // Strings (dictionary ids). Creating ones intern their result.
+  FN("StrConcat", 2, 2, NN2; return g_dict->Intern(g_dict->Text(a[0]) + g_dict->Text(a[1])))
+  FN("Length", 1, 1, NN1; long long chars = 0; for (unsigned char c : g_dict->Text(a[0])) chars += (c & 0xC0) != 0x80; return (num)chars)
+  FN("ToString", 1, 1, NN1; std::string t; FormatNumber(a[0], t); return g_dict->Intern(t))
+  FN("Upper", 1, 1, NN1; std::string t = g_dict->Text(a[0]); for (char& c : t) c = toupper((unsigned char)c); return g_dict->Intern(t))
+  FN("Lower", 1, 1, NN1; std::string t = g_dict->Text(a[0]); for (char& c : t) c = tolower((unsigned char)c); return g_dict->Intern(t))
+  FN("Substr", 2, 3, NN2; const std::string& t = g_dict->Text(a[0]); long long from = (long long)a[1] - 1; if (from < 0) from = 0; if (from > (long long)t.size()) from = t.size(); long long len = n == 3 ? (long long)a[2] : (long long)t.size(); if (len < 0) len = 0; return g_dict->Intern(t.substr(from, len)))
   FN("Least", 1, -1, num r = a[0]; for (int i = 1; i < n; i++) { if (IsNone(a[i]) || IsNone(r)) return NONE; if (a[i] < r) r = a[i]; } return r)
   FN("Greatest", 1, -1, num r = a[0]; for (int i = 1; i < n; i++) { if (IsNone(a[i]) || IsNone(r)) return NONE; if (a[i] > r) r = a[i]; } return r)
 };
@@ -108,6 +129,12 @@ static const Fn FUNCTIONS[] = {
 #undef FN
 #undef NN1
 #undef NN2
+
+// Functions that add to the arena: rules using them run single-threaded.
+inline bool CreatesValues(const char* name) {
+  return !strcmp(name, "MakeArray") || !strcmp(name, "MakeRecord") || !strcmp(name, "ArrayConcat") || !strcmp(name, "++") || !strcmp(name, "Range") ||
+         !strcmp(name, "StrConcat") || !strcmp(name, "ToString") || !strcmp(name, "Upper") || !strcmp(name, "Lower") || !strcmp(name, "Substr");
+}
 
 inline const Fn* FindFunction(const char* name) {
   for (const Fn& f : FUNCTIONS) if (!strcmp(f.name, name)) return &f;

@@ -29,6 +29,7 @@ Mirrors the neural mode: universe compiles a SocraticPlan per socratic
 @Iteration, concertina runs it through RunIterationAsPlan.
 """
 
+import copy
 import hashlib
 import json
 import os
@@ -41,17 +42,75 @@ if '.' not in __package__:
   from compiler import neural_logica
   from compiler import rule_translate
   from common import color
+  from type_inference.research import reference_algebra
 else:
   from ..compiler import neural_logica
   from ..compiler import rule_translate
   from ..common import color
+  from ..type_inference.research import reference_algebra
 
 
 ParsePhase = neural_logica.ParsePhase
 AUX_MARKER = neural_logica.AUX_MARKER
 DIAMOND_SUFFIX = neural_logica.DIAMOND_SUFFIX
 
-AGGREGATIONS = {'Min': 'min', 'Max': 'max', 'Agg+': 'sum'}
+AGGREGATIONS = {'Min': 'min', 'Max': 'max', 'Agg+': 'sum',
+                'List': 'list', 'Set': 'set', 'Count': 'count'}
+
+
+def TypeDescriptor(concrete):
+  """Engine type of a (very concrete) inferred type: 'num', 'str',
+  'any', {'array': t} or {'record': {field: t}}."""
+  if isinstance(concrete, str):
+    return {'Num': 'num', 'Str': 'str'}.get(concrete, 'any')
+  if isinstance(concrete, list) and len(concrete) == 1:
+    return {'array': TypeDescriptor(concrete[0])}
+  if isinstance(concrete, dict):
+    return {'record': {f: TypeDescriptor(t) for f, t in concrete.items()}}
+  return 'any'
+
+
+def IsComposite(descriptor):
+  return isinstance(descriptor, dict)
+
+
+def DuckType(descriptor, integral=False):
+  """DuckDB type to read a column of this engine type from CSV; whole
+  numbers come back as integers, like the SQL path's."""
+  if descriptor == 'str':
+    return 'VARCHAR'
+  if isinstance(descriptor, dict) and 'array' in descriptor:
+    return DuckType(descriptor['array'], integral) + '[]'
+  if isinstance(descriptor, dict) and 'record' in descriptor:
+    return 'STRUCT(%s)' % ', '.join(
+        '"%s" %s' % (f, DuckType(t, integral))
+        for f, t in descriptor['record'].items())
+  return 'BIGINT' if integral else 'DOUBLE'
+
+
+def AggregationOf(value):
+  """(engine aggregates, argument nodes) of an aggregating head value,
+  or None. ArgMin/ArgMax and Array= arrive as SqlExpr calls."""
+  if not (isinstance(value, dict) and 'call' in value):
+    return None
+  name = value['call']['predicate_name']
+  args = neural_logica.FieldValues(value['call'])
+  if name in AGGREGATIONS:
+    return [AGGREGATIONS[name]], [args[0]]
+  if name == 'SqlExpr' and len(args) == 2 and 'literal' in args[0]:
+    sql = args[0]['literal'].get('the_string', {}).get('the_string', '')
+    record = args[1]
+    if sql.startswith('ARRAY_AGG('):
+      return ['arrayagg'], [record]
+    if sql.startswith('argmin(') or sql.startswith('argmax('):
+      fields = {fv['field']: fv['value']['expression']
+                for fv in record['record']['field_value']}
+      # The argument first (the value read by others), its Min/Max
+      # hidden behind it.
+      return ([('argmin' if sql.startswith('argmin(') else 'argmax'),
+               ('min' if sql.startswith('argmin(') else 'max')],
+              [fields['a'], fields['v']])
+  return None
 
 
 def BuiltinFunctions():
@@ -184,6 +243,13 @@ class Member(object):
     self.fields = []         # key fields in column order (positions, then names)
     self.has_value = False
     self.agg = 'or'
+    self.aggs = []           # engine aggregates of the value columns
+    self.hidden = []         # value columns not read back (ArgMin's Min)
+    # Aggregated fields (`length? Min= ...`) and the aggregated value:
+    # field -> its engine aggregates; laid out as value columns, the
+    # first of a field visible, the rest hidden.
+    self.field_aggs = {}
+    self.value_columns = []  # (field, index into its aggregates)
     self.functional = False
     self.internal = False    # a hoisted aggregating expression: not written out
     self.stop = False        # a stop predicate: a row ends the run
@@ -207,9 +273,9 @@ class SocraticPlan(object):
     self.rules = []
     self.written_tables = {}
     self.allocator = rule_translate.NamesAllocator()
-    # A stop predicate is a hand-written convergence test for the SQL
-    # path; the engine detects its own fixpoint (and epsilon), so the
-    # stop is neither compiled nor consulted (its table stays empty).
+    # Compile stop predicates as members and evaluate them last in each
+    # pass. The engine stops when one becomes non-empty, or when its own
+    # fixpoint check (with epsilon for sums) detects no further changes.
     stops = set()
     for member_args in program.annotations.annotations.get(
         '@Recursive', {}).values():
@@ -238,6 +304,14 @@ class SocraticPlan(object):
       if member.functional:
         member.fields.append('logica_value')
       member.arity = len(member.fields)
+      member.value_columns = []
+      for f in sorted(member.field_aggs, key=lambda f: (f == 'logica_value', f)):
+        for i in range(len(member.field_aggs[f])):
+          member.value_columns.append((f, i))
+      member.aggs = [member.field_aggs[f][i] for f, i in member.value_columns]
+      member.hidden = [c for c, (f, i) in enumerate(member.value_columns) if i > 0]
+      member.has_value = bool(member.value_columns)
+      member.agg = member.aggs[0] if member.aggs else 'or'
     self.members.sort(key=lambda m: m.stop)
     # Rules were compiled with field names; map them to columns now.
     for rule in self.rules:
@@ -251,9 +325,16 @@ class SocraticPlan(object):
       if member_args.get('mode') == 'socratic' and 'epsilon' in member_args:
         self.epsilon = float(member_args['epsilon'])
 
+  def FieldType(self, predicate_name, field):
+    """Engine type descriptor of a predicate's field ('any' if unknown)."""
+    signature = self.program.predicate_signatures.get(predicate_name, {})
+    if field not in signature:
+      return 'any'
+    return TypeDescriptor(
+        reference_algebra.VeryConcreteType(signature[field]))
+
   def IsStringColumn(self, predicate_name, field):
     """Whether the inferred type of a predicate's field is a string."""
-    from type_inference.research import reference_algebra
     signature = self.program.predicate_signatures.get(predicate_name, {})
     if field not in signature:
       return False
@@ -274,28 +355,54 @@ class SocraticPlan(object):
             member.name)
     for rule in rules:
       rs = self.Structure(rule)
-      keys = [k for k in rs.select if k != 'logica_value']
+      # Aggregated fields and the aggregated value are value columns;
+      # the other fields are keys.
+      keys = []
+      for k, v in rs.select.items():
+        if k == '*':
+          Error('Socratic recursion does not support record spreading '
+                '(..r) in heads.', rs.full_rule_text or member.name)
+        aggregation = AggregationOf(v)
+        if aggregation:
+          member.field_aggs[k] = aggregation[0]
+        elif k != 'logica_value':
+          keys.append(k)
       member.arity = max(member.arity, len(keys))
       for k in keys:
         if k not in member.fields:
           member.fields.append(k)
       value = rs.select.get('logica_value')
       if value is not None:
-        member.has_value = True
-        if (isinstance(value, dict) and 'call' in value and
-            value['call']['predicate_name'] in AGGREGATIONS):
-          member.agg = AGGREGATIONS[value['call']['predicate_name']]
-        else:
+        if 'logica_value' not in member.field_aggs:
           # A functional (=) definition is a set of rows in the SQL path
           # (several rules may give several values; aggregation, if any,
           # happens in the readers): the value is one more key column.
+          if member.field_aggs:
+            Error('Socratic recursion does not support a functional '
+                  'predicate with aggregated fields.',
+                  rs.full_rule_text or member.name)
           member.functional = True
-          member.has_value = False
       aux = [p for p in rs.tables.values() if AUX_MARKER in p]
       if aux and len(rs.tables) == 1:
         [aux_name] = set(aux)
         for aux_rule in self.Rules(aux_name):
-          self.rules.append(self.CompileRule(member, self.Structure(aux_rule)))
+          inner = self.Structure(aux_rule)
+          # The auxiliary supplies raw contributions, not necessarily the
+          # aggregate's arguments. Preserve the outer expression: e.g.
+          # Shortest(p) = ArgMin(p -> Size(p)) transforms each raw path
+          # into both an argument and its score before aggregation.
+          outer = copy.deepcopy({
+              'select': rs.select, 'constraints': rs.constraints,
+              'vars_unification': rs.vars_unification,
+              'unnestings': rs.unnestings})
+          for (_, field), var in rs.vars_map.items():
+            rule_translate.ReplaceVariable(var, inner.select[field], outer)
+          inner.select = outer['select']
+          inner.constraints.extend(outer['constraints'])
+          inner.vars_unification.extend(outer['vars_unification'])
+          inner.unnestings.extend(outer['unnestings'])
+          inner.ElliminateInternalVariables(assert_full_ellimination=False)
+          self.rules.append(self.CompileRule(member, inner))
       else:
         self.rules.append(self.CompileRule(member, rs, aggregated=value))
 
@@ -342,11 +449,10 @@ class SocraticPlan(object):
     self.program.RunInjections(crs, self.allocator)
     crs.ElliminateInternalVariables(assert_full_ellimination=False)
     value = crs.select['logica_value']
-    op = (value['call']['predicate_name']
-          if isinstance(value, dict) and 'call' in value else None)
-    if op not in AGGREGATIONS:
+    aggregation = AggregationOf(value)
+    if not aggregation:
       Error('Socratic recursion does not support aggregating expression '
-            '%s.' % color.Warn(op or neural_logica.ExpressionText(value)),
+            '%s.' % color.Warn(neural_logica.ExpressionText(value)),
             context)
     mentioned = set(crs.vars_map.values())
     for u in crs.vars_unification:
@@ -358,12 +464,14 @@ class SocraticPlan(object):
     aux.internal = True
     aux.fields = list(keys)
     aux.has_value = True
-    aux.agg = AGGREGATIONS[op]
+    aux.field_aggs = {'logica_value': aggregation[0]}
     rule = self.CompileRule(aux, crs, aggregated=value, head_keys=keys)
     # Keys the expression's own atoms do not bind are asked for: a demand
     # member lists them (the key domain is then the rule's, not the
     # expression's).
-    bound = set(v['var'] for a in rule['atoms'] for v in a['fields'].values())
+    bound = set(v['var'] for a in rule['atoms']
+                for v in a.get('fields', {}).values())
+    bound |= set(a['args'][1]['var'] for a in rule['atoms'] if a.get('unnest'))
     demand = None
     if not set(k['var'] for k in rule['key_fields'].values()) <= bound:
       demand = Member('dem%d_%s' % (n, member.name), None, None, None)
@@ -395,6 +503,7 @@ class SocraticPlan(object):
       outer_vars |= rule_translate.AllMentionedVariables(u)
     outer_vars |= rule_translate.AllMentionedVariables(rs.constraints)
     outer_vars |= rule_translate.AllMentionedVariables(rs.select)
+    outer_vars |= rule_translate.AllMentionedVariables(rs.unnestings)
     left_atoms = []   # (atom, demand member)
 
     def Expr(node):
@@ -413,6 +522,11 @@ class SocraticPlan(object):
         literal = node['literal']
         if 'the_number' in literal:
           return {'const': float(literal['the_number']['number'])}
+        if 'the_null' in literal:
+          return {'null': True}
+        if 'the_list' in literal:
+          return {'op': 'MakeArray',
+                  'args': [Expr(e) for e in literal['the_list']['element']]}
         if 'the_bool' in literal:
           return {'const': 1 if literal['the_bool']['value'] else 0}
         if 'the_string' in literal:
@@ -422,11 +536,31 @@ class SocraticPlan(object):
           return {'str': value}
         Error('Socratic recursion supports only number and string literals.',
               context)
+      if isinstance(node, dict) and 'record' in node:
+        args = []
+        for fv in node['record']['field_value']:
+          self.strings.add(str(fv['field']))
+          args += [{'str': str(fv['field'])}, Expr(fv['value']['expression'])]
+        return {'op': 'MakeRecord', 'args': args}
+      if isinstance(node, dict) and 'subscript' in node:
+        field = str(node['subscript']['subscript']['literal']['the_symbol']['symbol'])
+        self.strings.add(field)
+        return {'op': 'Field', 'args': [Expr(node['subscript']['record']),
+                                        {'str': field}]}
       if isinstance(node, dict) and 'call' in node:
         call = node['call']
         op = call['predicate_name']
         args = [fv['value']['expression']
                 for fv in call['record']['field_value']]
+        if op == 'ValueOfUnnested' and len(args) == 1:
+          return Expr(args[0])
+        # Extracting calls into table reads can replace typed operands
+        # with untyped variables. The concatenation itself keeps its
+        # inferred result type, so consult it before the operand types.
+        if op == '++' and len(args) == 2 and any(
+            a.get('type', {}).get('rendered_type') == 'Str'
+            for a in [node] + args):
+          op = 'StrConcat'  # strings and arrays share the operator
         global OPERATORS
         if OPERATORS is None:
           OPERATORS = BuiltinFunctions()
@@ -476,6 +610,14 @@ class SocraticPlan(object):
         known.sort()
       atoms.append({'rel': relation,
                     'fields': {f: {'var': canonical(var)} for f, var in fields.items()}})
+    # `x in list`: an atom walking the elements of the list.
+    for element, source in [(u[0], u[1]) for u in rs.unnestings]:
+      if not IsVariable(element):
+        Error('Socratic recursion supports `in` only with a variable on '
+              'the left.', context)
+      atoms.append({'rel': '__unnest', 'unnest': True,
+                    'args': [Expr(source),
+                             {'var': canonical(VariableName(element))}]})
     # Equalities between an expression and a variable bind the variable
     # (lets); other equalities and the constraints are conditions.
     lets, conds = [], []
@@ -494,19 +636,30 @@ class SocraticPlan(object):
     if head_keys is not None:
       keys = {k: {'var': canonical(k)} for k in head_keys}
     else:
-      keys = {k: Expr(v) for k, v in rs.select.items() if k != 'logica_value'}
+      keys = {k: Expr(v) for k, v in rs.select.items()
+              if k != 'logica_value' and k not in member.field_aggs}
     value = None
     if member.functional:
       keys['logica_value'] = Expr(rs.select['logica_value'])
-    if member.has_value:
-      if (aggregated is not None and isinstance(aggregated, dict) and
-          'call' in aggregated and
-          aggregated['call']['predicate_name'] in AGGREGATIONS):
-        value = Expr(neural_logica.FieldValues(aggregated['call'])[0])
-      elif aggregated is not None:
-        value = Expr(aggregated)
-      else:
-        value = Expr(rs.select['logica_value'])
+    # Value columns by field: the aggregated fields of the head and
+    # the aggregated value (`aggregated` for a hoisted expression).
+    value_fields = {}
+    for f, v in rs.select.items():
+      if f == 'logica_value' and aggregated is not None:
+        v = aggregated
+      aggregation = AggregationOf(v)
+      if aggregation and not (f == 'logica_value' and member.functional):
+        value_fields[f] = [Expr(a) for a in aggregation[1]]
+      elif f in member.field_aggs:
+        # A rule of the multi-body auxiliary gives the raw value: for
+        # ArgMin/ArgMax the {arg, value} record of `->`.
+        if len(member.field_aggs[f]) == 2:
+          self.strings.update(['arg', 'value'])
+          value_fields[f] = [
+              {'op': 'Field', 'args': [Expr(v), {'str': 'arg'}]},
+              {'op': 'Field', 'args': [Expr(v), {'str': 'value'}]}]
+        else:
+          value_fields[f] = [Expr(v)]
     if left_atoms:
       # Variables computed from the expressions' values: a demand member
       # cannot depend on them.
@@ -536,7 +689,7 @@ class SocraticPlan(object):
                      not dependent & ExprVariables(l['expr'])]})
       atoms.extend(atom for atom, demand in left_atoms)
     return {'head': member.name, 'key_fields': keys,
-            'values': [value] if value is not None else [],
+            'value_fields': value_fields,
             'atoms': atoms, 'conds': conds, 'lets': lets}
 
   def ColumnsOf(self, relation):
@@ -558,14 +711,41 @@ class SocraticPlan(object):
     if any(k is None for k in rule['keys']):
       Error('A rule of %s does not bind every column: %s' % (
           color.Warn(member.name), member.fields), member.name)
+    value_fields = rule.pop('value_fields')
+    rule['values'] = []
+    for f, i in member.value_columns:
+      if f not in value_fields or i >= len(value_fields[f]):
+        Error('A rule of %s does not aggregate %s.' % (
+            color.Warn(member.name), f), member.name)
+      rule['values'].append(value_fields[f][i])
     for atom in rule['atoms']:
+      if atom.get('unnest'):
+        atom['width'] = 2
+        atom['has_value'] = False
+        continue
       fields = atom.pop('fields')
       rel = atom['rel']
       if rel in [m.name for m in self.members]:
-        columns = self.ColumnsOf(rel)
         m = next(mm for mm in self.members if mm.name == rel)
-        has_value = 'logica_value' in fields and m.has_value
-        width = m.arity
+        columns = self.ColumnsOf(rel)
+        # Value columns follow the keys; a field's visible column first.
+        value_at = {}
+        for c, (f, i) in enumerate(m.value_columns):
+          value_at.setdefault(f, m.arity + c)
+        args = [None] * (m.arity + len(m.value_columns))
+        has_value = False
+        for f, expr in fields.items():
+          if f in value_at:
+            args[value_at[f]] = expr
+            has_value = True
+          elif f in columns:
+            args[columns[f]] = expr
+          else:
+            Error('%s has no field %s.' % (color.Warn(rel), f), rel)
+        atom['args'] = args
+        atom['has_value'] = has_value
+        atom['width'] = m.arity
+        continue
       else:
         # Inputs: columns in the order their fields are first seen,
         # positional ones first; the value column, if any, last.
@@ -578,7 +758,7 @@ class SocraticPlan(object):
         width = len(known)
       args = [None] * width
       for f, expr in fields.items():
-        if f == 'logica_value' and (rel not in [m.name for m in self.members] or m.has_value):
+        if f == 'logica_value':
           continue
         args[columns[f]] = expr
       if has_value:
@@ -626,12 +806,12 @@ class SocraticPlan(object):
       for c in self.Columns(sql_runner, table, types=True):
         if c[1] == 'VARCHAR':
           string_columns.setdefault(table, []).append(c[0])
-    dictionary = None
-    if string_columns or self.strings:
-      dictionary = 'socrates_dict_' + self.name
+    dictionary = 'socrates_dict_' + self.name
+    if True:
       parts = ['SELECT %s AS s FROM %s' % (c, t)
                for t, cs in string_columns.items() for c in cs]
       parts += ["SELECT '%s' AS s" % v.replace("'", "''") for v in sorted(self.strings)]
+      parts = parts or ["SELECT NULL::VARCHAR AS s"]
       sql_runner(
           "CREATE OR REPLACE TABLE %s AS SELECT row_number() OVER (ORDER BY s) "
           "AS id, s FROM (SELECT DISTINCT s FROM (%s) WHERE s IS NOT NULL)" % (
@@ -649,6 +829,14 @@ class SocraticPlan(object):
           return [Encode(v) for v in node]
         return node
       self.rules = Encode(self.rules)
+    # Strings inside composite values are interned by the engine: it
+    # receives the dictionary and reports the strings it added.
+    dictionary_spec = None
+    if dictionary:
+      dictionary_spec = {'file': os.path.join(workdir, 'dict.csv'),
+                         'out': os.path.join(workdir, 'dict_out.csv')}
+      sql_runner("COPY (SELECT id, s FROM %s) TO '%s' (HEADER false)" % (
+          dictionary, dictionary_spec['file']), self.engine, is_final=False)
     # Inputs: exported as headerless CSV in the column order the rules use.
     for relation, table in self.inputs.items():
       columns = self.Columns(sql_runner, table)
@@ -664,14 +852,21 @@ class SocraticPlan(object):
         Error('Table %s of %s lacks columns %s.' % (table, relation, missing),
               relation)
       strings = set(string_columns.get(table, []))
+      fields = list(self.input_fields.get(relation, []))
+      if has_value:
+        fields.append('logica_value')
+      types = [self.FieldType(relation, f) for f in fields]
       select = ', '.join(
           '(SELECT id FROM %s d WHERE d.s = t.%s)' % (dictionary, c)
-          if c in strings else 't.%s' % c for c in wanted)
+          if c in strings else
+          'to_json(t.%s)' % c if IsComposite(t) else 't.%s' % c
+          for c, t in zip(wanted, types))
       path = os.path.join(workdir, relation + '.csv')
       sql_runner("COPY (SELECT %s FROM %s t) TO '%s' (HEADER false)" % (
           select, table, path), self.engine, is_final=False)
       relations[relation] = {'kind': 'input', 'arity': width,
-                             'value': has_value, 'file': path}
+                             'value': has_value, 'file': path,
+                             'types': types}
     for relation, (path, width) in self.file_inputs.items():
       used = max([a['width'] for r in self.rules for a in r['atoms']
                   if a['rel'] == relation] + [0])
@@ -683,9 +878,13 @@ class SocraticPlan(object):
       relations[relation] = {'kind': 'input', 'arity': width,
                              'value': False, 'file': path}
     for member in self.members:
+      types = [self.FieldType(member.diamond_name, f) for f in member.fields]
+      types += [self.FieldType(member.diamond_name, f) if i == 0 else 'any'
+                for f, i in member.value_columns]
       relations[member.name] = {
           'kind': 'state', 'arity': member.arity, 'value': member.has_value,
-          'aggs': [member.agg] if member.has_value else [],
+          'aggs': member.aggs if member.has_value else [],
+          'hidden': member.hidden, 'types': types,
           'stop': member.stop, 'internal': member.internal,
           'out': os.path.join(workdir, member.name + '.out')}
     timings['export'] = time.monotonic() - t
@@ -698,6 +897,7 @@ class SocraticPlan(object):
     if max_rounds < 1000000000:
       max_rounds += 1
     spec = {'threads': int(threads), 'max_rounds': max_rounds,
+            'dictionary': dictionary_spec,
             'epsilon': self.epsilon, 'order': [m.name for m in self.members],
             'relations': relations, 'rules': self.rules}
     if os.environ.get('SOCRATES_SPEC_DUMP'):
@@ -708,18 +908,27 @@ class SocraticPlan(object):
     spec_path = os.path.join(workdir, 'spec.json')
     with open(spec_path, 'w') as f:
       json.dump(spec, f)
+    # The engine's trace streams through; otherwise its complaints are
+    # collected for the error message.
+    tracing = bool(os.environ.get('SOCRATES_TRACE') or os.environ.get('SOCRATES_EXPLAIN'))
     engine = subprocess.Popen([lib, spec_path], stdout=subprocess.PIPE,
-                              stderr=subprocess.PIPE, text=True)
+                              stderr=None if tracing else subprocess.PIPE,
+                              text=True)
     # The engine reports every pass on a line of its own; the stats come
     # last. The display is throttled upstream.
     stats = None
-    for line in engine.stdout:
-      if line.startswith('pass '):
-        if progress:
-          progress(int(line.split()[1]))
-      elif line.startswith('{'):
-        stats = json.loads(line)
-    errors = engine.stderr.read()
+    try:
+      for line in engine.stdout:
+        if line.startswith('pass '):
+          if progress:
+            progress(int(line.split()[1]))
+        elif line.startswith('{'):
+          stats = json.loads(line)
+      errors = '' if tracing else engine.stderr.read()
+    finally:
+      if engine.poll() is None:  # interrupted: the engine goes too
+        engine.kill()
+        engine.wait()
     if engine.wait() != 0 or stats is None:
       sys.stderr.write(errors)
       message = [l for l in errors.strip().split('\n') if l.strip()]
@@ -727,29 +936,43 @@ class SocraticPlan(object):
           self.name, message[-1] if message else 'no message'), self.name)
     timings['engine'] = time.monotonic() - t
     t = time.monotonic()
+    if dictionary_spec and os.path.getsize(dictionary_spec['out']) > 0:
+      sql_runner("INSERT INTO %s SELECT id, s FROM read_csv('%s', header=false, "
+                 "columns={'id': 'BIGINT', 's': 'VARCHAR'})" % (
+                     dictionary, dictionary_spec['out']),
+                 self.engine, is_final=False)
     for member in self.members:
       if member.internal:
         continue
-      columns = ['col%d' % f if isinstance(f, int) else f for f in member.fields]
-      # Whole numbers come back as integers, like the SQL path's.
-      numeric = not stats.get(member.name + '_integral', False)
-      types = ['DOUBLE' if numeric else 'BIGINT'] * len(columns)
-      if member.has_value:
-        columns.append('logica_value')
-        types.append('DOUBLE' if numeric else 'BIGINT')
-      fields = list(member.fields) + (['logica_value'] if member.has_value else [])
+      fields = list(member.fields) + [f for f, i in member.value_columns if i == 0]
+      columns = ['col%d' % f if isinstance(f, int) else f for f in fields]
+      # Whole numbers come back as integers, like the SQL path's;
+      # composite values as their DuckDB types.
+      integral = stats.get(member.name + '_integral') or [False] * len(fields)
+      types = [DuckType(self.FieldType(member.diamond_name, f), whole)
+               if IsComposite(self.FieldType(member.diamond_name, f))
+               else ('BIGINT' if whole else 'DOUBLE')
+               for f, whole in zip(fields, integral)]
       decoded = []
       for c, f in zip(columns, fields):
         if dictionary and self.IsStringColumn(member.diamond_name, f):
           decoded.append('(SELECT s FROM %s d WHERE d.id = r.%s) AS %s' % (dictionary, c, c))
         else:
           decoded.append('r.%s' % c)
-      sql_runner(
-          "CREATE OR REPLACE TABLE %s AS SELECT %s FROM read_csv('%s', "
-          "header=false, columns={%s}) r" % (
-              member.table, ', '.join(decoded), relations[member.name]['out'],
-              ', '.join("'%s': '%s'" % (c, t) for c, t in zip(columns, types))),
-          self.engine, is_final=False)
+      if os.path.getsize(relations[member.name]['out']) == 0:
+        # An empty predicate: DuckDB cannot sniff an empty file.
+        sql_runner(
+            "CREATE OR REPLACE TABLE %s AS SELECT %s FROM (SELECT %s WHERE false) r" % (
+                member.table, ', '.join(decoded),
+                ', '.join("CAST(NULL AS %s) AS %s" % (t, c) for c, t in zip(columns, types))),
+            self.engine, is_final=False)
+      else:
+        sql_runner(
+            "CREATE OR REPLACE TABLE %s AS SELECT %s FROM read_csv('%s', "
+            "header=false, columns={%s}) r" % (
+                member.table, ', '.join(decoded), relations[member.name]['out'],
+                ', '.join("'%s': '%s'" % (c, t) for c, t in zip(columns, types))),
+            self.engine, is_final=False)
       self.written_tables[member.name] = member.table
     if os.environ.get('SOCRATES_KEEP'):
       sys.stderr.write('socrates: files kept in %s\n' % workdir)
