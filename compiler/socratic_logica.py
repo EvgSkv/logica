@@ -54,7 +54,7 @@ ParsePhase = neural_logica.ParsePhase
 AUX_MARKER = neural_logica.AUX_MARKER
 DIAMOND_SUFFIX = neural_logica.DIAMOND_SUFFIX
 
-AGGREGATIONS = {'Min': 'min', 'Max': 'max', 'Agg+': 'sum',
+AGGREGATIONS = {'Min': 'min', 'Max': 'max', 'Agg+': 'sum', 'Sum': 'sum',
                 'List': 'list', 'Set': 'set', 'Count': 'count'}
 
 

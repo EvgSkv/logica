@@ -2142,6 +2142,13 @@ class NeuralTargetPlan(NeuralPlan):
     self.learning_rate = float(annotation.get('learning_rate', 0.01))
     self.steps = int(annotation.get('steps', 10000))
     self.epsilon = float(annotation.get('epsilon', 1e-12))
+    # The update rule: plain gradient descent by default (deterministic
+    # goldens depend on its trajectory); "adam" takes orders of magnitude
+    # fewer steps on ill-conditioned objectives.
+    self.optimizer = annotation.get('optimizer', 'gd')
+    if self.optimizer not in ('gd', 'adam'):
+      Error('@NeuralTarget optimizer must be "gd" or "adam", got %s.' %
+            color.Warn(str(self.optimizer)), self.target)
     optimize = annotation.get('optimize')
     if isinstance(optimize, dict):
       optimize = optimize.get('predicate_name')
@@ -2524,6 +2531,9 @@ class NeuralTargetPlan(NeuralPlan):
     steps_done = 0
     converged = False
     progress_shown = time.monotonic()
+    # Adam state: first and second moments per learned relation.
+    adam_m = {p: jnp.zeros_like(parameters[p]) for p in self.learned}
+    adam_v = {p: jnp.zeros_like(parameters[p]) for p in self.learned}
     for steps_done in range(1, self.steps + 1):
       value, gradient = value_and_gradient(parameters)
       value = float(value)
@@ -2541,8 +2551,21 @@ class NeuralTargetPlan(NeuralPlan):
         Error('Training of %s diverged (the target is %s at step %d); '
               'lower the learning_rate.' %
               (color.Warn(self.target), value, steps_done), self.target)
-      parameters = {p: parameters[p] - self.learning_rate * gradient[p]
-                    for p in self.learned}
+      if self.optimizer == 'adam':
+        b1, b2, adam_eps = 0.9, 0.999, 1e-8
+        adam_m = {p: b1 * adam_m[p] + (1 - b1) * gradient[p]
+                  for p in self.learned}
+        adam_v = {p: b2 * adam_v[p] + (1 - b2) * gradient[p] ** 2
+                  for p in self.learned}
+        correction = ((1 - b2 ** steps_done) ** 0.5 /
+                      (1 - b1 ** steps_done))
+        parameters = {
+            p: parameters[p] - self.learning_rate * correction *
+               adam_m[p] / (jnp.sqrt(adam_v[p]) + adam_eps)
+            for p in self.learned}
+      else:
+        parameters = {p: parameters[p] - self.learning_rate * gradient[p]
+                      for p in self.learned}
       if observer is not None:
         observer(steps_done, lambda: WriteLearned(parameters))
       if previous is not None and abs(previous - value) <= self.epsilon:

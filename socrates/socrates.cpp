@@ -51,6 +51,9 @@
 #include <unordered_set>
 #include <vector>
 #include <chrono>
+#ifdef __APPLE__
+#include <mach/mach.h>
+#endif
 #ifdef _OPENMP
 #include <omp.h>
 #else
@@ -646,6 +649,9 @@ struct State {
   bool Set(const num* row, const num* vals) {
     size_t s = SlotOf(row);
     if (s == ~size_t(0)) Fail("packed table overflow during recomputation of " + name);
+    return SetSlot(s, vals);
+  }
+  bool SetSlot(size_t s, const num* vals) {
     num* cur = &slots.vals[s * nv];
     bool was = slots.alive[s] == 1;
     if (!vals) { if (was) { slots.alive[s] = 0; return Queue(s); } return false; }
@@ -1291,6 +1297,110 @@ struct Engine {
     }
   }
 
+  // The general walk over the bodies of a rule, compactly: every position
+  // of the plan is a fixed record (scan, CSR lookup or hash lookup; the
+  // columns to check and to bind as small arrays), the rows found are
+  // kept by position, and the head reads its variables from one binding
+  // array. Lets and conditions are evaluated at their stage as in
+  // RunPlan. Unnest, point lookups and left atoms stay with RunPlan.
+  struct FastLevel {
+    int kind = 0;                      // 0 scan, 1 CSR lookup, 2 hash lookup
+    const num* base = nullptr; int width = 0; size_t n = 0;
+    const Index* I = nullptr;
+    int nprobe = 0; int probe_var[4]; num probe_const[4];     // var < 0: the constant
+    int ncheck = 0; int check_col[8]; int check_var[8]; num check_const[8];
+    int nbind = 0; int bind_col[8]; int bind_var[8];
+  };
+  bool FastLevels(const Plan& p, std::vector<FastLevel>& L) {
+    const Rule& rule = *p.rule;
+    int natoms = rule.atoms.size();
+    if (natoms == 0 || natoms > 8 || !p.preset.empty()) return false;
+    L.assign(natoms, FastLevel());
+    for (int pos = 0; pos < natoms; pos++) {
+      const Atom& atom = rule.atoms[p.order[pos]];
+      if (atom.unnest || atom.left || p.point[pos]) return false;
+      FastLevel& f = L[pos];
+      std::vector<char> covered(atom.args.size(), 0);  // columns the lookup matches exactly
+      if (p.idx[pos]) {
+        const Index& I = *p.idx[pos];
+        if (I.cols.size() > 4) return false;
+        f.kind = I.csr ? 1 : 2; f.I = &I; f.base = I.sorted.data.data(); f.width = I.sorted.width; f.n = I.sorted.size();
+        f.nprobe = I.cols.size();
+        for (int i = 0; i < f.nprobe; i++) {
+          const Expr& e = atom.args[I.cols[i]];
+          f.probe_var[i] = e.kind == Expr::CONST ? -1 : e.var; f.probe_const[i] = e.kind == Expr::CONST ? e.value : 0;
+          if (I.csr) covered[I.cols[i]] = 1;  // a hash range may hold other keys: those are checked
+        }
+      } else { f.base = p.src[pos]->data.data(); f.width = p.src[pos]->width; f.n = p.src[pos]->size(); }
+      for (int c : p.const_cols[pos]) if (!covered[c]) { if (f.ncheck == 8) return false; f.check_col[f.ncheck] = c; f.check_var[f.ncheck] = -1; f.check_const[f.ncheck] = atom.args[c].value; f.ncheck++; }
+      for (int c : p.bound_cols[pos]) if (!covered[c]) { if (f.ncheck == 8) return false; f.check_col[f.ncheck] = c; f.check_var[f.ncheck] = atom.args[c].var; f.check_const[f.ncheck] = 0; f.ncheck++; }
+      for (int c : p.bind_cols[pos]) { if (f.nbind == 8) return false; f.bind_col[f.nbind] = c; f.bind_var[f.nbind] = atom.args[c].var; f.nbind++; }
+    }
+    return true;
+  }
+  template <class Emit>
+  void RunFast(const Plan& p, const std::vector<FastLevel>& L, size_t r_begin, size_t r_end, num* bind, Emit emit) {
+    const Rule& rule = *p.rule;
+    int natoms = L.size();
+    const num* rows[8]; size_t b[8], e[8];
+    num probe[4];
+    auto stage = [&](int s) -> bool {
+      for (int l : p.lets_after[s]) bind[rule.lets[l].first] = Eval(rule.lets[l].second, bind);
+      for (int l : p.checks_after[s]) { num v = Eval(rule.lets[l].second, bind); if (std::isnan(v) || v != bind[rule.lets[l].first]) return false; }
+      for (int c : p.conds_after[s]) if (!Truthy(Eval(rule.conds[c], bind))) return false;
+      return true;
+    };
+    auto open = [&](int pos) {
+      const FastLevel& f = L[pos];
+      if (f.kind == 0) { b[pos] = pos == 0 ? r_begin : 0; e[pos] = pos == 0 ? r_end : f.n; return; }
+      for (int i = 0; i < f.nprobe; i++) probe[i] = f.probe_var[i] < 0 ? f.probe_const[i] : bind[f.probe_var[i]];
+      if (f.kind == 1) {
+        i64 k = (i64)probe[0] - f.I->min_key;
+        if (k < 0 || k + 1 >= (i64)f.I->offsets.size()) { b[pos] = e[pos] = 0; return; }
+        b[pos] = f.I->offsets[k]; e[pos] = f.I->offsets[k + 1]; return;
+      }
+      uint64_t h = 1469598103934665603ULL;  // Index::Pack over the probe
+      for (int i = 0; i < f.nprobe; i++) { h ^= (uint64_t)(i64)probe[i]; h *= 1099511628211ULL; h ^= h >> 29; }
+      auto it = f.I->ranges.find(h);
+      if (it == f.I->ranges.end()) { b[pos] = e[pos] = 0; return; }
+      b[pos] = it->second.first; e[pos] = it->second.second;
+    };
+    bool stage_work[9];
+    for (int st = 0; st <= natoms; st++) stage_work[st] = !p.lets_after[st].empty() || !p.checks_after[st].empty() || !p.conds_after[st].empty();
+    if (stage_work[0] && !stage(0)) return;
+    open(0);
+    int pos = 0;
+    const int last = natoms - 1;
+    while (pos >= 0) {
+      if (pos == last) {
+        // The innermost level: a plain loop over its rows.
+        const FastLevel& f = L[last];
+        const num* row = f.base + b[last] * f.width;
+        const num* end = f.base + e[last] * f.width;
+        for (; row != end; row += f.width) {
+          bool ok = true;
+          for (int i = 0; i < f.ncheck && ok; i++) ok = row[f.check_col[i]] == (f.check_var[i] < 0 ? f.check_const[i] : bind[f.check_var[i]]);
+          if (!ok) continue;
+          for (int i = 0; i < f.nbind; i++) bind[f.bind_var[i]] = row[f.bind_col[i]];
+          rows[last] = row;
+          if (stage_work[natoms] && !stage(natoms)) continue;
+          emit(rows);
+        }
+        pos--; continue;
+      }
+      if (b[pos] == e[pos]) { pos--; continue; }
+      const FastLevel& f = L[pos];
+      const num* row = f.base + (b[pos]++) * f.width;
+      bool ok = true;
+      for (int i = 0; i < f.ncheck && ok; i++) ok = row[f.check_col[i]] == (f.check_var[i] < 0 ? f.check_const[i] : bind[f.check_var[i]]);
+      if (!ok) continue;
+      for (int i = 0; i < f.nbind; i++) bind[f.bind_var[i]] = row[f.bind_col[i]];
+      rows[pos] = row;
+      if (stage_work[pos + 1] && !stage(pos + 1)) continue;
+      pos++; open(pos);
+    }
+  }
+
   // Fast path for a linear monotone rule: the delta, then input atoms each
   // looked up through a CSR index on one bound column, a plain-variable
   // head and nothing to check. The generic loop computes the same thing
@@ -1532,15 +1642,27 @@ struct Engine {
   std::map<std::string, std::vector<std::vector<Rows>>> full_buf;
   std::map<std::string, std::vector<num>> full_dvals;
   std::map<std::string, std::vector<char>> full_dseen;
+  std::map<std::string, std::vector<std::vector<uint32_t>>> full_slots;
+  std::set<std::string> rounds_traced;  // rules whose walk kind was already traced
+  std::map<std::string, size_t> full_bodies;  // per rule: bodies in the last full pass
+  std::map<std::string, size_t> full_produced;  // per state: rows the body phase produced in the last full pass
+  std::vector<std::vector<num>> full_stg;    // per thread: the staging buffer of the body phase  // per state, per partition: the slot of each buffered row
   void FullRecompute(State& S, std::vector<Rows>& out) {
-    int T = std::max(1, threads), B = T;
+    // Partitions: many more than threads when the pass is big, so that the
+    // slots one partition folds into span a stretch of the table that fits
+    // a cache level; few when it is small, so that a short pass does not
+    // pay for 256 buffers per thread.
+    int T = std::max(1, threads);
+    size_t& produced_before = full_produced[S.name];
+    int B = produced_before > ((size_t)1 << 22) ? 256 : T;
     int w = S.arity + S.nv;
     bool collects = false;
     for (Agg a : S.aggs) collects |= Collects(a);
     // Buffers persist between passes: their capacity is the previous
     // pass's, so a pass does not page in 200 MB anew.
     std::vector<std::vector<Rows>>& buf = full_buf[S.name];
-    if (buf.size() != (size_t)T) {
+    if (full_stg.size() < (size_t)T) full_stg.resize(T);
+    if (buf.size() != (size_t)T || buf[0].size() != (size_t)B) {
       buf.assign(T, std::vector<Rows>(B));
       // Staggered initial capacities, so the per-thread buffers do not land
       // on addresses congruent modulo a large power of two (cache aliasing).
@@ -1559,11 +1681,17 @@ struct Engine {
     // of a plain array; other keys are partitioned by hash.
     bool dense = S.dense && !collects;
     i64 span = dense ? (i64)S.slots.alive.size() : 0;
+    // A packed state is partitioned the way its table is laid out, so the
+    // fold of one partition walks one stretch of the table (the span of
+    // slots it will touch fits a cache level), instead of the whole of it.
+    int packed_shift = 0;
+    if (S.packed) { size_t cap = S.pmap.keys.size(); while (((size_t)1 << packed_shift) < cap) packed_shift++; }
     auto bucket_of = [&](const num* key) -> int {
       if (dense) { i64 k = (i64)key[0] - S.lo; return (int)(k * B / span); }
-      uint64_t h = 1469598103934665603ULL;
-      for (int k = 0; k < S.arity; k++) { uint64_t bits; memcpy(&bits, &key[k], sizeof bits); h ^= bits; h *= 1099511628211ULL; h ^= h >> 29; }
-      return (int)(h % (uint64_t)B);
+      if (S.packed) { size_t i = PackedMap::Hash(State::PackKey(key)) & (((size_t)1 << packed_shift) - 1); return (int)(i * (size_t)B >> packed_shift); }
+      uint64_t h = 0x9E3779B97F4A7C15ULL;
+      for (int k = 0; k < S.arity; k++) { uint64_t bits; memcpy(&bits, &key[k], sizeof bits); h = (h ^ bits) * 0xff51afd7ed558ccdULL; h ^= h >> 32; }
+      return (int)((h & 0xffffffffULL) * (uint64_t)B >> 32);
     };
     double tf0 = Now();
     // Phase 1: every body of every rule, as (key, contribution) rows.
@@ -1571,8 +1699,21 @@ struct Engine {
       if (rule.head != S.name) continue;
       Plan p = MakePlan(rule, -1, {});
       size_t n0 = rule.atoms.empty() ? 0 : p.idx[0] ? 1 : p.src[0]->size();
-      const size_t BLOCK = 1 << 14;
-      int nt = n0 > BLOCK && !p.makes_values ? T : 1;  // a rule that builds values writes the arena: one thread
+      // The first atom's rows are split between threads in blocks; a rule
+      // with few first rows and a wide fan-out (SG: 10K edges, 100M bodies)
+      // still needs every thread, so blocks are small when rows are few.
+      const size_t BLOCK = std::max<size_t>(64, n0 / ((size_t)T * 16));
+      // Threads are worth it when the rule had many bodies last pass (a
+      // small rule in a long iteration, as in the flow dynamics, is cheaper
+      // on one thread than the parallel region costs); a rule that builds
+      // values writes the arena: one thread.
+      size_t& bodies_before = full_bodies[rule.head + "#" + std::to_string(&rule - &rules[0])];
+      int nt = (n0 > (1 << 14) || bodies_before > (1 << 16)) && !p.makes_values ? T : 1;
+      std::vector<FastLevel> levels;
+      bool fast = FastLevels(p, levels);
+      std::vector<int> val_var;  // per value column: the variable it copies, or -1
+      for (auto& v : rule.values) val_var.push_back(v.kind == Expr::VAR ? v.var : -1);
+      if (trace && rounds_traced.insert(rule.head + "#" + std::to_string(&rule - &rules[0])).second) fprintf(stderr, "    full %s: %s walk\n", rule.head.c_str(), fast ? "compact" : "general");
 #pragma omp parallel num_threads(nt)
       {
         int t = omp_get_thread_num();
@@ -1584,91 +1725,84 @@ struct Engine {
           if (nopush) return;
           buf[t][bucket_of(row.data())].push(row.data());
         };
-        if (nt == 1) { if (t == 0) RunPlan(p, 0, n0, bind, emit); }
+        static const int experiment = getenv("SOCRATES_FULL_EXP") ? atoi(getenv("SOCRATES_FULL_EXP")) : 0;  // 1: no bucketing, 2: no push (timing only, wrong results)
+        // Rows are staged per partition and appended in blocks: one
+        // vector insert per STG rows instead of one per row.
+        const int STG = 128;
+        std::vector<num>& stg = full_stg[t]; if (stg.size() < (size_t)B * STG * w) stg.resize((size_t)B * STG * w);
+        std::vector<int> cnt(B, 0);
+        auto flush = [&](int bk) { buf[t][bk].data.insert(buf[t][bk].data.end(), &stg[(size_t)bk * STG * w], &stg[((size_t)bk * STG + cnt[bk]) * w]); cnt[bk] = 0; };
+        auto emit_fast = [&](const num* const*) {
+          for (int k = 0; k < S.arity; k++) { row[k] = p.head_var[k] >= 0 ? bind[p.head_var[k]] : Eval(rule.keys[k], bind.data()); if (std::isnan(row[k])) return; }
+          for (int c = 0; c < S.nv; c++) row[S.arity + c] = val_var[c] >= 0 ? bind[val_var[c]] : Eval(rule.values[c], bind.data());
+          if (nopush || (experiment == 2 && bodies_before > 100000000)) return;  // 2: the walk alone, once the pass is big (wrong results)
+          int bk = experiment == 1 ? 0 : bucket_of(row.data());
+          memcpy(&stg[((size_t)bk * STG + cnt[bk]) * w], row.data(), w * sizeof(num));
+          if (++cnt[bk] == STG) flush(bk);
+        };
+        if (nt == 1) { if (t == 0) { if (fast) RunFast(p, levels, 0, n0, bind.data(), emit_fast); else RunPlan(p, 0, n0, bind, emit); } }
         else {
 #pragma omp for schedule(dynamic, 1)
-          for (size_t b = 0; b < n0; b += BLOCK) RunPlan(p, b, std::min(n0, b + BLOCK), bind, emit);
+          for (size_t b = 0; b < n0; b += BLOCK) { if (fast) RunFast(p, levels, b, std::min(n0, b + BLOCK), bind.data(), emit_fast); else RunPlan(p, b, std::min(n0, b + BLOCK), bind, emit); }
         }
+        for (int bk = 0; bk < B; bk++) if (cnt[bk]) flush(bk);
       }
+      size_t produced = 0;
+      for (int t = 0; t < T; t++) for (int b = 0; b < B; b++) produced += buf[t][b].size();
+      bodies_before = produced;  // all rules of the head so far: an upper bound for this rule, good enough
+      produced_before = produced;
     }
     double tf1 = Now();
-    // Phase 2: fold each partition per key, partitions in parallel. One
-    // key column: a flat table by the key's bits; otherwise a generic map.
-    typedef std::unordered_map<std::vector<num>, std::vector<num>, KeyHash> Acc;
-    typedef std::unordered_map<std::vector<num>, std::vector<std::vector<num>>, KeyHash> Coll;
-    std::vector<Acc> acc(B);
-    std::vector<Coll> coll(B);
-    bool flat = S.arity == 1 && !collects && !dense;
-    std::vector<std::vector<num>> flat_rows(B);  // per partition: key, values, key, values, ...
-    std::vector<num>& dvals = full_dvals[S.name]; dvals.resize(dense ? span * S.nv : 0);
-    std::vector<char>& dseen = full_dseen[S.name]; dseen.assign(dense ? span : 0, 0);
-    auto absorb = [&](num* a, const num* v) {
-      for (int c = 0; c < S.nv; c++) switch (S.aggs[c]) {
-        case SUM: if (std::isnan(a[c])) a[c] = v[c]; else if (!std::isnan(v[c])) a[c] += v[c]; break;
-        case ASSIGN: a[c] = v[c]; break;
-        case MIN: case MAX: {
-          bool better = S.aggs[c] == MIN ? v[c] < a[c] : v[c] > a[c];
-          if (!better && v[c] == a[c]) for (int d = 0; d < S.nv; d++) if (S.argof[d] == c && v[d] < a[d]) better = true;
-          if (better) { a[c] = v[c]; for (int d = 0; d < S.nv; d++) if (S.argof[d] == c) a[d] = v[d]; }
-          break;
+    // Phase 2: every key takes its slot in the state's own table, the one
+    // dictionary (dense, packed or generic), and the contributions are
+    // folded per slot into a shadow of the value columns. The rows of a
+    // key sit in one partition, so partitions fold in parallel without
+    // races. A packed table that fills up past its probe limit is grown
+    // and the slots assigned again; this is rare.
+    bool generic = !S.dense && !S.packed;
+    std::vector<std::vector<uint32_t>>& sl = full_slots[S.name]; sl.resize(B);
+    if (S.packed && S.pmap.count * 2 > S.pmap.keys.size()) S.Rehash(S.pmap.keys.size() * 2);
+    for (bool spilled = true; spilled;) {
+      spilled = false;
+#pragma omp parallel for num_threads(generic ? 1 : T) schedule(dynamic, 1) reduction(||: spilled)
+      for (int b = 0; b < B; b++) {
+        std::vector<uint32_t>& L = sl[b]; L.clear();
+        for (int t = 0; t < T && !spilled; t++) {
+          Rows& R = buf[t][b];
+          size_t n = R.size();
+          for (size_t r = skip[t][b]; r < n; r++) {
+            const num* row = R.row(r);
+            size_t sx = S.FindSlot(row);  // a plain probe first: most keys are there from the last pass
+            if (sx == ~size_t(0)) sx = S.SlotOf(row);
+            if (sx == ~size_t(0)) { spilled = true; break; }
+            L.push_back((uint32_t)sx);
+          }
         }
-        default: break;
       }
-    };
+      if (spilled) S.Rehash(S.pmap.keys.size() * 4);  // a pass that fills the table is growing fast: fewer rounds of this
+    }
+    double tf1s = Now();
+    size_t nslots = S.slots.alive.size();
+    std::vector<num>& fv = full_dvals[S.name]; fv.resize(nslots * S.nv);
+    std::vector<char>& seen = full_dseen[S.name]; seen.assign(nslots, 0);
+    typedef std::unordered_map<size_t, std::vector<std::vector<num>>> Coll;  // slot -> per column, the collected values
+    std::vector<Coll> coll(B);
 #pragma omp parallel for num_threads(T) schedule(dynamic, 1)
     for (int b = 0; b < B; b++) {
-      if (dense) {
-        for (int t = 0; t < T; t++) {
-          Rows& R = buf[t][b];
-          size_t n = R.size();
-          for (size_t r = skip[t][b]; r < n; r++) {
-            const num* row = R.row(r);
-            i64 k = (i64)row[0] - S.lo;
-            if (k < 0 || k >= span) Fail("key outside domain in " + S.name);
-            num* a = &dvals[k * S.nv];
-            if (!dseen[k]) { dseen[k] = 1; for (int c = 0; c < S.nv; c++) a[c] = row[1 + c]; continue; }
-            absorb(a, row + 1);
-          }
-          R.data.clear();
-        }
-        continue;
-      }
-      if (flat) {
-        std::unordered_map<uint64_t, size_t> at;  // key bits -> offset in flat_rows[b]
-        size_t total = 0;
-        for (int t = 0; t < T; t++) total += buf[t][b].size();
-        at.reserve(total / 4 + 16);
-        std::vector<num>& F = flat_rows[b];
-        for (int t = 0; t < T; t++) {
-          Rows& R = buf[t][b];
-          size_t n = R.size();
-          for (size_t r = skip[t][b]; r < n; r++) {
-            const num* row = R.row(r);
-            uint64_t bits; memcpy(&bits, row, sizeof bits);
-            auto it = at.find(bits);
-            if (it == at.end()) { at.emplace(bits, F.size()); F.insert(F.end(), row, row + w); continue; }
-            absorb(&F[it->second + 1], row + 1);
-          }
-          R.data.clear();
-        }
-        continue;
-      }
-      Acc& A = acc[b];
-      std::vector<num> key(S.arity);
+      size_t i = 0;
       for (int t = 0; t < T; t++) {
         Rows& R = buf[t][b];
         size_t n = R.size();
-        for (size_t r = skip[t][b]; r < n; r++) {
-          const num* row = R.row(r);
-          const num* v = row + S.arity;
-          key.assign(row, row + S.arity);
-          auto it = A.find(key);
-          if (it == A.end()) {
-            A.emplace(key, std::vector<num>(v, v + S.nv));
-            if (collects) { auto& C = coll[b][key]; C.resize(S.nv); for (int c = 0; c < S.nv; c++) if (Collects(S.aggs[c])) C[c].push_back(v[c]); }
+        for (size_t r = skip[t][b]; r < n; r++, i++) {
+          const num* v = R.row(r) + S.arity;
+          size_t sx = sl[b][i];
+          num* a = &fv[sx * S.nv];
+          if (!seen[sx]) {
+            seen[sx] = 1;
+            for (int c = 0; c < S.nv; c++) a[c] = v[c];
+            if (collects) { auto& C = coll[b][sx]; C.resize(S.nv); for (int c = 0; c < S.nv; c++) if (Collects(S.aggs[c])) C[c].push_back(v[c]); }
             continue;
           }
-          num* a = it->second.data();
           for (int c = 0; c < S.nv; c++) switch (S.aggs[c]) {
             case SUM: if (std::isnan(a[c])) a[c] = v[c]; else if (!std::isnan(v[c])) a[c] += v[c]; break;
             case ASSIGN: a[c] = v[c]; break;
@@ -1678,7 +1812,7 @@ struct Engine {
               if (better) { a[c] = v[c]; for (int d = 0; d < S.nv; d++) if (S.argof[d] == c) a[d] = v[d]; }
               break;
             }
-            case LIST: case SET: case COUNT: case ARRAYAGG: coll[b][key][c].push_back(v[c]); break;
+            case LIST: case SET: case COUNT: case ARRAYAGG: coll[b][sx][c].push_back(v[c]); break;
             default: break;
           }
         }
@@ -1689,7 +1823,7 @@ struct Engine {
     if (collects) {
       num field_arg = dict.Intern("arg"), field_value = dict.Intern("value");
       for (int b = 0; b < B; b++) for (auto& kv : coll[b]) {
-        num* a = acc[b].at(kv.first).data();
+        num* a = &fv[kv.first * S.nv];
         for (int c = 0; c < S.nv; c++) {
           std::vector<num>& v = kv.second[c];
           switch (S.aggs[c]) {
@@ -1710,50 +1844,32 @@ struct Engine {
       }
     }
     double tf2 = Now();
-    // Phase 3: compare with the current state; log what moved.
+    // Phase 3: walk the slots; a slot with a fold takes it, a live slot
+    // without one is removed; what moved is logged.
     for (auto& o : out) o.width = S.DeltaWidth();
-    Rows& O = out[0];
-    auto log_key = [&](const num* key) { O.data.insert(O.data.end(), key, key + S.arity); for (int c = 0; c < 2 * S.nv; c++) O.data.push_back(0); };
-    Rows alive = S.Materialize();
-    std::vector<num> key(S.arity);
-    if (S.packed) {
-      // Room for every key before the inserts: the packed map does not grow on its own.
-      size_t total = S.pmap.count;
-      if (flat) for (int b = 0; b < B; b++) total += flat_rows[b].size() / w;
-      else for (int b = 0; b < B; b++) total += acc[b].size();
-      size_t cap = S.pmap.keys.size();
-      while (total * 2 > cap) cap <<= 1;
-      if (cap != S.pmap.keys.size()) S.Rehash(cap);
-    }
-    static const num present_value = 1;  // a set has no value columns: Set() must not take an empty vector's null data() for a removal
-    if (dense) {
-      num krow[1];
-      for (i64 k = 0; k < span; k++) {
-        krow[0] = (num)(k + S.lo);
-        if (dseen[k]) { if (S.Set(krow, S.nv ? &dvals[k * S.nv] : &present_value)) log_key(krow); }
-        else if (S.slots.alive[k] == 1) { if (S.Set(krow, nullptr)) log_key(krow); }
-      }
-    } else if (flat) {
-      std::unordered_set<uint64_t> present;
-      size_t total = 0; for (int b = 0; b < B; b++) total += flat_rows[b].size() / w;
-      present.reserve(total + 16);
-      for (int b = 0; b < B; b++) for (size_t i = 0; i < flat_rows[b].size(); i += w) { uint64_t bits; memcpy(&bits, &flat_rows[b][i], sizeof bits); present.insert(bits); }
-      for (size_t r = 0; r < alive.size(); r++) {
-        uint64_t bits; memcpy(&bits, alive.row(r), sizeof bits);
-        if (present.count(bits)) continue;
-        if (S.Set(alive.row(r), nullptr)) log_key(alive.row(r));
-      }
-      for (int b = 0; b < B; b++) for (size_t i = 0; i < flat_rows[b].size(); i += w) if (S.Set(&flat_rows[b][i], S.nv ? &flat_rows[b][i + 1] : &present_value)) log_key(&flat_rows[b][i]);
+    static const num present_value = 1;  // a set has no value columns: SetSlot() must not take an empty vector's null data() for a removal
+    auto visit = [&](size_t sx, const num* key, Rows& O) {
+      bool moved = seen[sx] ? S.SetSlot(sx, S.nv ? &fv[sx * S.nv] : &present_value)
+                            : S.slots.alive[sx] == 1 && S.SetSlot(sx, nullptr);
+      if (moved) { O.data.insert(O.data.end(), key, key + S.arity); for (int c = 0; c < 2 * S.nv; c++) O.data.push_back(0); }
+    };
+    if (generic) {
+      for (auto& kv : S.table) visit(kv.second, kv.first.data(), out[0]);
     } else {
-      for (size_t r = 0; r < alive.size(); r++) {
-        key.assign(alive.row(r), alive.row(r) + S.arity);
-        if (acc[bucket_of(key.data())].count(key)) continue;
-        if (S.Set(key.data(), nullptr)) log_key(key.data());
+#pragma omp parallel num_threads(T)
+      {
+        Rows& O = out[omp_get_thread_num()];
+        num key[2];
+#pragma omp for schedule(static)
+        for (size_t sx = 0; sx < nslots; sx++) {
+          if (S.dense) key[0] = (num)(S.lo + (i64)sx);
+          else { uint64_t k = S.pmap.keys[sx]; if (k == PackedMap::EMPTY || k == PackedMap::RESERVED) continue; key[0] = (num)(int32_t)(k >> 32); key[1] = (num)(int32_t)(uint32_t)k; }
+          visit(sx, key, O);
+        }
       }
-      for (int b = 0; b < B; b++) for (auto& kv : acc[b]) if (S.Set(kv.first.data(), S.nv ? kv.second.data() : &present_value)) log_key(kv.first.data());
     }
     for (auto& Oo : out) { S.next_delta.data.insert(S.next_delta.data.end(), Oo.data.begin(), Oo.data.end()); Oo.data.clear(); }
-    if (trace) fprintf(stderr, "  full %s: bodies %.3f fold %.3f compare %.3f s\n", S.name.c_str(), tf1 - tf0, tf2 - tf1, Now() - tf2);
+    if (trace) fprintf(stderr, "  full %s: bodies %.3f slots %.3f fold %.3f compare %.3f s\n", S.name.c_str(), tf1 - tf0, tf1s - tf1, tf2 - tf1s, Now() - tf2);
   }
 
   void FoldStored(State& S, std::vector<Rows>& out) {
@@ -2821,6 +2937,13 @@ struct Engine {
     bool lattice_opt = flag("SOCRATIC_LATTICE_OPT"), group_opt = flag("SOCRATIC_GROUP_OPT");
     bool walks = getenv("SOCRATES_SEMIGROUP") && !strcmp(getenv("SOCRATES_SEMIGROUP"), "walks");
     Classify(lattice_opt, group_opt, walks);
+    // A presence predicate on the semigroup tier (the lattice tier switched
+    // off) needs the presence value too, like a retractable one above.
+    for (auto& kv : states) if (kv.second.tier == State::SEMI && kv.second.nv == 0 && !kv.second.exists) {
+      kv.second.exists = true;
+      kv.second.nv = 1; kv.second.aggs.assign(1, ASSIGN);
+      for (auto& rule : rules) if (rule.head == kv.first) { Expr one; one.kind = Expr::CONST; one.value = 1; rule.values.push_back(one); }
+    }
     // Which states may hold keys outside the input domain (computed by an
     // expression, or taken from a value column, or from such a column of
     // another state): they use the generic storage. A fixpoint over the
@@ -2885,8 +3008,20 @@ struct Engine {
     for (auto& rule : rules) cursor[&rule].assign(rule.atoms.size(), 0);
     int rounds = 0;
     double t_push = 0, t_collect = 0, t_mark = 0, t_pull = 0, t_close = 0, t_snap = 0;
+    // The memory the engine itself holds, checked once per pass: past
+    // SOCRATES_MEM_GB (60 by default) the run fails cleanly instead of
+    // pushing the machine into swap.
+    static const double mem_limit_gb = getenv("SOCRATES_MEM_GB") ? atof(getenv("SOCRATES_MEM_GB")) : 60.0;
+    auto footprint_gb = []() -> double {
+#ifdef __APPLE__
+      task_vm_info_data_t info; mach_msg_type_number_t n = TASK_VM_INFO_COUNT;
+      if (task_info(mach_task_self(), TASK_VM_INFO, (task_info_t)&info, &n) == KERN_SUCCESS) return (double)info.phys_footprint / (1ULL << 30);
+#endif
+      return 0.0;
+    };
     while (rounds < max_rounds) {
       rounds++;
+      if (mem_limit_gb > 0) { double gb = footprint_gb(); if (gb > mem_limit_gb) Fail("memory limit: the engine holds " + std::to_string((int)gb) + " GB, SOCRATES_MEM_GB is " + std::to_string((int)mem_limit_gb)); }
       double tr = Now();
       bool progress = false;
       long long changed = 0;
