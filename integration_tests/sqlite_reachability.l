@@ -1,6 +1,7 @@
 # Testing recursive path finding in SQLite.
 
 @Engine("sqlite");
+@Recursive(Path, 5);  # Shallow depth due to SQLite urgen vulnarability motivated fix that breaks deep recursion.
 
 G(1, 2);
 G(2, 3);

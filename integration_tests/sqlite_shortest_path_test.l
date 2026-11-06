@@ -27,6 +27,7 @@ Edge("d", "a");
     k == {nodes: open_path},
     v == Size(open_path);
 
+@Recursive(OpenPath, 3);
 OpenPath(start, end) *= [start] :-
     (Edge(start, end) | Edge(end, start));
 

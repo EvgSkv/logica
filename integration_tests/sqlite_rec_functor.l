@@ -15,6 +15,7 @@
 
 # Testing application of a recursive predicate as a functor.
 @Engine("sqlite");
+@Recursive(Closure, 6);  # Shallow depth due to SQLite urgen vulnarability motivated fix that breaks deep recursion.
 
 Closure(a, b) distinct :- R(a, b);
 Closure(a, b) distinct :- Closure(a, x), Closure(x, b);

@@ -17,6 +17,7 @@
 # https://en.wikipedia.org/wiki/PageRank
 
 @Engine("sqlite");
+@Recursive(PageRank, 6);  # Shallow depth due to SQLite urgen vulnarability motivated fix that breaks deep recursion.
 
 # Data.
 Link("a", "b");

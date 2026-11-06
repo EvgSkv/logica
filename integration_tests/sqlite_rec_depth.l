@@ -16,6 +16,8 @@
 # Example of 'slow' and 'fast' recursion.
 
 @Engine("sqlite");
+@Recursive(Num, 6);  # Shallow depth due to SQLite urgen vulnarability motivated fix that breaks deep recursion.
+@Recursive(NumSlow, 6);
 
 # Num and SlowNum compute natural numbers.
 # Size of Num grows exponentially, while SlowNum grows linearly

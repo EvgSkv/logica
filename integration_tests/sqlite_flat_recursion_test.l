@@ -14,6 +14,7 @@
 # limitations under the License.
 
 @Engine("sqlite");
+@Recursive(A, 3);  # Shallow depth due to SQLite urgen vulnarability motivated fix that breaks deep recursion.
 A(0) Max= 1;
 B(0) Max= 1;
 A(n + 1) Max= A(n) + B(n);

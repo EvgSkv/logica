@@ -1854,7 +1854,17 @@ class NeuralPlan(object):
       max_mask, max_values = runtime.MemberFunction(member)(state, tensors)
       unused_mask, min_values = runtime.MemberFunction(shadow)(state,
                                                               tensors)
-      conflict = np.asarray(max_mask & (max_values != min_values))
+      # A backend with nondeterministic reduction order (GPU) returns
+      # the two aggregations with round-off noise; a conflict must
+      # exceed a few ulps of the working precision to be real. The
+      # check is eager, so it runs in host numpy — the tensor engine
+      # (jax, metal, logix) only has to hand the values over.
+      max_host = np.asarray(max_values)
+      min_host = np.asarray(min_values)
+      tolerance = 64 * float(np.finfo(max_host.dtype).eps)
+      conflict = (np.asarray(max_mask) &
+                  ~np.isclose(max_host, min_host,
+                              rtol=tolerance, atol=tolerance))
       if conflict.any():
         support = runtime.sparse.get(member.portal)
         if support is not None:
@@ -2149,6 +2159,21 @@ class NeuralTargetPlan(NeuralPlan):
     if self.optimizer not in ('gd', 'adam'):
       Error('@NeuralTarget optimizer must be "gd" or "adam", got %s.' %
             color.Warn(str(self.optimizer)), self.target)
+    # Numeric precision of the tensor computation. float32 halves memory
+    # and roughly doubles throughput; the default stays float64, whose
+    # trajectories the deterministic goldens pin down.
+    self.precision = annotation.get('precision', 'float64')
+    if self.precision not in ('float64', 'float32'):
+      Error('@NeuralTarget precision must be "float64" or "float32", '
+            'got %s.' % color.Warn(str(self.precision)), self.target)
+    # Representation: with sparse true, every member whose structure is
+    # static lives as a vector over its support (the row form); readers
+    # that cannot ride rows fall back through Densify. The default stays
+    # dense, whose execution the deterministic goldens pin down.
+    self.sparse_mode = annotation.get('sparse', False)
+    if self.sparse_mode not in (True, False):
+      Error('@NeuralTarget sparse must be true or false, got %s.' %
+            color.Warn(str(self.sparse_mode)), self.target)
     optimize = annotation.get('optimize')
     if isinstance(optimize, dict):
       optimize = optimize.get('predicate_name')
@@ -2322,7 +2347,8 @@ class NeuralTargetPlan(NeuralPlan):
           all_members.append(member)
           published |= {member.name, member.portal, member.diamond_name}
     runtime.SelectSparse(loop_members, all_members, list(self.learned),
-                         published)
+                         published,
+                         all_candidates=getattr(self, 'sparse_mode', False))
 
     if os.environ.get('LOGICA_TENSOR_DIAGNOSTICS'):
       target_name = os.environ['LOGICA_TENSOR_DIAGNOSTICS']
@@ -2531,9 +2557,14 @@ class NeuralTargetPlan(NeuralPlan):
     steps_done = 0
     converged = False
     progress_shown = time.monotonic()
-    # Adam state: first and second moments per learned relation.
-    adam_m = {p: jnp.zeros_like(parameters[p]) for p in self.learned}
-    adam_v = {p: jnp.zeros_like(parameters[p]) for p in self.learned}
+    # Adam state: first and second moments per learned relation. Plain
+    # gradient descent never touches it, and a minimal tensor engine
+    # (logix) runs gd only — so the state is built by arithmetic the
+    # engine surely has, and only when adam asked for it.
+    adam_m = adam_v = None
+    if self.optimizer == 'adam':
+      adam_m = {p: 0.0 * parameters[p] for p in self.learned}
+      adam_v = {p: 0.0 * parameters[p] for p in self.learned}
     for steps_done in range(1, self.steps + 1):
       value, gradient = value_and_gradient(parameters)
       value = float(value)
@@ -2615,7 +2646,7 @@ def ImportTensorEngine(plan):
     raise NeuralCompileException(
         'Neural execution requires JAX. Please run: '
         'python3 -m pip install jax', plan.name)
-  ConfigureJax(jax)
+  ConfigureJax(jax, getattr(plan, 'precision', 'float64'))
   import jax.numpy as jnp
   plan.tensor_engine_module = jax
   return jax, jnp
@@ -2839,13 +2870,24 @@ def TensorDiagnosticsReport(plan, runtime, members=None):
   return '\n'.join(lines)
 
 
-def ConfigureJax(jax):
+
+def jax_segment_sum(jnp, rows, segment_ids, num_segments):
+  """Unsorted segment sum: scatter-add rows into their segments."""
+  shape = (num_segments,) + rows.shape[1:]
+  return jnp.zeros(shape, dtype=rows.dtype).at[segment_ids].add(rows)
+
+def ConfigureJax(jax, precision='float64'):
   """Numeric precision and the persistent compilation cache.
+
+  Without x64, JAX canonicalizes every float64 request to float32, so
+  the single flag below is the whole precision switch. The flag is
+  process-global: plans of one program run sequentially and each Run
+  reconfigures it before compiling.
 
   The programs are small, so XLA compilation (~hundreds of ms) dominates
   a CLI run; the on-disk cache brings repeat runs to the training cost
   itself. LOGICA_JAX_CACHE overrides the location, empty disables."""
-  jax.config.update('jax_enable_x64', True)
+  jax.config.update('jax_enable_x64', precision == 'float64')
   cache_dir = os.environ.get(
       'LOGICA_JAX_CACHE', os.path.expanduser('~/.cache/logica/jax'))
   if not cache_dir:
@@ -2933,6 +2975,13 @@ class Runtime(object):
     if NeedsDenseEvaluator(scanned, self.plan.relations,
                            set(key_variables), string_variables,
                            contribution.canonical.Find):
+      if os.environ.get('LOGICA_NEURAL_TRACE'):
+        for piece in scanned:
+          if NeedsDenseEvaluator([piece], self.plan.relations,
+                                 set(key_variables), string_variables,
+                                 contribution.canonical.Find):
+            print('dense expression of %s: %s' % (
+                member.name, ExpressionText(piece) or '(no heritage)'))
       return RowDriverAnalysis(
           None, 'an expression needs the dense axes')
     return RowDriverAnalysis(drivers[0], 'rows of %s' % name)
@@ -3011,8 +3060,73 @@ class Runtime(object):
     return (eliminated, hoisted_reads, hoisted_memberships,
             hoisted_constraints)
 
+  def TryContractionFunction(self, member, contribution):
+    """A += rule whose body is a product of valued reads is the same
+    contraction as an inline Sum{}: it goes through the einsum/sparse
+    path instead of materializing the grid of all body variables.
+    Returns None when the rule is not such a contraction."""
+    jnp = self.jnp
+    if not hasattr(jnp, 'einsum'):
+      return None  # A minimal tensor engine: the general path serves it.
+    if member.aggregation != 'sum' or not member.has_value:
+      return None
+    if (contribution.constraints or contribution.memberships or
+        contribution.definitions or contribution.value_expr is None):
+      return None
+    if any(kind != 'var' for kind, _ in contribution.head):
+      return None
+    head_variables = [key for _, key in contribution.head]
+    if len(set(head_variables)) != len(head_variables):
+      return None
+    canonical = contribution.canonical.Find
+    # The value must be the product of the reads' values, each used once.
+    def Factors(expression):
+      call = (expression.get('call')
+              if isinstance(expression, dict) else None)
+      if call and call['predicate_name'] == '*':
+        return [f for argument in FieldValues(call)
+                for f in Factors(argument)]
+      return [expression]
+    leaves = Factors(contribution.value_expr)
+    if not all(IsVariable(leaf) for leaf in leaves):
+      return None
+    if any(value_var is None for _, _, value_var in contribution.reads):
+      return None  # A keys-only read is a filter: the general path.
+    if (sorted(canonical(VariableName(leaf)) for leaf in leaves) !=
+        sorted(canonical(value_var)
+               for _, _, value_var in contribution.reads)):
+      return None
+    reads = []
+    body_variables = set()
+    for name, key_map, unused_value_var in contribution.reads:
+      relation = self.plan.relations[name]
+      if not relation.has_value:
+        return None
+      variables = [key_map[f] for f in relation.key_fields]
+      if len(set(variables)) != len(variables):
+        return None  # A diagonal read; the general path handles it.
+      body_variables |= set(variables)
+      reads.append((relation, variables))
+    if (set(head_variables) - body_variables or
+        set(contribution.axes) != body_variables):
+      return None
+
+    def Evaluate(state, tensors):
+      context = EvalContext(self, member, contribution, head_variables,
+                            contribution.axis_type, state, tensors)
+      value, counts = context.ContractionValueAndCounts(reads,
+                                                        head_variables)
+      return counts > 0, value
+    return Evaluate
+
   def ContributionFunction(self, member, contribution):
     jnp = self.jnp
+    if member.portal not in self.sparse:
+      # A member living on a support produces a row vector; the dense
+      # contraction below would hand it a dense tensor instead.
+      contraction = self.TryContractionFunction(member, contribution)
+      if contraction is not None:
+        return contraction
     static = self.StaticPart(member, contribution)
     if static is None:
       eliminated, hoisted_reads, hoisted_memberships = set(), [], []
@@ -3378,7 +3492,7 @@ class Runtime(object):
     return self.sparse_neutral.get(name, 0.0)
 
   def SelectSparse(self, loop_members, all_members, learned_relations,
-                   shadowed_names):
+                   shadowed_names, all_candidates=False):
     """Chooses the relations whose state lives as a vector over a static
     support: every defining contribution rides rows known before the
     iteration (an input table, or the support of another sparse
@@ -3389,13 +3503,18 @@ class Runtime(object):
     other's rules, so everything eligible is assumed sparse and members
     that fail are dropped until the set is stable.  The supports then
     close under the same driving reads.  This is a pure change of
-    representation; LOGICA_NEURAL_DENSE=1 turns it off."""
+    representation; LOGICA_NEURAL_DENSE=1 turns it off.
+
+    With all_candidates (the sparse: true mode of @NeuralTarget), every
+    member may ride a support, not only the loop members, and a dense
+    reader does not veto: it reads through Densify instead."""
     import numpy as np
     self.sparse = {}
     self.sparse_neutral = {}
     self.row_driver_cache = {}
     if self.dense_forced:
       return
+    candidate_members = all_members if all_candidates else loop_members
     input_rows = getattr(self.plan, 'input_rows', {})
 
     def SizeOf(key_types):
@@ -3406,7 +3525,7 @@ class Runtime(object):
 
     members_of = {}   # Candidate key (portal) -> (member, alias names).
     aliases = {}      # Any alias -> candidate key.
-    for member in loop_members:
+    for member in candidate_members:
       if getattr(member, 'is_tkp', False) or not member.key_fields:
         continue
       if SizeOf(member.key_types) >= 2 ** 62:
@@ -3444,12 +3563,17 @@ class Runtime(object):
           if info.driver is None or (
               info.driver[0] not in assumed and
               info.driver[0] in shadowed_names):
+            if os.environ.get('LOGICA_NEURAL_TRACE'):
+              print('dense verdict for %s: %s' % (member.name, info.reason))
             chosen.discard(key)
             changed = True
             break
       assumed = AssumedNames()
       # A reader outside the row form needs the dense tensor: it vetoes
-      # the sparse form of everything it reads.
+      # the sparse form of everything it reads — except in the
+      # all-candidates mode, where such a reader goes through Densify.
+      if all_candidates:
+        continue
       for member in all_members:
         for contribution in member.contributions:
           read_names = [r[0] for r in contribution.reads]
@@ -3526,7 +3650,7 @@ class Runtime(object):
         self.sparse_neutral[name] = neutral
     self.row_driver_cache = {}
     if os.environ.get('LOGICA_NEURAL_TRACE'):
-      for member in loop_members:
+      for member in candidate_members:
         support = self.sparse.get(member.portal)
         form = ('vector over %d support cells' % len(support.flat)
                 if support is not None
@@ -3745,7 +3869,10 @@ class EvalContext(object):
     Returns None when the expression is not such a contraction."""
     jnp = self.jnp
     call = inner.get('call') if isinstance(inner, dict) else None
-    if not call or call['predicate_name'] != '*':
+    if not call or (call['predicate_name'] != '*' and
+                    call['predicate_name'] not in self.runtime.plan.relations):
+      # A product of reads, or one bare read: Sum{A(u, v)} contracts a
+      # single factor over its non-output keys.
       return None
     def Factors(expression):
       # A product of products is one product: a * b * c parses as nested
@@ -3775,32 +3902,231 @@ class EvalContext(object):
         return None  # A diagonal read; the general path handles it.
       reads.append((relation, variables))
 
+    read_variables = []
+    for _, variables in reads:
+      for variable in variables:
+        if variable not in read_variables:
+          read_variables.append(variable)
+    for variable in read_variables:
+      if (variable not in self.axis_position and
+          self.KnowsVariable(variable)):
+        return None  # Bound by a definition: the general path handles it.
+    output_variables = [v for v in read_variables
+                        if v in self.axis_position]
+    value, counts = self.ContractionValueAndCounts(reads, output_variables)
+    return (self.Aligned(value, output_variables),
+            self.Aligned(counts > 0.0, output_variables))
+
+  def ContractionValueAndCounts(self, reads, output_variables):
+    """The (value, counts) tensors of a sum over a product of reads,
+    ordered by output_variables; every other read variable is
+    contracted. Takes the sparse route when a factor warrants it."""
+    jnp = self.jnp
     letters = {}
     def LetterOf(variable):
       if variable not in letters:
         letters[variable] = chr(ord('a') + len(letters))
       return letters[variable]
-    operand_specs = [''.join(LetterOf(v) for v in variables)
-                     for _, variables in reads]
-    for variable in letters:
-      if (variable not in self.axis_position and
-          self.KnowsVariable(variable)):
-        return None  # Bound by a definition: the general path handles it.
-    output_variables = [v for v in letters if v in self.axis_position]
     specification = '%s->%s' % (
-        ','.join(operand_specs),
+        ','.join(''.join(LetterOf(v) for v in variables)
+                 for _, variables in reads),
         ''.join(LetterOf(v) for v in output_variables))
-
+    sparse = self.TrySparseContraction(reads, output_variables)
+    if os.getenv('LOGICA_SPARSE_DEBUG'):
+      print('contraction %s [%s]: %s' % (
+          specification, ','.join(r.name for r, _ in reads),
+          'SPARSE' if sparse is not None else 'dense'))
+    if sparse is not None:
+      return sparse
     operands = []
     counting_operands = []
     for relation, variables in reads:
       mask, values = self.Tensor(relation.name)
       operands.append(jnp.where(mask, values, 0.0))
       counting_operands.append(mask.astype(jnp.float64))
-    value = jnp.einsum(specification, *operands)
-    counts = jnp.einsum(specification, *counting_operands)
-    return (self.Aligned(value, output_variables),
-            self.Aligned(counts > 0.0, output_variables))
+    return (jnp.einsum(specification, *operands),
+            jnp.einsum(specification, *counting_operands))
+
+  SPARSE_DENSITY = 0.05      # A factor this sparse contracts by its rows.
+  SPARSE_MIN_CELLS = 1 << 20  # Dense is fine below a million cells.
+
+  def TrySparseContraction(self, reads, output_variables):
+    """A contraction where one factor is sparse, by its rows.
+
+    Sum{A(..., v, ...) * B(..., h, ...)} with a sparse A (an
+    adjacency-like relation: few present rows in a large key space) is
+    computed over A's present rows only — gather B at the keys it shares
+    with A, multiply by A's values, segment-sum into A's kept keys —
+    instead of a dense einsum over the whole cube. A must carry every
+    contracted variable; it may have any arity, and any number of its
+    keys may be contracted (R-GCN's Sum{NA(r, u, v) * W(r, u, h)}
+    contracts r and u at once). The structure (which rows are present)
+    is fixed, so the row keys are static arrays outside the
+    differentiated trace; gather and segment_sum differentiate cleanly.
+    Counts follow the dense path's rule: an output cell is valid when
+    some contributing pair of valid rows exists. Returns (value, counts)
+    ordered by output_variables; any shape this method does not
+    recognize falls back to the dense einsum by returning None."""
+    jnp = self.jnp
+    if len(reads) not in (1, 2) or not hasattr(jnp, 'einsum'):
+      return None
+    import numpy as np
+    read_variables = []
+    for _, variables in reads:
+      for variable in variables:
+        if variable not in read_variables:
+          read_variables.append(variable)
+    contracted = [v for v in read_variables if v not in output_variables]
+    if not contracted:
+      return None  # A pure product: the dense einsum broadcast is right.
+
+    def Density(relation):
+      mask, _ = self.Tensor(relation.name)
+      try:
+        host = np.asarray(mask)  # Raises on a traced (non-constant) mask.
+      except Exception:
+        return None
+      if host.size < self.SPARSE_MIN_CELLS:
+        return None
+      return host, float(host.sum()) / host.size
+
+    def Rows(relation):
+      """(positions, values, ones, dense shape) of a factor by its rows.
+
+      A member living on a support is its rows already — the vector
+      state attaches to support.positions with no probing and no dense
+      detour, inside a trace as well (the structure is static). A
+      dense-stored relation goes through the density probe and pays off
+      only when large and sparse."""
+      def Full(flat, sizes):
+        # A full support is a dense tensor in row order: contracting by
+        # its rows gains nothing over the einsum, which stays the route.
+        cells = 1
+        for size in sizes:
+          cells *= max(size, 1)
+        return len(flat) >= cells
+      support = self.runtime.sparse.get(relation.name)
+      if support is not None and not Full(support.flat, support.sizes):
+        if os.getenv('LOGICA_SPARSE_DEBUG'):
+          print('rows of %s: support' % relation.name)
+        mask_vector, values_vector = (
+            self.state[relation.name] if relation.name in self.state
+            else self.tensors[relation.name])
+        values = jnp.where(mask_vector, values_vector, 0.0)
+        return (support.positions, values,
+                mask_vector.astype(values.dtype), support.sizes)
+      input_rows = getattr(self.runtime.plan, 'input_rows', {})
+      if (getattr(self.runtime.plan, 'sparse_mode', False)
+          and relation.name in input_rows
+          and relation.name not in self.state
+          and relation.name not in getattr(self.runtime.plan, 'learned', ())):
+        # An input relation's rows are known before training: in the
+        # sparse mode it contracts by them, and its dense tensor — for
+        # a many-keyed input, impossibly large — is never built.
+        table = self.runtime.RowTableOf(relation.name)
+        if table is not None and not Full(table.flat, table.sizes):
+          if os.getenv('LOGICA_SPARSE_DEBUG'):
+            print('rows of %s: input rows' % relation.name)
+          unused_positions, row_values = input_rows[relation.name]
+          values = jnp.asarray(row_values)
+          return (table.positions, values,
+                  jnp.ones(len(row_values), dtype=values.dtype),
+                  table.sizes)
+      probed = Density(relation)
+      if probed is None or probed[1] > self.SPARSE_DENSITY:
+        return None
+      if os.getenv('LOGICA_SPARSE_DEBUG'):
+        print('rows of %s: density probe' % relation.name)
+      mask, values = self.Tensor(relation.name)
+      nonzero = np.nonzero(probed[0])
+      cells = tuple(jnp.asarray(axis) for axis in nonzero)
+      return (nonzero, jnp.where(mask, values, 0.0)[cells],
+              mask[cells].astype(values.dtype), mask.shape)
+
+    def Segments(positions, vars_a, kept, sizes_a):
+      """Static segment ids over the kept keys of A, flattened; returns
+      (ids, segment count, kept sizes). Empty kept keys sum to a scalar
+      segment."""
+      count = len(positions[0]) if positions else 0
+      flat = np.zeros(count, dtype=np.int64)
+      total = 1
+      kept_sizes = []
+      for variable in kept:
+        i = vars_a.index(variable)
+        flat = flat * sizes_a[i] + np.asarray(positions[i])
+        total *= sizes_a[i]
+        kept_sizes.append(sizes_a[i])
+      if total >= 2 ** 31:
+        return None
+      return jnp.asarray(flat), total, kept_sizes
+
+    if len(reads) == 1:
+      # Sum{A(r, u, v)}: a segment sum of A's rows into the kept keys.
+      (rel_a, vars_a) = reads[0]
+      if set(contracted) - set(vars_a) or len(set(vars_a)) != len(vars_a):
+        return None
+      kept = [v for v in output_variables if v in vars_a]
+      if set(kept) != set(output_variables):
+        return None
+      rows = Rows(rel_a)
+      if rows is None:
+        return None
+      positions, vals_a, ones_a, sizes_a = rows
+      segments = Segments(positions, vars_a, kept, sizes_a)
+      if segments is None:
+        return None
+      ids, total, kept_sizes = segments
+      value = jax_segment_sum(jnp, vals_a, ids, total)
+      counts = jax_segment_sum(jnp, ones_a, ids, total)
+      return (value.reshape(kept_sizes), counts.reshape(kept_sizes))
+
+    for sparse_position in (0, 1):
+      (rel_a, vars_a) = reads[sparse_position]
+      (rel_b, vars_b) = reads[1 - sparse_position]
+      if set(contracted) - set(vars_a):
+        continue  # The sparse factor must carry every contracted key.
+      if len(set(vars_a)) != len(vars_a) or len(set(vars_b)) != len(vars_b):
+        continue
+      # B is gathered at every key it shares with A; its other keys stay
+      # as trailing axes and must be outputs. Outputs made of A's keys
+      # become the segments.
+      common = [v for v in vars_b if v in vars_a]
+      rest = [v for v in vars_b if v not in vars_a]
+      if any(v not in output_variables for v in rest):
+        continue
+      kept = [v for v in output_variables if v in vars_a]
+      if any(v not in kept and v not in rest for v in output_variables):
+        continue
+      rows = Rows(rel_a)
+      if rows is None:
+        continue
+      positions, vals_a, ones_a, sizes_a = rows
+      mask_b, values_b = self.Tensor(rel_b.name)
+
+      order = ([vars_b.index(v) for v in common] +
+               [vars_b.index(v) for v in rest])
+      b_vals = jnp.transpose(jnp.where(mask_b, values_b, 0.0), order)
+      b_ones = jnp.transpose(mask_b.astype(values_b.dtype), order)
+      gather = tuple(jnp.asarray(np.asarray(positions[vars_a.index(v)]))
+                     for v in common)
+      segments = Segments(positions, vars_a, kept, sizes_a)
+      if segments is None:
+        continue
+      ids, total, kept_sizes = segments
+
+      expand = (slice(None),) + (None,) * len(rest)
+      products = vals_a[expand] * b_vals[gather]
+      ones = ones_a[expand] * b_ones[gather]
+      value = jax_segment_sum(jnp, products, ids, total)
+      counts = jax_segment_sum(jnp, ones, ids, total)
+      rest_sizes = [b_vals.shape[len(common) + i] for i in range(len(rest))]
+      value = value.reshape(kept_sizes + rest_sizes)
+      counts = counts.reshape(kept_sizes + rest_sizes)
+      produced = kept + rest
+      permutation = [produced.index(v) for v in output_variables]
+      return (jnp.transpose(value, permutation),
+              jnp.transpose(counts, permutation))
+    return None
 
   def EvalCombine(self, combine):
     """Inner aggregating expression: Sum{...}, Take{...}, etc."""
