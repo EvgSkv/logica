@@ -17,7 +17,7 @@
 # https://en.wikipedia.org/wiki/PageRank
 
 @Engine("duckdb");
-@Recursive(PageRank, 8, mode: "socratic");
+@Recursive(PageRank, 6, mode: "socratic");
 
 # Data.
 Link("a", "b");

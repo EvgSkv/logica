@@ -56,6 +56,9 @@ def NeuralTests():
           golden='neural/neural_coordinate_use.txt', use_concertina=True)
   RunTest('neural/neural_basic', src='neural/neural_basic.l',
           golden='neural/neural_basic.txt', use_concertina=True)
+  RunTest('neural/neural_functional_macro',
+          src='neural/neural_functional_macro.l',
+          golden='neural/neural_functional_macro.txt', use_concertina=True)
   RunTest('neural/neural_d', src='neural/neural_d.l',
           golden='neural/neural_d.txt', use_concertina=True)
   RunTest('neural/neural_pagerank', src='neural/neural_pagerank.l',
@@ -130,7 +133,8 @@ def NeuralDenseOracleTests():
                  'neural_static_hoist', 'neural_game_of_life',
                  'neural_hash_functions', 'neural_target_linear',
                  'neural_animal_fights', 'neural_mlp', 'neural_xor',
-                 'neural_heat', 'neural_functor_walk']:
+                 'neural_heat', 'neural_functor_walk',
+                 'neural_functional_macro']:
       RunTest('dense/' + name, src='neural/%s.l' % name,
               golden='neural/%s.txt' % name, use_concertina=True)
   finally:
@@ -151,7 +155,8 @@ def LogixTests():
                  'neural_game_of_life', 'neural_hash_functions',
                  'neural_target_linear', 'neural_animal_fights',
                  'neural_mlp', 'neural_xor', 'neural_heat',
-                 'neural_functor_walk']:
+                 'neural_functor_walk',
+                 'neural_functional_macro']:
       RunTest('logix/' + name, src='neural/%s.l' % name,
               golden='neural/%s.txt' % name, use_concertina=True)
   finally:

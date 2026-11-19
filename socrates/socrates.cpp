@@ -411,7 +411,7 @@ int MonoIn(const Expr& e, int v) {
 struct Slots {
   int nv = 0;
   std::vector<num> vals;        // slot * nv + column
-  std::vector<num> vals_snap;   // values at round start
+  std::vector<num> vals_snap;   // values as last published (logged): what the readers were last told
   std::vector<uint8_t> alive;   // 1: the key holds a value (2: being claimed)
   std::vector<uint8_t> alive_snap;
   std::vector<uint8_t> queued;  // key already in next_delta this round
@@ -530,14 +530,13 @@ struct State {
     spill.resize(threads); dirty_keys.resize(threads); dirty_overflow.resize(threads);
     i64 span = domain_hi - domain_lo + 1;
     if (computed_keys) span = 0;  // keys may be anything: generic storage
-    if (t == SEMI && arity != 1) span = 0;  // the bags follow slots, which the packed map moves on rehash
     if (arity == 1 && span > 0 && span < (i64)2000000000LL) {
       dense = true; lo = domain_lo; slots.Resize(span);
     } else if (arity == 2 && nv == 0 && t == LATTICE && span > 0 && span <= (1LL << 17) && span * span <= (1LL << 34)) {
       // The bitmap only takes offers; a recomputed set needs slots it can clear.
       dense2 = true; lo = domain_lo; n2 = span;
       bits2.assign((size_t)((span * span + 63) / 64), 0);
-    } else if (arity == 2 && t != SEMI && domain_lo >= -(1LL << 31) && domain_hi < (1LL << 31)) {
+    } else if (arity == 2 && domain_lo >= -(1LL << 31) && domain_hi < (1LL << 31)) {
       packed = true; pmap.Init(1 << 16); slots.Resize(1 << 16);
     }
   }
@@ -735,6 +734,10 @@ struct State {
   void Rehash(size_t cap) {
     PackedMap old; old.keys.swap(pmap.keys);
     Slots os = slots;
+    std::vector<std::vector<num>> obag; obag.swap(bag);
+    std::vector<int32_t> orefs; orefs.swap(refs);
+    if (!obag.empty()) bag.resize(cap);
+    if (!orefs.empty()) refs.assign(cap, 0);
     pmap.Init(cap); slots.Resize(0); slots.Resize(cap);
     for (size_t i = 0; i < old.keys.size(); i++) if (old.keys[i] != PackedMap::EMPTY) {
       size_t j = PackedMap::Hash(old.keys[i]) & pmap.mask;
@@ -742,6 +745,8 @@ struct State {
       pmap.keys[j] = old.keys[i]; pmap.count++;
       for (int c = 0; c < nv; c++) { slots.vals[j * nv + c] = os.vals[i * nv + c]; slots.vals_snap[j * nv + c] = os.vals_snap[i * nv + c]; }
       slots.alive[j] = os.alive[i]; slots.alive_snap[j] = os.alive_snap[i]; slots.queued[j] = os.queued[i]; slots.dirty[j] = os.dirty[i];
+      if (i < obag.size()) bag[j].swap(obag[i]);   // a semigroup's bags and counts move with their slots
+      if (i < orefs.size()) refs[j] = orefs[i];
     }
   }
 
@@ -774,7 +779,14 @@ struct State {
           }
         } else keep = alive || was;
       }
-      if (keep) { if (kept != i) memcpy(D.row(kept), row, w * sizeof(num)); kept++; }
+      if (keep) {
+        // The key is published: what it holds now is what its readers have
+        // been told. A change too small to publish stays as the gap between
+        // the two and is published once it has grown past the threshold.
+        for (int c = 0; c < nv; c++) slots.vals_snap[s * nv + c] = slots.vals[s * nv + c];
+        slots.alive_snap[s] = slots.alive[s];
+        if (kept != i) memcpy(D.row(kept), row, w * sizeof(num)); kept++;
+      }
     }
     D.data.resize(kept * w);
     log.width = w;
@@ -2260,19 +2272,33 @@ struct Engine {
     int nkeys = S.arity, nv = S.nv;
     bool collects = false;
     for (Agg a : S.aggs) collects |= Collects(a);
-    // Slots are found serially (the generic table grows); the rest is per slot.
+    // Slots are found in parallel on a dense or packed table (a packed
+    // table that fills up is grown, bags moving with the slots, and the
+    // slots are found again); serially on the generic table, which grows.
     std::vector<std::pair<size_t, const num*>> work;
     size_t nslots = 0;
-    for (auto& O : out) {
-      size_t n = O.size();
-      for (size_t r = 0; r < n; r++) {
-        const num* row = O.row(r);
-        size_t slot = S.SlotOf(row);
-        if (slot == ~size_t(0)) Fail("no slot for a key of " + S.name);
-        work.emplace_back(slot, row);
-        nslots = std::max(nslots, slot + 1);
+    bool generic = !S.dense && !S.packed;
+    size_t total = 0; for (auto& O : out) total += O.size();
+    if (S.packed && (S.pmap.count + total / 8) * 2 > S.pmap.keys.size()) S.Rehash(S.pmap.keys.size() * 2);
+    for (bool spilled = true; spilled;) {
+      spilled = false;
+      work.assign(total, {0, nullptr});
+      std::vector<size_t> base(out.size() + 1, 0);
+      for (size_t o = 0; o < out.size(); o++) base[o + 1] = base[o] + out[o].size();
+#pragma omp parallel for num_threads(generic || total < 4096 ? 1 : std::max(1, threads)) schedule(static) reduction(||: spilled)
+      for (size_t o = 0; o < out.size(); o++) {
+        Rows& O = out[o];
+        size_t n = O.size();
+        for (size_t r = 0; r < n && !spilled; r++) {
+          const num* row = O.row(r);
+          size_t slot = S.SlotOf(row);
+          if (slot == ~size_t(0)) { if (S.packed) { spilled = true; break; } Fail("no slot for a key of " + S.name); }
+          work[base[o] + r] = {slot, row};
+        }
       }
+      if (spilled) S.Rehash(S.pmap.keys.size() * 4);
     }
+    for (auto& w : work) nslots = std::max(nslots, w.first + 1);
     if (S.exists) { if (S.refs.size() < nslots) S.refs.resize(nslots, 0); }
     else if (S.bag.size() < nslots) S.bag.resize(nslots);
     int T = collects || work.size() < 4096 ? 1 : std::max(1, threads);
@@ -2707,6 +2733,23 @@ struct Engine {
           int arity = atom.recursive ? states.at(atom.rel).arity : (int)atom.args.size() - (atom.has_value ? 1 : 0);
           for (int c = 0; c < arity && c < (int)atom.args.size(); c++) if (depends(atom.args[c]) && ht != State::SEMI) fail("a lookup depends on a changing value (only a push with both sides follows it)");
         }
+        // A changing atom that no key column joins to the rest of the body
+        // (a centroid against every point, a total against every key)
+        // reaches every body of the rule when it changes: finding the
+        // affected bodies already costs a full pass, so the component is
+        // recomputed whole instead of differentially.
+        if (rule.atoms.size() > 1) for (size_t a = 0; a < rule.atoms.size(); a++) {
+          const Atom& atom = rule.atoms[a];
+          if (!atom.recursive || atom.unnest) continue;
+          int arity = states.at(atom.rel).arity;
+          bool joined = false;
+          for (int c = 0; c < arity && c < (int)atom.args.size() && !joined; c++) {
+            if (atom.args[c].kind != Expr::VAR) continue;
+            for (size_t b = 0; b < rule.atoms.size() && !joined; b++) if (b != a) for (auto& e : rule.atoms[b].args) if (e.kind == Expr::VAR && e.var == atom.args[c].var) { joined = true; break; }
+          }
+          static const bool force_differential = getenv("SOCRATES_MODE") && !strcmp(getenv("SOCRATES_MODE"), "differential");  // benchmark: the tiers even where a change reaches every body
+          if (!joined) fail("a changing atom is not joined to the rest of the body by a key, so its change reaches every body", !force_differential);
+        }
         int nrec = 0; for (auto& atom : rule.atoms) nrec += atom.recursive;
         bool conds_on_values = false;
         for (auto& c : rule.conds) conds_on_values |= depends(c);
@@ -3028,7 +3071,6 @@ struct Engine {
       for (State* member : members) {
         State& S = *member;
         double ts = Now();
-        S.Snapshot();
         state_index.clear();
         full_state.clear();
         (void)needs_full;  // materialized copies are made when a plan needs them (FullState)

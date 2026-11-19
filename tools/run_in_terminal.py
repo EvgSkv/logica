@@ -151,12 +151,18 @@ def Run(filename, predicate_name,
         [program.execution], SqlRunner(engine, logic_program=program), engine,
         display_mode=display_mode)[predicate_name]
   except rule_translate.RuleCompileException as rule_compilation_exception:
+    # The display animation lives on stdout, the error on stderr: flush
+    # the frames first, so a captured log shows the error last rather
+    # than buried under later-flushed frames.
+    sys.stdout.flush()
     rule_compilation_exception.ShowMessage()
     sys.exit(1)
   except functors.FunctorError as functor_exception:
+    sys.stdout.flush()
     functor_exception.ShowMessage()
     sys.exit(1)
   except infer.TypeErrorCaughtException as type_error_exception:
+    sys.stdout.flush()
     type_error_exception.ShowMessage()
     sys.exit(1)
 
@@ -194,12 +200,18 @@ def RunMany(filename, predicate_names,
         executions, SqlRunner(engine, logic_program=program), engine,
         display_mode=display_mode)
   except rule_translate.RuleCompileException as rule_compilation_exception:
+    # The display animation lives on stdout, the error on stderr: flush
+    # the frames first, so a captured log shows the error last rather
+    # than buried under later-flushed frames.
+    sys.stdout.flush()
     rule_compilation_exception.ShowMessage()
     sys.exit(1)
   except functors.FunctorError as functor_exception:
+    sys.stdout.flush()
     functor_exception.ShowMessage()
     sys.exit(1)
   except infer.TypeErrorCaughtException as type_error_exception:
+    sys.stdout.flush()
     type_error_exception.ShowMessage()
     sys.exit(1)
 

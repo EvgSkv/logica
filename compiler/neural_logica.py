@@ -525,16 +525,28 @@ def ConeComponents(dependencies, target, learn):
   """Components of one learning cone, dependencies first."""
   learned = set(learn)
 
+  rules_of = collections.defaultdict(list)
+  for rule in dependencies.rules:
+    head = rule['head']['predicate_name']
+    if head[0] != '@':
+      rules_of[head].append(rule)
+  functional = {p for p in rules_of if IsFunctional(p, rules_of)}
+
   def DependsOnLearned(p):
     return bool(learned & set(dependencies.args_of.get(p, [])))
 
-  def DirectDependencies(p):
-    """Direct dependencies, looking through multi-body auxiliaries:
-    an auxiliary is the inside of its parent, not a member itself."""
+  def DirectDependencies(p, _seen=None):
+    """Direct dependencies, looking through multi-body auxiliaries and
+    functional predicates: an auxiliary is the inside of its parent and
+    a functional is a macro of its call site, not a member itself."""
+    seen = set() if _seen is None else _seen
+    if p in seen:
+      return []
+    seen.add(p)
     result = []
     for d in dependencies.direct_args_of.get(p, []):
-      if AUX_MARKER in d:
-        result.extend(DirectDependencies(d))
+      if AUX_MARKER in d or d in functional:
+        result.extend(DirectDependencies(d, seen))
       else:
         result.append(d)
     return result
@@ -759,6 +771,20 @@ def IsFunctional(predicate_name, rules_of):
       return True
     if len(functional) == previous_size:
       return False
+
+
+def SubstituteVariables(node, substitution):
+  """A copy of the expression with variables replaced by expressions."""
+  if IsVariable(node):
+    replacement = substitution.get(VariableName(node))
+    if replacement is not None:
+      return copy.deepcopy(replacement)
+  if isinstance(node, dict):
+    return {k: SubstituteVariables(v, substitution)
+            for k, v in node.items()}
+  if isinstance(node, list):
+    return [SubstituteVariables(v, substitution) for v in node]
+  return node
 
 
 def PlainFileRead(rules):
@@ -1346,6 +1372,51 @@ class NeuralPlan(object):
     """Rules of the program; the target plan may substitute a copy
     with the TKP probability reads rewritten."""
     return getattr(self, 'plan_rules', self.program.rules)
+
+  def LooksFunctional(self, name):
+    """True for a user predicate that is functional but not a macro:
+    used to explain, rather than mystify, why a call cannot inline."""
+    rules_of = {name: [r for n, r in self.PlanRules() if n == name]}
+    return bool(rules_of[name]) and IsFunctional(name, rules_of)
+
+  def FunctionalMacro(self, name):
+    """(field -> formal variable, value expression) of a bodyless
+    functional predicate, or None. Such a call inlines at evaluation:
+    the formals are replaced by the caller's argument expressions."""
+    cache = getattr(self, '_functional_macros', None)
+    if cache is None:
+      cache = self._functional_macros = {}
+    if name in cache:
+      return cache[name]
+    cache[name] = None
+    rules = [r for n, r in self.PlanRules() if n == name]
+    if len(rules) == 1 and 'body' not in rules[0]:
+      [rule] = rules
+      formals, value_expr, plain = {}, None, True
+      for fv in rule['head']['record']['field_value']:
+        expression = fv['value'].get('expression')
+        if fv['field'] == 'logica_value':
+          value_expr = expression
+        elif expression is not None and IsVariable(expression):
+          formals[fv['field']] = VariableName(expression)
+        else:
+          plain = False
+      if plain and value_expr is not None and formals:
+        # Every variable of the body must be a formal: anything else
+        # would silently capture a caller variable after substitution.
+        free = set()
+        nodes = [value_expr]
+        while nodes:
+          node = nodes.pop()
+          if IsVariable(node):
+            free.add(VariableName(node))
+          elif isinstance(node, dict):
+            nodes.extend(node.values())
+          elif isinstance(node, list):
+            nodes.extend(node)
+        if free <= set(formals.values()):
+          cache[name] = (formals, value_expr)
+    return cache[name]
 
   def Signature(self, predicate_name, display_name=None):
     """([key fields], [column classes], has_value) of a predicate.
@@ -3806,6 +3877,33 @@ class EvalContext(object):
       return self.Eval(FieldValues(call)[0])
     if op in self.runtime.plan.relations:
       return self.EvalRelationCall(call)
+    macro = self.runtime.plan.FunctionalMacro(op)
+    if macro is not None:
+      expanding = getattr(self, '_expanding_macros', None)
+      if expanding is None:
+        expanding = self._expanding_macros = []
+      if op in expanding:
+        Error('Functional predicate %s is recursive; recursive '
+              'functions are outside of the neural fragment.' %
+              color.Warn(op), self.contribution.rule_text)
+      formals, value_expr = macro
+      substitution = {}
+      for fv in call['record']['field_value']:
+        if fv['field'] not in formals:
+          Error('Functional predicate %s has no argument %s.' %
+                (color.Warn(op), color.Warn(str(fv['field']))),
+                self.contribution.rule_text)
+        substitution[formals[fv['field']]] = fv['value']['expression']
+      expanding.append(op)
+      try:
+        return self.Eval(SubstituteVariables(value_expr, substitution))
+      finally:
+        expanding.pop()
+    if self.runtime.plan.LooksFunctional(op):
+      Error('Functional predicate %s cannot be used in a neural rule: '
+            'only a single bodyless rule over plain variable arguments '
+            'inlines. Rewrite it in that form or inline it by hand.' %
+            color.Warn(op), self.contribution.rule_text)
     argument_pairs = [self.Eval(a) for a in FieldValues(call)]
     arguments = [a for a, _ in argument_pairs]
     valid = True
